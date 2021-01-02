@@ -1,0 +1,31 @@
+syntax = "proto3";
+option go_package = "generated/proto";
+
+package api;
+
+service api {
+  rpc getDomains(Empty) returns (GetDomainsResponse) {}
+  rpc createDomain(CreateDomainRequest) returns (Domain) {}
+  rpc regenerateDomainKey(RegenerateDomainKeyRequest) returns (Domain) {}
+}
+
+message Empty {
+}
+
+message GetDomainsResponse {
+  repeated Domain domains = 1;
+}
+
+message CreateDomainRequest {
+  string domain = 1;
+}
+
+message RegenerateDomainKeyRequest {
+  string domain = 1;
+}
+
+message Domain {
+  string domain = 1;
+  string key = 2;
+  string dkimPubKey = 3;
+}

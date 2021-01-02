@@ -1,0 +1,24 @@
+syntax = "proto3";
+option go_package = "smtp.ludusrusso.space/generated/proto";
+
+package mailer;
+
+service Mailer {
+  rpc SendHTML(SendHTMLRequest) returns (SendHTMLResponse) {}
+}
+
+message SendHTMLRequest {
+  Sender sender = 1;
+  repeated string to = 2;
+  string subject = 3;
+  string html = 4;
+}
+
+message SendHTMLResponse {
+  string messageID  = 1;
+}
+
+message Sender {
+  string email = 1;
+  string alias = 2;
+}
