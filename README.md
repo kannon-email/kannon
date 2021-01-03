@@ -10,7 +10,7 @@ Cloud Native SMTP mail sender
 - Manage Statistics
 - Manage Templates
 
-## Server Configuration
+## Server Configuration
 
 The SMTP server need to be configured in order to work properly.
 
