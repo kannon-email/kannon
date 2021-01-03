@@ -10,9 +10,9 @@ import (
 // Domain represent a sender domain
 type Domain struct {
 	gorm.Model
-	Domain   string
+	Domain   string `gorm:"index,unique"`
 	Key      string
-	DKIMKeys DKIMKeys `gorm:"embedded;embeddedPrefix:dkim"`
+	DKIMKeys DKIMKeys `gorm:"embedded;embeddedPrefix:dkim_"`
 }
 
 // DKIMKeys contains DKIM public and private keys of a domain

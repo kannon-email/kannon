@@ -1,10 +1,13 @@
 syntax = "proto3";
-option go_package = "smtp.ludusrusso.space/generated/proto";
+option go_package = "generated/proto";
+
+import "google/protobuf/timestamp.proto";
 
 package mailer;
 
 service Mailer {
-  rpc SendHTML(SendHTMLRequest) returns (SendHTMLResponse) {}
+  rpc SendHTML(SendHTMLRequest) returns (SendResponse) {}
+  rpc SendTemplate(SendTemplateRequest) returns (SendResponse) {}
 }
 
 message SendHTMLRequest {
@@ -14,8 +17,19 @@ message SendHTMLRequest {
   string html = 4;
 }
 
-message SendHTMLResponse {
+message SendTemplateRequest {
+  Sender sender = 1;
+  repeated string to = 2;
+  string subject = 3;
+  string templateID = 4;
+}
+
+
+message SendResponse {
   string messageID  = 1;
+  string templateID = 2;
+  google.protobuf.Timestamp scheduled_time = 3;
+
 }
 
 message Sender {

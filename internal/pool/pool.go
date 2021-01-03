@@ -11,7 +11,6 @@ import (
 
 // SendingPoolManager is a manger for sending pool
 type SendingPoolManager interface {
-	CreateTemplate(HTML string, templateType db.TemplateType) (db.Template, error)
 	AddPool(
 		template db.Template,
 		to []string,
@@ -26,19 +25,6 @@ type sendingPoolManager struct {
 	db *gorm.DB
 }
 
-// CreateTemplate creates a new template
-func (m *sendingPoolManager) CreateTemplate(HTML string, templateType db.TemplateType) (db.Template, error) {
-	template := db.Template{
-		HTML: HTML,
-		Type: templateType,
-	}
-
-	if err := m.db.Create(&template).Error; err != nil {
-		return db.Template{}, err
-	}
-	return template, nil
-}
-
 // AddPool starts a new schedule in the pool
 func (m *sendingPoolManager) AddPool(
 	template db.Template,
@@ -51,7 +37,7 @@ func (m *sendingPoolManager) AddPool(
 		Domain:     domain,
 		Subject:    subject,
 		Sender:     db.Sender(from),
-		TemplateID: template.ID,
+		TemplateID: template.TemplateID,
 	}
 
 	var poolEmails []db.SendingPoolEmail

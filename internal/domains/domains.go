@@ -1,6 +1,7 @@
 package domains
 
 import (
+	"fmt"
 	"math/rand"
 	"time"
 
@@ -20,6 +21,7 @@ type domainManager struct {
 type DomainManager interface {
 	CreateDomain(domain string) (db.Domain, error)
 	FindDomain(domain string) (db.Domain, error)
+	FindDomainWithKey(domain string, key string) (db.Domain, error)
 	GetAllDomains() ([]db.Domain, error)
 	Close() error
 }
@@ -44,13 +46,25 @@ func (dm *domainManager) CreateDomain(domain string) (db.Domain, error) {
 	return newDomain, nil
 }
 
-func (dm *domainManager) FindDomain(domain string) (db.Domain, error) {
-	domainModel := db.Domain{}
-	err := dm.db.Find(&domainModel, "domain = ?", domain).Error
+func (dm *domainManager) FindDomain(d string) (db.Domain, error) {
+	domain := db.Domain{}
+	err := dm.db.First(&domain, "domain = ?", d).Error
 	if err != nil {
-		return domainModel, err
+		return domain, err
 	}
-	return domainModel, nil
+	return domain, nil
+}
+
+func (dm *domainManager) FindDomainWithKey(d string, k string) (db.Domain, error) {
+	domain, err := dm.FindDomain(d)
+	if err != nil {
+		return domain, err
+	}
+
+	if domain.Key != k {
+		return domain, fmt.Errorf("Invalid key")
+	}
+	return domain, nil
 }
 
 func (dm *domainManager) GetAllDomains() ([]db.Domain, error) {

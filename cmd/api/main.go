@@ -4,7 +4,6 @@ import (
 	"net"
 
 	"github.com/joho/godotenv"
-	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"smtp.ludusrusso.space/generated/proto"
@@ -12,18 +11,16 @@ import (
 )
 
 func main() {
+	log.SetFormatter(&log.JSONFormatter{})
 	runGrpcServer()
 }
 
 func runGrpcServer() error {
-	err := godotenv.Load()
-	if err != nil {
-		logrus.Fatal("Error loading .env file")
-	}
+	godotenv.Load()
 
 	dbi, err := db.NewDb(true)
 	if err != nil {
-		logrus.Fatalf("cannot create db: %v\n", err)
+		log.Fatalf("cannot create db: %v\n", err)
 	}
 
 	apiService, err := createAPIService(dbi)
@@ -42,7 +39,7 @@ func runGrpcServer() error {
 	s := grpc.NewServer()
 	proto.RegisterApiServer(s, apiService)
 
-	log.Printf("🚀 starting gRPC... Listening on %v\n", lis.Addr())
+	log.Infof("🚀 starting gRPC... Listening on %v\n", lis.Addr())
 	if err := s.Serve(lis); err != nil {
 		return err
 	}

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -14,15 +13,11 @@ import (
 )
 
 func main() {
-	err := godotenv.Load()
-	if err != nil {
-		logrus.Fatal("Error loading .env file")
-	}
+	godotenv.Load()
 
-	fmt.Printf("Ciao\n")
 	dbi, err := db.NewDb(true)
 	sender := smtp.NewSender("mail.ludusrusso.space")
-	ms := mailer.NewSMTPMailer(sender)
+	ms := mailer.NewSMTPMailer(sender, dbi)
 
 	if err != nil {
 		logrus.Fatalf("cannot create db: %v\n", err)
@@ -44,10 +39,10 @@ func main() {
 
 		wg.Add(len(emails))
 		for _, email := range emails {
-			go func(email *db.SendingPoolEmail) {
+			go func(email db.SendingPoolEmail) {
 				ms.Send(email)
 				wg.Done()
-			}(&email)
+			}(email)
 		}
 		wg.Wait()
 		logrus.Infof("done sending emails\n")

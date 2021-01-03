@@ -18,7 +18,7 @@ type headers map[string]string
 type smtpMailer struct {
 	Sender  smtp.Sender
 	headers headers
-	db      gorm.DB
+	db      *gorm.DB
 }
 
 type sendData struct {
@@ -29,7 +29,7 @@ type sendData struct {
 	Params  map[string]interface{}
 }
 
-func (m *smtpMailer) Send(email *db.SendingPoolEmail) error {
+func (m *smtpMailer) Send(email db.SendingPoolEmail) error {
 	err := m.sendEmail(email)
 	if err != nil {
 		email.Error = err.Error()
@@ -37,12 +37,14 @@ func (m *smtpMailer) Send(email *db.SendingPoolEmail) error {
 	} else {
 		email.Status = db.SendingPoolStatusSent
 	}
-	return m.db.Save(email).Error
+	return m.db.Save(&email).Error
 }
 
-func (m *smtpMailer) sendEmail(email *db.SendingPoolEmail) error {
-	var pool db.SendingPool
-	err := m.db.Find(&pool, email.SendingPoolID).Error
+func (m *smtpMailer) sendEmail(email db.SendingPoolEmail) error {
+	pool := db.SendingPool{
+		ID: email.SendingPoolID,
+	}
+	err := m.db.Where(&pool).First(&pool).Error
 	if err != nil {
 		return err
 	}
@@ -54,7 +56,7 @@ func (m *smtpMailer) sendEmail(email *db.SendingPoolEmail) error {
 	}
 
 	var template db.Template
-	err = m.db.Find(&template, email.SendingPoolID).Error
+	err = m.db.Find(&template, "template_id = ?", pool.TemplateID).Error
 	if err != nil {
 		return err
 	}
@@ -105,9 +107,10 @@ func (m *smtpMailer) prepareMessage(data sendData, html string) ([]byte, error) 
 }
 
 // NewSMTPMailer creates an SMTP mailer
-func NewSMTPMailer(sender smtp.Sender) Mailer {
+func NewSMTPMailer(sender smtp.Sender, db *gorm.DB) Mailer {
 	return &smtpMailer{
 		Sender: sender,
+		db:     db,
 		headers: headers{
 			"X-Sender": "Smtp Mailer",
 		},

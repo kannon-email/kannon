@@ -20,16 +20,19 @@ const (
 
 // Template represent an HTML template to send
 type Template struct {
-	ID          uint   `gorm:"primarykey"`
-	TemplateID  string `gorm:"index,unique"`
-	HTML        string
-	Type        TemplateType `gorm:"default:tmp"`
-	Domain      string
-	SendingPool []SendingPool
+	ID         uint         `gorm:"primarykey"`
+	TemplateID string       `gorm:"index,unique"`
+	Domain     string       `gorm:"index"`
+	Type       TemplateType `gorm:"default:tmp"`
+	HTML       string
 }
 
 // BeforeCreate hooks build UID of the template
 func (t *Template) BeforeCreate(tx *gorm.DB) (err error) {
-	t.TemplateID = fmt.Sprintf("template/%v@%v", uuid.New().String(), t.Domain)
+	if t.Type == TemplateTypePermanent {
+		t.TemplateID = fmt.Sprintf("template/%v@%v", uuid.New().String(), t.Domain)
+	} else {
+		t.TemplateID = fmt.Sprintf("tmp-template/%v@%v", uuid.New().String(), t.Domain)
+	}
 	return nil
 }
