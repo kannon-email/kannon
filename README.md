@@ -2,7 +2,9 @@
 
 Cloud Native SMTP mail sender
 
-> You need a k8s environment in a private cluster. Actually, due to limitations of AWS, GCP etc. on port 25 this project will not work on cloud providers.
+> Due to limitations of AWS, GCP etc. on port 25 this project will not work on cloud providers that block port 25.
+
+Tested on kubernello
 
 ## TODO
 
