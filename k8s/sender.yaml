@@ -1,5 +1,5 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: sender
   labels:
@@ -9,6 +9,7 @@ spec:
   selector:
     matchLabels:
       name: sender
+  serviceName: sender
   template:
     metadata:
       labels:
@@ -30,6 +31,3 @@ spec:
               cpu: '1'
             requests:
               cpu: '50m'
-          ports:
-            - containerPort: 50051
-              name: 'grpc'

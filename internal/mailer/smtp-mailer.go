@@ -2,9 +2,10 @@ package mailer
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
+	"time"
 
-	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/mail.v2"
 	"gorm.io/gorm"
@@ -22,11 +23,13 @@ type smtpMailer struct {
 }
 
 type sendData struct {
-	From    string
-	Sender  string
-	To      string
-	Subject string
-	Params  map[string]interface{}
+	From      string
+	Sender    string
+	To        string
+	Subject   string
+	Domain    string
+	Params    map[string]interface{}
+	MessageID string
 }
 
 func (m *smtpMailer) Send(email db.SendingPoolEmail) error {
@@ -61,10 +64,12 @@ func (m *smtpMailer) sendEmail(email db.SendingPoolEmail) error {
 		return err
 	}
 	data := sendData{
-		From:    pool.Sender.Email,
-		Sender:  pool.Sender.GetSender(),
-		To:      email.To,
-		Subject: pool.Subject,
+		From:      pool.Sender.Email,
+		Sender:    pool.Sender.GetSender(),
+		To:        email.To,
+		Subject:   pool.Subject,
+		Domain:    domain.Domain,
+		MessageID: pool.MessageID,
 	}
 
 	msg, err := m.prepareMessage(data, template.HTML)
@@ -83,7 +88,11 @@ func (m *smtpMailer) sendEmail(email db.SendingPoolEmail) error {
 	if err != nil {
 		return err
 	}
-	err = m.Sender.Send(data.From, data.To, signedMsg)
+
+	emailBase64 := base64.URLEncoding.EncodeToString([]byte(data.To))
+	returnPath := fmt.Sprintf("bump_%v-%v", emailBase64, pool.MessageID)
+
+	err = m.Sender.Send(returnPath, data.To, signedMsg)
 	if err != nil {
 		return err
 	}
@@ -92,17 +101,14 @@ func (m *smtpMailer) sendEmail(email db.SendingPoolEmail) error {
 }
 
 func (m *smtpMailer) prepareMessage(data sendData, html string) ([]byte, error) {
+	emailBase64 := base64.URLEncoding.EncodeToString([]byte(data.To))
+
 	headers := headers(m.headers)
 	headers["Subject"] = data.Subject
 	headers["From"] = data.Sender
 	headers["To"] = data.To
-
-	id, err := uuid.NewRandom()
-	if err != nil {
-		return nil, err
-	}
-	headers["Message-ID"] = fmt.Sprintf("<%v@%v>", id.String(), m.Sender.SenderName())
-
+	headers["Message-ID"] = fmt.Sprintf("<%v/%v>", emailBase64, data.MessageID)
+	headers["X-Pool-Message-ID"] = data.MessageID
 	return renderMsg(html, data.From, data.To, headers)
 }
 
@@ -112,7 +118,7 @@ func NewSMTPMailer(sender smtp.Sender, db *gorm.DB) Mailer {
 		Sender: sender,
 		db:     db,
 		headers: headers{
-			"X-Sender": "Smtp Mailer",
+			"X-Mailer": "SMTP Mailer",
 		},
 	}
 }
@@ -124,7 +130,7 @@ func renderMsg(html string, from, to string, headers headers) ([]byte, error) {
 	for key, value := range headers {
 		msg.SetHeader(key, value)
 	}
-
+	msg.SetDateHeader("Date", time.Now())
 	msg.SetBody("text/html", html)
 
 	var buff bytes.Buffer

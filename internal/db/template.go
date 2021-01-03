@@ -3,7 +3,7 @@ package db
 import (
 	"fmt"
 
-	"github.com/google/uuid"
+	"gopkg.in/lucsky/cuid.v1"
 	"gorm.io/gorm"
 )
 
@@ -30,9 +30,9 @@ type Template struct {
 // BeforeCreate hooks build UID of the template
 func (t *Template) BeforeCreate(tx *gorm.DB) (err error) {
 	if t.Type == TemplateTypePermanent {
-		t.TemplateID = fmt.Sprintf("template/%v@%v", uuid.New().String(), t.Domain)
+		t.TemplateID = fmt.Sprintf("template-%v@%v", cuid.New(), t.Domain)
 	} else {
-		t.TemplateID = fmt.Sprintf("tmp-template/%v@%v", uuid.New().String(), t.Domain)
+		t.TemplateID = fmt.Sprintf("tmp-template-%v@%v", cuid.New(), t.Domain)
 	}
 	return nil
 }

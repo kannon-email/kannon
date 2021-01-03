@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
 	psql "github.com/jinzhu/gorm/dialects/postgres"
+	"gopkg.in/lucsky/cuid.v1"
 	"gorm.io/gorm"
 )
 
@@ -66,6 +66,6 @@ type SendingPool struct {
 
 // BeforeCreate hooks build UID of the messageID
 func (sp *SendingPool) BeforeCreate(tx *gorm.DB) error {
-	sp.MessageID = fmt.Sprintf("message/%v@%v", uuid.New().String(), sp.Domain)
+	sp.MessageID = fmt.Sprintf("message-%v@%v", cuid.New(), sp.Domain)
 	return nil
 }
