@@ -4,6 +4,12 @@ Cloud Native SMTP mail sender
 
 > You need a k8s environment in a private cluster. Actually, due to limitations of AWS, GCP etc. on port 25 this project will not work on cloud providers.
 
+## TODO
+
+- Add GUI and User in React
+- Manage Statistics
+- Manage Templates
+
 ## Server Configuration
 
 The SMTP server need to be configured in order to work properly.
