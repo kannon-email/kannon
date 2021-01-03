@@ -9,6 +9,8 @@ Cloud Native SMTP mail sender
 - Add GUI and User in React
 - Manage Statistics
 - Manage Templates
+- Enable Templating
+- Enable multiple node seding
 
 ## Server Configuration
 
