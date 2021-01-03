@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"sync"
 	"time"
 
@@ -14,9 +15,13 @@ import (
 
 func main() {
 	godotenv.Load()
+	senderHost := os.Getenv("SENDER_HOST")
+	if senderHost == "" {
+		panic("no sender host variable")
+	}
 
 	dbi, err := db.NewDb(true)
-	sender := smtp.NewSender("mail.ludusrusso.space")
+	sender := smtp.NewSender(senderHost)
 	ms := mailer.NewSMTPMailer(sender, dbi)
 
 	if err != nil {

@@ -1,21 +1,21 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: api
+  name: mailer
   labels:
-    name: api
+    name: mailer
 spec:
   selector:
     matchLabels:
-      name: api
+      name: mailer
   template:
     metadata:
       labels:
-        name: api
+        name: mailer
     spec:
       containers:
-        - name: api
-          image: ludusrusso/smtp-api
+        - name: mailer
+          image: ludusrusso/smtp-mailer
           imagePullPolicy: Always
           envFrom:
             - secretRef:
@@ -33,11 +33,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: api
+  name: mailer
 spec:
   type: ClusterIP
   selector:
-    name: api
+    name: mailer
   ports:
     - port: 50051
       targetPort: grpc

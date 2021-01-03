@@ -50,7 +50,7 @@ type Sender struct {
 
 // GetSender retuns Sender in form of Email From Header
 func (s Sender) GetSender() string {
-	return fmt.Sprintf("%v <%v>", s.Email, s.Alias)
+	return fmt.Sprintf("%v <%v>", s.Alias, s.Email)
 }
 
 // SendingPool represents a group of sending emails with associated Template

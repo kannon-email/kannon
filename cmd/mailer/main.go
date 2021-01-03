@@ -28,7 +28,6 @@ func runGrpcServer() error {
 	if err != nil {
 		return err
 	}
-	defer mailerService.Close()
 
 	log.Info("😃 Open TCP Connection")
 	lis, err := net.Listen("tcp", "0.0.0.0:50051")

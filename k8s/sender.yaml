@@ -1,25 +1,29 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: api
+  name: sender
   labels:
-    name: api
+    name: sender
 spec:
+  replicas: 1
   selector:
     matchLabels:
-      name: api
+      name: sender
   template:
     metadata:
       labels:
-        name: api
+        name: sender
     spec:
       containers:
-        - name: api
-          image: ludusrusso/smtp-api
+        - name: sender
+          image: ludusrusso/smtp-sender
           imagePullPolicy: Always
           envFrom:
             - secretRef:
                 name: db
+          env:
+            - name: SENDER_HOST
+              value: smtp.ludusrusso.space
           resources:
             limits:
               memory: '64Mi'
@@ -29,16 +33,3 @@ spec:
           ports:
             - containerPort: 50051
               name: 'grpc'
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: api
-spec:
-  type: ClusterIP
-  selector:
-    name: api
-  ports:
-    - port: 50051
-      targetPort: grpc
-      name: grpc
