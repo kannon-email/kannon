@@ -23,7 +23,7 @@ spec:
                 name: db
           env:
             - name: SENDER_HOST
-              value: smtp.ludusrusso.space
+              value: mailer.ludusrusso.space
           resources:
             limits:
               memory: '64Mi'

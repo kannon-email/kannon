@@ -44,7 +44,7 @@ This will generate a domain, with an api access key and a dkimPublicKey.
 
 DNS record:
 
-- TXT record for DKIM `ludus._domainkey.<YOUR_DOMAIN>` -> `k=rsa; p=<YOUR DKIM KEY HERE>`
+- TXT record for DKIM `smtp._domainkey.<YOUR_DOMAIN>` -> `k=rsa; p=<YOUR DKIM KEY HERE>`
 - TXT record for SPF `<YOUR_DOMAIN>` -> `v=spf1 include:<SENDER_NAME> ~all`
 
 When DNS record will be propagated, you are ready to start sending emails.
