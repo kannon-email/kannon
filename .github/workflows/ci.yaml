@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - '**'
+    tags:
+      - 'v*'
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Docker meta Api
+        id: docker_meta_api
+        uses: crazy-max/ghaction-docker-meta@v1
+        with:
+          images: |
+            ghcr.io/ludusrusso/smtp/api
+          tag-sha: true
+          tag-semver: |
+            {{version}}
+            {{major}}.{{minor}}
+      - name: Docker meta Sender
+        id: docker_meta_sender
+        uses: crazy-max/ghaction-docker-meta@v1
+        with:
+          images: |
+            ghcr.io/ludusrusso/smtp/sender
+          tag-sha: true
+          tag-semver: |
+            {{version}}
+            {{major}}.{{minor}}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      - name: Build and push
+        id: docker_build_api
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          target: api
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.docker_meta_api.outputs.tags }}
+          labels: ${{ steps.docker_meta_api.outputs.labels }}
+      - name: Build and push
+        id: docker_build_sender
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          target: sender
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.docker_meta_sender.outputs.tags }}
+          labels: ${{ steps.docker_meta_sender.outputs.labels }}
+      - name: Image digest
+        run: |
+          echo ${{ steps.docker_build_sender.outputs.digest }}
+          echo ${{ steps.docker_build_api.outputs.digest }}

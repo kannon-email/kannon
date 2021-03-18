@@ -1,4 +1,4 @@
-FROM golang:1.15.5 AS  builder
+FROM golang:1.15.5 AS builder
 
 WORKDIR /app
 COPY go.mod go.sum /app/
@@ -8,9 +8,9 @@ COPY ./internal ./internal
 COPY ./generated ./generated
 
 ENV CGO_ENABLED=0
-RUN go build -o /build/api -ldflags="-w -s" cmd/api/*.go
-RUN go build -o /build/mailer -ldflags="-w -s" cmd/mailer/*.go
-RUN go build -o /build/sender -ldflags="-w -s" cmd/sender/*.go
+RUN go build -o /build/api cmd/api/*.go
+RUN go build -o /build/mailer cmd/mailer/*.go
+RUN go build -o /build/sender cmd/sender/*.go
 
 FROM scratch as api
 COPY --from=builder  /build/api /bin/cmd
