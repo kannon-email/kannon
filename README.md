@@ -102,4 +102,4 @@ Example CALL
 
 You should receive a mail that passes DKIM and SPF check.
 
-![Signed Email](.github/email-sign.png)
+![Signed Email](assets/email-sign.png)
