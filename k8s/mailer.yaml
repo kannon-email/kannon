@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: mailer
-          image: ludusrusso/smtp-mailer
+          image: gyozatech/smtp-mailer
           imagePullPolicy: Always
           envFrom:
             - secretRef:

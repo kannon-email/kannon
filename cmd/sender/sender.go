@@ -7,10 +7,10 @@ import (
 
 	"github.com/joho/godotenv"
 	"github.com/sirupsen/logrus"
-	"smtp.ludusrusso.space/internal/db"
-	"smtp.ludusrusso.space/internal/mailer"
-	"smtp.ludusrusso.space/internal/pool"
-	"smtp.ludusrusso.space/internal/smtp"
+	"kannon.gyozatech.dev/internal/db"
+	"kannon.gyozatech.dev/internal/mailer"
+	"kannon.gyozatech.dev/internal/pool"
+	"kannon.gyozatech.dev/internal/smtp"
 )
 
 func main() {

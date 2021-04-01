@@ -4,7 +4,7 @@ import (
 	"math/rand"
 
 	"gorm.io/gorm"
-	"smtp.ludusrusso.space/internal/dkim"
+	"kannon.gyozatech.dev/internal/dkim"
 )
 
 // Domain represent a sender domain

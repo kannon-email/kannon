@@ -5,9 +5,9 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
-	"smtp.ludusrusso.space/generated/proto"
-	"smtp.ludusrusso.space/internal/db"
-	"smtp.ludusrusso.space/internal/domains"
+	"kannon.gyozatech.dev/generated/proto"
+	"kannon.gyozatech.dev/internal/db"
+	"kannon.gyozatech.dev/internal/domains"
 )
 
 type apiService struct {

@@ -9,9 +9,9 @@ import (
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/mail.v2"
 	"gorm.io/gorm"
-	"smtp.ludusrusso.space/internal/db"
-	"smtp.ludusrusso.space/internal/dkim"
-	"smtp.ludusrusso.space/internal/smtp"
+	"kannon.gyozatech.dev/internal/db"
+	"kannon.gyozatech.dev/internal/dkim"
+	"kannon.gyozatech.dev/internal/smtp"
 )
 
 type headers map[string]string

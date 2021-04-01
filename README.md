@@ -18,7 +18,7 @@ Tested on kubernello
 
 The SMTP server need to be configured in order to work properly.
 
-1. Choose a SENDER_NAME setting an env variable in [./k8s/sender.yaml](./k8s/sender.yaml). In my example, this is `mailer.ludusrusso.space`. This should be an subdomain in your posses (you need to set some DNS records).
+1. Choose a SENDER_NAME setting an env variable in [./k8s/sender.yaml](./k8s/sender.yaml). In my example, this is `mailer.gyozatech.space`. This should be an subdomain in your posses (you need to set some DNS records).
 2. Set a reverse DNS record FROM your server IP -> TO SERVER_NAME
 3. Set a A record FROM your SENDER_NAME domaint -> TO your server IP
 4. Set a TXT record from your SENDER_NAME -> `v=spf1 ip4:<YOUR SENDER IP> -all`
@@ -34,12 +34,12 @@ Create the domain using the `createDomain` method
 ```
 # Request
 {
-  "domain": "sending.ludusrusso.space"
+  "domain": "sending.gyozatech.space"
 }
 
 # Response
 {
-  "domain": "sending.ludusrusso.space",
+  "domain": "sending.gyozatech.space",
   "key": "xxxxxxxxxx",
   "dkimPubKey": "xxxxxxx"
 }
@@ -77,7 +77,7 @@ Example CALL
 # Request
 {
   "sender": {
-    "email": "no-reply@ludusrusso.space",
+    "email": "no-reply@gyozatech.space",
     "alias": "Ludovico"
   },
   "to": [
@@ -91,8 +91,8 @@ Example CALL
 # Reponse
 
 {
-  "messageID": "message/6ca47968-3b3a-401b-ad05-a816ce19d69c@sending.ludusrusso.space",
-  "templateID": "tmp-template/fc0e8313-5800-4e82-91fe-940cfad21d19@sending.ludusrusso.space",
+  "messageID": "message/6ca47968-3b3a-401b-ad05-a816ce19d69c@sending.gyozatech.space",
+  "templateID": "tmp-template/fc0e8313-5800-4e82-91fe-940cfad21d19@sending.gyozatech.space",
   "scheduled_time": {
     "seconds": "1609668627",
     "nanos": 905726068

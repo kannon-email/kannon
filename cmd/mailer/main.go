@@ -7,8 +7,8 @@ import (
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
-	"smtp.ludusrusso.space/generated/proto"
-	"smtp.ludusrusso.space/internal/db"
+	"kannon.gyozatech.dev/generated/proto"
+	"kannon.gyozatech.dev/internal/db"
 )
 
 func main() {

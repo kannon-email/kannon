@@ -1,4 +1,4 @@
-module smtp.ludusrusso.space
+module kannon.gyozatech.dev
 
 go 1.15
 

@@ -6,7 +6,7 @@ import (
 
 	"github.com/jinzhu/gorm/dialects/postgres"
 	"gorm.io/gorm"
-	"smtp.ludusrusso.space/internal/db"
+	"kannon.gyozatech.dev/internal/db"
 )
 
 // SendingPoolManager is a manger for sending pool
