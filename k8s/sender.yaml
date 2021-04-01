@@ -17,14 +17,14 @@ spec:
     spec:
       containers:
         - name: sender
-          image: ludusrusso/smtp-sender
+          image: gyozatech/smtp-sender
           imagePullPolicy: Always
           envFrom:
             - secretRef:
                 name: db
           env:
             - name: SENDER_HOST
-              value: mailer.ludusrusso.space
+              value: mailer.gyozatech.space
           resources:
             limits:
               memory: '64Mi'

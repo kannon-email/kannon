@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"gorm.io/gorm"
-	"smtp.ludusrusso.space/internal/db"
+	"kannon.gyozatech.dev/internal/db"
 )
 
 func init() {

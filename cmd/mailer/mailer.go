@@ -13,11 +13,11 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"gorm.io/gorm"
-	"smtp.ludusrusso.space/generated/proto"
-	"smtp.ludusrusso.space/internal/db"
-	"smtp.ludusrusso.space/internal/domains"
-	"smtp.ludusrusso.space/internal/pool"
-	"smtp.ludusrusso.space/internal/templates"
+	"kannon.gyozatech.dev/generated/proto"
+	"kannon.gyozatech.dev/internal/db"
+	"kannon.gyozatech.dev/internal/domains"
+	"kannon.gyozatech.dev/internal/pool"
+	"kannon.gyozatech.dev/internal/templates"
 )
 
 type service struct {

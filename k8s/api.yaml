@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: api
-          image: ludusrusso/smtp-api
+          image: gyozatech/smtp-api
           imagePullPolicy: Always
           envFrom:
             - secretRef:

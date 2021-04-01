@@ -2,7 +2,7 @@ package templates
 
 import (
 	"gorm.io/gorm"
-	"smtp.ludusrusso.space/internal/db"
+	"kannon.gyozatech.dev/internal/db"
 )
 
 // Manager implement interface to manage Templates

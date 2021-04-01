@@ -1,7 +1,7 @@
 package mailer
 
 import (
-	"smtp.ludusrusso.space/internal/db"
+	"kannon.gyozatech.dev/internal/db"
 )
 
 // Mailer model a sistem able to send complete Email
