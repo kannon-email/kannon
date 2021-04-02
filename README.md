@@ -1,6 +1,8 @@
-# Mail Sender
+# Kannon 💥
 
-Cloud Native SMTP mail sender
+[![CI](https://github.com/gyozatech/kannon/actions/workflows/ci.yaml/badge.svg?branch=master)](https://github.com/gyozatech/kannon/actions/workflows/ci.yaml)
+
+A Cloud Native SMTP mail sender
 
 > Due to limitations of AWS, GCP etc. on port 25 this project will not work on cloud providers that block port 25.
 
