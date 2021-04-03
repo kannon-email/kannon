@@ -1,3 +1,8 @@
+
+proto: proto/*.proto
+	rm -rf ./generated
+	protoc proto/*.proto --go_out=plugins=grpc:.
+
 docker-build:
 	docker build -t ghcr.io/gyozatech/kannon/api --target api  .
 	docker build -t ghcr.io/gyozatech/kannon/sender --target sender  .

@@ -1,2 +1,0 @@
-rm -rf ./generated
-protoc proto/*.proto --go_out=plugins=grpc:.
