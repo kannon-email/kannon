@@ -3,7 +3,7 @@ option go_package = "generated/proto";
 
 import "google/protobuf/timestamp.proto";
 
-package mailer;
+package kannon;
 
 service Mailer {
   rpc SendHTML(SendHTMLRequest) returns (SendResponse) {}
@@ -21,13 +21,13 @@ message SendTemplateRequest {
   Sender sender = 1;
   repeated string to = 2;
   string subject = 3;
-  string templateID = 4;
+  string template_id = 4;
 }
 
 
 message SendResponse {
-  string messageID  = 1;
-  string templateID = 2;
+  string message_id  = 1;
+  string template_id = 2;
   google.protobuf.Timestamp scheduled_time = 3;
 
 }

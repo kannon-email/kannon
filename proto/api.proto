@@ -1,12 +1,12 @@
 syntax = "proto3";
 option go_package = "generated/proto";
 
-package api;
+package kannon;
 
-service api {
-  rpc getDomains(Empty) returns (GetDomainsResponse) {}
-  rpc createDomain(CreateDomainRequest) returns (Domain) {}
-  rpc regenerateDomainKey(RegenerateDomainKeyRequest) returns (Domain) {}
+service Api {
+  rpc GetDomains(Empty) returns (GetDomainsResponse) {}
+  rpc CreateDomain(CreateDomainRequest) returns (Domain) {}
+  rpc RegenerateDomainKey(RegenerateDomainKeyRequest) returns (Domain) {}
 }
 
 message Empty {
@@ -27,5 +27,5 @@ message RegenerateDomainKeyRequest {
 message Domain {
   string domain = 1;
   string key = 2;
-  string dkimPubKey = 3;
+  string dkim_pub_key = 3;
 }

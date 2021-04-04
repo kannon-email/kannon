@@ -29,7 +29,7 @@ type service struct {
 func (s service) SendHTML(ctx context.Context, in *proto.SendHTMLRequest) (*proto.SendResponse, error) {
 	domain, ok := s.getCallDomainFromContext(ctx)
 	if !ok {
-		log.Errorf("invalid login %v\n")
+		log.Errorf("invalid login\n")
 		return nil, grpc.Errorf(codes.Unauthenticated, "invalid or wrong auth")
 	}
 
@@ -51,8 +51,8 @@ func (s service) SendHTML(ctx context.Context, in *proto.SendHTMLRequest) (*prot
 	}
 
 	response := proto.SendResponse{
-		MessageID:     pool.MessageID,
-		TemplateID:    template.TemplateID,
+		MessageId:     pool.MessageID,
+		TemplateId:    template.TemplateID,
 		ScheduledTime: timestamppb.New(time.Now()),
 	}
 
@@ -66,10 +66,10 @@ func (s service) SendTemplate(ctx context.Context, in *proto.SendTemplateRequest
 		return nil, grpc.Errorf(codes.Unauthenticated, "invalid or wrong auth")
 	}
 
-	template, err := s.templates.FindTemplate(domain.Domain, in.TemplateID)
+	template, err := s.templates.FindTemplate(domain.Domain, in.TemplateId)
 	if err != nil {
 		log.Errorf("cannot create template %v\n", err)
-		return nil, grpc.Errorf(codes.InvalidArgument, "cannot find template with id: %v", in.TemplateID)
+		return nil, grpc.Errorf(codes.InvalidArgument, "cannot find template with id: %v", in.TemplateId)
 	}
 
 	sender := db.Sender{
@@ -84,8 +84,8 @@ func (s service) SendTemplate(ctx context.Context, in *proto.SendTemplateRequest
 	}
 
 	response := proto.SendResponse{
-		MessageID:     pool.MessageID,
-		TemplateID:    template.TemplateID,
+		MessageId:     pool.MessageID,
+		TemplateId:    template.TemplateID,
 		ScheduledTime: timestamppb.New(time.Now()),
 	}
 

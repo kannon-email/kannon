@@ -7,14 +7,14 @@ on:
     tags:
       - 'v*'
   pull_request:
-      branches: [ "*" ]
+    branches: ['*']
 
 jobs:
   build:
     runs-on: ubuntu-20.04
     strategy:
       matrix:
-        application: ["api", "sender", "mailer"]
+        application: ['api', 'sender', 'mailer', 'dispatcher']
 
     steps:
       - name: Checkout
@@ -22,14 +22,14 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
-      
+
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v1
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Docker meta ${{ matrix.application }}
         id: docker_meta
         uses: crazy-max/ghaction-docker-meta@v1
@@ -40,7 +40,7 @@ jobs:
           tag-semver: |
             {{version}}
             {{major}}.{{minor}}
-      
+
       - name: Build and push ${{ matrix.application }}
         id: docker_build
         uses: docker/build-push-action@v2

@@ -9,6 +9,8 @@ require (
 	github.com/joho/godotenv v1.3.0
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/lucsky/cuid v1.0.2 // indirect
+	github.com/nats-io/jsm.go v0.0.22 // indirect
+	github.com/nats-io/nats.go v1.10.1-0.20210228004050-ed743748acac // indirect
 	github.com/sirupsen/logrus v1.7.0
 	github.com/stretchr/testify v1.6.1
 	golang.org/x/crypto v0.0.0-20201221181555-eec23a3978ad // indirect

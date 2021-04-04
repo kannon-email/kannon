@@ -1,0 +1,29 @@
+syntax = "proto3";
+option go_package = "generated/proto";
+
+import "google/protobuf/timestamp.proto";
+
+package kannon;
+
+message EmailToSend {
+  string message_id = 1;
+  string from = 2;
+  string to = 3;
+  string return_path = 4;
+  bytes body = 5;
+}
+
+message Delivered {
+  string message_id = 1;
+  string email = 2;
+  google.protobuf.Timestamp timestamp = 3;
+}
+
+message Error {
+  string message_id = 1;
+  string email = 2;
+  uint32 code = 3;
+  string msg = 4;
+  bool is_permanent = 5;
+  google.protobuf.Timestamp timestamp = 6;
+}
