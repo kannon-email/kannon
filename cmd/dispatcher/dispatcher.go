@@ -1,9 +1,11 @@
 package main
 
 import (
+	"log"
 	"time"
 
 	"github.com/joho/godotenv"
+	"github.com/kelseyhightower/envconfig"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
 	"kannon.gyozatech.dev/internal/db"
@@ -13,8 +15,18 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
+type appConfig struct {
+	NatsConn string `default:"nats://127.0.0.1:4222"`
+}
+
 func main() {
 	godotenv.Load()
+
+	var config appConfig
+	err := envconfig.Process("app", &config)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
 
 	dbi, err := db.NewDb(true)
 	if err != nil {
@@ -28,7 +40,7 @@ func main() {
 
 	mb := mailbuilder.NewMailBuilder(dbi)
 
-	nc, err := nats.Connect(nats.DefaultURL)
+	nc, err := nats.Connect(config.NatsConn)
 	if err != nil {
 		logrus.Fatalf("Cannot connect to nats: %v\n", err)
 	}
