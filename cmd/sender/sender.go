@@ -22,7 +22,12 @@ func main() {
 		panic("no sender host variable")
 	}
 
-	nc, err := nats.Connect(nats.DefaultURL, nats.UseOldRequestStyle())
+	natsConn := os.Getenv("NATS_CONN")
+	if natsConn == "" {
+		natsConn = nats.DefaultURL
+	}
+
+	nc, err := nats.Connect(natsConn, nats.UseOldRequestStyle())
 	if err != nil {
 		logrus.Fatalf("Cannot connect to nats: %v\n", err)
 	}
