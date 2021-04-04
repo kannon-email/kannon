@@ -1,0 +1,26 @@
+syntax = "proto3";
+option go_package = "generated/proto";
+
+import "google/protobuf/timestamp.proto";
+
+package queue;
+
+message EmailToSend {
+  string messageID = 1;
+  string from = 2;
+  string to = 3;
+  string returnPath = 4;
+  bytes body = 5;
+}
+
+message Delivered {
+  string messageID = 1;
+  google.protobuf.Timestamp timestamp = 2;
+}
+
+message Error {
+  string messageID = 1;
+  uint32 code = 2;
+  string msg = 3;
+  google.protobuf.Timestamp timestamp = 4;
+}

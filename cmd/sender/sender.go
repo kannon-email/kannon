@@ -1,15 +1,16 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"os"
-	"sync"
-	"time"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/joho/godotenv"
+	"github.com/nats-io/jsm.go"
+	"github.com/nats-io/nats.go"
 	"github.com/sirupsen/logrus"
-	"kannon.gyozatech.dev/internal/db"
-	"kannon.gyozatech.dev/internal/mailer"
-	"kannon.gyozatech.dev/internal/pool"
+	pb "kannon.gyozatech.dev/generated/proto"
 	"kannon.gyozatech.dev/internal/smtp"
 )
 
@@ -20,38 +21,34 @@ func main() {
 		panic("no sender host variable")
 	}
 
-	dbi, err := db.NewDb(true)
+	nc, err := nats.Connect(nats.DefaultURL, nats.UseOldRequestStyle())
+	if err != nil {
+		logrus.Fatalf("Cannot connect to nats: %v\n", err)
+	}
+	mgr, err := jsm.New(nc)
+	if err != nil {
+		panic(err)
+	}
+
+	con, err := mgr.LoadConsumer("kannon", "sending-pool")
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("Pull mode: %v\n", con.IsPullMode())
+
 	sender := smtp.NewSender(senderHost)
-	ms := mailer.NewSMTPMailer(sender, dbi)
-
-	if err != nil {
-		logrus.Fatalf("cannot create db: %v\n", err)
-	}
-
-	pm, err := pool.NewSendingPoolManager(dbi)
-	if err != nil {
-		logrus.Fatalf("cannot create sending pool manager: %v\n", err)
-	}
 
 	for {
-		emails, err := pm.PrepareForSend(100)
+		msg, err := con.NextMsgContext(context.Background())
 		if err != nil {
-			logrus.Fatalf("cannot prepare for send: %v\n", err)
+			panic(err)
 		}
-		logrus.Infof("Fetched %v emails\n", len(emails))
-
-		wg := new(sync.WaitGroup)
-
-		wg.Add(len(emails))
-		for _, email := range emails {
-			go func(email db.SendingPoolEmail) {
-				ms.Send(email)
-				wg.Done()
-			}(email)
+		data := pb.EmailToSend{}
+		err = proto.Unmarshal(msg.Data, &data)
+		if err != nil {
+			// TODO handle error
 		}
-		wg.Wait()
-		logrus.Infof("done sending emails\n")
-
-		time.Sleep(1 * time.Second)
+		sender.Send(data.From, data.To, data.Body)
+		msg.Ack()
 	}
 }

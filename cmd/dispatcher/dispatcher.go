@@ -1,12 +1,13 @@
 package main
 
 import (
-	"encoding/json"
 	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/proto"
 	"kannon.gyozatech.dev/internal/db"
+	"kannon.gyozatech.dev/internal/mailbuilder"
 	"kannon.gyozatech.dev/internal/pool"
 
 	"github.com/nats-io/nats.go"
@@ -15,10 +16,17 @@ import (
 func main() {
 	godotenv.Load()
 
-	pm, err := newSendingPoolManager()
+	dbi, err := db.NewDb(true)
 	if err != nil {
-		logrus.Fatalf("Cannot create pool manager: %v\n", err)
+		panic(err)
 	}
+
+	pm, err := pool.NewSendingPoolManager(dbi)
+	if err != nil {
+		panic(err)
+	}
+
+	mb := mailbuilder.NewMailBuilder(dbi)
 
 	nc, err := nats.Connect(nats.DefaultURL)
 	if err != nil {
@@ -32,33 +40,17 @@ func main() {
 		}
 		logrus.Infof("Fetched %v emails\n", len(emails))
 		for _, email := range emails {
-			err := sendEmail(email, nc, "emails.sending")
+			data, err := mb.PerpareForSend(email)
 			if err != nil {
 				logrus.Error("Cannot send email %v: %v\n", email.To, err)
 			}
+			msg, err := proto.Marshal(&data)
+			if err != nil {
+				logrus.Error("Cannot send email %v: %v\n", email.To, err)
+			}
+			nc.Publish("emails.sending", msg)
 		}
 		logrus.Infof("done sending emails\n")
 		time.Sleep(1 * time.Second)
 	}
-}
-
-func sendEmail(email db.SendingPoolEmail, nc *nats.Conn, subj string) error {
-	msg, err := json.Marshal(email)
-	if err != nil {
-		return err
-	}
-	return nc.Publish(subj, msg)
-}
-
-func newSendingPoolManager() (pool.SendingPoolManager, error) {
-	dbi, err := db.NewDb(true)
-	if err != nil {
-		return nil, err
-	}
-
-	pm, err := pool.NewSendingPoolManager(dbi)
-	if err != nil {
-		return nil, err
-	}
-	return pm, nil
 }
