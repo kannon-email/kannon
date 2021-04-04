@@ -10,6 +10,7 @@ import (
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats.go"
 	"github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	pb "kannon.gyozatech.dev/generated/proto"
 	"kannon.gyozatech.dev/internal/smtp"
 )
@@ -43,12 +44,60 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		data := pb.EmailToSend{}
-		err = proto.Unmarshal(msg.Data, &data)
+		err = handleMessage(msg, sender, nc)
 		if err != nil {
-			// TODO handle error
+			logrus.Errorf("error in handling message: %v\n", err.Error())
 		}
-		sender.Send(data.From, data.To, data.Body)
 		msg.Ack()
 	}
+}
+
+func handleMessage(msg *nats.Msg, sender smtp.Sender, nc *nats.Conn) error {
+	data := pb.EmailToSend{}
+	err := proto.Unmarshal(msg.Data, &data)
+	if err != nil {
+		return err
+	}
+	sendErr := sender.Send(data.From, data.To, data.Body)
+	if sendErr != nil {
+		return handleSendError(sendErr, &data, nc)
+	}
+	return handleSendSuccess(&data, nc)
+}
+
+func handleSendSuccess(data *pb.EmailToSend, nc *nats.Conn) error {
+	msgProto := pb.Delivered{
+		MessageId: data.MessageId,
+		Email:     data.To,
+		Timestamp: timestamppb.Now(),
+	}
+	msg, err := proto.Marshal(&msgProto)
+	if err != nil {
+		return err
+	}
+	err = nc.Publish("emails.delivered", msg)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func handleSendError(sendErr smtp.SenderError, data *pb.EmailToSend, nc *nats.Conn) error {
+	msg := pb.Error{
+		MessageId:   data.MessageId,
+		Code:        uint32(sendErr.Code()),
+		Msg:         sendErr.Error(),
+		Email:       data.To,
+		IsPermanent: sendErr.IsPermanent(),
+		Timestamp:   timestamppb.Now(),
+	}
+	errMsg, err := proto.Marshal(&msg)
+	if err != nil {
+		return err
+	}
+	err = nc.Publish("emails.error", errMsg)
+	if err != nil {
+		return err
+	}
+	return nil
 }

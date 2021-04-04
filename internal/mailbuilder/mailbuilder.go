@@ -64,7 +64,7 @@ func (m *mailBuilder) PerpareForSend(email db.SendingPoolEmail) (proto.EmailToSe
 		From:       pool.Sender.Email,
 		To:         email.To,
 		Body:       signedMsg,
-		MessageID:  buildEmailMessageID(email.To, pool.MessageID),
+		MessageId:  buildEmailMessageID(email.To, pool.MessageID),
 		ReturnPath: buildReturnPath(email.To, pool.MessageID),
 	}, nil
 }
