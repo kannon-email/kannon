@@ -42,11 +42,11 @@ func main() {
 		for _, email := range emails {
 			data, err := mb.PerpareForSend(email)
 			if err != nil {
-				logrus.Error("Cannot send email %v: %v\n", email.To, err)
+				logrus.Errorf("Cannot send email %v: %v\n", email.To, err)
 			}
 			msg, err := proto.Marshal(&data)
 			if err != nil {
-				logrus.Error("Cannot send email %v: %v\n", email.To, err)
+				logrus.Errorf("Cannot send email %v: %v\n", email.To, err)
 			}
 			nc.Publish("emails.sending", msg)
 		}

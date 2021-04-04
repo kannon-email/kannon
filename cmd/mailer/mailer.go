@@ -29,7 +29,7 @@ type service struct {
 func (s service) SendHTML(ctx context.Context, in *proto.SendHTMLRequest) (*proto.SendResponse, error) {
 	domain, ok := s.getCallDomainFromContext(ctx)
 	if !ok {
-		log.Errorf("invalid login %v\n")
+		log.Errorf("invalid login\n")
 		return nil, grpc.Errorf(codes.Unauthenticated, "invalid or wrong auth")
 	}
 
