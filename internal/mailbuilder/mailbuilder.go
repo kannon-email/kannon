@@ -4,13 +4,13 @@ import (
 	"bytes"
 
 	"gorm.io/gorm"
-	"kannon.gyozatech.dev/generated/proto"
+	"kannon.gyozatech.dev/generated/pb"
 	"kannon.gyozatech.dev/internal/db"
 	"kannon.gyozatech.dev/internal/dkim"
 )
 
 type MailBulder interface {
-	PerpareForSend(email db.SendingPoolEmail) (proto.EmailToSend, error)
+	PerpareForSend(email db.SendingPoolEmail) (pb.EmailToSend, error)
 }
 
 // NewMailBuilder creates an SMTP mailer
@@ -28,39 +28,39 @@ type mailBuilder struct {
 	db      *gorm.DB
 }
 
-func (m *mailBuilder) PerpareForSend(email db.SendingPoolEmail) (proto.EmailToSend, error) {
+func (m *mailBuilder) PerpareForSend(email db.SendingPoolEmail) (pb.EmailToSend, error) {
 	pool := db.SendingPool{
 		ID: email.SendingPoolID,
 	}
 
 	err := m.db.Where(&pool).First(&pool).Error
 	if err != nil {
-		return proto.EmailToSend{}, err
+		return pb.EmailToSend{}, err
 	}
 
 	var domain db.Domain
 	err = m.db.Find(&domain, "domain = ?", pool.Domain).Error
 	if err != nil {
-		return proto.EmailToSend{}, err
+		return pb.EmailToSend{}, err
 	}
 
 	var template db.Template
 	err = m.db.Find(&template, "template_id = ?", pool.TemplateID).Error
 	if err != nil {
-		return proto.EmailToSend{}, err
+		return pb.EmailToSend{}, err
 	}
 
 	msg, err := prepareMessage(pool.Sender, pool.Subject, email.To, pool.MessageID, template.HTML, m.headers)
 	if err != nil {
-		return proto.EmailToSend{}, err
+		return pb.EmailToSend{}, err
 	}
 
 	signedMsg, err := signMessage(domain, msg)
 	if err != nil {
-		return proto.EmailToSend{}, err
+		return pb.EmailToSend{}, err
 	}
 
-	return proto.EmailToSend{
+	return pb.EmailToSend{
 		From:       pool.Sender.Email,
 		To:         email.To,
 		Body:       signedMsg,

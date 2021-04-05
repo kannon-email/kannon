@@ -6,7 +6,7 @@ import (
 	"github.com/joho/godotenv"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
-	"kannon.gyozatech.dev/generated/proto"
+	"kannon.gyozatech.dev/generated/pb"
 	"kannon.gyozatech.dev/internal/db"
 )
 
@@ -37,7 +37,7 @@ func runGrpcServer() error {
 	}
 
 	s := grpc.NewServer()
-	proto.RegisterApiServer(s, apiService)
+	pb.RegisterApiServer(s, apiService)
 
 	log.Infof("🚀 starting gRPC... Listening on %v\n", lis.Addr())
 	if err := s.Serve(lis); err != nil {
