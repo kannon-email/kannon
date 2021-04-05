@@ -1,3 +1,4 @@
+.PHONY: test
 
 proto: proto/*.proto
 	rm -rf ./generated
@@ -12,3 +13,6 @@ docker-push:
 	docker push ghcr.io/gyozatech/kannon/api
 	docker push ghcr.io/gyozatech/kannon/sender
 	docker push ghcr.io/gyozatech/kannon/mailer
+
+test:
+	go test ./...
