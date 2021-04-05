@@ -80,7 +80,7 @@ func dispatcherLoop(pm pool.SendingPoolManager, mb mailbuilder.MailBulder, nc *n
 				logrus.Errorf("Cannot send message on nats: %v", err.Error())
 				continue
 			}
-			logrus.Infof("🚀 Email accepted: %v %v", data.MessageId, data.To)
+			logrus.Infof("[✅ accepted]: %v %v", data.To, data.MessageId)
 		}
 		logrus.Debugf("done sending emails")
 		time.Sleep(1 * time.Second)
@@ -123,7 +123,7 @@ func handleDelivereds(mgr *jsm.Manager) {
 		if err != nil {
 			logrus.Errorf("cannot marshal message %v", err.Error())
 		} else {
-			logrus.Printf("[✅ delivered] %v %v", deliveredMsg.Email, deliveredMsg.MessageId)
+			logrus.Printf("[🚀 delivered] %v %v", deliveredMsg.Email, deliveredMsg.MessageId)
 		}
 		msg.Ack()
 	}
