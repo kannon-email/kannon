@@ -13,7 +13,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"gorm.io/gorm"
-	"kannon.gyozatech.dev/generated/proto"
+	"kannon.gyozatech.dev/generated/pb"
 	"kannon.gyozatech.dev/internal/db"
 	"kannon.gyozatech.dev/internal/domains"
 	"kannon.gyozatech.dev/internal/pool"
@@ -26,7 +26,7 @@ type service struct {
 	sendingPoll pool.SendingPoolManager
 }
 
-func (s service) SendHTML(ctx context.Context, in *proto.SendHTMLRequest) (*proto.SendResponse, error) {
+func (s service) SendHTML(ctx context.Context, in *pb.SendHTMLRequest) (*pb.SendResponse, error) {
 	domain, ok := s.getCallDomainFromContext(ctx)
 	if !ok {
 		log.Errorf("invalid login\n")
@@ -50,7 +50,7 @@ func (s service) SendHTML(ctx context.Context, in *proto.SendHTMLRequest) (*prot
 		return nil, err
 	}
 
-	response := proto.SendResponse{
+	response := pb.SendResponse{
 		MessageId:     pool.MessageID,
 		TemplateId:    template.TemplateID,
 		ScheduledTime: timestamppb.New(time.Now()),
@@ -59,7 +59,7 @@ func (s service) SendHTML(ctx context.Context, in *proto.SendHTMLRequest) (*prot
 	return &response, nil
 }
 
-func (s service) SendTemplate(ctx context.Context, in *proto.SendTemplateRequest) (*proto.SendResponse, error) {
+func (s service) SendTemplate(ctx context.Context, in *pb.SendTemplateRequest) (*pb.SendResponse, error) {
 	domain, ok := s.getCallDomainFromContext(ctx)
 	if !ok {
 		log.Errorf("invalid login\n")
@@ -83,7 +83,7 @@ func (s service) SendTemplate(ctx context.Context, in *proto.SendTemplateRequest
 		return nil, err
 	}
 
-	response := proto.SendResponse{
+	response := pb.SendResponse{
 		MessageId:     pool.MessageID,
 		TemplateId:    template.TemplateID,
 		ScheduledTime: timestamppb.New(time.Now()),
@@ -139,7 +139,7 @@ func (s service) getCallDomainFromContext(ctx context.Context) (db.Domain, bool)
 
 }
 
-func newMailerService(dbi *gorm.DB) (proto.MailerServer, error) {
+func newMailerService(dbi *gorm.DB) (pb.MailerServer, error) {
 	domainsCli, err := domains.NewDomainManager(dbi)
 	if err != nil {
 		return nil, err

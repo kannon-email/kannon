@@ -9,7 +9,7 @@ import (
 	"github.com/kelseyhightower/envconfig"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
-	pb "kannon.gyozatech.dev/generated/proto"
+	"kannon.gyozatech.dev/generated/pb"
 	"kannon.gyozatech.dev/internal/db"
 	"kannon.gyozatech.dev/internal/mailbuilder"
 	"kannon.gyozatech.dev/internal/pool"

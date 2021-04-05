@@ -11,7 +11,7 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	pb "kannon.gyozatech.dev/generated/proto"
+	"kannon.gyozatech.dev/generated/pb"
 	"kannon.gyozatech.dev/internal/smtp"
 )
 
