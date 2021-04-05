@@ -61,23 +61,28 @@ func dispatcherLoop(pm pool.SendingPoolManager, mb mailbuilder.MailBulder, nc *n
 	for {
 		emails, err := pm.PrepareForSend(100)
 		if err != nil {
-			logrus.Fatalf("cannot prepare for send: %v\n", err)
+			logrus.Fatalf("cannot prepare for send: %v", err)
 		}
 		logrus.Debugf("Fetched %v emails\n", len(emails))
 		for _, email := range emails {
 			data, err := mb.PerpareForSend(email)
 			if err != nil {
-				logrus.Errorf("Cannot send email %v: %v\n", email.To, err)
+				logrus.Errorf("Cannot send email %v: %v", email.To, err)
 				continue
 			}
 			msg, err := proto.Marshal(&data)
 			if err != nil {
-				logrus.Errorf("Cannot send email %v: %v\n", email.To, err)
+				logrus.Errorf("Cannot send email %v: %v", email.To, err)
 				continue
 			}
-			nc.Publish("emails.sending", msg)
+			err = nc.Publish("emails.sending", msg)
+			if err != nil {
+				logrus.Errorf("Cannot send message on nats: %v", err.Error())
+				continue
+			}
+			logrus.Infof("🚀 Email accepted: %v %v", data.MessageId, data.To)
 		}
-		logrus.Infof("done sending emails\n")
+		logrus.Debugf("done sending emails")
 		time.Sleep(1 * time.Second)
 	}
 }
@@ -95,9 +100,10 @@ func handleErrors(mgr *jsm.Manager) {
 		errMsg := pb.Error{}
 		err = proto.Unmarshal(msg.Data, &errMsg)
 		if err != nil {
-			logrus.Errorf("cannot marshal message %v\n", err.Error())
+			logrus.Errorf("cannot marshal message %v", err.Error())
+		} else {
+			logrus.Printf("[🛑 bump] %v %v - %v", errMsg.Email, errMsg.MessageId, errMsg.Msg)
 		}
-		logrus.Printf("[🛑 bump] : %v - %v\n", errMsg.Email, errMsg.Msg)
 		msg.Ack()
 	}
 }
@@ -115,9 +121,10 @@ func handleDelivereds(mgr *jsm.Manager) {
 		deliveredMsg := pb.Delivered{}
 		err = proto.Unmarshal(msg.Data, &deliveredMsg)
 		if err != nil {
-			logrus.Errorf("cannot marshal message %v\n", err.Error())
+			logrus.Errorf("cannot marshal message %v", err.Error())
+		} else {
+			logrus.Printf("[✅ delivered] %v %v", deliveredMsg.Email, deliveredMsg.MessageId)
 		}
-		logrus.Printf("[✅ delivered] : %v\n", deliveredMsg.Email)
 		msg.Ack()
 	}
 }
