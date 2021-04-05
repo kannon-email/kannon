@@ -65,7 +65,7 @@ func handleMessage(msg *nats.Msg, sender smtp.Sender, nc *nats.Conn) error {
 	}
 	sendErr := sender.Send(data.From, data.To, data.Body)
 	if sendErr != nil {
-		logrus.Infof("Cannot send email %v - %v: %v - ", sendErr.Error())
+		logrus.Infof("Cannot send email %v - %v: %v", data.To, data.MessageId, sendErr.Error())
 		return handleSendError(sendErr, &data, nc)
 	}
 	logrus.Infof("Email delivered: %v - %v", data.To, data.MessageId)
