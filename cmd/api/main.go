@@ -1,13 +1,14 @@
 package main
 
 import (
+	"database/sql"
 	"net"
+	"os"
 
 	"github.com/joho/godotenv"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"kannon.gyozatech.dev/generated/pb"
-	"kannon.gyozatech.dev/internal/db"
 )
 
 func main() {
@@ -18,9 +19,9 @@ func main() {
 func runGrpcServer() error {
 	godotenv.Load()
 
-	dbi, err := db.NewDb(true)
+	dbi, err := sql.Open("postgres", os.Getenv("DB_CONN"))
 	if err != nil {
-		log.Fatalf("cannot create db: %v\n", err)
+		panic(err)
 	}
 
 	apiService, err := createAPIService(dbi)

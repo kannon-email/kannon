@@ -8,7 +8,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"gopkg.in/mail.v2"
-	"kannon.gyozatech.dev/internal/db"
+	"kannon.gyozatech.dev/internal/pool"
 )
 
 func buildEmailMessageID(to string, messageId string) string {
@@ -22,10 +22,10 @@ func buildReturnPath(to string, messageId string) string {
 }
 
 // buildHeaders for a message
-func buildHeaders(subject string, sender db.Sender, to string, poolMessageID string, messageID string, baseHeaders headers) headers {
+func buildHeaders(subject string, sender pool.Sender, to string, poolMessageID string, messageID string, baseHeaders headers) headers {
 	headers := headers(baseHeaders)
 	headers["Subject"] = subject
-	headers["From"] = sender.GetSender()
+	headers["From"] = fmt.Sprintf("%v <%v>", sender.Alias, sender.Email)
 	headers["To"] = to
 	headers["Message-ID"] = messageID
 	headers["X-Pool-Message-ID"] = poolMessageID

@@ -1,20 +1,20 @@
 package templates
 
 import (
-	"gorm.io/gorm"
-	"kannon.gyozatech.dev/internal/db"
+	"database/sql"
+
+	"kannon.gyozatech.dev/generated/sqlc"
 )
 
 // Manager implement interface to manage Templates
 type Manager interface {
-	FindTemplate(domain string, templateID string) (db.Template, error)
-	CreatePermanentTemplate(HTML string, domain string) (db.Template, error)
-	CreateTmpTemplate(HTML string, domain string) (db.Template, error)
+	FindTemplate(domain string, templateID string) (sqlc.Template, error)
+	CreateTemplate(HTML string, domain string) (sqlc.Template, error)
 }
 
 // NewTemplateManager builds a Template Manager
-func NewTemplateManager(db *gorm.DB) (Manager, error) {
+func NewTemplateManager(db *sql.DB) (Manager, error) {
 	return &manager{
-		db: db,
+		db: sqlc.New(db),
 	}, nil
 }

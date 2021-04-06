@@ -1,12 +1,13 @@
 package domains
 
 import (
-	"fmt"
+	"context"
+	"database/sql"
 	"math/rand"
 	"time"
 
-	"gorm.io/gorm"
-	"kannon.gyozatech.dev/internal/db"
+	"kannon.gyozatech.dev/generated/sqlc"
+	"kannon.gyozatech.dev/internal/dkim"
 )
 
 func init() {
@@ -14,62 +15,67 @@ func init() {
 }
 
 type domainManager struct {
-	db *gorm.DB
+	db *sqlc.Queries
 }
 
 // DomainManager Interface
 type DomainManager interface {
-	CreateDomain(domain string) (db.Domain, error)
-	FindDomain(domain string) (db.Domain, error)
-	FindDomainWithKey(domain string, key string) (db.Domain, error)
-	GetAllDomains() ([]db.Domain, error)
+	CreateDomain(domain string) (sqlc.Domain, error)
+	FindDomain(domain string) (sqlc.Domain, error)
+	FindDomainWithKey(domain string, key string) (sqlc.Domain, error)
+	GetAllDomains() ([]sqlc.Domain, error)
 	Close() error
 }
 
 // NewDomainManager is the contrusctor for a Domain Manager
-func NewDomainManager(db *gorm.DB) (DomainManager, error) {
+func NewDomainManager(db *sql.DB) (DomainManager, error) {
 	return &domainManager{
-		db: db,
+		db: sqlc.New(db),
 	}, nil
 }
 
-func (dm *domainManager) CreateDomain(domain string) (db.Domain, error) {
-	newDomain := db.Domain{
-		Domain: domain,
-	}
-
-	err := dm.db.Create(&newDomain).Error
+// CreateDomain
+func (dm *domainManager) CreateDomain(domain string) (sqlc.Domain, error) {
+	keys, err := dkim.GenerateDKIMKeysPair()
 	if err != nil {
-		return newDomain, err
+		return sqlc.Domain{}, err
 	}
 
-	return newDomain, nil
+	d, err := dm.db.CreateDomain(context.TODO(), sqlc.CreateDomainParams{
+		Domain:         domain,
+		Key:            generateRandomKey(20),
+		DkimPrivateKey: keys.PrivateKey,
+		DkimPublicKey:  keys.PublicKey,
+	})
+
+	if err != nil {
+		return sqlc.Domain{}, err
+	}
+
+	return d, nil
 }
 
-func (dm *domainManager) FindDomain(d string) (db.Domain, error) {
-	domain := db.Domain{}
-	err := dm.db.First(&domain, "domain = ?", d).Error
+func (dm *domainManager) FindDomain(d string) (sqlc.Domain, error) {
+	domain, err := dm.db.FindDomain(context.TODO(), d)
 	if err != nil {
 		return domain, err
 	}
 	return domain, nil
 }
 
-func (dm *domainManager) FindDomainWithKey(d string, k string) (db.Domain, error) {
-	domain, err := dm.FindDomain(d)
+func (dm *domainManager) FindDomainWithKey(d string, k string) (sqlc.Domain, error) {
+	domain, err := dm.db.FindDomainWithKey(context.TODO(), sqlc.FindDomainWithKeyParams{
+		Domain: d,
+		Key:    k,
+	})
 	if err != nil {
 		return domain, err
-	}
-
-	if domain.Key != k {
-		return domain, fmt.Errorf("Invalid key")
 	}
 	return domain, nil
 }
 
-func (dm *domainManager) GetAllDomains() ([]db.Domain, error) {
-	domains := []db.Domain{}
-	err := dm.db.Find(&domains).Error
+func (dm *domainManager) GetAllDomains() ([]sqlc.Domain, error) {
+	domains, err := dm.db.GetAllDomains(context.TODO())
 	if err != nil {
 		return domains, err
 	}
@@ -78,4 +84,13 @@ func (dm *domainManager) GetAllDomains() ([]db.Domain, error) {
 
 func (dm *domainManager) Close() error {
 	return nil
+}
+
+func generateRandomKey(size uint) string {
+	letterRunes := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+	b := make([]rune, size)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	}
+	return string(b)
 }

@@ -2,15 +2,19 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"log"
+	"os"
+	"sync"
 	"time"
+
+	_ "github.com/lib/pq"
 
 	"github.com/joho/godotenv"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
 	"kannon.gyozatech.dev/generated/pb"
-	"kannon.gyozatech.dev/internal/db"
 	"kannon.gyozatech.dev/internal/mailbuilder"
 	"kannon.gyozatech.dev/internal/pool"
 
@@ -31,17 +35,17 @@ func main() {
 		log.Fatal(err.Error())
 	}
 
-	dbi, err := db.NewDb(true)
+	db, err := sql.Open("postgres", os.Getenv("DB_CONN"))
 	if err != nil {
 		panic(err)
 	}
 
-	pm, err := pool.NewSendingPoolManager(dbi)
+	pm, err := pool.NewSendingPoolManager(db)
 	if err != nil {
 		panic(err)
 	}
 
-	mb := mailbuilder.NewMailBuilder(dbi)
+	mb := mailbuilder.NewMailBuilder(db)
 
 	nc, err := nats.Connect(config.NatsConn, nats.UseOldRequestStyle())
 	if err != nil {
@@ -52,9 +56,22 @@ func main() {
 		panic(err)
 	}
 
-	go handleErrors(mgr)
-	go handleDelivereds(mgr)
-	dispatcherLoop(pm, mb, nc)
+	var wg sync.WaitGroup
+	wg.Add(3)
+
+	go func() {
+		handleErrors(mgr)
+		wg.Done()
+	}()
+	go func() {
+		handleDelivereds(mgr)
+		wg.Done()
+	}()
+	go func() {
+		dispatcherLoop(pm, mb, nc)
+		wg.Done()
+	}()
+	wg.Wait()
 }
 
 func dispatcherLoop(pm pool.SendingPoolManager, mb mailbuilder.MailBulder, nc *nats.Conn) {
@@ -67,12 +84,12 @@ func dispatcherLoop(pm pool.SendingPoolManager, mb mailbuilder.MailBulder, nc *n
 		for _, email := range emails {
 			data, err := mb.PerpareForSend(email)
 			if err != nil {
-				logrus.Errorf("Cannot send email %v: %v", email.To, err)
+				logrus.Errorf("Cannot send email %v: %v", email.Email, err)
 				continue
 			}
 			msg, err := proto.Marshal(&data)
 			if err != nil {
-				logrus.Errorf("Cannot send email %v: %v", email.To, err)
+				logrus.Errorf("Cannot send email %v: %v", email.Email, err)
 				continue
 			}
 			err = nc.Publish("emails.sending", msg)

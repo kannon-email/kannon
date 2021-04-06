@@ -1,98 +1,81 @@
 package pool
 
 import (
+	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
-	"github.com/jinzhu/gorm/dialects/postgres"
-	"gorm.io/gorm"
-	"kannon.gyozatech.dev/internal/db"
+	"gopkg.in/lucsky/cuid.v1"
+	"kannon.gyozatech.dev/generated/sqlc"
 )
+
+type Sender struct {
+	Alias string
+	Email string
+}
 
 // SendingPoolManager is a manger for sending pool
 type SendingPoolManager interface {
 	AddPool(
-		template db.Template,
+		template sqlc.Template,
 		to []string,
-		from db.Sender,
+		from Sender,
 		subject string,
 		domain string,
-	) (db.SendingPool, error)
-	PrepareForSend(max uint) ([]db.SendingPoolEmail, error)
+	) (sqlc.Message, error)
+	PrepareForSend(max uint) ([]sqlc.SendingPoolEmail, error)
 }
 
 type sendingPoolManager struct {
-	db *gorm.DB
+	db *sqlc.Queries
 }
 
 // AddPool starts a new schedule in the pool
 func (m *sendingPoolManager) AddPool(
-	template db.Template,
+	template sqlc.Template,
 	to []string,
-	from db.Sender,
+	from Sender,
 	subject string,
 	domain string,
-) (db.SendingPool, error) {
-	sendingPool := db.SendingPool{
-		Domain:     domain,
-		Subject:    subject,
-		Sender:     db.Sender(from),
-		TemplateID: template.TemplateID,
+) (sqlc.Message, error) {
+
+	msg, err := m.db.CreateMessage(context.Background(), sqlc.CreateMessageParams{
+		TemplateID:  template.TemplateID,
+		Domain:      domain,
+		Subject:     subject,
+		SenderEmail: from.Email,
+		SenderAlias: from.Alias,
+		MessageID:   createMessageID(domain),
+	})
+	if err != nil {
+		return sqlc.Message{}, err
 	}
 
-	var poolEmails []db.SendingPoolEmail
-
-	for _, email := range to {
-		newPool := db.SendingPoolEmail{
-			Status:                db.SendingPoolStatusScheduled,
-			ScheduledTime:         time.Now(),
-			OriginalScheduledTime: time.Now(),
-			Trial:                 0,
-			To:                    email,
-			Data:                  postgres.Jsonb{},
-		}
-		poolEmails = append(poolEmails, newPool)
+	_, err = m.db.CreatePool(context.TODO(), sqlc.CreatePoolParams{
+		ScheduledTime: time.Now(), // TODO
+		MessageID:     msg.ID,
+		Emails:        to,
+	})
+	if err != nil {
+		return sqlc.Message{}, err
 	}
-	sendingPool.Emails = poolEmails
-
-	err := m.db.Create(&sendingPool).Error
-	return sendingPool, err
+	return msg, nil
 }
 
 func (m *sendingPoolManager) PrepareForSend(
 	max uint,
-) ([]db.SendingPoolEmail, error) {
-	emails := []db.SendingPoolEmail{}
-
-	err := m.db.Transaction(func(tx *gorm.DB) error {
-		err := m.db.Limit(int(max)).Find(&emails, "scheduled_time <= ? AND status = ?", time.Now(), db.SendingPoolStatusScheduled).Error
-		if err != nil {
-			return fmt.Errorf("Cannot find Emails%v", err)
-		}
-		if len(emails) == 0 {
-			return nil
-		}
-
-		err = m.db.Model(&emails).
-			UpdateColumn("status", db.SendingPoolStatusSending).Error
-
-		if err != nil {
-			return fmt.Errorf("Cannot set Emails in SendingPoolStatusSending %v", err)
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	return emails, nil
+) ([]sqlc.SendingPoolEmail, error) {
+	return m.db.PrepareForSend(context.TODO(), int32(max))
 }
 
 // NewSendingPoolManager constructs a new Sending Pool Manager
-func NewSendingPoolManager(db *gorm.DB) (SendingPoolManager, error) {
+func NewSendingPoolManager(db *sql.DB) (SendingPoolManager, error) {
 	return &sendingPoolManager{
-		db: db,
+		db: sqlc.New(db),
 	}, nil
+}
+
+func createMessageID(domain string) string {
+	return fmt.Sprintf("msg_%v@%v", cuid.New(), domain)
 }

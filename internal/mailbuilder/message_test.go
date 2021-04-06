@@ -1,14 +1,15 @@
 package mailbuilder
 
 import (
+	"fmt"
 	"testing"
 
-	"kannon.gyozatech.dev/internal/db"
+	"kannon.gyozatech.dev/internal/pool"
 )
 
 func TestBuildHeaders(t *testing.T) {
 
-	sender := db.Sender{
+	sender := pool.Sender{
 		Email: "from@email.com",
 		Alias: "email",
 	}
@@ -25,8 +26,9 @@ func TestBuildHeaders(t *testing.T) {
 		t.Errorf("Subject headers not correct: %v != %v", h["Subject"], "test subject")
 	}
 
-	if h["From"] != sender.GetSender() {
-		t.Errorf("From headers not correct: %v != %v", h["From"], sender.GetSender())
+	expSender := fmt.Sprintf("%v <%v>", sender.Alias, sender.Email)
+	if h["From"] != expSender {
+		t.Errorf("From headers not correct: %v != %v", h["From"], expSender)
 	}
 
 	if h["To"] != "to@email.com" {

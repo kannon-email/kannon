@@ -2,11 +2,11 @@ package main
 
 import (
 	"context"
+	"database/sql"
 
 	"github.com/sirupsen/logrus"
-	"gorm.io/gorm"
 	"kannon.gyozatech.dev/generated/pb"
-	"kannon.gyozatech.dev/internal/db"
+	"kannon.gyozatech.dev/generated/sqlc"
 	"kannon.gyozatech.dev/internal/domains"
 )
 
@@ -40,7 +40,7 @@ func (s *apiService) RegenerateDomainKey(ctx context.Context, in *pb.RegenerateD
 	return nil, nil
 }
 
-func createAPIService(db *gorm.DB) (pb.ApiServer, error) {
+func createAPIService(db *sql.DB) (pb.ApiServer, error) {
 	logrus.Infof("Connected to db\n")
 	dm, err := domains.NewDomainManager(db)
 	if err != nil {
@@ -53,10 +53,10 @@ func createAPIService(db *gorm.DB) (pb.ApiServer, error) {
 	return &api, nil
 }
 
-func dbDomainToProtoDomain(in db.Domain) *pb.Domain {
+func dbDomainToProtoDomain(in sqlc.Domain) *pb.Domain {
 	return &pb.Domain{
 		Domain:     in.Domain,
 		Key:        in.Key,
-		DkimPubKey: in.DKIMKeys.PublicKey,
+		DkimPubKey: in.DkimPublicKey,
 	}
 }
