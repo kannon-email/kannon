@@ -1,14 +1,15 @@
 package main
 
 import (
+	"database/sql"
 	"net"
+	"os"
 
 	"github.com/joho/godotenv"
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"kannon.gyozatech.dev/generated/pb"
-	"kannon.gyozatech.dev/internal/db"
 )
 
 func main() {
@@ -19,9 +20,9 @@ func main() {
 func runGrpcServer() error {
 	godotenv.Load()
 
-	dbi, err := db.NewDb(true)
+	dbi, err := sql.Open("postgres", os.Getenv("DB_CONN"))
 	if err != nil {
-		logrus.Fatalf("cannot create db: %v\n", err)
+		panic(err)
 	}
 
 	mailerService, err := newMailerService(dbi)

@@ -1,44 +1,36 @@
 package templates
 
 import (
-	"gorm.io/gorm"
-	"kannon.gyozatech.dev/internal/db"
+	"context"
+	"fmt"
+
+	"github.com/lucsky/cuid"
+	"kannon.gyozatech.dev/generated/sqlc"
 )
 
 type manager struct {
-	db *gorm.DB
+	db *sqlc.Queries
 }
 
-func (m *manager) FindTemplate(domain string, templateID string) (db.Template, error) {
-	template := db.Template{
+func (m *manager) FindTemplate(domain string, templateID string) (sqlc.Template, error) {
+	template, err := m.db.FindTemplate(context.TODO(), sqlc.FindTemplateParams{
 		TemplateID: templateID,
 		Domain:     domain,
-		Type:       db.TemplateTypePermanent,
-	}
-	err := m.db.Where(&template).First(&template).Error
+	})
 	if err != nil {
-		return db.Template{}, err
+		return sqlc.Template{}, err
 	}
 	return template, nil
 }
 
-func (m *manager) CreateTmpTemplate(HTML string, domain string) (db.Template, error) {
-	return m.createTemplate(HTML, domain, db.TemplateTypeTmp)
-}
-
-func (m *manager) CreatePermanentTemplate(HTML string, domain string) (db.Template, error) {
-	return m.createTemplate(HTML, domain, db.TemplateTypePermanent)
-}
-
-func (m *manager) createTemplate(HTML string, domain string, templateType db.TemplateType) (db.Template, error) {
-	template := db.Template{
-		HTML:   HTML,
-		Type:   templateType,
-		Domain: domain,
-	}
-
-	if err := m.db.Create(&template).Error; err != nil {
-		return db.Template{}, err
+func (m *manager) CreateTemplate(HTML string, domain string) (sqlc.Template, error) {
+	template, err := m.db.CreateTemplate(context.TODO(), sqlc.CreateTemplateParams{
+		TemplateID: fmt.Sprintf("template_%v@%v", cuid.New(), domain),
+		Html:       HTML,
+		Domain:     domain,
+	})
+	if err != nil {
+		return sqlc.Template{}, err
 	}
 	return template, nil
 }

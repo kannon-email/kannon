@@ -2,21 +2,23 @@ package mailbuilder
 
 import (
 	"bytes"
+	"context"
+	"database/sql"
 
-	"gorm.io/gorm"
 	"kannon.gyozatech.dev/generated/pb"
-	"kannon.gyozatech.dev/internal/db"
+	"kannon.gyozatech.dev/generated/sqlc"
 	"kannon.gyozatech.dev/internal/dkim"
+	"kannon.gyozatech.dev/internal/pool"
 )
 
 type MailBulder interface {
-	PerpareForSend(email db.SendingPoolEmail) (pb.EmailToSend, error)
+	PerpareForSend(email sqlc.SendingPoolEmail) (pb.EmailToSend, error)
 }
 
 // NewMailBuilder creates an SMTP mailer
-func NewMailBuilder(db *gorm.DB) MailBulder {
+func NewMailBuilder(db *sql.DB) MailBulder {
 	return &mailBuilder{
-		db: db,
+		db: sqlc.New(db),
 		headers: headers{
 			"X-Mailer": "SMTP Mailer",
 		},
@@ -25,61 +27,48 @@ func NewMailBuilder(db *gorm.DB) MailBulder {
 
 type mailBuilder struct {
 	headers headers
-	db      *gorm.DB
+	db      *sqlc.Queries
 }
 
-func (m *mailBuilder) PerpareForSend(email db.SendingPoolEmail) (pb.EmailToSend, error) {
-	pool := db.SendingPool{
-		ID: email.SendingPoolID,
-	}
-
-	err := m.db.Where(&pool).First(&pool).Error
+func (m *mailBuilder) PerpareForSend(email sqlc.SendingPoolEmail) (pb.EmailToSend, error) {
+	emailData, err := m.db.GetSendingData(context.TODO(), email.MessageID)
 	if err != nil {
 		return pb.EmailToSend{}, err
 	}
 
-	var domain db.Domain
-	err = m.db.Find(&domain, "domain = ?", pool.Domain).Error
+	msg, err := prepareMessage(pool.Sender{
+		Email: emailData.SenderEmail,
+		Alias: emailData.SenderAlias,
+	}, emailData.Subject, email.Email, emailData.MessageID, emailData.Html, m.headers)
 	if err != nil {
 		return pb.EmailToSend{}, err
 	}
 
-	var template db.Template
-	err = m.db.Find(&template, "template_id = ?", pool.TemplateID).Error
-	if err != nil {
-		return pb.EmailToSend{}, err
-	}
-
-	msg, err := prepareMessage(pool.Sender, pool.Subject, email.To, pool.MessageID, template.HTML, m.headers)
-	if err != nil {
-		return pb.EmailToSend{}, err
-	}
-
-	signedMsg, err := signMessage(domain, msg)
+	signedMsg, err := signMessage(emailData.Domain, emailData.DkimPrivateKey, msg)
 	if err != nil {
 		return pb.EmailToSend{}, err
 	}
 
 	return pb.EmailToSend{
-		From:       pool.Sender.Email,
-		To:         email.To,
+		From:       emailData.SenderEmail,
+		To:         email.Email,
 		Body:       signedMsg,
-		MessageId:  buildEmailMessageID(email.To, pool.MessageID),
-		ReturnPath: buildReturnPath(email.To, pool.MessageID),
+		MessageId:  buildEmailMessageID(email.Email, emailData.MessageID),
+		ReturnPath: buildReturnPath(email.Email, emailData.MessageID),
 	}, nil
 }
 
-func prepareMessage(sender db.Sender, subject string, to string, messageID string, html string, baseHeaders headers) ([]byte, error) {
+func prepareMessage(sender pool.Sender, subject string, to string, messageID string, html string, baseHeaders headers) ([]byte, error) {
 	emailMessageID := buildEmailMessageID(to, messageID)
 	headers := buildHeaders(subject, sender, to, messageID, emailMessageID, baseHeaders)
 	return renderMsg(html, sender.Email, to, headers)
 }
 
-func signMessage(domain db.Domain, msg []byte) ([]byte, error) {
+func signMessage(domain string, dkimPrivateKey string, msg []byte) ([]byte, error) {
 	signData := dkim.SignData{
-		PrivateKey: domain.DKIMKeys.PrivateKey,
-		Domain:     domain.Domain,
-		Selector:   "smtp",
+		PrivateKey: dkimPrivateKey,
+		Domain:     domain,
+		Selector:   "kannon",
 		Headers:    []string{"From", "To", "Subject", "Message-ID"},
 	}
 

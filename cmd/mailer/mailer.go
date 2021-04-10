@@ -2,19 +2,19 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"encoding/base64"
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
-	log "github.com/sirupsen/logrus"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"gorm.io/gorm"
 	"kannon.gyozatech.dev/generated/pb"
-	"kannon.gyozatech.dev/internal/db"
+	"kannon.gyozatech.dev/generated/sqlc"
 	"kannon.gyozatech.dev/internal/domains"
 	"kannon.gyozatech.dev/internal/pool"
 	"kannon.gyozatech.dev/internal/templates"
@@ -29,24 +29,24 @@ type service struct {
 func (s service) SendHTML(ctx context.Context, in *pb.SendHTMLRequest) (*pb.SendResponse, error) {
 	domain, ok := s.getCallDomainFromContext(ctx)
 	if !ok {
-		log.Errorf("invalid login\n")
-		return nil, grpc.Errorf(codes.Unauthenticated, "invalid or wrong auth")
+		logrus.Errorf("invalid login\n")
+		return nil, status.Errorf(codes.Unauthenticated, "invalid or wrong auth")
 	}
 
-	template, err := s.templates.CreateTmpTemplate(in.Html, domain.Domain)
+	template, err := s.templates.CreateTemplate(in.Html, domain.Domain)
 	if err != nil {
-		log.Errorf("cannot create template %v\n", err)
-		return nil, grpc.Errorf(codes.Internal, "cannot create template %v", err)
+		logrus.Errorf("cannot create template %v\n", err)
+		return nil, status.Errorf(codes.Internal, "cannot create template %v", err)
 	}
 
-	sender := db.Sender{
+	sender := pool.Sender{
 		Email: in.Sender.Email,
 		Alias: in.Sender.Alias,
 	}
 	pool, err := s.sendingPoll.AddPool(template, in.To, sender, in.Subject, domain.Domain)
 
 	if err != nil {
-		log.Errorf("cannot create pool %v\n", err)
+		logrus.Errorf("cannot create pool %v\n", err)
 		return nil, err
 	}
 
@@ -62,24 +62,24 @@ func (s service) SendHTML(ctx context.Context, in *pb.SendHTMLRequest) (*pb.Send
 func (s service) SendTemplate(ctx context.Context, in *pb.SendTemplateRequest) (*pb.SendResponse, error) {
 	domain, ok := s.getCallDomainFromContext(ctx)
 	if !ok {
-		log.Errorf("invalid login\n")
-		return nil, grpc.Errorf(codes.Unauthenticated, "invalid or wrong auth")
+		logrus.Errorf("invalid login\n")
+		return nil, status.Errorf(codes.Unauthenticated, "invalid or wrong auth")
 	}
 
 	template, err := s.templates.FindTemplate(domain.Domain, in.TemplateId)
 	if err != nil {
-		log.Errorf("cannot create template %v\n", err)
-		return nil, grpc.Errorf(codes.InvalidArgument, "cannot find template with id: %v", in.TemplateId)
+		logrus.Errorf("cannot create template %v\n", err)
+		return nil, status.Errorf(codes.InvalidArgument, "cannot find template with id: %v", in.TemplateId)
 	}
 
-	sender := db.Sender{
+	sender := pool.Sender{
 		Email: in.Sender.Email,
 		Alias: in.Sender.Alias,
 	}
 	pool, err := s.sendingPoll.AddPool(template, in.To, sender, in.Subject, domain.Domain)
 
 	if err != nil {
-		log.Errorf("cannot create pool %v\n", err)
+		logrus.Errorf("cannot create pool %v\n", err)
 		return nil, err
 	}
 
@@ -96,50 +96,52 @@ func (s service) Close() error {
 	return s.domains.Close()
 }
 
-func (s service) getCallDomainFromContext(ctx context.Context) (db.Domain, bool) {
+func (s service) getCallDomainFromContext(ctx context.Context) (sqlc.Domain, bool) {
 	m, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		logrus.Debugf("Cannot find metatada\n")
-		return db.Domain{}, false
+		return sqlc.Domain{}, false
 	}
 
 	auths := m.Get("authorization")
 	if len(auths) != 1 {
 		logrus.Debugf("Cannot find authorization header\n")
-		return db.Domain{}, false
+		return sqlc.Domain{}, false
 	}
 
 	auth := auths[0]
 	if !strings.HasPrefix(auth, "Basic ") {
 		logrus.Debugf("No prefix Basic in auth: %v\n", auth)
-		return db.Domain{}, false
+		return sqlc.Domain{}, false
 	}
 
 	token := strings.Replace(auth, "Basic ", "", 1)
 	data, err := base64.StdEncoding.DecodeString(token)
 	if err != nil {
 		logrus.Debugf("Decode token error: %v\n", token)
-		return db.Domain{}, false
+		return sqlc.Domain{}, false
 	}
 
 	authData := string(data)
-	domainAndKey := strings.Split(authData, ":")
-	if len(domainAndKey) != 2 {
+
+	var d, k string
+	_, err = fmt.Sscanf(authData, "%v:%v", &d, &k)
+	if err != nil {
 		logrus.Debugf("Invalid token: %v\n", authData)
-		return db.Domain{}, false
+		return sqlc.Domain{}, false
 	}
 
-	domain, err := s.domains.FindDomainWithKey(domainAndKey[0], domainAndKey[1])
+	domain, err := s.domains.FindDomainWithKey(d, k)
 	if err != nil {
 		logrus.Debugf("Cannot find domain: %v\n", err)
-		return db.Domain{}, false
+		return sqlc.Domain{}, false
 	}
 
 	return domain, true
 
 }
 
-func newMailerService(dbi *gorm.DB) (pb.MailerServer, error) {
+func newMailerService(dbi *sql.DB) (pb.MailerServer, error) {
 	domainsCli, err := domains.NewDomainManager(dbi)
 	if err != nil {
 		return nil, err

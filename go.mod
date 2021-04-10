@@ -8,6 +8,7 @@ require (
 	github.com/jinzhu/gorm v1.9.16
 	github.com/joho/godotenv v1.3.0
 	github.com/kelseyhightower/envconfig v1.4.0
+	github.com/lib/pq v1.3.0
 	github.com/lucsky/cuid v1.0.2 // indirect
 	github.com/nats-io/jsm.go v0.0.22
 	github.com/nats-io/nats.go v1.10.1-0.20210228004050-ed743748acac
