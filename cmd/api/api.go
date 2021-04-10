@@ -5,6 +5,7 @@ import (
 	"database/sql"
 
 	"github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"kannon.gyozatech.dev/generated/pb"
 	"kannon.gyozatech.dev/generated/sqlc"
 	"kannon.gyozatech.dev/internal/domains"
@@ -14,7 +15,7 @@ type apiService struct {
 	dm domains.DomainManager
 }
 
-func (s *apiService) GetDomains(ctx context.Context, in *pb.Empty) (*pb.GetDomainsResponse, error) {
+func (s *apiService) GetDomains(ctx context.Context, in *emptypb.Empty) (*pb.GetDomainsResponse, error) {
 	domains, err := s.dm.GetAllDomains()
 	if err != nil {
 		return nil, err
