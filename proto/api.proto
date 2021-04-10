@@ -3,13 +3,12 @@ option go_package = "generated/pb";
 
 package kannon;
 
+import "google/protobuf/empty.proto";
+
 service Api {
-  rpc GetDomains(Empty) returns (GetDomainsResponse) {}
+  rpc GetDomains(google.protobuf.Empty) returns (GetDomainsResponse) {}
   rpc CreateDomain(CreateDomainRequest) returns (Domain) {}
   rpc RegenerateDomainKey(RegenerateDomainKeyRequest) returns (Domain) {}
-}
-
-message Empty {
 }
 
 message GetDomainsResponse {

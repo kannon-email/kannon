@@ -1,8 +1,7 @@
 .PHONY: test
 
 proto: proto/*.proto
-	rm -rf ./generated
-	protoc proto/*.proto --go_out=plugins=grpc:.
+	buf generate
 
 docker-build:
 	docker build -t ghcr.io/gyozatech/kannon/api --target api  .
