@@ -2,9 +2,7 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"log"
-	"os"
 	"sync"
 	"time"
 
@@ -15,6 +13,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
 	"kannon.gyozatech.dev/generated/pb"
+	"kannon.gyozatech.dev/generated/sqlc"
 	"kannon.gyozatech.dev/internal/mailbuilder"
 	"kannon.gyozatech.dev/internal/pool"
 
@@ -35,10 +34,11 @@ func main() {
 		log.Fatal(err.Error())
 	}
 
-	db, err := sql.Open("postgres", os.Getenv("DB_CONN"))
+	db, err := sqlc.Conn()
 	if err != nil {
 		panic(err)
 	}
+	defer db.Close()
 
 	pm, err := pool.NewSendingPoolManager(db)
 	if err != nil {

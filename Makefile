@@ -1,7 +1,13 @@
-.PHONY: test
+.PHONY: test db proto
 
 proto: proto/*.proto
 	buf generate
+
+test:
+	go test ./...
+
+db:
+	sqlc generate
 
 docker-build:
 	docker build -t ghcr.io/gyozatech/kannon/api --target api  .
@@ -12,6 +18,3 @@ docker-push:
 	docker push ghcr.io/gyozatech/kannon/api
 	docker push ghcr.io/gyozatech/kannon/sender
 	docker push ghcr.io/gyozatech/kannon/mailer
-
-test:
-	go test ./...
