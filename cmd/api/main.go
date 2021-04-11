@@ -1,14 +1,13 @@
 package main
 
 import (
-	"database/sql"
 	"net"
-	"os"
 
 	"github.com/joho/godotenv"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"kannon.gyozatech.dev/generated/pb"
+	"kannon.gyozatech.dev/generated/sqlc"
 )
 
 func main() {
@@ -18,11 +17,11 @@ func main() {
 
 func runGrpcServer() error {
 	godotenv.Load()
-
-	dbi, err := sql.Open("postgres", os.Getenv("DB_CONN"))
+	dbi, err := sqlc.Conn()
 	if err != nil {
 		panic(err)
 	}
+	defer dbi.Close()
 
 	apiService, err := createAPIService(dbi)
 	if err != nil {
@@ -31,11 +30,10 @@ func runGrpcServer() error {
 
 	log.Info("😃 Open TCP Connection")
 	lis, err := net.Listen("tcp", "0.0.0.0:50051")
-	defer lis.Close()
-
 	if err != nil {
-		return err
+		panic(err)
 	}
+	defer lis.Close()
 
 	s := grpc.NewServer()
 	pb.RegisterApiServer(s, apiService)
