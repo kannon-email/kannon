@@ -1,0 +1,47 @@
+autolabeler:
+  - title:
+      - /💥/
+    label: type/breaking
+  - title:
+      - /✨/
+    label: type/feature
+  - title:
+      - /🐛/
+    label: type/bugfix
+  - title:
+      - /📖/
+    label: type/doc
+  - title:
+      - /🛠/
+    label: type/other
+categories:
+  - label: type/breaking
+    title: "💥 Breaking Changes"
+  - label: type/feature
+    title: "✨ Features"
+  - label: type/bugfix
+    title: "🐛 Bug Fixes"
+  - label: type/doc
+    title: "📖 Documentation"
+  - label: type/other
+    title: "🛠 Other"
+change-template: "- $TITLE @$AUTHOR (#$NUMBER)"
+exclude-labels:
+  - skip-changelog
+name-template: v$RESOLVED_VERSION
+tag-template: v$RESOLVED_VERSION
+template: |
+  # What's Changed
+
+  $CHANGES
+version-resolver:
+  major:
+    labels:
+      - version/major
+  minor:
+    labels:
+      - version/minor
+  patch:
+    labels:
+      - version/patch
+  default: patch
