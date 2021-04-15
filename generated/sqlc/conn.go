@@ -10,7 +10,12 @@ import (
 )
 
 func Conn() (*sql.DB, error) {
-	c, err := pgx.ParseConfig(os.Getenv("DATABASE_URL"))
+	url := os.Getenv("DATABASE_URL")
+	return conn(url)
+}
+
+func conn(url string) (*sql.DB, error) {
+	c, err := pgx.ParseConfig(url)
 	if err != nil {
 		return nil, fmt.Errorf("parsing postgres URI: %w", err)
 	}
