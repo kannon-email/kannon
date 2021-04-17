@@ -9,7 +9,6 @@ COPY ./generated ./generated
 
 ENV CGO_ENABLED=0
 RUN go build -o /build/api cmd/api/*.go
-RUN go build -o /build/mailer cmd/mailer/*.go
 RUN go build -o /build/sender cmd/sender/*.go
 RUN go build -o /build/dispatcher cmd/dispatcher/*.go
 
@@ -20,11 +19,6 @@ ENTRYPOINT ["/bin/cmd"]
 
 FROM scratch as sender
 COPY --from=builder  /build/sender /bin/cmd
-USER 1000
-ENTRYPOINT ["/bin/cmd"]
-
-FROM scratch as mailer
-COPY --from=builder  /build/mailer /bin/cmd
 USER 1000
 ENTRYPOINT ["/bin/cmd"]
 

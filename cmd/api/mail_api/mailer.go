@@ -1,4 +1,4 @@
-package main
+package mail_api
 
 import (
 	"context"
@@ -20,13 +20,13 @@ import (
 	"kannon.gyozatech.dev/internal/templates"
 )
 
-type service struct {
+type mailApiService struct {
 	domains     domains.DomainManager
 	templates   templates.Manager
 	sendingPoll pool.SendingPoolManager
 }
 
-func (s service) SendHTML(ctx context.Context, in *pb.SendHTMLRequest) (*pb.SendResponse, error) {
+func (s mailApiService) SendHTML(ctx context.Context, in *pb.SendHTMLRequest) (*pb.SendResponse, error) {
 	domain, ok := s.getCallDomainFromContext(ctx)
 	if !ok {
 		logrus.Errorf("invalid login\n")
@@ -59,7 +59,7 @@ func (s service) SendHTML(ctx context.Context, in *pb.SendHTMLRequest) (*pb.Send
 	return &response, nil
 }
 
-func (s service) SendTemplate(ctx context.Context, in *pb.SendTemplateRequest) (*pb.SendResponse, error) {
+func (s mailApiService) SendTemplate(ctx context.Context, in *pb.SendTemplateRequest) (*pb.SendResponse, error) {
 	domain, ok := s.getCallDomainFromContext(ctx)
 	if !ok {
 		logrus.Errorf("invalid login\n")
@@ -92,11 +92,11 @@ func (s service) SendTemplate(ctx context.Context, in *pb.SendTemplateRequest) (
 	return &response, nil
 }
 
-func (s service) Close() error {
+func (s mailApiService) Close() error {
 	return s.domains.Close()
 }
 
-func (s service) getCallDomainFromContext(ctx context.Context) (sqlc.Domain, bool) {
+func (s mailApiService) getCallDomainFromContext(ctx context.Context) (sqlc.Domain, bool) {
 	m, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		logrus.Debugf("Cannot find metatada\n")
@@ -141,7 +141,7 @@ func (s service) getCallDomainFromContext(ctx context.Context) (sqlc.Domain, boo
 
 }
 
-func newMailerService(dbi *sql.DB) (pb.MailerServer, error) {
+func NewMailApiService(dbi *sql.DB) (pb.MailerServer, error) {
 	domainsCli, err := domains.NewDomainManager(dbi)
 	if err != nil {
 		return nil, err
@@ -157,7 +157,7 @@ func newMailerService(dbi *sql.DB) (pb.MailerServer, error) {
 		return nil, err
 	}
 
-	return &service{
+	return &mailApiService{
 		domains:     domainsCli,
 		sendingPoll: sendingPoolCli,
 		templates:   templates,
