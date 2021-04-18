@@ -2,8 +2,7 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"os"
+	"flag"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/joho/godotenv"
@@ -17,43 +16,48 @@ import (
 
 func main() {
 	godotenv.Load()
-	senderHost := os.Getenv("SENDER_HOST")
-	if senderHost == "" {
-		panic("no sender host variable")
-	}
+	senderHost := flag.String("sender-host", "sender.kannon.io", "Sender hostname for SMTP presentation")
+	natsUrl := flag.String("nasts-url", "nats", "Nats url connection")
+	maxSendingJobs := flag.Uint("max-sending-jobs", 100, "Max Parallel Job for sending")
 
-	natsConn := os.Getenv("NATS_CONN")
-	if natsConn == "" {
-		natsConn = nats.DefaultURL
-	}
+	flag.Parse()
 
-	nc, err := nats.Connect(natsConn, nats.UseOldRequestStyle())
+	nc, err := nats.Connect(*natsUrl, nats.UseOldRequestStyle())
 	if err != nil {
 		logrus.Fatalf("Cannot connect to nats: %v\n", err)
 	}
+
 	mgr, err := jsm.New(nc)
 	if err != nil {
 		panic(err)
 	}
 
+	sender := smtp.NewSender(*senderHost)
+
 	con, err := mgr.LoadConsumer("kannon", "sending-pool")
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("Pull mode: %v\n", con.IsPullMode())
+	handleSend(sender, con, nc, *maxSendingJobs)
+}
 
-	sender := smtp.NewSender(senderHost)
-
+func handleSend(sender smtp.Sender, con *jsm.Consumer, nc *nats.Conn, maxParallelJobs uint) {
+	logrus.Infof("🚀 Ready to send!\n")
+	ch := make(chan bool, maxParallelJobs)
 	for {
 		msg, err := con.NextMsgContext(context.Background())
 		if err != nil {
 			panic(err)
 		}
-		err = handleMessage(msg, sender, nc)
-		if err != nil {
-			logrus.Errorf("error in handling message: %v\n", err.Error())
-		}
-		msg.Ack()
+		ch <- true
+		go func() {
+			err = handleMessage(msg, sender, nc)
+			if err != nil {
+				logrus.Errorf("error in handling message: %v\n", err.Error())
+			}
+			msg.Ack()
+			<-ch
+		}()
 	}
 }
 
