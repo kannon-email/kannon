@@ -101,7 +101,11 @@ func deliver(from, to string, msg []byte, mx string, insecure bool, domain strin
 		return newSMTPError(err, false, 111)
 	}
 	defer conn.Close()
-	conn.SetDeadline(time.Now().Add(smtpTotalTimeout))
+	if err := conn.SetDeadline(time.Now().Add(smtpTotalTimeout)); err != nil {
+		log.Debugf("Cannot set deadline: %v", err)
+		// TODO: add error code
+		return newSMTPError(err, false, 111)
+	}
 
 	c, err := smtp.NewClient(conn, mx)
 	if err != nil {
@@ -162,7 +166,10 @@ func deliver(from, to string, msg []byte, mx string, insecure bool, domain strin
 		return newSMTPErrorFromSTMP(err)
 	}
 
-	c.Quit()
+	if err := c.Quit(); err != nil {
+		log.Debugf("err: %v\n", err)
+		return newSMTPErrorFromSTMP(err)
+	}
 
 	return nil
 }

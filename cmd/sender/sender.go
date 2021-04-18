@@ -4,18 +4,16 @@ import (
 	"context"
 	"flag"
 
-	"github.com/golang/protobuf/proto"
-	"github.com/joho/godotenv"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats.go"
 	"github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"kannon.gyozatech.dev/generated/pb"
 	"kannon.gyozatech.dev/internal/smtp"
 )
 
 func main() {
-	godotenv.Load()
 	senderHost := flag.String("sender-host", "sender.kannon.io", "Sender hostname for SMTP presentation")
 	natsUrl := flag.String("nasts-url", "nats", "Nats url connection")
 	maxSendingJobs := flag.Uint("max-sending-jobs", 100, "Max Parallel Job for sending")
@@ -55,7 +53,9 @@ func handleSend(sender smtp.Sender, con *jsm.Consumer, nc *nats.Conn, maxParalle
 			if err != nil {
 				logrus.Errorf("error in handling message: %v\n", err.Error())
 			}
-			msg.Ack()
+			if err := msg.Ack(); err != nil {
+				logrus.Errorf("cannot hack message: %v\n", err.Error())
+			}
 			<-ch
 		}()
 	}

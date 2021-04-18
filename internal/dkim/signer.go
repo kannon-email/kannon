@@ -42,6 +42,5 @@ func decodeKey(dkimPrivateKey string) (*rsa.PrivateKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	rsak, err := x509.ParsePKCS1PrivateKey(dkimPrivateKeyInBytes)
-	return rsak, nil
+	return x509.ParsePKCS1PrivateKey(dkimPrivateKeyInBytes)
 }

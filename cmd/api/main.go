@@ -8,7 +8,6 @@ import (
 	"sync"
 
 	"github.com/joho/godotenv"
-	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"kannon.gyozatech.dev/cmd/api/admin_api"
@@ -18,11 +17,13 @@ import (
 
 func main() {
 	log.SetFormatter(&log.JSONFormatter{})
-	runGrpcServer()
+	if err := runGrpcServer(); err != nil {
+		panic(err.Error())
+	}
 }
 
 func runGrpcServer() error {
-	godotenv.Load()
+	_ = godotenv.Load()
 
 	dbi, err := sql.Open("postgres", os.Getenv("DB_CONN"))
 	if err != nil {
@@ -32,13 +33,12 @@ func runGrpcServer() error {
 
 	adminApiService, err := admin_api.CreateAdminAPIService(dbi)
 	if err != nil {
-		logrus.Fatalf("Cannot create Admin API service: %v\n", err)
-		return err
+		return fmt.Errorf("cannot create Admin API service: %w", err)
 	}
 
 	mailApiService, err := mail_api.NewMailApiService(dbi)
 	if err != nil {
-		logrus.Fatalf("Cannot create Mailer API service: %v\n", err)
+		return fmt.Errorf("cannot create Mailer API service: %w", err)
 	}
 
 	wg := sync.WaitGroup{}
