@@ -11,13 +11,13 @@ import (
 )
 
 func main() {
-	ps_db, err := sql.Open("postgres", "host=localhost user=postgres dbname=test_cannon port=5432 sslmode=disable")
+	db, err := sql.Open("postgres", "host=localhost user=postgres dbname=test_cannon port=5432 sslmode=disable")
 	if err != nil {
 		panic(err)
 	}
 
-	dbi := sqlc.New(ps_db)
-	msg, err := dbi.CreateMessage(context.Background(), sqlc.CreateMessageParams{
+	queries := sqlc.New(db)
+	msg, err := queries.CreateMessage(context.Background(), sqlc.CreateMessageParams{
 		TemplateID:  "pippo",
 		Domain:      "ciao@ciao.com",
 		Subject:     "ciao",
@@ -29,7 +29,7 @@ func main() {
 		fmt.Printf("%v", err)
 	}
 
-	data, _ := dbi.CreatePool(context.Background(), sqlc.CreatePoolParams{
+	data, _ := queries.CreatePool(context.Background(), sqlc.CreatePoolParams{
 		ScheduledTime: time.Now(),
 		MessageID:     msg.ID,
 		Emails:        []string{"email@1.com", "asdasd@email.com"},
@@ -38,5 +38,4 @@ func main() {
 		fmt.Printf("%v", err)
 	}
 	fmt.Printf("geenrated %v", data)
-
 }

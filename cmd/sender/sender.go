@@ -15,12 +15,12 @@ import (
 
 func main() {
 	senderHost := flag.String("sender-host", "sender.kannon.io", "Sender hostname for SMTP presentation")
-	natsUrl := flag.String("nasts-url", "nats", "Nats url connection")
+	natsURL := flag.String("nasts-url", "nats", "Nats url connection")
 	maxSendingJobs := flag.Uint("max-sending-jobs", 100, "Max Parallel Job for sending")
 
 	flag.Parse()
 
-	nc, err := nats.Connect(*natsUrl, nats.UseOldRequestStyle())
+	nc, err := nats.Connect(*natsURL, nats.UseOldRequestStyle())
 	if err != nil {
 		logrus.Fatalf("Cannot connect to nats: %v\n", err)
 	}

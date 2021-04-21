@@ -57,7 +57,7 @@ func TestMain(m *testing.M) {
 
 	if err = pool.Retry(func() error {
 		var err error
-		db, err = initDb(resource.GetPort("5432/tcp"))
+		db, err = initDB(resource.GetPort("5432/tcp"))
 		if err != nil {
 			logrus.Warnf("connection error: %v", err)
 			return err
@@ -144,7 +144,7 @@ func TestTemplates(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func initDb(dbPort string) (*sql.DB, error) {
+func initDB(dbPort string) (*sql.DB, error) {
 	url := fmt.Sprintf("postgresql://test:test@localhost:%v/test", dbPort)
 	db, err := conn(url)
 	if err != nil {

@@ -10,8 +10,8 @@ import (
 	"github.com/joho/godotenv"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
-	"kannon.gyozatech.dev/cmd/api/admin_api"
-	"kannon.gyozatech.dev/cmd/api/mail_api"
+	"kannon.gyozatech.dev/cmd/api/adminapi"
+	"kannon.gyozatech.dev/cmd/api/mailapi"
 	"kannon.gyozatech.dev/generated/pb"
 )
 
@@ -31,12 +31,12 @@ func runGrpcServer() error {
 	}
 	defer dbi.Close()
 
-	adminApiService, err := admin_api.CreateAdminAPIService(dbi)
+	adminAPIService, err := adminapi.CreateAdminAPIService(dbi)
 	if err != nil {
 		return fmt.Errorf("cannot create Admin API service: %w", err)
 	}
 
-	mailApiService, err := mail_api.NewMailApiService(dbi)
+	mailAPIService, err := mailapi.NewMailAPIService(dbi)
 	if err != nil {
 		return fmt.Errorf("cannot create Mailer API service: %w", err)
 	}
@@ -45,14 +45,14 @@ func runGrpcServer() error {
 	wg.Add(2)
 
 	go func() {
-		err := startApiServer(50051, adminApiService)
+		err := startAPIServer(50051, adminAPIService)
 		if err != nil {
 			panic("Cannot run api server")
 		}
 	}()
 
 	go func() {
-		err := startMailerServer(50052, mailApiService)
+		err := startMailerServer(50052, mailAPIService)
 		if err != nil {
 			panic("Cannot run mailer server")
 		}
@@ -63,7 +63,7 @@ func runGrpcServer() error {
 	return nil
 }
 
-func startApiServer(port uint16, srv pb.ApiServer) error {
+func startAPIServer(port uint16, srv pb.ApiServer) error {
 	addr := fmt.Sprintf("0.0.0.0:%d", port)
 	lis, err := net.Listen("tcp", addr)
 	if err != nil {

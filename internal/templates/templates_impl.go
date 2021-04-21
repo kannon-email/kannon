@@ -23,10 +23,10 @@ func (m *manager) FindTemplate(domain string, templateID string) (sqlc.Template,
 	return template, nil
 }
 
-func (m *manager) CreateTemplate(HTML string, domain string) (sqlc.Template, error) {
+func (m *manager) CreateTemplate(html string, domain string) (sqlc.Template, error) {
 	template, err := m.db.CreateTemplate(context.TODO(), sqlc.CreateTemplateParams{
 		TemplateID: fmt.Sprintf("template_%v@%v", cuid.New(), domain),
-		Html:       HTML,
+		Html:       html,
 		Domain:     domain,
 	})
 	if err != nil {

@@ -1,4 +1,4 @@
-package mail_api
+package mailapi
 
 import (
 	"context"
@@ -20,13 +20,13 @@ import (
 	"kannon.gyozatech.dev/internal/templates"
 )
 
-type mailApiService struct {
+type mailAPIService struct {
 	domains     domains.DomainManager
 	templates   templates.Manager
 	sendingPoll pool.SendingPoolManager
 }
 
-func (s mailApiService) SendHTML(ctx context.Context, in *pb.SendHTMLRequest) (*pb.SendResponse, error) {
+func (s mailAPIService) SendHTML(ctx context.Context, in *pb.SendHTMLRequest) (*pb.SendResponse, error) {
 	domain, ok := s.getCallDomainFromContext(ctx)
 	if !ok {
 		logrus.Errorf("invalid login\n")
@@ -59,7 +59,7 @@ func (s mailApiService) SendHTML(ctx context.Context, in *pb.SendHTMLRequest) (*
 	return &response, nil
 }
 
-func (s mailApiService) SendTemplate(ctx context.Context, in *pb.SendTemplateRequest) (*pb.SendResponse, error) {
+func (s mailAPIService) SendTemplate(ctx context.Context, in *pb.SendTemplateRequest) (*pb.SendResponse, error) {
 	domain, ok := s.getCallDomainFromContext(ctx)
 	if !ok {
 		logrus.Errorf("invalid login\n")
@@ -92,11 +92,11 @@ func (s mailApiService) SendTemplate(ctx context.Context, in *pb.SendTemplateReq
 	return &response, nil
 }
 
-func (s mailApiService) Close() error {
+func (s mailAPIService) Close() error {
 	return s.domains.Close()
 }
 
-func (s mailApiService) getCallDomainFromContext(ctx context.Context) (sqlc.Domain, bool) {
+func (s mailAPIService) getCallDomainFromContext(ctx context.Context) (sqlc.Domain, bool) {
 	m, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		logrus.Debugf("Cannot find metatada\n")
@@ -138,10 +138,9 @@ func (s mailApiService) getCallDomainFromContext(ctx context.Context) (sqlc.Doma
 	}
 
 	return domain, true
-
 }
 
-func NewMailApiService(dbi *sql.DB) (pb.MailerServer, error) {
+func NewMailAPIService(dbi *sql.DB) (pb.MailerServer, error) {
 	domainsCli, err := domains.NewDomainManager(dbi)
 	if err != nil {
 		return nil, err
@@ -157,7 +156,7 @@ func NewMailApiService(dbi *sql.DB) (pb.MailerServer, error) {
 		return nil, err
 	}
 
-	return &mailApiService{
+	return &mailAPIService{
 		domains:     domainsCli,
 		sendingPoll: sendingPoolCli,
 		templates:   templates,

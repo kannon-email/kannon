@@ -1,10 +1,6 @@
 linters-settings:
-  govet:
-    check-shadowing: true
   golint:
     min-confidence: 0
-  maligned:
-    suggest-new: true
   goimports:
     local-prefixes: github.com/clastix/capsule
   dupl:
@@ -27,7 +23,6 @@ linters:
     - goimports
     - golint
     - goprintffuncname
-    - gosec
     - gosimple
     - govet
     - ineffassign
