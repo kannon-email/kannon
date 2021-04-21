@@ -8,7 +8,6 @@ import (
 )
 
 func TestBuildHeaders(t *testing.T) {
-
 	sender := pool.Sender{
 		Email: "from@email.com",
 		Alias: "email",
@@ -34,5 +33,20 @@ func TestBuildHeaders(t *testing.T) {
 	if h["To"] != "to@email.com" {
 		t.Errorf("From headers not correct: %v != %v", h["To"], "to@email.com")
 	}
+}
 
+func TestBuildHeadersShouldCopyBaseHeader(t *testing.T) {
+	baseHeaders := headers{
+		"testH": "testH",
+	}
+
+	sender := pool.Sender{
+		Email: "from@email.com",
+		Alias: "email",
+	}
+
+	buildHeaders("test subject", sender, "to@email.com", "132@email.com", "<msg-123@email.com>", baseHeaders)
+	if len(baseHeaders) != 1 {
+		t.Errorf("base headers has changed")
+	}
 }

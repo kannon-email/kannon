@@ -26,7 +26,7 @@ type appConfig struct {
 }
 
 func main() {
-	godotenv.Load()
+	_ = godotenv.Load()
 
 	var config appConfig
 	err := envconfig.Process("app", &config)
@@ -121,7 +121,9 @@ func handleErrors(mgr *jsm.Manager) {
 		} else {
 			logrus.Printf("[🛑 bump] %v %v - %v", errMsg.Email, errMsg.MessageId, errMsg.Msg)
 		}
-		msg.Ack()
+		if err := msg.Ack(); err != nil {
+			logrus.Errorf("Cannot hack msg to nats: %v\n", err)
+		}
 	}
 }
 
@@ -142,6 +144,8 @@ func handleDelivereds(mgr *jsm.Manager) {
 		} else {
 			logrus.Printf("[🚀 delivered] %v %v", deliveredMsg.Email, deliveredMsg.MessageId)
 		}
-		msg.Ack()
+		if err := msg.Ack(); err != nil {
+			logrus.Errorf("Cannot hack msg to nats: %v\n", err)
+		}
 	}
 }

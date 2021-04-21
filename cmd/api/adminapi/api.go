@@ -1,4 +1,4 @@
-package admin_api
+package adminapi
 
 import (
 	"context"
@@ -11,11 +11,11 @@ import (
 	"kannon.gyozatech.dev/internal/domains"
 )
 
-type adminApiService struct {
+type adminAPIService struct {
 	dm domains.DomainManager
 }
 
-func (s *adminApiService) GetDomains(ctx context.Context, in *emptypb.Empty) (*pb.GetDomainsResponse, error) {
+func (s *adminAPIService) GetDomains(ctx context.Context, in *emptypb.Empty) (*pb.GetDomainsResponse, error) {
 	domains, err := s.dm.GetAllDomains()
 	if err != nil {
 		return nil, err
@@ -28,7 +28,7 @@ func (s *adminApiService) GetDomains(ctx context.Context, in *emptypb.Empty) (*p
 	return &res, nil
 }
 
-func (s *adminApiService) CreateDomain(ctx context.Context, in *pb.CreateDomainRequest) (*pb.Domain, error) {
+func (s *adminAPIService) CreateDomain(ctx context.Context, in *pb.CreateDomainRequest) (*pb.Domain, error) {
 	domain, err := s.dm.CreateDomain(in.Domain)
 	if err != nil {
 		return nil, err
@@ -37,7 +37,7 @@ func (s *adminApiService) CreateDomain(ctx context.Context, in *pb.CreateDomainR
 	return dbDomainToProtoDomain(domain), nil
 }
 
-func (s *adminApiService) RegenerateDomainKey(ctx context.Context, in *pb.RegenerateDomainKeyRequest) (*pb.Domain, error) {
+func (s *adminAPIService) RegenerateDomainKey(ctx context.Context, in *pb.RegenerateDomainKeyRequest) (*pb.Domain, error) {
 	return nil, nil
 }
 
@@ -47,7 +47,7 @@ func CreateAdminAPIService(db *sql.DB) (pb.ApiServer, error) {
 	if err != nil {
 		return nil, err
 	}
-	api := adminApiService{
+	api := adminAPIService{
 		dm: dm,
 	}
 

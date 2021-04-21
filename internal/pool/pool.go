@@ -39,7 +39,6 @@ func (m *sendingPoolManager) AddPool(
 	subject string,
 	domain string,
 ) (sqlc.Message, error) {
-
 	msg, err := m.db.CreateMessage(context.Background(), sqlc.CreateMessageParams{
 		TemplateID:  template.TemplateID,
 		Domain:      domain,

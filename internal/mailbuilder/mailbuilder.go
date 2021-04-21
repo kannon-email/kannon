@@ -4,7 +4,10 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"time"
 
+	"github.com/sirupsen/logrus"
+	"gopkg.in/mail.v2"
 	"kannon.gyozatech.dev/generated/pb"
 	"kannon.gyozatech.dev/generated/sqlc"
 	"kannon.gyozatech.dev/internal/dkim"
@@ -60,8 +63,8 @@ func (m *mailBuilder) PerpareForSend(email sqlc.SendingPoolEmail) (pb.EmailToSen
 
 func prepareMessage(sender pool.Sender, subject string, to string, messageID string, html string, baseHeaders headers) ([]byte, error) {
 	emailMessageID := buildEmailMessageID(to, messageID)
-	headers := buildHeaders(subject, sender, to, messageID, emailMessageID, baseHeaders)
-	return renderMsg(html, sender.Email, to, headers)
+	h := buildHeaders(subject, sender, to, messageID, emailMessageID, baseHeaders)
+	return renderMsg(html, h)
 }
 
 func signMessage(domain string, dkimPrivateKey string, msg []byte) ([]byte, error) {
@@ -73,4 +76,23 @@ func signMessage(domain string, dkimPrivateKey string, msg []byte) ([]byte, erro
 	}
 
 	return dkim.SignMessage(signData, bytes.NewReader(msg))
+}
+
+// renderMsg render a MsgPayload to an SMTP message
+func renderMsg(html string, headers headers) ([]byte, error) {
+	msg := mail.NewMessage()
+
+	for key, value := range headers {
+		msg.SetHeader(key, value)
+	}
+	msg.SetDateHeader("Date", time.Now())
+	msg.SetBody("text/html", html)
+
+	var buff bytes.Buffer
+	if _, err := msg.WriteTo(&buff); err != nil {
+		logrus.Warnf("🤢 Error writing message: %v\n", err)
+		return nil, err
+	}
+
+	return buff.Bytes(), nil
 }
