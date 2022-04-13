@@ -2,10 +2,7 @@ package adminapi
 
 import (
 	"context"
-	"database/sql"
 
-	"github.com/sirupsen/logrus"
-	"google.golang.org/protobuf/types/known/emptypb"
 	"kannon.gyozatech.dev/generated/pb"
 	"kannon.gyozatech.dev/generated/sqlc"
 	"kannon.gyozatech.dev/internal/domains"
@@ -15,8 +12,8 @@ type adminAPIService struct {
 	dm domains.DomainManager
 }
 
-func (s *adminAPIService) GetDomains(ctx context.Context, in *emptypb.Empty) (*pb.GetDomainsResponse, error) {
-	domains, err := s.dm.GetAllDomains()
+func (s *adminAPIService) GetDomains(ctx context.Context, in *pb.GetDomainsReq) (*pb.GetDomainsResponse, error) {
+	domains, err := s.dm.GetAllDomains(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -29,7 +26,7 @@ func (s *adminAPIService) GetDomains(ctx context.Context, in *emptypb.Empty) (*p
 }
 
 func (s *adminAPIService) CreateDomain(ctx context.Context, in *pb.CreateDomainRequest) (*pb.Domain, error) {
-	domain, err := s.dm.CreateDomain(in.Domain)
+	domain, err := s.dm.CreateDomain(ctx, in.Domain)
 	if err != nil {
 		return nil, err
 	}
@@ -38,20 +35,12 @@ func (s *adminAPIService) CreateDomain(ctx context.Context, in *pb.CreateDomainR
 }
 
 func (s *adminAPIService) RegenerateDomainKey(ctx context.Context, in *pb.RegenerateDomainKeyRequest) (*pb.Domain, error) {
-	return nil, nil
-}
-
-func CreateAdminAPIService(db *sql.DB) (pb.ApiServer, error) {
-	logrus.Infof("Connected to db\n")
-	dm, err := domains.NewDomainManager(db)
+	domain, err := s.dm.RegenerateDomainKey(ctx, in.Domain)
 	if err != nil {
 		return nil, err
 	}
-	api := adminAPIService{
-		dm: dm,
-	}
 
-	return &api, nil
+	return dbDomainToProtoDomain(domain), nil
 }
 
 func dbDomainToProtoDomain(in sqlc.Domain) *pb.Domain {

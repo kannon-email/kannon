@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"net"
@@ -13,6 +14,7 @@ import (
 	"kannon.gyozatech.dev/cmd/api/adminapi"
 	"kannon.gyozatech.dev/cmd/api/mailapi"
 	"kannon.gyozatech.dev/generated/pb"
+	"kannon.gyozatech.dev/generated/sqlc"
 )
 
 func main() {
@@ -31,12 +33,14 @@ func runGrpcServer() error {
 	}
 	defer dbi.Close()
 
-	adminAPIService, err := adminapi.CreateAdminAPIService(dbi)
+	q, err := sqlc.Prepare(context.TODO(), dbi)
 	if err != nil {
-		return fmt.Errorf("cannot create Admin API service: %w", err)
+		panic(err)
 	}
 
-	mailAPIService, err := mailapi.NewMailAPIService(dbi)
+	adminAPIService := adminapi.CreateAdminAPIService(q)
+
+	mailAPIService, err := mailapi.NewMailAPIService(dbi, q)
 	if err != nil {
 		return fmt.Errorf("cannot create Mailer API service: %w", err)
 	}

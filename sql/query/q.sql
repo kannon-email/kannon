@@ -90,3 +90,6 @@ INSERT INTO templates
     VALUES ($1, $2, $3)
     RETURNING *
 ;
+
+-- name: SetDomainKey :one
+UPDATE domains SET key = @key WHERE domain = @domain RETURNING *;

@@ -131,7 +131,7 @@ func (s mailAPIService) getCallDomainFromContext(ctx context.Context) (sqlc.Doma
 		return sqlc.Domain{}, false
 	}
 
-	domain, err := s.domains.FindDomainWithKey(d, k)
+	domain, err := s.domains.FindDomainWithKey(ctx, d, k)
 	if err != nil {
 		logrus.Debugf("Cannot find domain: %v\n", err)
 		return sqlc.Domain{}, false
@@ -140,11 +140,8 @@ func (s mailAPIService) getCallDomainFromContext(ctx context.Context) (sqlc.Doma
 	return domain, true
 }
 
-func NewMailAPIService(dbi *sql.DB) (pb.MailerServer, error) {
-	domainsCli, err := domains.NewDomainManager(dbi)
-	if err != nil {
-		return nil, err
-	}
+func NewMailAPIService(dbi *sql.DB, q *sqlc.Queries) (pb.MailerServer, error) {
+	domainsCli := domains.NewDomainManager(q)
 
 	sendingPoolCli, err := pool.NewSendingPoolManager(dbi)
 	if err != nil {

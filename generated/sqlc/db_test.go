@@ -3,79 +3,42 @@ package sqlc
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"os"
 	"testing"
 
-	"github.com/ory/dockertest"
-	"github.com/ory/dockertest/docker"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	"kannon.gyozatech.dev/internal/tests"
 )
 
+var db *sql.DB
 var q *Queries
 
 func TestMain(m *testing.M) {
-	// uses a sensible default on windows (tcp/http) and linux/osx (socket)
-	pool, err := dockertest.NewPool("")
-	if err != nil {
-		logrus.Fatalf("Could not connect to docker: %s", err)
-	}
+	var purge tests.PurgeFunc
+	var err error
 
-	cdir, err := os.Getwd()
-	if err != nil {
-		logrus.Fatalf("Could not find current directory: %s", err)
-	}
-
-	fmt.Printf("%v/../../db/schema.sql:/docker-entrypoint-initdb.d/schema.sql", cdir)
-
-	// pulls an image, creates a container based on it and runs it
-	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
-		Repository: "postgres",
-		Tag:        "13-alpine",
-		Env: []string{
-			"POSTGRES_USER=test",
-			"POSTGRES_PASSWORD=test",
-			"listen_addresses = '*'",
-		},
-		Mounts: []string{
-			fmt.Sprintf("%v/../../db/schema.sql:/docker-entrypoint-initdb.d/schema.sql", cdir),
-		},
-	}, func(config *docker.HostConfig) {
-		// set AutoRemove to true so that stopped container goes away by itself
-		config.AutoRemove = true
-		config.RestartPolicy = docker.RestartPolicy{
-			Name: "no",
-		}
-	})
-	// resource, err := pool.Run("postgres", "9.6", []string{})
+	db, purge, err = tests.TestPostgresInit()
 	if err != nil {
 		logrus.Fatalf("Could not start resource: %s", err)
 	}
 
-	var db *sql.DB
-
-	if err = pool.Retry(func() error {
-		var err error
-		db, err = initDB(resource.GetPort("5432/tcp"))
-		if err != nil {
-			logrus.Warnf("connection error: %v", err)
-			return err
-		}
-		return db.Ping()
-	}); err != nil {
-		logrus.Fatalf("Could not connect to docker: %s", err)
-	}
 	q = New(db)
 
 	code := m.Run()
 
 	// You can't defer this because os.Exit doesn't care for defer
-	if err := pool.Purge(resource); err != nil {
+	if err := purge(); err != nil {
 		logrus.Fatalf("Could not purge resource: %s", err)
 	}
 
 	os.Exit(code)
+}
+
+func TestPrepareQueries(t *testing.T) {
+	q, err := Prepare(context.Background(), db)
+	assert.Nil(t, err)
+	defer q.Close()
 }
 
 func TestDomains(t *testing.T) {
@@ -142,13 +105,4 @@ func TestTemplates(t *testing.T) {
 	assert.Nil(t, err)
 	_, err = q.db.ExecContext(context.Background(), "TRUNCATE domains")
 	assert.Nil(t, err)
-}
-
-func initDB(dbPort string) (*sql.DB, error) {
-	url := fmt.Sprintf("postgresql://test:test@localhost:%v/test", dbPort)
-	db, err := conn(url)
-	if err != nil {
-		return nil, err
-	}
-	return db, err
 }

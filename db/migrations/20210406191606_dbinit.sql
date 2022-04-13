@@ -2,10 +2,10 @@
 
 CREATE TYPE SENDING_POOL_STATUS AS ENUM (
     'initializing',
-	'sending',
-	'sent',
-	'scheduled',
-	'error'
+    'sending',
+    'sent',
+    'scheduled',
+    'error'
 );
 
 CREATE TABLE domains (

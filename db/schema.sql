@@ -312,6 +312,13 @@ CREATE INDEX templates_domain_idx ON public.templates USING btree (domain);
 
 
 --
+-- Name: templates_domain_template_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX templates_domain_template_id_idx ON public.templates USING btree (domain, template_id);
+
+
+--
 -- Name: templates_template_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 

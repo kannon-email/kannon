@@ -1,8 +1,4 @@
 linters-settings:
-  golint:
-    min-confidence: 0
-  goimports:
-    local-prefixes: github.com/clastix/capsule
   dupl:
     threshold: 100
   goconst:
@@ -20,8 +16,6 @@ linters:
     - goconst
     - gocritic
     - gofmt
-    - goimports
-    - golint
     - goprintffuncname
     - gosimple
     - govet
