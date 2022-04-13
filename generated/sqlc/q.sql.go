@@ -393,3 +393,26 @@ func (q *Queries) PrepareForSend(ctx context.Context, limit int32) ([]SendingPoo
 	}
 	return items, nil
 }
+
+const setDomainKey = `-- name: SetDomainKey :one
+UPDATE domains SET key = $1 WHERE domain = $2 RETURNING id, domain, created_at, key, dkim_private_key, dkim_public_key
+`
+
+type SetDomainKeyParams struct {
+	Key    string
+	Domain string
+}
+
+func (q *Queries) SetDomainKey(ctx context.Context, arg SetDomainKeyParams) (Domain, error) {
+	row := q.queryRow(ctx, q.setDomainKeyStmt, setDomainKey, arg.Key, arg.Domain)
+	var i Domain
+	err := row.Scan(
+		&i.ID,
+		&i.Domain,
+		&i.CreatedAt,
+		&i.Key,
+		&i.DkimPrivateKey,
+		&i.DkimPublicKey,
+	)
+	return i, err
+}

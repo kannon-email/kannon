@@ -57,6 +57,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.prepareForSendStmt, err = db.PrepareContext(ctx, prepareForSend); err != nil {
 		return nil, fmt.Errorf("error preparing query PrepareForSend: %w", err)
 	}
+	if q.setDomainKeyStmt, err = db.PrepareContext(ctx, setDomainKey); err != nil {
+		return nil, fmt.Errorf("error preparing query SetDomainKey: %w", err)
+	}
 	return &q, nil
 }
 
@@ -117,6 +120,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing prepareForSendStmt: %w", cerr)
 		}
 	}
+	if q.setDomainKeyStmt != nil {
+		if cerr := q.setDomainKeyStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing setDomainKeyStmt: %w", cerr)
+		}
+	}
 	return err
 }
 
@@ -167,6 +175,7 @@ type Queries struct {
 	getDomainsStmt        *sql.Stmt
 	getSendingDataStmt    *sql.Stmt
 	prepareForSendStmt    *sql.Stmt
+	setDomainKeyStmt      *sql.Stmt
 }
 
 func (q *Queries) WithTx(tx *sql.Tx) *Queries {
@@ -184,5 +193,6 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		getDomainsStmt:        q.getDomainsStmt,
 		getSendingDataStmt:    q.getSendingDataStmt,
 		prepareForSendStmt:    q.prepareForSendStmt,
+		setDomainKeyStmt:      q.setDomainKeyStmt,
 	}
 }

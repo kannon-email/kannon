@@ -1,8 +1,8 @@
 package smtp
 
 /*
-	Internal error codes from
-	https://serversmtp.com/it/errore-smtp/
+   Internal error codes from
+   https://serversmtp.com/it/errore-smtp/
 */
 
 import (
