@@ -10,8 +10,8 @@ require (
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/lib/pq v1.10.5
 	github.com/lucsky/cuid v1.2.1
-	github.com/nats-io/jsm.go v0.0.30
-	github.com/nats-io/nats.go v1.14.0
+	github.com/nats-io/jsm.go v0.0.31
+	github.com/nats-io/nats.go v1.14.1-0.20220412004736-c75dfd54b52c
 	github.com/ory/dockertest v3.3.5+incompatible
 	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.7.1
