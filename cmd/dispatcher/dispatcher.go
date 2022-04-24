@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -56,6 +57,8 @@ func main() {
 		panic(err)
 	}
 
+	ctx := context.Background()
+
 	var wg sync.WaitGroup
 	wg.Add(3)
 
@@ -68,40 +71,48 @@ func main() {
 		wg.Done()
 	}()
 	go func() {
-		dispatcherLoop(pm, mb, nc)
+		dispatcherLoop(ctx, pm, mb, nc)
 		wg.Done()
 	}()
 	wg.Wait()
 }
 
-func dispatcherLoop(pm pool.SendingPoolManager, mb mailbuilder.MailBulder, nc *nats.Conn) {
+func dispatcherLoop(ctx context.Context, pm pool.SendingPoolManager, mb mailbuilder.MailBulder, nc *nats.Conn) {
 	for {
-		emails, err := pm.PrepareForSend(100)
-		if err != nil {
-			logrus.Fatalf("cannot prepare for send: %v", err)
+		if err := distach(ctx, pm, mb, nc); err != nil {
+			logrus.Errorf("cannot dispatch: %v", err)
 		}
-		logrus.Debugf("Fetched %v emails\n", len(emails))
-		for _, email := range emails {
-			data, err := mb.PerpareForSend(email)
-			if err != nil {
-				logrus.Errorf("Cannot send email %v: %v", email.Email, err)
-				continue
-			}
-			msg, err := proto.Marshal(&data)
-			if err != nil {
-				logrus.Errorf("Cannot send email %v: %v", email.Email, err)
-				continue
-			}
-			err = nc.Publish("emails.sending", msg)
-			if err != nil {
-				logrus.Errorf("Cannot send message on nats: %v", err.Error())
-				continue
-			}
-			logrus.Infof("[✅ accepted]: %v %v", data.To, data.MessageId)
-		}
-		logrus.Debugf("done sending emails")
 		time.Sleep(1 * time.Second)
 	}
+}
+
+func distach(pctx context.Context, pm pool.SendingPoolManager, mb mailbuilder.MailBulder, nc *nats.Conn) error {
+	ctx, cancel := context.WithTimeout(pctx, 10*time.Second)
+	defer cancel()
+	emails, err := pm.PrepareForSend(ctx, 100)
+	if err != nil {
+		return fmt.Errorf("cannot prepare emails for send: %v", err)
+	}
+	for _, email := range emails {
+		data, err := mb.PerpareForSend(email)
+		if err != nil {
+			logrus.Errorf("Cannot send email %v: %v", email.Email, err)
+			continue
+		}
+		msg, err := proto.Marshal(&data)
+		if err != nil {
+			logrus.Errorf("Cannot send email %v: %v", email.Email, err)
+			continue
+		}
+		err = nc.Publish("emails.sending", msg)
+		if err != nil {
+			logrus.Errorf("Cannot send message on nats: %v", err.Error())
+			continue
+		}
+		logrus.Infof("[✅ accepted]: %v %v", data.To, data.MessageId)
+	}
+	logrus.Debugf("done sending emails")
+	return nil
 }
 
 func handleErrors(mgr *jsm.Manager) {

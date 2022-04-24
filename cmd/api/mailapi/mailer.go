@@ -27,9 +27,8 @@ type mailAPIService struct {
 }
 
 func (s mailAPIService) SendHTML(ctx context.Context, in *pb.SendHTMLRequest) (*pb.SendResponse, error) {
-	domain, ok := s.getCallDomainFromContext(ctx)
-	if !ok {
-		logrus.Errorf("invalid login\n")
+	domain, err := s.getCallDomainFromContext(ctx)
+	if err != nil {
 		return nil, status.Errorf(codes.Unauthenticated, "invalid or wrong auth")
 	}
 
@@ -43,7 +42,7 @@ func (s mailAPIService) SendHTML(ctx context.Context, in *pb.SendHTMLRequest) (*
 		Email: in.Sender.Email,
 		Alias: in.Sender.Alias,
 	}
-	pool, err := s.sendingPoll.AddPool(template, in.To, sender, in.Subject, domain.Domain)
+	pool, err := s.sendingPoll.AddPool(ctx, template, in.To, sender, in.Subject, domain.Domain)
 
 	if err != nil {
 		logrus.Errorf("cannot create pool %v\n", err)
@@ -60,12 +59,10 @@ func (s mailAPIService) SendHTML(ctx context.Context, in *pb.SendHTMLRequest) (*
 }
 
 func (s mailAPIService) SendTemplate(ctx context.Context, in *pb.SendTemplateRequest) (*pb.SendResponse, error) {
-	domain, ok := s.getCallDomainFromContext(ctx)
-	if !ok {
-		logrus.Errorf("invalid login\n")
+	domain, err := s.getCallDomainFromContext(ctx)
+	if err != nil {
 		return nil, status.Errorf(codes.Unauthenticated, "invalid or wrong auth")
 	}
-
 	template, err := s.templates.FindTemplate(domain.Domain, in.TemplateId)
 	if err != nil {
 		logrus.Errorf("cannot create template %v\n", err)
@@ -76,7 +73,7 @@ func (s mailAPIService) SendTemplate(ctx context.Context, in *pb.SendTemplateReq
 		Email: in.Sender.Email,
 		Alias: in.Sender.Alias,
 	}
-	pool, err := s.sendingPoll.AddPool(template, in.To, sender, in.Subject, domain.Domain)
+	pool, err := s.sendingPoll.AddPool(ctx, template, in.To, sender, in.Subject, domain.Domain)
 
 	if err != nil {
 		logrus.Errorf("cannot create pool %v\n", err)
@@ -96,30 +93,26 @@ func (s mailAPIService) Close() error {
 	return s.domains.Close()
 }
 
-func (s mailAPIService) getCallDomainFromContext(ctx context.Context) (sqlc.Domain, bool) {
+func (s mailAPIService) getCallDomainFromContext(ctx context.Context) (sqlc.Domain, error) {
 	m, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
-		logrus.Debugf("Cannot find metatada\n")
-		return sqlc.Domain{}, false
+		return sqlc.Domain{}, fmt.Errorf("Cannot find metatada")
 	}
 
 	auths := m.Get("authorization")
 	if len(auths) != 1 {
-		logrus.Debugf("Cannot find authorization header\n")
-		return sqlc.Domain{}, false
+		return sqlc.Domain{}, fmt.Errorf("Cannot find authorization header")
 	}
 
 	auth := auths[0]
 	if !strings.HasPrefix(auth, "Basic ") {
-		logrus.Debugf("No prefix Basic in auth: %v\n", auth)
-		return sqlc.Domain{}, false
+		return sqlc.Domain{}, fmt.Errorf("No prefix Basic in auth: %v", auth)
 	}
 
 	token := strings.Replace(auth, "Basic ", "", 1)
 	data, err := base64.StdEncoding.DecodeString(token)
 	if err != nil {
-		logrus.Debugf("Decode token error: %v\n", token)
-		return sqlc.Domain{}, false
+		return sqlc.Domain{}, fmt.Errorf("decode token error: %v", token)
 	}
 
 	authData := string(data)
@@ -127,17 +120,15 @@ func (s mailAPIService) getCallDomainFromContext(ctx context.Context) (sqlc.Doma
 	var d, k string
 	_, err = fmt.Sscanf(authData, "%v:%v", &d, &k)
 	if err != nil {
-		logrus.Debugf("Invalid token: %v\n", authData)
-		return sqlc.Domain{}, false
+		return sqlc.Domain{}, fmt.Errorf("Invalid token: %w", err)
 	}
 
 	domain, err := s.domains.FindDomainWithKey(ctx, d, k)
 	if err != nil {
-		logrus.Debugf("Cannot find domain: %v\n", err)
-		return sqlc.Domain{}, false
+		return sqlc.Domain{}, fmt.Errorf("Cannot find domain: %w", err)
 	}
 
-	return domain, true
+	return domain, nil
 }
 
 func NewMailAPIService(dbi *sql.DB, q *sqlc.Queries) (pb.MailerServer, error) {

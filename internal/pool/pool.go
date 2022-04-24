@@ -17,14 +17,8 @@ type Sender struct {
 
 // SendingPoolManager is a manger for sending pool
 type SendingPoolManager interface {
-	AddPool(
-		template sqlc.Template,
-		to []string,
-		from Sender,
-		subject string,
-		domain string,
-	) (sqlc.Message, error)
-	PrepareForSend(max uint) ([]sqlc.SendingPoolEmail, error)
+	AddPool(ctx context.Context, template sqlc.Template, to []string, from Sender, subject string, domain string) (sqlc.Message, error)
+	PrepareForSend(ctx context.Context, max uint) ([]sqlc.SendingPoolEmail, error)
 }
 
 type sendingPoolManager struct {
@@ -32,13 +26,7 @@ type sendingPoolManager struct {
 }
 
 // AddPool starts a new schedule in the pool
-func (m *sendingPoolManager) AddPool(
-	template sqlc.Template,
-	to []string,
-	from Sender,
-	subject string,
-	domain string,
-) (sqlc.Message, error) {
+func (m *sendingPoolManager) AddPool(ctx context.Context, template sqlc.Template, to []string, from Sender, subject string, domain string) (sqlc.Message, error) {
 	msg, err := m.db.CreateMessage(context.Background(), sqlc.CreateMessageParams{
 		TemplateID:  template.TemplateID,
 		Domain:      domain,
@@ -62,13 +50,10 @@ func (m *sendingPoolManager) AddPool(
 	return msg, nil
 }
 
-func (m *sendingPoolManager) PrepareForSend(
-	max uint,
-) ([]sqlc.SendingPoolEmail, error) {
-	return m.db.PrepareForSend(context.TODO(), int32(max))
+func (m *sendingPoolManager) PrepareForSend(ctx context.Context, max uint) ([]sqlc.SendingPoolEmail, error) {
+	return m.db.PrepareForSend(ctx, int32(max))
 }
 
-// NewSendingPoolManager constructs a new Sending Pool Manager
 func NewSendingPoolManager(db *sql.DB) (SendingPoolManager, error) {
 	return &sendingPoolManager{
 		db: sqlc.New(db),
