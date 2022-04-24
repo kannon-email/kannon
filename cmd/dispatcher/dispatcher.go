@@ -63,11 +63,11 @@ func main() {
 	wg.Add(3)
 
 	go func() {
-		handleErrors(mgr)
+		handleErrors(ctx, mgr)
 		wg.Done()
 	}()
 	go func() {
-		handleDelivereds(mgr)
+		handleDelivereds(ctx, mgr)
 		wg.Done()
 	}()
 	go func() {
@@ -115,13 +115,13 @@ func distach(pctx context.Context, pm pool.SendingPoolManager, mb mailbuilder.Ma
 	return nil
 }
 
-func handleErrors(mgr *jsm.Manager) {
+func handleErrors(ctx context.Context, mgr *jsm.Manager) {
 	con, err := mgr.LoadConsumer("kannon", "email-error")
 	if err != nil {
 		panic(err)
 	}
 	for {
-		msg, err := con.NextMsgContext(context.Background())
+		msg, err := con.NextMsgContext(ctx)
 		if err != nil {
 			panic(err)
 		}
@@ -138,13 +138,13 @@ func handleErrors(mgr *jsm.Manager) {
 	}
 }
 
-func handleDelivereds(mgr *jsm.Manager) {
+func handleDelivereds(ctx context.Context, mgr *jsm.Manager) {
 	con, err := mgr.LoadConsumer("kannon", "email-delivered")
 	if err != nil {
 		panic(err)
 	}
 	for {
-		msg, err := con.NextMsgContext(context.Background())
+		msg, err := con.NextMsgContext(ctx)
 		if err != nil {
 			panic(err)
 		}
