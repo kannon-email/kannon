@@ -33,7 +33,7 @@ func runGrpcServer() error {
 	}
 	defer dbi.Close()
 
-	q, err := sqlc.Prepare(context.TODO(), dbi)
+	q, err := sqlc.Prepare(context.Background(), dbi)
 	if err != nil {
 		panic(err)
 	}

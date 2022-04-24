@@ -94,7 +94,7 @@ func distach(pctx context.Context, pm pool.SendingPoolManager, mb mailbuilder.Ma
 		return fmt.Errorf("cannot prepare emails for send: %v", err)
 	}
 	for _, email := range emails {
-		data, err := mb.PerpareForSend(email)
+		data, err := mb.PerpareForSend(ctx, email)
 		if err != nil {
 			logrus.Errorf("Cannot send email %v: %v", email.Email, err)
 			continue

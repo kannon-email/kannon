@@ -15,7 +15,7 @@ import (
 )
 
 type MailBulder interface {
-	PerpareForSend(email sqlc.SendingPoolEmail) (pb.EmailToSend, error)
+	PerpareForSend(ctx context.Context, email sqlc.SendingPoolEmail) (pb.EmailToSend, error)
 }
 
 // NewMailBuilder creates an SMTP mailer
@@ -33,8 +33,8 @@ type mailBuilder struct {
 	db      *sqlc.Queries
 }
 
-func (m *mailBuilder) PerpareForSend(email sqlc.SendingPoolEmail) (pb.EmailToSend, error) {
-	emailData, err := m.db.GetSendingData(context.TODO(), email.MessageID)
+func (m *mailBuilder) PerpareForSend(ctx context.Context, email sqlc.SendingPoolEmail) (pb.EmailToSend, error) {
+	emailData, err := m.db.GetSendingData(ctx, email.MessageID)
 	if err != nil {
 		return pb.EmailToSend{}, err
 	}

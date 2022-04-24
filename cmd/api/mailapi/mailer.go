@@ -32,7 +32,7 @@ func (s mailAPIService) SendHTML(ctx context.Context, in *pb.SendHTMLRequest) (*
 		return nil, status.Errorf(codes.Unauthenticated, "invalid or wrong auth")
 	}
 
-	template, err := s.templates.CreateTemplate(in.Html, domain.Domain)
+	template, err := s.templates.CreateTemplate(ctx, in.Html, domain.Domain)
 	if err != nil {
 		logrus.Errorf("cannot create template %v\n", err)
 		return nil, status.Errorf(codes.Internal, "cannot create template %v", err)
@@ -63,7 +63,7 @@ func (s mailAPIService) SendTemplate(ctx context.Context, in *pb.SendTemplateReq
 	if err != nil {
 		return nil, status.Errorf(codes.Unauthenticated, "invalid or wrong auth")
 	}
-	template, err := s.templates.FindTemplate(domain.Domain, in.TemplateId)
+	template, err := s.templates.FindTemplate(ctx, domain.Domain, in.TemplateId)
 	if err != nil {
 		logrus.Errorf("cannot create template %v\n", err)
 		return nil, status.Errorf(codes.InvalidArgument, "cannot find template with id: %v", in.TemplateId)
@@ -96,17 +96,17 @@ func (s mailAPIService) Close() error {
 func (s mailAPIService) getCallDomainFromContext(ctx context.Context) (sqlc.Domain, error) {
 	m, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
-		return sqlc.Domain{}, fmt.Errorf("Cannot find metatada")
+		return sqlc.Domain{}, fmt.Errorf("cannot find metatada")
 	}
 
 	auths := m.Get("authorization")
 	if len(auths) != 1 {
-		return sqlc.Domain{}, fmt.Errorf("Cannot find authorization header")
+		return sqlc.Domain{}, fmt.Errorf("cannot find authorization header")
 	}
 
 	auth := auths[0]
 	if !strings.HasPrefix(auth, "Basic ") {
-		return sqlc.Domain{}, fmt.Errorf("No prefix Basic in auth: %v", auth)
+		return sqlc.Domain{}, fmt.Errorf("no prefix Basic in auth: %v", auth)
 	}
 
 	token := strings.Replace(auth, "Basic ", "", 1)
@@ -120,12 +120,12 @@ func (s mailAPIService) getCallDomainFromContext(ctx context.Context) (sqlc.Doma
 	var d, k string
 	_, err = fmt.Sscanf(authData, "%v:%v", &d, &k)
 	if err != nil {
-		return sqlc.Domain{}, fmt.Errorf("Invalid token: %w", err)
+		return sqlc.Domain{}, fmt.Errorf("invalid token: %w", err)
 	}
 
 	domain, err := s.domains.FindDomainWithKey(ctx, d, k)
 	if err != nil {
-		return sqlc.Domain{}, fmt.Errorf("Cannot find domain: %w", err)
+		return sqlc.Domain{}, fmt.Errorf("cannot find domain: %w", err)
 	}
 
 	return domain, nil

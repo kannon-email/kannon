@@ -1,6 +1,7 @@
 package templates
 
 import (
+	"context"
 	"database/sql"
 
 	"kannon.gyozatech.dev/generated/sqlc"
@@ -8,8 +9,8 @@ import (
 
 // Manager implement interface to manage Templates
 type Manager interface {
-	FindTemplate(domain string, templateID string) (sqlc.Template, error)
-	CreateTemplate(HTML string, domain string) (sqlc.Template, error)
+	FindTemplate(ctx context.Context, domain string, templateID string) (sqlc.Template, error)
+	CreateTemplate(ctx context.Context, HTML string, domain string) (sqlc.Template, error)
 }
 
 // NewTemplateManager builds a Template Manager

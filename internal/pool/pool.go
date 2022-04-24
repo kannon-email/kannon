@@ -27,7 +27,7 @@ type sendingPoolManager struct {
 
 // AddPool starts a new schedule in the pool
 func (m *sendingPoolManager) AddPool(ctx context.Context, template sqlc.Template, to []string, from Sender, subject string, domain string) (sqlc.Message, error) {
-	msg, err := m.db.CreateMessage(context.Background(), sqlc.CreateMessageParams{
+	msg, err := m.db.CreateMessage(ctx, sqlc.CreateMessageParams{
 		TemplateID:  template.TemplateID,
 		Domain:      domain,
 		Subject:     subject,
@@ -39,7 +39,7 @@ func (m *sendingPoolManager) AddPool(ctx context.Context, template sqlc.Template
 		return sqlc.Message{}, err
 	}
 
-	_, err = m.db.CreatePool(context.TODO(), sqlc.CreatePoolParams{
+	_, err = m.db.CreatePool(ctx, sqlc.CreatePoolParams{
 		ScheduledTime: time.Now(), // TODO
 		MessageID:     msg.ID,
 		Emails:        to,
