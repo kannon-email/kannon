@@ -5,7 +5,7 @@ go 1.18
 require (
 	github.com/emersion/go-msgauth v0.6.5
 	github.com/jackc/pgx/v4 v4.15.0
-	github.com/jmoiron/sqlx v1.3.4
+	github.com/jmoiron/sqlx v1.3.5
 	github.com/joho/godotenv v1.4.0
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/lib/pq v1.10.5
