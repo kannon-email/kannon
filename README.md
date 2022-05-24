@@ -16,13 +16,13 @@ Tested on kubernello
 - Manage Statistics
 - Manage Templates
 - Enable Templating
-- Enable multiple node seding
+- Enable multiple node sending
 
 ## Server Configuration
 
 The SMTP server need to be configured in order to work properly.
 
-1. Choose a SENDER_NAME setting an env variable in [./k8s/sender.yaml](./k8s/sender.yaml). In my example, this is `mailer.gyozatech.space`. This should be an subdomain in your posses (you need to set some DNS records).
+1. Choose a SENDER_NAME setting an env variable in [./k8s/sender.yaml](./k8s/sender.yaml). In my example, this is `mailer.gyozatech.space`. This should be a subdomain in your posses (you need to set some DNS records).
 2. Set a reverse DNS record FROM your server IP -> TO SERVER_NAME
 3. Set a A record FROM your SENDER_NAME domaint -> TO your server IP
 4. Set a TXT record from your SENDER_NAME -> `v=spf1 ip4:<YOUR SENDER IP> -all`
