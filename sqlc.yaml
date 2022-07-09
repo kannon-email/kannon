@@ -1,9 +1,9 @@
 version: "1"
 packages:
   - name: "sqlc"
-    path: "generated/sqlc"
-    queries: "./sql/query/"
-    schema: "./db/schema.sql"
+    path: "internal/db"
+    queries: "./internal/db/"
+    schema: "./db/migrations/"
     engine: "postgresql"
     emit_prepared_queries: true
     emit_interface: false

@@ -5,8 +5,8 @@ import (
 	"math/rand"
 	"time"
 
-	"kannon.gyozatech.dev/generated/sqlc"
-	"kannon.gyozatech.dev/internal/dkim"
+	sqlc "github.com/ludusrusso/kannon/internal/db"
+	"github.com/ludusrusso/kannon/internal/dkim"
 )
 
 func init() {

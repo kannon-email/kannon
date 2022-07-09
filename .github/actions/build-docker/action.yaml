@@ -1,0 +1,68 @@
+name: "Docker Build"
+description: "Build Docker"
+inputs:
+  docker-registry:
+    description: "Docker Registry"
+    required: true
+  docker-base-image-path:
+    description: "Docker Base Image Path"
+    required: true
+  docker-target:
+    description: "Docker Target"
+    required: true
+  docker-context:
+    description: "Docker Context Path"
+    required: true
+    default: "."
+  google-credentials:
+    description: "Google Credentials"
+    required: true
+  branch:
+    description: "Git Branch"
+    required: true
+  ts:
+    description: "Build Timestamp"
+    required: true
+  sha:
+    description: "Git SHA"
+    required: true
+outputs:
+  digest:
+    description: "Docker Digest"
+    value: ${{ steps.docker_build.outputs.digest }}
+runs:
+  using: "composite"
+  steps:
+    - name: Docker meta
+      id: docker_meta
+      uses: crazy-max/ghaction-docker-meta@v1
+      with:
+        images: |
+          ${{ inputs.docker-registry }}/${{ inputs.docker-base-image-path }}/${{ github.repository }}/${{ inputs.docker-target }}
+        tag-sha: true
+        tag-semver: |
+          {{version}}
+          {{major}}.{{minor}}
+        tag-custom: |
+          ${{inputs.branch}}-${{inputs.sha}}-${{ inputs.ts }}
+    - id: "auth"
+      name: "Authenticate to Google Cloud"
+      uses: "google-github-actions/auth@v0"
+      with:
+        credentials_json: "${{ inputs.google-credentials }}"
+        token_format: "access_token"
+    - name: Log in to the Container registry
+      uses: docker/login-action@f054a8b539a109f9f41c372932f1ae047eff08c9
+      with:
+        registry: "${{ inputs.docker-registry }}"
+        username: "oauth2accesstoken"
+        password: "${{ steps.auth.outputs.access_token }}"
+    - name: Build and push
+      id: docker_build
+      uses: docker/build-push-action@v2
+      with:
+        push: true
+        network: host
+        tags: ${{ steps.docker_meta.outputs.tags }}
+        target: ${{ inputs.docker-target }}
+        context: ${{ inputs.docker-context }}

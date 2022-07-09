@@ -9,12 +9,12 @@ import (
 	"sync"
 
 	"github.com/joho/godotenv"
+	"github.com/ludusrusso/kannon/cmd/api/adminapi"
+	"github.com/ludusrusso/kannon/cmd/api/mailapi"
+	"github.com/ludusrusso/kannon/generated/pb"
+	sqlc "github.com/ludusrusso/kannon/internal/db"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
-	"kannon.gyozatech.dev/cmd/api/adminapi"
-	"kannon.gyozatech.dev/cmd/api/mailapi"
-	"kannon.gyozatech.dev/generated/pb"
-	"kannon.gyozatech.dev/generated/sqlc"
 )
 
 func main() {

@@ -4,7 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 
-	"kannon.gyozatech.dev/internal/pool"
+	"github.com/ludusrusso/kannon/internal/pool"
 )
 
 func buildEmailMessageID(to string, messageID string) string {

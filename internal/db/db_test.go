@@ -6,9 +6,9 @@ import (
 	"os"
 	"testing"
 
+	"github.com/ludusrusso/kannon/internal/tests"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
-	"kannon.gyozatech.dev/internal/tests"
 )
 
 var db *sql.DB

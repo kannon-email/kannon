@@ -6,12 +6,12 @@ import (
 	"os"
 	"testing"
 
+	"github.com/ludusrusso/kannon/cmd/api/adminapi"
+	"github.com/ludusrusso/kannon/generated/pb"
+	sqlc "github.com/ludusrusso/kannon/internal/db"
+	"github.com/ludusrusso/kannon/internal/tests"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
-	"kannon.gyozatech.dev/cmd/api/adminapi"
-	"kannon.gyozatech.dev/generated/pb"
-	"kannon.gyozatech.dev/generated/sqlc"
-	"kannon.gyozatech.dev/internal/tests"
 )
 
 var db *sql.DB

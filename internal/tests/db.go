@@ -12,7 +12,7 @@ import (
 	"github.com/ory/dockertest/docker"
 	"github.com/sirupsen/logrus"
 
-	schema "kannon.gyozatech.dev/db"
+	schema "github.com/ludusrusso/kannon/db"
 )
 
 type PurgeFunc func() error

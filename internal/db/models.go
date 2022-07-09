@@ -50,16 +50,12 @@ type Message struct {
 	Domain      string
 }
 
-type SchemaMigration struct {
-	Version string
-}
-
 type SendingPoolEmail struct {
 	ID                    int32
 	Status                SendingPoolStatus
 	ScheduledTime         time.Time
 	OriginalScheduledTime time.Time
-	Trial                 int16
+	SendAttemptsCnt       int32
 	Email                 string
 	MessageID             int32
 	ErrorMsg              string

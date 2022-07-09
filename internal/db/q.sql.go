@@ -95,7 +95,7 @@ INSERT INTO sending_pool_emails
     FROM
         UNNEST($3::varchar[]) as email
 )
-RETURNING id, status, scheduled_time, original_scheduled_time, trial, email, message_id, error_msg, error_code
+RETURNING id, status, scheduled_time, original_scheduled_time, send_attempts_cnt, email, message_id, error_msg, error_code
 `
 
 type CreatePoolParams struct {
@@ -118,7 +118,7 @@ func (q *Queries) CreatePool(ctx context.Context, arg CreatePoolParams) ([]Sendi
 			&i.Status,
 			&i.ScheduledTime,
 			&i.OriginalScheduledTime,
-			&i.Trial,
+			&i.SendAttemptsCnt,
 			&i.Email,
 			&i.MessageID,
 			&i.ErrorMsg,
@@ -354,11 +354,10 @@ UPDATE sending_pool_emails AS sp
     FROM (
             SELECT id FROM sending_pool_emails
             WHERE scheduled_time <= NOW() and status = 'scheduled'
-            ORDER BY RANDOM()
             LIMIT $1
         ) AS t
     WHERE sp.id = t.id
-    RETURNING sp.id, sp.status, sp.scheduled_time, sp.original_scheduled_time, sp.trial, sp.email, sp.message_id, sp.error_msg, sp.error_code
+    RETURNING sp.id, sp.status, sp.scheduled_time, sp.original_scheduled_time, sp.send_attempts_cnt, sp.email, sp.message_id, sp.error_msg, sp.error_code
 `
 
 func (q *Queries) PrepareForSend(ctx context.Context, limit int32) ([]SendingPoolEmail, error) {
@@ -375,7 +374,7 @@ func (q *Queries) PrepareForSend(ctx context.Context, limit int32) ([]SendingPoo
 			&i.Status,
 			&i.ScheduledTime,
 			&i.OriginalScheduledTime,
-			&i.Trial,
+			&i.SendAttemptsCnt,
 			&i.Email,
 			&i.MessageID,
 			&i.ErrorMsg,

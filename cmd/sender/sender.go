@@ -4,20 +4,19 @@ import (
 	"context"
 	"flag"
 
+	"github.com/ludusrusso/kannon/generated/pb"
+	"github.com/ludusrusso/kannon/internal/smtp"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats.go"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"kannon.gyozatech.dev/generated/pb"
-	"kannon.gyozatech.dev/internal/smtp"
 )
 
 func main() {
 	senderHost := flag.String("sender-host", "sender.kannon.io", "Sender hostname for SMTP presentation")
 	natsURL := flag.String("nasts-url", "nats", "Nats url connection")
 	maxSendingJobs := flag.Uint("max-sending-jobs", 100, "Max Parallel Job for sending")
-
 	flag.Parse()
 
 	nc, err := nats.Connect(*natsURL, nats.UseOldRequestStyle())

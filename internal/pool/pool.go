@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"time"
 
+	sqlc "github.com/ludusrusso/kannon/internal/db"
+
 	"gopkg.in/lucsky/cuid.v1"
-	"kannon.gyozatech.dev/generated/sqlc"
 )
 
 type Sender struct {

@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 
-	"kannon.gyozatech.dev/generated/sqlc"
+	sqlc "github.com/ludusrusso/kannon/internal/db"
 )
 
 // Manager implement interface to manage Templates

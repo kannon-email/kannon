@@ -11,12 +11,12 @@ import (
 
 	"github.com/joho/godotenv"
 	"github.com/kelseyhightower/envconfig"
+	"github.com/ludusrusso/kannon/generated/pb"
+	sqlc "github.com/ludusrusso/kannon/internal/db"
+	"github.com/ludusrusso/kannon/internal/mailbuilder"
+	"github.com/ludusrusso/kannon/internal/pool"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
-	"kannon.gyozatech.dev/generated/pb"
-	"kannon.gyozatech.dev/generated/sqlc"
-	"kannon.gyozatech.dev/internal/mailbuilder"
-	"kannon.gyozatech.dev/internal/pool"
 
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats.go"

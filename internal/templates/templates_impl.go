@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/lucsky/cuid"
-	"kannon.gyozatech.dev/generated/sqlc"
+	sqlc "github.com/ludusrusso/kannon/internal/db"
 )
 
 type manager struct {

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"kannon.gyozatech.dev/internal/pool"
+	"github.com/ludusrusso/kannon/internal/pool"
 )
 
 func TestBuildHeaders(t *testing.T) {

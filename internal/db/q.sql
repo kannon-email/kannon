@@ -6,8 +6,7 @@ UPDATE sending_pool_emails AS sp
     SET status = 'scheduled'
     FROM (
             SELECT id FROM sending_pool_emails
-            WHERE scheduled_time <= NOW() and status = 'scheduled'
-            ORDER BY RANDOM()
+            WHERE scheduled_time <= NOW() AND status = 'scheduled'
             LIMIT $1
         ) AS t
     WHERE sp.id = t.id
@@ -63,12 +62,9 @@ FROM domains
 ;
 
 -- name: FindDomainWithKey :one
-SELECT
-    *
-FROM domains
-    WHERE domain = $1
-    AND key = $2
-;
+SELECT * FROM domains
+WHERE domain = $1
+AND key = $2;
 
 -- name: CreateDomain :one
 INSERT INTO domains 
@@ -77,19 +73,14 @@ INSERT INTO domains
     RETURNING *;
 
 -- name: FindTemplate :one
-SELECT
-    *
-FROM templates
-    WHERE template_id = $1
-    AND domain = $2
-;
+SELECT * FROM templates
+WHERE template_id = $1
+AND domain = $2;
 
 -- name: CreateTemplate :one
-INSERT INTO templates
-    (template_id, html, domain)
+INSERT INTO templates (template_id, html, domain)
     VALUES ($1, $2, $3)
-    RETURNING *
-;
+    RETURNING *;
 
 -- name: SetDomainKey :one
 UPDATE domains SET key = @key WHERE domain = @domain RETURNING *;

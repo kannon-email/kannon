@@ -3,9 +3,9 @@ package adminapi
 import (
 	"context"
 
-	"kannon.gyozatech.dev/generated/pb"
-	"kannon.gyozatech.dev/generated/sqlc"
-	"kannon.gyozatech.dev/internal/domains"
+	"github.com/ludusrusso/kannon/generated/pb"
+	sqlc "github.com/ludusrusso/kannon/internal/db"
+	"github.com/ludusrusso/kannon/internal/domains"
 )
 
 type adminAPIService struct {

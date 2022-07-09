@@ -33,7 +33,7 @@ SET default_table_access_method = heap;
 CREATE TABLE public.domains (
     id integer NOT NULL,
     domain character varying(254) NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_at timestamp without time zone DEFAULT now() NOT NULL,
     key character varying(50) NOT NULL,
     dkim_private_key character varying NOT NULL,
     dkim_public_key character varying NOT NULL
@@ -111,9 +111,9 @@ CREATE TABLE public.schema_migrations (
 CREATE TABLE public.sending_pool_emails (
     id integer NOT NULL,
     status public.sending_pool_status DEFAULT 'initializing'::public.sending_pool_status NOT NULL,
-    scheduled_time timestamp with time zone DEFAULT now() NOT NULL,
-    original_scheduled_time timestamp with time zone NOT NULL,
-    trial smallint DEFAULT 0 NOT NULL,
+    scheduled_time timestamp without time zone DEFAULT now() NOT NULL,
+    original_scheduled_time timestamp without time zone NOT NULL,
+    send_attempts_cnt integer DEFAULT 0 NOT NULL,
     email character varying(320) NOT NULL,
     message_id integer NOT NULL,
     error_msg character varying DEFAULT ''::character varying NOT NULL,

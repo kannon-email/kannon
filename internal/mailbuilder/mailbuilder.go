@@ -6,12 +6,12 @@ import (
 	"database/sql"
 	"time"
 
+	"github.com/ludusrusso/kannon/generated/pb"
+	sqlc "github.com/ludusrusso/kannon/internal/db"
+	"github.com/ludusrusso/kannon/internal/dkim"
+	"github.com/ludusrusso/kannon/internal/pool"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/mail.v2"
-	"kannon.gyozatech.dev/generated/pb"
-	"kannon.gyozatech.dev/generated/sqlc"
-	"kannon.gyozatech.dev/internal/dkim"
-	"kannon.gyozatech.dev/internal/pool"
 )
 
 type MailBulder interface {

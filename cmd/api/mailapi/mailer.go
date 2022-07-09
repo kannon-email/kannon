@@ -8,16 +8,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ludusrusso/kannon/generated/pb"
+	sqlc "github.com/ludusrusso/kannon/internal/db"
+	"github.com/ludusrusso/kannon/internal/domains"
+	"github.com/ludusrusso/kannon/internal/pool"
+	"github.com/ludusrusso/kannon/internal/templates"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"kannon.gyozatech.dev/generated/pb"
-	"kannon.gyozatech.dev/generated/sqlc"
-	"kannon.gyozatech.dev/internal/domains"
-	"kannon.gyozatech.dev/internal/pool"
-	"kannon.gyozatech.dev/internal/templates"
 )
 
 type mailAPIService struct {
