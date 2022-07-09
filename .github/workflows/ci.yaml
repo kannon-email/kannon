@@ -32,9 +32,6 @@ jobs:
       - name: Build API
         uses: ./.github/actions/build-docker
         with:
-          google-credentials: ${{ secrets.GOOGLE_CREDENTIALS }}
-          docker-registry: ${{ secrets.DOCKER_REGISTRY }}
-          docker-base-image-path: ${{ secrets.DOCKER_IMAGE_BASE }}
           docker-target: api
           branch: ${{ steps.get_vars.outputs.branch }}
           sha: ${{ steps.get_vars.outputs.sha }}
@@ -42,9 +39,6 @@ jobs:
       - name: Build Sender
         uses: ./.github/actions/build-docker
         with:
-          google-credentials: ${{ secrets.GOOGLE_CREDENTIALS }}
-          docker-registry: ${{ secrets.DOCKER_REGISTRY }}
-          docker-base-image-path: ${{ secrets.DOCKER_IMAGE_BASE }}
           docker-target: sender
           branch: ${{ steps.get_vars.outputs.branch }}
           sha: ${{ steps.get_vars.outputs.sha }}
@@ -52,9 +46,6 @@ jobs:
       - name: Build Dispatcher
         uses: ./.github/actions/build-docker
         with:
-          google-credentials: ${{ secrets.GOOGLE_CREDENTIALS }}
-          docker-registry: ${{ secrets.DOCKER_REGISTRY }}
-          docker-base-image-path: ${{ secrets.DOCKER_IMAGE_BASE }}
           docker-target: dispatcher
           branch: ${{ steps.get_vars.outputs.branch }}
           sha: ${{ steps.get_vars.outputs.sha }}
