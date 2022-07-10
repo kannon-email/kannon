@@ -26,7 +26,7 @@ func main() {
 
 	sender := smtp.NewSender(*senderHost)
 
-	con := utils.MustGetPullSubscriber(js, "emails.sending", "sending-pool")
+	con := utils.MustGetPullSubscriber(js, "kannon.sending", "kannon-sending-pool")
 
 	handleSend(sender, con, nc, *maxSendingJobs)
 }
@@ -37,7 +37,9 @@ func handleSend(sender smtp.Sender, con *nats.Subscription, nc *nats.Conn, maxPa
 	for {
 		msgs, err := con.Fetch(int(maxParallelJobs), nats.MaxWait(10*time.Second))
 		if err != nil {
-			logrus.Errorf("error fetching messages: %v", err)
+			if err != nats.ErrTimeout {
+				logrus.Errorf("error fetching messages: %v", err)
+			}
 			continue
 		}
 		for _, msg := range msgs {
@@ -81,7 +83,7 @@ func handleSendSuccess(data *pb.EmailToSend, nc *nats.Conn) error {
 	if err != nil {
 		return err
 	}
-	err = nc.Publish("emails.stats.delivered", msg)
+	err = nc.Publish("kannon.stats.delivered", msg)
 	if err != nil {
 		return err
 	}
@@ -101,7 +103,7 @@ func handleSendError(sendErr smtp.SenderError, data *pb.EmailToSend, nc *nats.Co
 	if err != nil {
 		return err
 	}
-	err = nc.Publish("emails.stats.error", errMsg)
+	err = nc.Publish("kannon.stats.error", errMsg)
 	if err != nil {
 		return err
 	}
@@ -110,10 +112,10 @@ func handleSendError(sendErr smtp.SenderError, data *pb.EmailToSend, nc *nats.Co
 
 func mustConfigureJS(js nats.JetStreamContext) {
 	confs := nats.StreamConfig{
-		Name:        "email-stats",
+		Name:        "kannon-stats-delivered",
 		Description: "Email Stats for Kannon",
 		Replicas:    1,
-		Subjects:    []string{"emails.stats.*"},
+		Subjects:    []string{"kannon.stats.delivered"},
 		Retention:   nats.LimitsPolicy,
 		Duplicates:  10 * time.Minute,
 		MaxAge:      24 * time.Hour,
@@ -121,6 +123,25 @@ func mustConfigureJS(js nats.JetStreamContext) {
 		Discard:     nats.DiscardOld,
 	}
 	info, err := js.AddStream(&confs)
+	if errors.Is(err, nats.ErrStreamNameAlreadyInUse) {
+		logrus.Infof("stream exists\n")
+	} else if err != nil {
+		logrus.Fatalf("cannot create js stream: %v", err)
+	}
+	logrus.Infof("created js stream: %v", info)
+
+	confs = nats.StreamConfig{
+		Name:        "kannon-stats-error",
+		Description: "Email Stats for Kannon",
+		Replicas:    1,
+		Subjects:    []string{"kannon.stats.error"},
+		Retention:   nats.LimitsPolicy,
+		Duplicates:  10 * time.Minute,
+		MaxAge:      24 * time.Hour,
+		Storage:     nats.FileStorage,
+		Discard:     nats.DiscardOld,
+	}
+	info, err = js.AddStream(&confs)
 	if errors.Is(err, nats.ErrStreamNameAlreadyInUse) {
 		logrus.Infof("stream exists\n")
 	} else if err != nil {

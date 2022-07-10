@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: api
-          image: gyozatech/smtp-api
+          image: kannon/api
           imagePullPolicy: Always
           envFrom:
             - secretRef:

@@ -102,7 +102,7 @@ func dispatch(pctx context.Context, pm pool.SendingPoolManager, mb mailbuilder.M
 			logrus.Errorf("Cannot send email %v: %v", email.Email, err)
 			continue
 		}
-		err = nc.Publish("emails.sending", msg)
+		err = nc.Publish("kannon.sending", msg)
 		if err != nil {
 			logrus.Errorf("Cannot send message on nats: %v", err)
 			continue
@@ -114,11 +114,13 @@ func dispatch(pctx context.Context, pm pool.SendingPoolManager, mb mailbuilder.M
 }
 
 func handleErrors(ctx context.Context, js nats.JetStreamContext, pm pool.SendingPoolManager) {
-	con := utils.MustGetPullSubscriber(js, "emails.stats.error", "emails-stats-error")
+	con := utils.MustGetPullSubscriber(js, "kannon.stats.error", "kannon-stats-error")
 	for {
 		msgs, err := con.Fetch(10, nats.MaxWait(10*time.Second))
 		if err != nil {
-			logrus.Errorf("error fetching messages: %v", err)
+			if err != nats.ErrTimeout {
+				logrus.Errorf("error fetching messages: %v", err)
+			}
 			continue
 		}
 		for _, msg := range msgs {
@@ -140,11 +142,13 @@ func handleErrors(ctx context.Context, js nats.JetStreamContext, pm pool.Sending
 }
 
 func handleDelivereds(ctx context.Context, js nats.JetStreamContext, pm pool.SendingPoolManager) {
-	con := utils.MustGetPullSubscriber(js, "emails.stats.delivered", "emails-stats-delivered")
+	con := utils.MustGetPullSubscriber(js, "kannon.stats.delivered", "kannon-stats-delivered")
 	for {
 		msgs, err := con.Fetch(10, nats.MaxWait(10*time.Second))
 		if err != nil {
-			logrus.Errorf("error fetching messages: %v", err)
+			if err != nats.ErrTimeout {
+				logrus.Errorf("error fetching messages: %v", err)
+			}
 			continue
 		}
 		for _, msg := range msgs {
@@ -167,10 +171,10 @@ func handleDelivereds(ctx context.Context, js nats.JetStreamContext, pm pool.Sen
 
 func mustConfigureJS(js nats.JetStreamContext) {
 	confs := nats.StreamConfig{
-		Name:        "email-sending",
+		Name:        "kannon-sending",
 		Description: "Email Sending Pool for Kannon",
 		Replicas:    1,
-		Subjects:    []string{"emails.sending"},
+		Subjects:    []string{"kannon.sending"},
 		Retention:   nats.LimitsPolicy,
 		Duplicates:  10 * time.Minute,
 		MaxAge:      24 * time.Hour,
