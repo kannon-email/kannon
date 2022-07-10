@@ -1,16 +1,6 @@
 -- name: GetDomains :many
 SELECT * FROM domains;
 
--- name: PrepareForSend :many
-UPDATE sending_pool_emails AS sp
-    SET status = 'scheduled'
-    FROM (
-            SELECT id FROM sending_pool_emails
-            WHERE scheduled_time <= NOW() AND status = 'scheduled'
-            LIMIT $1
-        ) AS t
-    WHERE sp.id = t.id
-    RETURNING sp.*;
 
 -- name: CreateMessage :one
 INSERT INTO messages
@@ -45,8 +35,7 @@ SELECT
 FROM messages as m
     JOIN templates as t ON t.template_id = m.template_id
     JOIN domains as d ON d.domain = m.domain
-    WHERE m.id=sqlc.arg(message_id)
-;
+    WHERE m.message_id = @message_id;
 
 -- name: FindDomain :one
 SELECT

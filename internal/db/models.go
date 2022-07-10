@@ -41,7 +41,6 @@ type Domain struct {
 }
 
 type Message struct {
-	ID          int32
 	MessageID   string
 	Subject     string
 	SenderEmail string
@@ -57,7 +56,7 @@ type SendingPoolEmail struct {
 	OriginalScheduledTime time.Time
 	SendAttemptsCnt       int32
 	Email                 string
-	MessageID             int32
+	MessageID             string
 	ErrorMsg              string
 	ErrorCode             int32
 }

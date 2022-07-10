@@ -13,6 +13,7 @@ import (
 	"github.com/ludusrusso/kannon/cmd/api/mailapi"
 	"github.com/ludusrusso/kannon/generated/pb"
 	sqlc "github.com/ludusrusso/kannon/internal/db"
+	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 )
@@ -27,10 +28,7 @@ func main() {
 func runGrpcServer() error {
 	_ = godotenv.Load()
 
-	dbi, err := sql.Open("postgres", os.Getenv("DB_CONN"))
-	if err != nil {
-		panic(err)
-	}
+	dbi := mustGetDB()
 	defer dbi.Close()
 
 	q, err := sqlc.Prepare(context.Background(), dbi)
@@ -78,7 +76,7 @@ func startAPIServer(port uint16, srv pb.ApiServer) error {
 	s := grpc.NewServer()
 	pb.RegisterApiServer(s, srv)
 
-	log.Infof("🚀 starting Admin API Service on %v\n", lis.Addr())
+	log.Infof("🚀 starting Admin API Service on %v", lis.Addr())
 	if err := s.Serve(lis); err != nil {
 		return err
 	}
@@ -96,9 +94,26 @@ func startMailerServer(port uint16, srv pb.MailerServer) error {
 	s := grpc.NewServer()
 	pb.RegisterMailerServer(s, srv)
 
-	log.Infof("🚀 starting Mailer API Service on %v\n", lis.Addr())
+	log.Infof("🚀 starting Mailer API Service on %v", lis.Addr())
 	if err := s.Serve(lis); err != nil {
 		return err
 	}
 	return nil
+}
+
+func mustEnv(envName string) string {
+	env := os.Getenv(envName)
+	if env == "" {
+		logrus.Fatalf("%v not defined", envName)
+	}
+	return env
+}
+
+func mustGetDB() *sql.DB {
+	dbUrl := mustEnv("DATABASE_URL")
+	dbc, err := sqlc.NewPg(dbUrl)
+	if err != nil {
+		logrus.Fatalf("cannot connect to db: %v", err)
+	}
+	return dbc
 }

@@ -65,7 +65,6 @@ ALTER SEQUENCE public.domains_id_seq OWNED BY public.domains.id;
 --
 
 CREATE TABLE public.messages (
-    id integer NOT NULL,
     message_id character varying(50) NOT NULL,
     subject character varying NOT NULL,
     sender_email character varying(320) NOT NULL,
@@ -73,26 +72,6 @@ CREATE TABLE public.messages (
     template_id character varying(50) NOT NULL,
     domain character varying(254) NOT NULL
 );
-
-
---
--- Name: messages_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.messages_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: messages_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.messages_id_seq OWNED BY public.messages.id;
 
 
 --
@@ -115,7 +94,7 @@ CREATE TABLE public.sending_pool_emails (
     original_scheduled_time timestamp without time zone NOT NULL,
     send_attempts_cnt integer DEFAULT 0 NOT NULL,
     email character varying(320) NOT NULL,
-    message_id integer NOT NULL,
+    message_id character varying(50) NOT NULL,
     error_msg character varying DEFAULT ''::character varying NOT NULL,
     error_code integer DEFAULT 0 NOT NULL
 );
@@ -139,26 +118,6 @@ CREATE SEQUENCE public.sending_pool_emails_id_seq
 --
 
 ALTER SEQUENCE public.sending_pool_emails_id_seq OWNED BY public.sending_pool_emails.id;
-
-
---
--- Name: sending_pool_emails_message_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.sending_pool_emails_message_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: sending_pool_emails_message_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.sending_pool_emails_message_id_seq OWNED BY public.sending_pool_emails.message_id;
 
 
 --
@@ -201,24 +160,10 @@ ALTER TABLE ONLY public.domains ALTER COLUMN id SET DEFAULT nextval('public.doma
 
 
 --
--- Name: messages id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.messages ALTER COLUMN id SET DEFAULT nextval('public.messages_id_seq'::regclass);
-
-
---
 -- Name: sending_pool_emails id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.sending_pool_emails ALTER COLUMN id SET DEFAULT nextval('public.sending_pool_emails_id_seq'::regclass);
-
-
---
--- Name: sending_pool_emails message_id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.sending_pool_emails ALTER COLUMN message_id SET DEFAULT nextval('public.sending_pool_emails_message_id_seq'::regclass);
 
 
 --
@@ -249,7 +194,7 @@ ALTER TABLE ONLY public.domains
 --
 
 ALTER TABLE ONLY public.messages
-    ADD CONSTRAINT messages_pkey PRIMARY KEY (id);
+    ADD CONSTRAINT messages_pkey PRIMARY KEY (message_id);
 
 
 --
@@ -298,10 +243,10 @@ CREATE INDEX messages_message_id_idx ON public.messages USING btree (message_id)
 
 
 --
--- Name: sending_pool_emails_scheduled_time_status_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: scheduled_time_status_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX sending_pool_emails_scheduled_time_status_idx ON public.sending_pool_emails USING btree (scheduled_time, status);
+CREATE INDEX scheduled_time_status_idx ON public.sending_pool_emails USING btree (scheduled_time, status);
 
 
 --
@@ -326,11 +271,18 @@ CREATE INDEX templates_template_id_idx ON public.templates USING btree (template
 
 
 --
+-- Name: unique_emails_message_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX unique_emails_message_id_idx ON public.sending_pool_emails USING btree (email, message_id);
+
+
+--
 -- Name: sending_pool_emails sending_pool_emails_message_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.sending_pool_emails
-    ADD CONSTRAINT sending_pool_emails_message_id_fkey FOREIGN KEY (message_id) REFERENCES public.messages(id);
+    ADD CONSTRAINT sending_pool_emails_message_id_fkey FOREIGN KEY (message_id) REFERENCES public.messages(message_id);
 
 
 --

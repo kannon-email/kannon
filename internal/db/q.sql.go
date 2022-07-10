@@ -48,7 +48,7 @@ func (q *Queries) CreateDomain(ctx context.Context, arg CreateDomainParams) (Dom
 const createMessage = `-- name: CreateMessage :one
 INSERT INTO messages
     (message_id, subject, sender_email, sender_alias, template_id, domain) VALUES
-    ($1, $2, $3, $4, $5, $6) RETURNING id, message_id, subject, sender_email, sender_alias, template_id, domain
+    ($1, $2, $3, $4, $5, $6) RETURNING message_id, subject, sender_email, sender_alias, template_id, domain
 `
 
 type CreateMessageParams struct {
@@ -71,7 +71,6 @@ func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (M
 	)
 	var i Message
 	err := row.Scan(
-		&i.ID,
 		&i.MessageID,
 		&i.Subject,
 		&i.SenderEmail,
@@ -100,7 +99,7 @@ RETURNING id, status, scheduled_time, original_scheduled_time, send_attempts_cnt
 
 type CreatePoolParams struct {
 	ScheduledTime time.Time
-	MessageID     int32
+	MessageID     string
 	Emails        []string
 }
 
@@ -138,8 +137,7 @@ func (q *Queries) CreatePool(ctx context.Context, arg CreatePoolParams) ([]Sendi
 }
 
 const createTemplate = `-- name: CreateTemplate :one
-INSERT INTO templates
-    (template_id, html, domain)
+INSERT INTO templates (template_id, html, domain)
     VALUES ($1, $2, $3)
     RETURNING id, template_id, html, domain
 `
@@ -184,11 +182,9 @@ func (q *Queries) FindDomain(ctx context.Context, domain string) (Domain, error)
 }
 
 const findDomainWithKey = `-- name: FindDomainWithKey :one
-SELECT
-    id, domain, created_at, key, dkim_private_key, dkim_public_key
-FROM domains
-    WHERE domain = $1
-    AND key = $2
+SELECT id, domain, created_at, key, dkim_private_key, dkim_public_key FROM domains
+WHERE domain = $1
+AND key = $2
 `
 
 type FindDomainWithKeyParams struct {
@@ -211,11 +207,9 @@ func (q *Queries) FindDomainWithKey(ctx context.Context, arg FindDomainWithKeyPa
 }
 
 const findTemplate = `-- name: FindTemplate :one
-SELECT
-    id, template_id, html, domain
-FROM templates
-    WHERE template_id = $1
-    AND domain = $2
+SELECT id, template_id, html, domain FROM templates
+WHERE template_id = $1
+AND domain = $2
 `
 
 type FindTemplateParams struct {
@@ -318,7 +312,7 @@ SELECT
 FROM messages as m
     JOIN templates as t ON t.template_id = m.template_id
     JOIN domains as d ON d.domain = m.domain
-    WHERE m.id=$1
+    WHERE m.message_id = $1
 `
 
 type GetSendingDataRow struct {
@@ -332,7 +326,7 @@ type GetSendingDataRow struct {
 	SenderAlias    string
 }
 
-func (q *Queries) GetSendingData(ctx context.Context, messageID int32) (GetSendingDataRow, error) {
+func (q *Queries) GetSendingData(ctx context.Context, messageID string) (GetSendingDataRow, error) {
 	row := q.queryRow(ctx, q.getSendingDataStmt, getSendingData, messageID)
 	var i GetSendingDataRow
 	err := row.Scan(
@@ -346,51 +340,6 @@ func (q *Queries) GetSendingData(ctx context.Context, messageID int32) (GetSendi
 		&i.SenderAlias,
 	)
 	return i, err
-}
-
-const prepareForSend = `-- name: PrepareForSend :many
-UPDATE sending_pool_emails AS sp
-    SET status = 'scheduled'
-    FROM (
-            SELECT id FROM sending_pool_emails
-            WHERE scheduled_time <= NOW() and status = 'scheduled'
-            LIMIT $1
-        ) AS t
-    WHERE sp.id = t.id
-    RETURNING sp.id, sp.status, sp.scheduled_time, sp.original_scheduled_time, sp.send_attempts_cnt, sp.email, sp.message_id, sp.error_msg, sp.error_code
-`
-
-func (q *Queries) PrepareForSend(ctx context.Context, limit int32) ([]SendingPoolEmail, error) {
-	rows, err := q.query(ctx, q.prepareForSendStmt, prepareForSend, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []SendingPoolEmail
-	for rows.Next() {
-		var i SendingPoolEmail
-		if err := rows.Scan(
-			&i.ID,
-			&i.Status,
-			&i.ScheduledTime,
-			&i.OriginalScheduledTime,
-			&i.SendAttemptsCnt,
-			&i.Email,
-			&i.MessageID,
-			&i.ErrorMsg,
-			&i.ErrorCode,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const setDomainKey = `-- name: SetDomainKey :one

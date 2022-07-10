@@ -98,6 +98,7 @@ func (s mailAPIService) getCallDomainFromContext(ctx context.Context) (sqlc.Doma
 	if !ok {
 		return sqlc.Domain{}, fmt.Errorf("cannot find metatada")
 	}
+	logrus.Infof("ok:%v", ok)
 
 	auths := m.Get("authorization")
 	if len(auths) != 1 {
@@ -108,20 +109,22 @@ func (s mailAPIService) getCallDomainFromContext(ctx context.Context) (sqlc.Doma
 	if !strings.HasPrefix(auth, "Basic ") {
 		return sqlc.Domain{}, fmt.Errorf("no prefix Basic in auth: %v", auth)
 	}
+	logrus.Infof("auth: %v", auth)
 
 	token := strings.Replace(auth, "Basic ", "", 1)
 	data, err := base64.StdEncoding.DecodeString(token)
 	if err != nil {
 		return sqlc.Domain{}, fmt.Errorf("decode token error: %v", token)
 	}
+	logrus.Infof("token: %v, data: %v", token, data)
 
 	authData := string(data)
+	logrus.Infof("authData: %v", authData)
 
-	var d, k string
-	_, err = fmt.Sscanf(authData, "%v:%v", &d, &k)
-	if err != nil {
-		return sqlc.Domain{}, fmt.Errorf("invalid token: %w", err)
-	}
+	parts := strings.Split(authData, ":")
+	d, k := parts[0], parts[1]
+
+	logrus.Infof("domain: %v, key: %v", d, k)
 
 	domain, err := s.domains.FindDomainWithKey(ctx, d, k)
 	if err != nil {

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"sync"
@@ -15,15 +16,15 @@ import (
 	sqlc "github.com/ludusrusso/kannon/internal/db"
 	"github.com/ludusrusso/kannon/internal/mailbuilder"
 	"github.com/ludusrusso/kannon/internal/pool"
+	"github.com/ludusrusso/kannon/internal/utils"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats.go"
 )
 
 type appConfig struct {
-	NatsConn string `default:"nats://127.0.0.1:4222"`
+	NatsConn string `default:"nats://0.0.0.0:4222"`
 }
 
 func main() {
@@ -48,14 +49,11 @@ func main() {
 
 	mb := mailbuilder.NewMailBuilder(db)
 
-	nc, err := nats.Connect(config.NatsConn, nats.UseOldRequestStyle())
-	if err != nil {
-		logrus.Fatalf("Cannot connect to nats: %v\n", err)
-	}
-	mgr, err := jsm.New(nc)
-	if err != nil {
-		panic(err)
-	}
+	logrus.Infof("Connecting to nats... %v", config.NatsConn)
+
+	nc, js, closeNats := utils.MustGetNats(config.NatsConn)
+	defer closeNats()
+	mustConfigureJS(js)
 
 	ctx := context.Background()
 
@@ -63,11 +61,11 @@ func main() {
 	wg.Add(3)
 
 	go func() {
-		handleErrors(ctx, mgr)
+		handleErrors(ctx, js, pm)
 		wg.Done()
 	}()
 	go func() {
-		handleDelivereds(ctx, mgr)
+		handleDelivereds(ctx, js, pm)
 		wg.Done()
 	}()
 	go func() {
@@ -79,14 +77,14 @@ func main() {
 
 func dispatcherLoop(ctx context.Context, pm pool.SendingPoolManager, mb mailbuilder.MailBulder, nc *nats.Conn) {
 	for {
-		if err := distach(ctx, pm, mb, nc); err != nil {
+		if err := dispatch(ctx, pm, mb, nc); err != nil {
 			logrus.Errorf("cannot dispatch: %v", err)
 		}
 		time.Sleep(1 * time.Second)
 	}
 }
 
-func distach(pctx context.Context, pm pool.SendingPoolManager, mb mailbuilder.MailBulder, nc *nats.Conn) error {
+func dispatch(pctx context.Context, pm pool.SendingPoolManager, mb mailbuilder.MailBulder, nc *nats.Conn) error {
 	ctx, cancel := context.WithTimeout(pctx, 10*time.Second)
 	defer cancel()
 	emails, err := pm.PrepareForSend(ctx, 100)
@@ -106,7 +104,7 @@ func distach(pctx context.Context, pm pool.SendingPoolManager, mb mailbuilder.Ma
 		}
 		err = nc.Publish("emails.sending", msg)
 		if err != nil {
-			logrus.Errorf("Cannot send message on nats: %v", err.Error())
+			logrus.Errorf("Cannot send message on nats: %v", err)
 			continue
 		}
 		logrus.Infof("[✅ accepted]: %v %v", data.To, data.MessageId)
@@ -115,48 +113,75 @@ func distach(pctx context.Context, pm pool.SendingPoolManager, mb mailbuilder.Ma
 	return nil
 }
 
-func handleErrors(ctx context.Context, mgr *jsm.Manager) {
-	con, err := mgr.LoadConsumer("kannon", "email-error")
-	if err != nil {
-		panic(err)
-	}
+func handleErrors(ctx context.Context, js nats.JetStreamContext, pm pool.SendingPoolManager) {
+	con := utils.MustGetPullSubscriber(js, "emails.stats.error", "emails-stats-error")
 	for {
-		msg, err := con.NextMsgContext(ctx)
+		msgs, err := con.Fetch(10, nats.MaxWait(10*time.Second))
 		if err != nil {
-			panic(err)
+			logrus.Errorf("error fetching messages: %v", err)
+			continue
 		}
-		errMsg := pb.Error{}
-		err = proto.Unmarshal(msg.Data, &errMsg)
-		if err != nil {
-			logrus.Errorf("cannot marshal message %v", err.Error())
-		} else {
-			logrus.Printf("[🛑 bump] %v %v - %v", errMsg.Email, errMsg.MessageId, errMsg.Msg)
-		}
-		if err := msg.Ack(); err != nil {
-			logrus.Errorf("Cannot hack msg to nats: %v\n", err)
+		for _, msg := range msgs {
+			errMsg := pb.Error{}
+			err = proto.Unmarshal(msg.Data, &errMsg)
+			if err != nil {
+				logrus.Errorf("cannot marshal message %v", err.Error())
+			} else {
+				logrus.Printf("[🛑 bump] %v %v - %v", errMsg.Email, errMsg.MessageId, errMsg.Msg)
+				if err := pm.SetError(ctx, errMsg.MessageId, errMsg.Email, errMsg.Msg); err != nil {
+					logrus.Errorf("Cannot set delivered: %v", err)
+				}
+			}
+			if err := msg.Ack(); err != nil {
+				logrus.Errorf("Cannot hack msg to nats: %v\n", err)
+			}
 		}
 	}
 }
 
-func handleDelivereds(ctx context.Context, mgr *jsm.Manager) {
-	con, err := mgr.LoadConsumer("kannon", "email-delivered")
-	if err != nil {
-		panic(err)
-	}
+func handleDelivereds(ctx context.Context, js nats.JetStreamContext, pm pool.SendingPoolManager) {
+	con := utils.MustGetPullSubscriber(js, "emails.stats.delivered", "emails-stats-delivered")
 	for {
-		msg, err := con.NextMsgContext(ctx)
+		msgs, err := con.Fetch(10, nats.MaxWait(10*time.Second))
 		if err != nil {
-			panic(err)
+			logrus.Errorf("error fetching messages: %v", err)
+			continue
 		}
-		deliveredMsg := pb.Delivered{}
-		err = proto.Unmarshal(msg.Data, &deliveredMsg)
-		if err != nil {
-			logrus.Errorf("cannot marshal message %v", err.Error())
-		} else {
-			logrus.Printf("[🚀 delivered] %v %v", deliveredMsg.Email, deliveredMsg.MessageId)
-		}
-		if err := msg.Ack(); err != nil {
-			logrus.Errorf("Cannot hack msg to nats: %v\n", err)
+		for _, msg := range msgs {
+			deliveredMsg := pb.Delivered{}
+			err = proto.Unmarshal(msg.Data, &deliveredMsg)
+			if err != nil {
+				logrus.Errorf("cannot marshal message %v", err.Error())
+			} else {
+				logrus.Printf("[🚀 delivered] %v %v", deliveredMsg.Email, deliveredMsg.MessageId)
+				if err := pm.SetDelivered(ctx, deliveredMsg.MessageId, deliveredMsg.Email); err != nil {
+					logrus.Errorf("Cannot set delivered: %v", err)
+				}
+			}
+			if err := msg.Ack(); err != nil {
+				logrus.Errorf("Cannot hack msg to nats: %v\n", err)
+			}
 		}
 	}
+}
+
+func mustConfigureJS(js nats.JetStreamContext) {
+	confs := nats.StreamConfig{
+		Name:        "email-sending",
+		Description: "Email Sending Pool for Kannon",
+		Replicas:    1,
+		Subjects:    []string{"emails.sending"},
+		Retention:   nats.LimitsPolicy,
+		Duplicates:  10 * time.Minute,
+		MaxAge:      24 * time.Hour,
+		Storage:     nats.FileStorage,
+		Discard:     nats.DiscardOld,
+	}
+	info, err := js.AddStream(&confs)
+	if errors.Is(err, nats.ErrStreamNameAlreadyInUse) {
+		logrus.Infof("stream exists\n")
+	} else if err != nil {
+		logrus.Fatalf("cannot create js stream: %v", err)
+	}
+	logrus.Infof("created js stream: %v", info)
 }

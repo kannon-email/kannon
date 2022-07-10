@@ -1,12 +1,13 @@
 package main
 
 import (
-	"context"
+	"errors"
 	"flag"
+	"time"
 
 	"github.com/ludusrusso/kannon/generated/pb"
 	"github.com/ludusrusso/kannon/internal/smtp"
-	"github.com/nats-io/jsm.go"
+	"github.com/ludusrusso/kannon/internal/utils"
 	"github.com/nats-io/nats.go"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
@@ -15,48 +16,43 @@ import (
 
 func main() {
 	senderHost := flag.String("sender-host", "sender.kannon.io", "Sender hostname for SMTP presentation")
-	natsURL := flag.String("nasts-url", "nats", "Nats url connection")
+	natsURL := flag.String("nasts-url", "nats://localhost:4222", "Nats url connection")
 	maxSendingJobs := flag.Uint("max-sending-jobs", 100, "Max Parallel Job for sending")
 	flag.Parse()
 
-	nc, err := nats.Connect(*natsURL, nats.UseOldRequestStyle())
-	if err != nil {
-		logrus.Fatalf("Cannot connect to nats: %v\n", err)
-	}
-
-	mgr, err := jsm.New(nc)
-	if err != nil {
-		panic(err)
-	}
+	nc, js, closeNats := utils.MustGetNats(*natsURL)
+	defer closeNats()
+	mustConfigureJS(js)
 
 	sender := smtp.NewSender(*senderHost)
 
-	con, err := mgr.LoadConsumer("kannon", "sending-pool")
-	if err != nil {
-		panic(err)
-	}
+	con := utils.MustGetPullSubscriber(js, "emails.sending", "sending-pool")
+
 	handleSend(sender, con, nc, *maxSendingJobs)
 }
 
-func handleSend(sender smtp.Sender, con *jsm.Consumer, nc *nats.Conn, maxParallelJobs uint) {
+func handleSend(sender smtp.Sender, con *nats.Subscription, nc *nats.Conn, maxParallelJobs uint) {
 	logrus.Infof("🚀 Ready to send!\n")
 	ch := make(chan bool, maxParallelJobs)
 	for {
-		msg, err := con.NextMsgContext(context.Background())
+		msgs, err := con.Fetch(int(maxParallelJobs), nats.MaxWait(10*time.Second))
 		if err != nil {
-			panic(err)
+			logrus.Errorf("error fetching messages: %v", err)
+			continue
 		}
-		ch <- true
-		go func() {
-			err = handleMessage(msg, sender, nc)
-			if err != nil {
-				logrus.Errorf("error in handling message: %v\n", err.Error())
-			}
-			if err := msg.Ack(); err != nil {
-				logrus.Errorf("cannot hack message: %v\n", err.Error())
-			}
-			<-ch
-		}()
+		for _, msg := range msgs {
+			ch <- true
+			go func(msg *nats.Msg) {
+				err = handleMessage(msg, sender, nc)
+				if err != nil {
+					logrus.Errorf("error in handling message: %v\n", err.Error())
+				}
+				if err := msg.Ack(); err != nil {
+					logrus.Errorf("cannot hack message: %v\n", err.Error())
+				}
+				<-ch
+			}(msg)
+		}
 	}
 }
 
@@ -85,7 +81,7 @@ func handleSendSuccess(data *pb.EmailToSend, nc *nats.Conn) error {
 	if err != nil {
 		return err
 	}
-	err = nc.Publish("emails.delivered", msg)
+	err = nc.Publish("emails.stats.delivered", msg)
 	if err != nil {
 		return err
 	}
@@ -105,9 +101,30 @@ func handleSendError(sendErr smtp.SenderError, data *pb.EmailToSend, nc *nats.Co
 	if err != nil {
 		return err
 	}
-	err = nc.Publish("emails.error", errMsg)
+	err = nc.Publish("emails.stats.error", errMsg)
 	if err != nil {
 		return err
 	}
 	return nil
+}
+
+func mustConfigureJS(js nats.JetStreamContext) {
+	confs := nats.StreamConfig{
+		Name:        "email-stats",
+		Description: "Email Stats for Kannon",
+		Replicas:    1,
+		Subjects:    []string{"emails.stats.*"},
+		Retention:   nats.LimitsPolicy,
+		Duplicates:  10 * time.Minute,
+		MaxAge:      24 * time.Hour,
+		Storage:     nats.FileStorage,
+		Discard:     nats.DiscardOld,
+	}
+	info, err := js.AddStream(&confs)
+	if errors.Is(err, nats.ErrStreamNameAlreadyInUse) {
+		logrus.Infof("stream exists\n")
+	} else if err != nil {
+		logrus.Fatalf("cannot create js stream: %v", err)
+	}
+	logrus.Infof("created js stream: %v", info)
 }

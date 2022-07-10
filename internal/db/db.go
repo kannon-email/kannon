@@ -60,6 +60,12 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.setDomainKeyStmt, err = db.PrepareContext(ctx, setDomainKey); err != nil {
 		return nil, fmt.Errorf("error preparing query SetDomainKey: %w", err)
 	}
+	if q.setSendingPoolDeliveredStmt, err = db.PrepareContext(ctx, setSendingPoolDelivered); err != nil {
+		return nil, fmt.Errorf("error preparing query SetSendingPoolDelivered: %w", err)
+	}
+	if q.setSendingPoolErrorStmt, err = db.PrepareContext(ctx, setSendingPoolError); err != nil {
+		return nil, fmt.Errorf("error preparing query SetSendingPoolError: %w", err)
+	}
 	return &q, nil
 }
 
@@ -125,6 +131,16 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing setDomainKeyStmt: %w", cerr)
 		}
 	}
+	if q.setSendingPoolDeliveredStmt != nil {
+		if cerr := q.setSendingPoolDeliveredStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing setSendingPoolDeliveredStmt: %w", cerr)
+		}
+	}
+	if q.setSendingPoolErrorStmt != nil {
+		if cerr := q.setSendingPoolErrorStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing setSendingPoolErrorStmt: %w", cerr)
+		}
+	}
 	return err
 }
 
@@ -162,37 +178,41 @@ func (q *Queries) queryRow(ctx context.Context, stmt *sql.Stmt, query string, ar
 }
 
 type Queries struct {
-	db                    DBTX
-	tx                    *sql.Tx
-	createDomainStmt      *sql.Stmt
-	createMessageStmt     *sql.Stmt
-	createPoolStmt        *sql.Stmt
-	createTemplateStmt    *sql.Stmt
-	findDomainStmt        *sql.Stmt
-	findDomainWithKeyStmt *sql.Stmt
-	findTemplateStmt      *sql.Stmt
-	getAllDomainsStmt     *sql.Stmt
-	getDomainsStmt        *sql.Stmt
-	getSendingDataStmt    *sql.Stmt
-	prepareForSendStmt    *sql.Stmt
-	setDomainKeyStmt      *sql.Stmt
+	db                          DBTX
+	tx                          *sql.Tx
+	createDomainStmt            *sql.Stmt
+	createMessageStmt           *sql.Stmt
+	createPoolStmt              *sql.Stmt
+	createTemplateStmt          *sql.Stmt
+	findDomainStmt              *sql.Stmt
+	findDomainWithKeyStmt       *sql.Stmt
+	findTemplateStmt            *sql.Stmt
+	getAllDomainsStmt           *sql.Stmt
+	getDomainsStmt              *sql.Stmt
+	getSendingDataStmt          *sql.Stmt
+	prepareForSendStmt          *sql.Stmt
+	setDomainKeyStmt            *sql.Stmt
+	setSendingPoolDeliveredStmt *sql.Stmt
+	setSendingPoolErrorStmt     *sql.Stmt
 }
 
 func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 	return &Queries{
-		db:                    tx,
-		tx:                    tx,
-		createDomainStmt:      q.createDomainStmt,
-		createMessageStmt:     q.createMessageStmt,
-		createPoolStmt:        q.createPoolStmt,
-		createTemplateStmt:    q.createTemplateStmt,
-		findDomainStmt:        q.findDomainStmt,
-		findDomainWithKeyStmt: q.findDomainWithKeyStmt,
-		findTemplateStmt:      q.findTemplateStmt,
-		getAllDomainsStmt:     q.getAllDomainsStmt,
-		getDomainsStmt:        q.getDomainsStmt,
-		getSendingDataStmt:    q.getSendingDataStmt,
-		prepareForSendStmt:    q.prepareForSendStmt,
-		setDomainKeyStmt:      q.setDomainKeyStmt,
+		db:                          tx,
+		tx:                          tx,
+		createDomainStmt:            q.createDomainStmt,
+		createMessageStmt:           q.createMessageStmt,
+		createPoolStmt:              q.createPoolStmt,
+		createTemplateStmt:          q.createTemplateStmt,
+		findDomainStmt:              q.findDomainStmt,
+		findDomainWithKeyStmt:       q.findDomainWithKeyStmt,
+		findTemplateStmt:            q.findTemplateStmt,
+		getAllDomainsStmt:           q.getAllDomainsStmt,
+		getDomainsStmt:              q.getDomainsStmt,
+		getSendingDataStmt:          q.getSendingDataStmt,
+		prepareForSendStmt:          q.prepareForSendStmt,
+		setDomainKeyStmt:            q.setDomainKeyStmt,
+		setSendingPoolDeliveredStmt: q.setSendingPoolDeliveredStmt,
+		setSendingPoolErrorStmt:     q.setSendingPoolErrorStmt,
 	}
 }
