@@ -36,7 +36,7 @@ CREATE TABLE sending_pool_emails (
     original_scheduled_time TIMESTAMP NOT NULL,
     send_attempts_cnt INT DEFAULT 0 NOT NULL,
     email VARCHAR(320) NOT NULL,
-    message_id VARCHAR(50) NOT NULL,
+    message_id VARCHAR NOT NULL,
     error_msg VARCHAR NOT NULL DEFAULT '',
     error_code int NOT NULL DEFAULT 0,
     FOREIGN KEY (message_id) REFERENCES messages(message_id)
@@ -46,7 +46,7 @@ CREATE UNIQUE INDEX unique_emails_message_id_idx ON sending_pool_emails (email, 
 
 CREATE TABLE templates (
     id SERIAL PRIMARY KEY,
-    template_id VARCHAR(50) NOT NULL,
+    template_id VARCHAR NOT NULL,
     html VARCHAR NOT NULL,
     domain VARCHAR(254) NOT NULL
 );

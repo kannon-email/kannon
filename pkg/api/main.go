@@ -5,14 +5,13 @@ import (
 	"database/sql"
 	"fmt"
 	"net"
-	"os"
 	"sync"
 
 	"github.com/joho/godotenv"
-	"github.com/ludusrusso/kannon/cmd/api/adminapi"
-	"github.com/ludusrusso/kannon/cmd/api/mailapi"
 	"github.com/ludusrusso/kannon/generated/pb"
 	sqlc "github.com/ludusrusso/kannon/internal/db"
+	"github.com/ludusrusso/kannon/pkg/api/adminapi"
+	"github.com/ludusrusso/kannon/pkg/api/mailapi"
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -44,17 +43,10 @@ func runGrpcServer() error {
 	}
 
 	wg := sync.WaitGroup{}
-	wg.Add(2)
+	wg.Add(1)
 
 	go func() {
-		err := startAPIServer(50051, adminAPIService)
-		if err != nil {
-			panic("Cannot run api server")
-		}
-	}()
-
-	go func() {
-		err := startMailerServer(50052, mailAPIService)
+		err := startAPIServer(50052, adminAPIService, mailAPIService)
 		if err != nil {
 			panic("Cannot run mailer server")
 		}
@@ -65,7 +57,7 @@ func runGrpcServer() error {
 	return nil
 }
 
-func startAPIServer(port uint16, srv pb.ApiServer) error {
+func startAPIServer(port uint16, apiServer pb.ApiServer, adminSrv pb.MailerServer) error {
 	addr := fmt.Sprintf("0.0.0.0:%d", port)
 	lis, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -74,39 +66,14 @@ func startAPIServer(port uint16, srv pb.ApiServer) error {
 	defer lis.Close()
 
 	s := grpc.NewServer()
-	pb.RegisterApiServer(s, srv)
+	pb.RegisterApiServer(s, apiServer)
+	pb.RegisterMailerServer(s, adminSrv)
 
 	log.Infof("🚀 starting Admin API Service on %v", lis.Addr())
 	if err := s.Serve(lis); err != nil {
 		return err
 	}
 	return nil
-}
-
-func startMailerServer(port uint16, srv pb.MailerServer) error {
-	addr := fmt.Sprintf("0.0.0.0:%d", port)
-	lis, err := net.Listen("tcp", addr)
-	if err != nil {
-		return err
-	}
-	defer lis.Close()
-
-	s := grpc.NewServer()
-	pb.RegisterMailerServer(s, srv)
-
-	log.Infof("🚀 starting Mailer API Service on %v", lis.Addr())
-	if err := s.Serve(lis); err != nil {
-		return err
-	}
-	return nil
-}
-
-func mustEnv(envName string) string {
-	env := os.Getenv(envName)
-	if env == "" {
-		logrus.Fatalf("%v not defined", envName)
-	}
-	return env
 }
 
 func mustGetDB() *sql.DB {

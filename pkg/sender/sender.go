@@ -1,8 +1,8 @@
-package main
+package sender
 
 import (
+	"context"
 	"errors"
-	"flag"
 	"time"
 
 	"github.com/ludusrusso/kannon/generated/pb"
@@ -10,25 +10,28 @@ import (
 	"github.com/ludusrusso/kannon/internal/utils"
 	"github.com/nats-io/nats.go"
 	"github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func main() {
-	senderHost := flag.String("sender-host", "sender.kannon.io", "Sender hostname for SMTP presentation")
-	natsURL := flag.String("nasts-url", "nats://localhost:4222", "Nats url connection")
-	maxSendingJobs := flag.Uint("max-sending-jobs", 100, "Max Parallel Job for sending")
-	flag.Parse()
+func Run(ctx context.Context, c *viper.Viper) {
+	senderHost := c.GetString("hostname")
+	natsURL := c.GetString("nats_url")
+	maxSendingJobs := c.GetUint("max_jobs")
 
-	nc, js, closeNats := utils.MustGetNats(*natsURL)
+	nc, js, closeNats := utils.MustGetNats(natsURL)
 	defer closeNats()
 	mustConfigureJS(js)
 
-	sender := smtp.NewSender(*senderHost)
-
+	sender := smtp.NewSender(senderHost)
 	con := utils.MustGetPullSubscriber(js, "kannon.sending", "kannon-sending-pool")
 
-	handleSend(sender, con, nc, *maxSendingJobs)
+	go func() {
+		handleSend(sender, con, nc, maxSendingJobs)
+	}()
+
+	<-ctx.Done()
 }
 
 func handleSend(sender smtp.Sender, con *nats.Subscription, nc *nats.Conn, maxParallelJobs uint) {

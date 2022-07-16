@@ -1,17 +1,15 @@
-package main
+package dispatcher
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
 	_ "github.com/lib/pq"
+	"github.com/spf13/viper"
 
-	"github.com/joho/godotenv"
-	"github.com/kelseyhightower/envconfig"
 	"github.com/ludusrusso/kannon/generated/pb"
 	sqlc "github.com/ludusrusso/kannon/internal/db"
 	"github.com/ludusrusso/kannon/internal/mailbuilder"
@@ -23,39 +21,27 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-type appConfig struct {
-	NatsConn string `default:"nats://0.0.0.0:4222"`
-}
+func Run(ctx context.Context, vc *viper.Viper) {
+	logrus.Info("🚀 Starting dispatcher")
+	dbUrl := vc.GetString("database_url")
+	natsUrl := vc.GetString("nats_url")
 
-func main() {
-	_ = godotenv.Load()
-
-	var config appConfig
-	err := envconfig.Process("app", &config)
+	db, q, err := sqlc.Conn(ctx, dbUrl)
 	if err != nil {
-		log.Fatal(err.Error())
-	}
-
-	db, err := sqlc.Conn()
-	if err != nil {
-		panic(err)
+		logrus.Fatalf("cannot connect to database: %v", err)
 	}
 	defer db.Close()
 
-	pm, err := pool.NewSendingPoolManager(db)
+	pm, err := pool.NewSendingPoolManager(q)
 	if err != nil {
 		panic(err)
 	}
 
-	mb := mailbuilder.NewMailBuilder(db)
+	mb := mailbuilder.NewMailBuilder(q)
 
-	logrus.Infof("Connecting to nats... %v", config.NatsConn)
-
-	nc, js, closeNats := utils.MustGetNats(config.NatsConn)
+	nc, js, closeNats := utils.MustGetNats(natsUrl)
 	defer closeNats()
 	mustConfigureJS(js)
-
-	ctx := context.Background()
 
 	var wg sync.WaitGroup
 	wg.Add(3)
@@ -163,7 +149,7 @@ func handleDelivereds(ctx context.Context, js nats.JetStreamContext, pm pool.Sen
 				}
 			}
 			if err := msg.Ack(); err != nil {
-				logrus.Errorf("Cannot hack msg to nats: %v\n", err)
+				logrus.Errorf("Cannot hack msg to nats: %v", err)
 			}
 		}
 	}
@@ -183,7 +169,7 @@ func mustConfigureJS(js nats.JetStreamContext) {
 	}
 	info, err := js.AddStream(&confs)
 	if errors.Is(err, nats.ErrStreamNameAlreadyInUse) {
-		logrus.Infof("stream exists\n")
+		logrus.Infof("stream exists")
 	} else if err != nil {
 		logrus.Fatalf("cannot create js stream: %v", err)
 	}

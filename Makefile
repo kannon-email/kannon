@@ -1,4 +1,4 @@
-.PHONY: test db proto
+.PHONY: test db proto dbstats
 
 db:
 	sqlc generate

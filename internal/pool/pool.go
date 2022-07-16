@@ -2,7 +2,6 @@ package pool
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"regexp"
 	"time"
@@ -75,9 +74,9 @@ func (m *sendingPoolManager) SetDelivered(ctx context.Context, messageID string,
 	})
 }
 
-func NewSendingPoolManager(db *sql.DB) (SendingPoolManager, error) {
+func NewSendingPoolManager(q *sqlc.Queries) (SendingPoolManager, error) {
 	return &sendingPoolManager{
-		db: sqlc.New(db),
+		db: q,
 	}, nil
 }
 

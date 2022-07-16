@@ -3,7 +3,6 @@ package mailbuilder
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"time"
 
 	"github.com/ludusrusso/kannon/generated/pb"
@@ -19,9 +18,9 @@ type MailBulder interface {
 }
 
 // NewMailBuilder creates an SMTP mailer
-func NewMailBuilder(db *sql.DB) MailBulder {
+func NewMailBuilder(q *sqlc.Queries) MailBulder {
 	return &mailBuilder{
-		db: sqlc.New(db),
+		db: q,
 		headers: headers{
 			"X-Mailer": "SMTP Mailer",
 		},
