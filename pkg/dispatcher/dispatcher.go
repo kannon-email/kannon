@@ -25,12 +25,12 @@ func Run(ctx context.Context, vc *viper.Viper) {
 	vc.SetEnvPrefix("DISPATCHER")
 	vc.AutomaticEnv()
 
-	dbUrl := vc.GetString("database_url")
-	natsUrl := vc.GetString("nats_url")
+	dbURL := vc.GetString("database_url")
+	natsURL := vc.GetString("nats_url")
 
 	logrus.Info("🚀 Starting dispatcher")
 
-	db, q, err := sqlc.Conn(ctx, dbUrl)
+	db, q, err := sqlc.Conn(ctx, dbURL)
 	if err != nil {
 		logrus.Fatalf("cannot connect to database: %v", err)
 	}
@@ -39,7 +39,7 @@ func Run(ctx context.Context, vc *viper.Viper) {
 	pm := pool.NewSendingPoolManager(q)
 	mb := mailbuilder.NewMailBuilder(q)
 
-	nc, js, closeNats := utils.MustGetNats(natsUrl)
+	nc, js, closeNats := utils.MustGetNats(natsURL)
 	defer closeNats()
 	mustConfigureJS(js)
 

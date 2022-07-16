@@ -58,19 +58,19 @@ func (m *sendingPoolManager) PrepareForSend(ctx context.Context, max uint) ([]sq
 }
 
 func (m *sendingPoolManager) SetError(ctx context.Context, messageID string, email string, errMsg string) error {
-	msgId := extractMsgId(messageID)
+	msgID := extractMsgID(messageID)
 	return m.db.SetSendingPoolError(ctx, sqlc.SetSendingPoolErrorParams{
 		Email:     email,
-		MessageID: msgId,
+		MessageID: msgID,
 		ErrorMsg:  errMsg,
 	})
 }
 
 func (m *sendingPoolManager) SetDelivered(ctx context.Context, messageID string, email string) error {
-	msgId := extractMsgId(messageID)
+	msgID := extractMsgID(messageID)
 	return m.db.SetSendingPoolDelivered(ctx, sqlc.SetSendingPoolDeliveredParams{
 		Email:     email,
-		MessageID: msgId,
+		MessageID: msgID,
 	})
 }
 
@@ -86,7 +86,7 @@ func createMessageID(domain string) string {
 
 var extractMsgIDReg = regexp.MustCompile(`<.+\/(?P<messageId>.+)>`)
 
-func extractMsgId(messageID string) string {
+func extractMsgID(messageID string) string {
 	match := extractMsgIDReg.FindStringSubmatch(messageID)
 	return match[1]
 }

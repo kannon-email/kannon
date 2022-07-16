@@ -9,8 +9,8 @@ import (
 
 type CloseFunc = func()
 
-func MustGetNats(natsUrl string) (*nats.Conn, nats.JetStreamContext, CloseFunc) {
-	nc, err := nats.Connect(natsUrl)
+func MustGetNats(natsURL string) (*nats.Conn, nats.JetStreamContext, CloseFunc) {
+	nc, err := nats.Connect(natsURL)
 	if err != nil {
 		logrus.Fatalf("cannot create nats cli: %v", err)
 	}

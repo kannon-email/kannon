@@ -22,10 +22,10 @@ func Run(ctx context.Context, vc *viper.Viper) {
 
 	vc.SetDefault("port", 50051)
 
-	dbUrl := vc.GetString("database_url")
+	dbURL := vc.GetString("database_url")
 	port := vc.GetUint("port")
 
-	db, q, err := sqlc.Conn(ctx, dbUrl)
+	db, q, err := sqlc.Conn(ctx, dbURL)
 	if err != nil {
 		logrus.Fatalf("cannot connect to database: %v", err)
 	}
