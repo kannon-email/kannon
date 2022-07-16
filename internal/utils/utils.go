@@ -19,7 +19,7 @@ func MustGetNats(natsURL string) (*nats.Conn, nats.JetStreamContext, CloseFunc) 
 		logrus.Fatalf("cannot create js cli: %v", err)
 	}
 
-	var close CloseFunc = func() {
+	var close = func() {
 		err := nc.Drain()
 		if err != nil {
 			logrus.Errorf("cannot drain nats: %v", err)

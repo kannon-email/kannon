@@ -11,7 +11,6 @@ import (
 	"github.com/ludusrusso/kannon/pkg/api/adminapi"
 	"github.com/ludusrusso/kannon/pkg/api/mailapi"
 	"github.com/sirupsen/logrus"
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
 )
@@ -59,7 +58,7 @@ func startAPIServer(port uint, apiServer pb.ApiServer, adminSrv pb.MailerServer)
 	pb.RegisterApiServer(s, apiServer)
 	pb.RegisterMailerServer(s, adminSrv)
 
-	log.Infof("🚀 starting Admin API Service on %v", lis.Addr())
+	logrus.Infof("🚀 starting Admin API Service on %v", lis.Addr())
 	if err := s.Serve(lis); err != nil {
 		return err
 	}
