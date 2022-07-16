@@ -16,7 +16,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-func Run(ctx context.Context, vc *viper.Viper) error {
+func Run(ctx context.Context, vc *viper.Viper) {
 	vc.SetEnvPrefix("API")
 	vc.AutomaticEnv()
 
@@ -45,8 +45,6 @@ func Run(ctx context.Context, vc *viper.Viper) error {
 	}()
 
 	wg.Wait()
-
-	return nil
 }
 
 func startAPIServer(port uint, apiServer pb.ApiServer, adminSrv pb.MailerServer) error {
