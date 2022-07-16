@@ -25,6 +25,8 @@ func Run(ctx context.Context, vc *viper.Viper) {
 	natsURL := vc.GetString("nats_url")
 	maxSendingJobs := vc.GetUint("max_jobs")
 
+	logrus.Infof("Starting Sender Service with hostname: %v", senderHost)
+
 	nc, js, closeNats := utils.MustGetNats(natsURL)
 	defer closeNats()
 	mustConfigureJS(js)

@@ -24,6 +24,8 @@ func Run(ctx context.Context, vc *viper.Viper) {
 	dbURL := vc.GetString("database_url")
 	port := vc.GetUint("port")
 
+	logrus.Infof("Starting API Service on port %d", port)
+
 	db, q, err := sqlc.Conn(ctx, dbURL)
 	if err != nil {
 		logrus.Fatalf("cannot connect to database: %v", err)
@@ -58,7 +60,6 @@ func startAPIServer(port uint, apiServer pb.ApiServer, adminSrv pb.MailerServer)
 	pb.RegisterApiServer(s, apiServer)
 	pb.RegisterMailerServer(s, adminSrv)
 
-	logrus.Infof("🚀 starting Admin API Service on %v", lis.Addr())
 	if err := s.Serve(lis); err != nil {
 		return err
 	}
