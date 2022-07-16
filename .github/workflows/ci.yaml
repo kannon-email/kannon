@@ -29,24 +29,10 @@ jobs:
           echo "::set-output name=ts::$(date +%s)"
           echo "::set-output name=sha::$(git rev-parse --short HEAD)"
           echo "::set-output name=branch::$(git rev-parse --abbrev-ref HEAD)"
-      - name: Build API
+      - name: Build Kannon
         uses: ./.github/actions/build-docker
         with:
-          docker-target: api
-          branch: ${{ steps.get_vars.outputs.branch }}
-          sha: ${{ steps.get_vars.outputs.sha }}
-          ts: ${{ steps.get_vars.outputs.ts }}
-      - name: Build Sender
-        uses: ./.github/actions/build-docker
-        with:
-          docker-target: sender
-          branch: ${{ steps.get_vars.outputs.branch }}
-          sha: ${{ steps.get_vars.outputs.sha }}
-          ts: ${{ steps.get_vars.outputs.ts }}
-      - name: Build Dispatcher
-        uses: ./.github/actions/build-docker
-        with:
-          docker-target: dispatcher
+          docker-target: kannon
           branch: ${{ steps.get_vars.outputs.branch }}
           sha: ${{ steps.get_vars.outputs.sha }}
           ts: ${{ steps.get_vars.outputs.ts }}
