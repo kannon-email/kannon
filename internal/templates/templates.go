@@ -2,7 +2,6 @@ package templates
 
 import (
 	"context"
-	"database/sql"
 
 	sqlc "github.com/ludusrusso/kannon/internal/db"
 )
@@ -14,8 +13,8 @@ type Manager interface {
 }
 
 // NewTemplateManager builds a Template Manager
-func NewTemplateManager(db *sql.DB) (Manager, error) {
+func NewTemplateManager(q *sqlc.Queries) Manager {
 	return &manager{
-		db: sqlc.New(db),
-	}, nil
+		db: q,
+	}
 }

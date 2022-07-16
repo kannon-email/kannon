@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ludusrusso/kannon/pkg/api"
 	"github.com/ludusrusso/kannon/pkg/dispatcher"
 	"github.com/ludusrusso/kannon/pkg/sender"
 	"github.com/spf13/viper"
@@ -38,6 +39,12 @@ func main() {
 	if sv := viper.Sub("dispatcher"); sv != nil {
 		wg.Add(1)
 		dispatcher.Run(ctx, sv)
+		wg.Done()
+	}
+
+	if sv := viper.Sub("api"); sv != nil {
+		wg.Add(1)
+		api.Run(ctx, sv)
 		wg.Done()
 	}
 

@@ -22,9 +22,13 @@ import (
 )
 
 func Run(ctx context.Context, vc *viper.Viper) {
-	logrus.Info("🚀 Starting dispatcher")
+	vc.SetEnvPrefix("DISPATCHER")
+	vc.AutomaticEnv()
+
 	dbUrl := vc.GetString("database_url")
 	natsUrl := vc.GetString("nats_url")
+
+	logrus.Info("🚀 Starting dispatcher")
 
 	db, q, err := sqlc.Conn(ctx, dbUrl)
 	if err != nil {
@@ -32,11 +36,7 @@ func Run(ctx context.Context, vc *viper.Viper) {
 	}
 	defer db.Close()
 
-	pm, err := pool.NewSendingPoolManager(q)
-	if err != nil {
-		panic(err)
-	}
-
+	pm := pool.NewSendingPoolManager(q)
 	mb := mailbuilder.NewMailBuilder(q)
 
 	nc, js, closeNats := utils.MustGetNats(natsUrl)

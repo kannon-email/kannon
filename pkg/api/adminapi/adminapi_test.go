@@ -6,10 +6,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/ludusrusso/kannon/cmd/api/adminapi"
 	"github.com/ludusrusso/kannon/generated/pb"
 	sqlc "github.com/ludusrusso/kannon/internal/db"
 	"github.com/ludusrusso/kannon/internal/tests"
+	"github.com/ludusrusso/kannon/pkg/api/adminapi"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )

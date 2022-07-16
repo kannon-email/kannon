@@ -15,10 +15,15 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func Run(ctx context.Context, c *viper.Viper) {
-	senderHost := c.GetString("hostname")
-	natsURL := c.GetString("nats_url")
-	maxSendingJobs := c.GetUint("max_jobs")
+func Run(ctx context.Context, vc *viper.Viper) {
+	vc.SetEnvPrefix("DISPATCHER")
+	vc.AutomaticEnv()
+
+	vc.SetDefault("max_jobs", 10)
+
+	senderHost := vc.GetString("hostname")
+	natsURL := vc.GetString("nats_url")
+	maxSendingJobs := vc.GetUint("max_jobs")
 
 	nc, js, closeNats := utils.MustGetNats(natsURL)
 	defer closeNats()

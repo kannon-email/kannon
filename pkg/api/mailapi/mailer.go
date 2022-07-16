@@ -2,7 +2,6 @@ package mailapi
 
 import (
 	"context"
-	"database/sql"
 	"encoding/base64"
 	"fmt"
 	"strings"
@@ -134,22 +133,15 @@ func (s mailAPIService) getCallDomainFromContext(ctx context.Context) (sqlc.Doma
 	return domain, nil
 }
 
-func NewMailAPIService(dbi *sql.DB, q *sqlc.Queries) (pb.MailerServer, error) {
+func NewMailAPIService(q *sqlc.Queries) pb.MailerServer {
 	domainsCli := domains.NewDomainManager(q)
 
-	sendingPoolCli, err := pool.NewSendingPoolManager(dbi)
-	if err != nil {
-		return nil, err
-	}
-
-	templates, err := templates.NewTemplateManager(dbi)
-	if err != nil {
-		return nil, err
-	}
+	sendingPoolCli := pool.NewSendingPoolManager(q)
+	templates := templates.NewTemplateManager(q)
 
 	return &mailAPIService{
 		domains:     domainsCli,
 		sendingPoll: sendingPoolCli,
 		templates:   templates,
-	}, nil
+	}
 }

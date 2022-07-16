@@ -74,10 +74,10 @@ func (m *sendingPoolManager) SetDelivered(ctx context.Context, messageID string,
 	})
 }
 
-func NewSendingPoolManager(q *sqlc.Queries) (SendingPoolManager, error) {
+func NewSendingPoolManager(q *sqlc.Queries) SendingPoolManager {
 	return &sendingPoolManager{
 		db: q,
-	}, nil
+	}
 }
 
 func createMessageID(domain string) string {

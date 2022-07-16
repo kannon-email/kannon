@@ -1,52 +1,44 @@
-package main
+package api
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"net"
 	"sync"
 
-	"github.com/joho/godotenv"
 	"github.com/ludusrusso/kannon/generated/pb"
 	sqlc "github.com/ludusrusso/kannon/internal/db"
 	"github.com/ludusrusso/kannon/pkg/api/adminapi"
 	"github.com/ludusrusso/kannon/pkg/api/mailapi"
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 	"google.golang.org/grpc"
 )
 
-func main() {
-	log.SetFormatter(&log.JSONFormatter{})
-	if err := runGrpcServer(); err != nil {
-		panic(err.Error())
-	}
-}
+func Run(ctx context.Context, vc *viper.Viper) error {
+	vc.SetEnvPrefix("API")
+	vc.AutomaticEnv()
 
-func runGrpcServer() error {
-	_ = godotenv.Load()
+	vc.SetDefault("port", 50051)
 
-	dbi := mustGetDB()
-	defer dbi.Close()
+	dbUrl := vc.GetString("database_url")
+	port := vc.GetUint("port")
 
-	q, err := sqlc.Prepare(context.Background(), dbi)
+	db, q, err := sqlc.Conn(ctx, dbUrl)
 	if err != nil {
-		panic(err)
+		logrus.Fatalf("cannot connect to database: %v", err)
 	}
+	defer db.Close()
 
 	adminAPIService := adminapi.CreateAdminAPIService(q)
-
-	mailAPIService, err := mailapi.NewMailAPIService(dbi, q)
-	if err != nil {
-		return fmt.Errorf("cannot create Mailer API service: %w", err)
-	}
+	mailAPIService := mailapi.NewMailAPIService(q)
 
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 
 	go func() {
-		err := startAPIServer(50052, adminAPIService, mailAPIService)
+		err := startAPIServer(port, adminAPIService, mailAPIService)
 		if err != nil {
 			panic("Cannot run mailer server")
 		}
@@ -57,7 +49,7 @@ func runGrpcServer() error {
 	return nil
 }
 
-func startAPIServer(port uint16, apiServer pb.ApiServer, adminSrv pb.MailerServer) error {
+func startAPIServer(port uint, apiServer pb.ApiServer, adminSrv pb.MailerServer) error {
 	addr := fmt.Sprintf("0.0.0.0:%d", port)
 	lis, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -74,13 +66,4 @@ func startAPIServer(port uint16, apiServer pb.ApiServer, adminSrv pb.MailerServe
 		return err
 	}
 	return nil
-}
-
-func mustGetDB() *sql.DB {
-	dbUrl := mustEnv("DATABASE_URL")
-	dbc, err := sqlc.NewPg(dbUrl)
-	if err != nil {
-		logrus.Fatalf("cannot connect to db: %v", err)
-	}
-	return dbc
 }
