@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/ludusrusso/kannon/pkg/api"
 	"github.com/ludusrusso/kannon/pkg/dispatcher"
@@ -25,8 +24,7 @@ func main() {
 		panic(fmt.Errorf("fatal error config file: %w", err))
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
+	ctx := context.Background()
 
 	var wg sync.WaitGroup
 
