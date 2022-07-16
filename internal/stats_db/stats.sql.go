@@ -11,17 +11,16 @@ import (
 )
 
 const insertAccepted = `-- name: InsertAccepted :exec
-INSERT INTO accepted (email, message_id, timestamp) VALUES ($1, $2, $3)
+INSERT INTO accepted (email, message_id) VALUES ($1, $2)
 `
 
 type InsertAcceptedParams struct {
 	Email     string
 	MessageID string
-	Timestamp time.Time
 }
 
 func (q *Queries) InsertAccepted(ctx context.Context, arg InsertAcceptedParams) error {
-	_, err := q.exec(ctx, q.insertAcceptedStmt, insertAccepted, arg.Email, arg.MessageID, arg.Timestamp)
+	_, err := q.exec(ctx, q.insertAcceptedStmt, insertAccepted, arg.Email, arg.MessageID)
 	return err
 }
 
@@ -49,15 +48,16 @@ func (q *Queries) InsertBounced(ctx context.Context, arg InsertBouncedParams) er
 }
 
 const insertDelivered = `-- name: InsertDelivered :exec
-INSERT INTO delivered (email, message_id) VALUES ($1, $2)
+INSERT INTO delivered (email, message_id, timestamp) VALUES ($1, $2, $3)
 `
 
 type InsertDeliveredParams struct {
 	Email     string
 	MessageID string
+	Timestamp time.Time
 }
 
 func (q *Queries) InsertDelivered(ctx context.Context, arg InsertDeliveredParams) error {
-	_, err := q.exec(ctx, q.insertDeliveredStmt, insertDelivered, arg.Email, arg.MessageID)
+	_, err := q.exec(ctx, q.insertDeliveredStmt, insertDelivered, arg.Email, arg.MessageID, arg.Timestamp)
 	return err
 }
