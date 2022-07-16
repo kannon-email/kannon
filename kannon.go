@@ -30,20 +30,26 @@ func main() {
 
 	if sv := viper.Sub("sender"); sv != nil {
 		wg.Add(1)
-		sender.Run(ctx, sv)
-		wg.Done()
+		go func() {
+			sender.Run(ctx, sv)
+			wg.Done()
+		}()
 	}
 
 	if sv := viper.Sub("dispatcher"); sv != nil {
 		wg.Add(1)
-		dispatcher.Run(ctx, sv)
-		wg.Done()
+		go func() {
+			dispatcher.Run(ctx, sv)
+			wg.Done()
+		}()
 	}
 
 	if sv := viper.Sub("api"); sv != nil {
 		wg.Add(1)
-		api.Run(ctx, sv)
-		wg.Done()
+		go func() {
+			api.Run(ctx, sv)
+			wg.Done()
+		}()
 	}
 
 	wg.Wait()
