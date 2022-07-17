@@ -42,15 +42,12 @@ func (m *mailBuilder) PerpareForSend(ctx context.Context, email sqlc.SendingPool
 		return pb.EmailToSend{}, err
 	}
 
-	html, err := m.preparedHtml(ctx, emailData, email)
-	if err != nil {
-		return pb.EmailToSend{}, err
-	}
-
-	msg, err := prepareMessage(pool.Sender{
+	sender := pool.Sender{
 		Email: emailData.SenderEmail,
 		Alias: emailData.SenderAlias,
-	}, emailData.Subject, email.Email, emailData.MessageID, html, m.headers)
+	}
+
+	msg, err := m.prepareMessage(ctx, sender, emailData.Subject, email.Email, emailData.Domain, emailData.MessageID, emailData.Html, m.headers)
 	if err != nil {
 		return pb.EmailToSend{}, err
 	}
@@ -69,8 +66,12 @@ func (m *mailBuilder) PerpareForSend(ctx context.Context, email sqlc.SendingPool
 	}, nil
 }
 
-func prepareMessage(sender pool.Sender, subject string, to string, messageID string, html string, baseHeaders headers) ([]byte, error) {
+func (m *mailBuilder) prepareMessage(ctx context.Context, sender pool.Sender, subject string, to string, domain string, messageID string, html string, baseHeaders headers) ([]byte, error) {
 	emailMessageID := buildEmailMessageID(to, messageID)
+	html, err := m.preparedHtml(ctx, html, to, domain, emailMessageID)
+	if err != nil {
+		return nil, err
+	}
 	h := buildHeaders(subject, sender, to, messageID, emailMessageID, baseHeaders)
 	return renderMsg(html, h)
 }
@@ -86,12 +87,12 @@ func signMessage(domain string, dkimPrivateKey string, msg []byte) ([]byte, erro
 	return dkim.SignMessage(signData, bytes.NewReader(msg))
 }
 
-func (s *mailBuilder) preparedHtml(ctx context.Context, emailData sqlc.GetSendingDataRow, email sqlc.SendingPoolEmail) (string, error) {
-	link, err := s.buildTrackLink(ctx, email.Email, email.MessageID, emailData.Domain)
+func (s *mailBuilder) preparedHtml(ctx context.Context, html string, email string, domain string, messageID string) (string, error) {
+	link, err := s.buildTrackLink(ctx, email, messageID, domain)
 	if err != nil {
 		return "", err
 	}
-	html := insertTrackLinkInHtml(emailData.Html, link)
+	html = insertTrackLinkInHtml(html, link)
 	return html, nil
 }
 
