@@ -25,67 +25,62 @@ type mailAPIService struct {
 	sendingPoll pool.SendingPoolManager
 }
 
-func (s mailAPIService) SendHTML(ctx context.Context, in *pb.SendHTMLRequest) (*pb.SendResponse, error) {
+func (s mailAPIService) SendHTML(ctx context.Context, req *pb.SendHTMLReq) (*pb.SendRes, error) {
 	domain, err := s.getCallDomainFromContext(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Unauthenticated, "invalid or wrong auth")
 	}
 
-	template, err := s.templates.CreateTemplate(ctx, in.Html, domain.Domain)
+	template, err := s.templates.CreateTemplate(ctx, req.Html, domain.Domain)
 	if err != nil {
 		logrus.Errorf("cannot create template %v\n", err)
 		return nil, status.Errorf(codes.Internal, "cannot create template %v", err)
 	}
 
-	sender := pool.Sender{
-		Email: in.Sender.Email,
-		Alias: in.Sender.Alias,
-	}
-	pool, err := s.sendingPoll.AddPool(ctx, template, in.To, sender, in.Subject, domain.Domain)
-
-	if err != nil {
-		logrus.Errorf("cannot create pool %v\n", err)
-		return nil, err
-	}
-
-	response := pb.SendResponse{
-		MessageId:     pool.MessageID,
+	return s.SendTemplate(ctx, &pb.SendTemplateReq{
+		Sender:        req.Sender,
+		To:            req.To,
+		Subject:       req.Subject,
 		TemplateId:    template.TemplateID,
-		ScheduledTime: timestamppb.New(time.Now()),
-	}
-
-	return &response, nil
+		ScheduledTime: req.ScheduledTime,
+	})
 }
 
-func (s mailAPIService) SendTemplate(ctx context.Context, in *pb.SendTemplateRequest) (*pb.SendResponse, error) {
+func (s mailAPIService) SendTemplate(ctx context.Context, req *pb.SendTemplateReq) (*pb.SendRes, error) {
 	domain, err := s.getCallDomainFromContext(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Unauthenticated, "invalid or wrong auth")
 	}
-	template, err := s.templates.FindTemplate(ctx, domain.Domain, in.TemplateId)
+	template, err := s.templates.FindTemplate(ctx, domain.Domain, req.TemplateId)
 	if err != nil {
 		logrus.Errorf("cannot create template %v\n", err)
-		return nil, status.Errorf(codes.InvalidArgument, "cannot find template with id: %v", in.TemplateId)
+		return nil, status.Errorf(codes.InvalidArgument, "cannot find template with id: %v", req.TemplateId)
 	}
 
 	sender := pool.Sender{
-		Email: in.Sender.Email,
-		Alias: in.Sender.Alias,
+		Email: req.Sender.Email,
+		Alias: req.Sender.Alias,
 	}
-	pool, err := s.sendingPoll.AddPool(ctx, template, in.To, sender, in.Subject, domain.Domain)
+
+	scheduled := time.Now()
+	if req.ScheduledTime != nil {
+		scheduled = req.ScheduledTime.AsTime()
+	}
+
+	pool, err := s.sendingPoll.AddPool(ctx, template, req.To, sender, scheduled, req.Subject, domain.Domain)
 
 	if err != nil {
 		logrus.Errorf("cannot create pool %v\n", err)
 		return nil, err
 	}
 
-	response := pb.SendResponse{
+	Res := pb.SendRes{
 		MessageId:     pool.MessageID,
 		TemplateId:    template.TemplateID,
 		ScheduledTime: timestamppb.New(time.Now()),
 	}
 
-	return &response, nil
+	return &Res, nil
 }
 
 func (s mailAPIService) Close() error {

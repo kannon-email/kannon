@@ -57,7 +57,7 @@ func (q *Queries) InsertHardBounced(ctx context.Context, arg InsertHardBouncedPa
 }
 
 const insertPrepared = `-- name: InsertPrepared :exec
-INSERT INTO prepared (email, message_id, timestamp, domain) VALUES ($1, $2, $3, $4)
+INSERT INTO prepared (email, message_id, timestamp, first_timestamp, domain) VALUES ($1, $2, $3, $3, $4)
 	ON CONFLICT (email, message_id, domain) DO UPDATE
 	SET timestamp = $3
 `
