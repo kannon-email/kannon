@@ -69,10 +69,13 @@ func handleSends(ctx context.Context, js nats.JetStreamContext, q *sq.Queries) {
 			if err != nil {
 				logrus.Errorf("cannot marshal message %v", err.Error())
 			} else {
-				logrus.Printf("[✅ bump] %v %v - %v", sendMsg.To, sendMsg.MessageId)
-				err := q.InsertDelivered(ctx, sq.InsertDeliveredParams{
+				logrus.Printf("[🚀 Prepared] %v %v - %v", sendMsg.To, sendMsg.MessageId)
+				msgId, domain := utils.ExtractMsgIDAndDomain(sendMsg.MessageId)
+				err := q.InsertPrepared(ctx, sq.InsertPreparedParams{
 					Email:     sendMsg.To,
-					MessageID: sendMsg.MessageId,
+					MessageID: msgId,
+					Timestamp: time.Now(),
+					Domain:    domain,
 				})
 				if err != nil {
 					logrus.Errorf("Cannot insert sent: %v", err)
@@ -101,13 +104,15 @@ func handleErrors(ctx context.Context, js nats.JetStreamContext, q *sq.Queries) 
 			if err != nil {
 				logrus.Errorf("cannot marshal message %v", err.Error())
 			} else {
-				logrus.Printf("[🛑 bump] %v %v - %v", errMsg.Email, errMsg.MessageId, errMsg.Msg)
-				err := q.InsertBounced(ctx, sq.InsertBouncedParams{
+				logrus.Printf("[🛑 bounce] %v %v - %v", errMsg.Email, errMsg.MessageId, errMsg.Msg)
+				msgId, domain := utils.ExtractMsgIDAndDomain(errMsg.MessageId)
+				err := q.InsertHardBounced(ctx, sq.InsertHardBouncedParams{
 					Email:     errMsg.Email,
-					MessageID: errMsg.MessageId,
-					ErrCode:   0, // TODO
-					ErrMsg:    errMsg.Msg,
+					MessageID: msgId,
 					Timestamp: errMsg.Timestamp.AsTime(),
+					Domain:    domain,
+					ErrCode:   int32(errMsg.Code),
+					ErrMsg:    errMsg.Msg,
 				})
 				if err != nil {
 					logrus.Errorf("Cannot insert bounced: %v", err)
@@ -136,11 +141,13 @@ func handleDelivereds(ctx context.Context, js nats.JetStreamContext, q *sq.Queri
 			if err != nil {
 				logrus.Errorf("cannot marshal message %v", err.Error())
 			} else {
-				logrus.Printf("[🚀 delivered] %v %v", deliveredMsg.Email, deliveredMsg.MessageId)
-				err := q.InsertDelivered(ctx, sq.InsertDeliveredParams{
+				logrus.Printf("[✅ delivered] %v %v", deliveredMsg.Email, deliveredMsg.MessageId)
+				msgId, domain := utils.ExtractMsgIDAndDomain(deliveredMsg.MessageId)
+				err := q.InsertAccepted(ctx, sq.InsertAcceptedParams{
 					Email:     deliveredMsg.Email,
-					MessageID: deliveredMsg.MessageId,
+					MessageID: msgId,
 					Timestamp: deliveredMsg.Timestamp.AsTime(),
+					Domain:    domain,
 				})
 				if err != nil {
 					logrus.Errorf("Cannot insert delivered: %v", err)

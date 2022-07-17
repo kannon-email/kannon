@@ -2,13 +2,10 @@ package pool
 
 import (
 	"context"
-	"fmt"
-	"regexp"
 	"time"
 
 	sqlc "github.com/ludusrusso/kannon/internal/db"
-
-	"gopkg.in/lucsky/cuid.v1"
+	"github.com/ludusrusso/kannon/internal/utils"
 )
 
 type Sender struct {
@@ -36,7 +33,7 @@ func (m *sendingPoolManager) AddPool(ctx context.Context, template sqlc.Template
 		Subject:     subject,
 		SenderEmail: from.Email,
 		SenderAlias: from.Alias,
-		MessageID:   createMessageID(domain),
+		MessageID:   utils.CreateMessageID(domain),
 	})
 	if err != nil {
 		return sqlc.Message{}, err
@@ -58,7 +55,7 @@ func (m *sendingPoolManager) PrepareForSend(ctx context.Context, max uint) ([]sq
 }
 
 func (m *sendingPoolManager) SetError(ctx context.Context, messageID string, email string, errMsg string) error {
-	msgID := extractMsgID(messageID)
+	msgID, _ := utils.ExtractMsgIDAndDomain(messageID)
 	return m.db.SetSendingPoolError(ctx, sqlc.SetSendingPoolErrorParams{
 		Email:     email,
 		MessageID: msgID,
@@ -67,7 +64,7 @@ func (m *sendingPoolManager) SetError(ctx context.Context, messageID string, ema
 }
 
 func (m *sendingPoolManager) SetDelivered(ctx context.Context, messageID string, email string) error {
-	msgID := extractMsgID(messageID)
+	msgID, _ := utils.ExtractMsgIDAndDomain(messageID)
 	return m.db.SetSendingPoolDelivered(ctx, sqlc.SetSendingPoolDeliveredParams{
 		Email:     email,
 		MessageID: msgID,
@@ -78,15 +75,4 @@ func NewSendingPoolManager(q *sqlc.Queries) SendingPoolManager {
 	return &sendingPoolManager{
 		db: q,
 	}
-}
-
-func createMessageID(domain string) string {
-	return fmt.Sprintf("msg_%v@%v", cuid.New(), domain)
-}
-
-var extractMsgIDReg = regexp.MustCompile(`<.+\/(?P<messageId>.+)>`)
-
-func extractMsgID(messageID string) string {
-	match := extractMsgIDReg.FindStringSubmatch(messageID)
-	return match[1]
 }

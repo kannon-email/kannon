@@ -11,53 +11,70 @@ import (
 )
 
 const insertAccepted = `-- name: InsertAccepted :exec
-INSERT INTO accepted (email, message_id) VALUES ($1, $2)
+INSERT INTO accepted (email, message_id, timestamp, domain) VALUES ($1, $2, $3, $4)
 `
 
 type InsertAcceptedParams struct {
 	Email     string
 	MessageID string
+	Timestamp time.Time
+	Domain    string
 }
 
 func (q *Queries) InsertAccepted(ctx context.Context, arg InsertAcceptedParams) error {
-	_, err := q.exec(ctx, q.insertAcceptedStmt, insertAccepted, arg.Email, arg.MessageID)
-	return err
-}
-
-const insertBounced = `-- name: InsertBounced :exec
-INSERT INTO bounced (email, message_id, err_code, err_msg, timestamp) VALUES ($1, $2, $3, $4, $5)
-`
-
-type InsertBouncedParams struct {
-	Email     string
-	MessageID string
-	ErrCode   int32
-	ErrMsg    string
-	Timestamp time.Time
-}
-
-func (q *Queries) InsertBounced(ctx context.Context, arg InsertBouncedParams) error {
-	_, err := q.exec(ctx, q.insertBouncedStmt, insertBounced,
+	_, err := q.exec(ctx, q.insertAcceptedStmt, insertAccepted,
 		arg.Email,
 		arg.MessageID,
-		arg.ErrCode,
-		arg.ErrMsg,
 		arg.Timestamp,
+		arg.Domain,
 	)
 	return err
 }
 
-const insertDelivered = `-- name: InsertDelivered :exec
-INSERT INTO delivered (email, message_id, timestamp) VALUES ($1, $2, $3)
+const insertHardBounced = `-- name: InsertHardBounced :exec
+INSERT INTO hard_bounced (email, message_id, timestamp, domain, err_code, err_msg) VALUES  ($1, $2, $3, $4, $5, $6)
 `
 
-type InsertDeliveredParams struct {
+type InsertHardBouncedParams struct {
 	Email     string
 	MessageID string
 	Timestamp time.Time
+	Domain    string
+	ErrCode   int32
+	ErrMsg    string
 }
 
-func (q *Queries) InsertDelivered(ctx context.Context, arg InsertDeliveredParams) error {
-	_, err := q.exec(ctx, q.insertDeliveredStmt, insertDelivered, arg.Email, arg.MessageID, arg.Timestamp)
+func (q *Queries) InsertHardBounced(ctx context.Context, arg InsertHardBouncedParams) error {
+	_, err := q.exec(ctx, q.insertHardBouncedStmt, insertHardBounced,
+		arg.Email,
+		arg.MessageID,
+		arg.Timestamp,
+		arg.Domain,
+		arg.ErrCode,
+		arg.ErrMsg,
+	)
+	return err
+}
+
+const insertPrepared = `-- name: InsertPrepared :exec
+INSERT INTO prepared (email, message_id, timestamp, domain) VALUES ($1, $2, $3, $4)
+	ON CONFLICT (email, message_id, domain) DO UPDATE
+	SET timestamp = $3
+`
+
+type InsertPreparedParams struct {
+	Email     string
+	MessageID string
+	Timestamp time.Time
+	Domain    string
+}
+
+func (q *Queries) InsertPrepared(ctx context.Context, arg InsertPreparedParams) error {
+	_, err := q.exec(ctx, q.insertPreparedStmt, insertPrepared,
+		arg.Email,
+		arg.MessageID,
+		arg.Timestamp,
+		arg.Domain,
+	)
 	return err
 }

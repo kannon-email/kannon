@@ -18,5 +18,5 @@ func NewSender(hostname string) Sender {
 type SenderError interface {
 	Error() string
 	IsPermanent() bool
-	Code() int
+	Code() uint32
 }

@@ -12,21 +12,25 @@ type Accepted struct {
 	ID        int32
 	Email     string
 	MessageID string
+	Domain    string
 	Timestamp time.Time
 }
 
-type Bounced struct {
+type HardBounced struct {
 	ID        int32
 	Email     string
 	MessageID string
+	Domain    string
 	ErrCode   int32
 	ErrMsg    string
 	Timestamp time.Time
 }
 
-type Delivered struct {
-	ID        int32
-	Email     string
-	MessageID string
-	Timestamp time.Time
+type Prepared struct {
+	ID             int32
+	Email          string
+	MessageID      string
+	Domain         string
+	Timestamp      time.Time
+	FirstTimestamp time.Time
 }

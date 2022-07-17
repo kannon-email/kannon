@@ -21,6 +21,7 @@ CREATE TABLE public.accepted (
     id integer NOT NULL,
     email character varying(320) NOT NULL,
     message_id character varying NOT NULL,
+    domain character varying NOT NULL,
     "timestamp" timestamp without time zone DEFAULT now() NOT NULL
 );
 
@@ -46,13 +47,14 @@ ALTER SEQUENCE public.accepted_id_seq OWNED BY public.accepted.id;
 
 
 --
--- Name: bounced; Type: TABLE; Schema: public; Owner: -
+-- Name: hard_bounced; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.bounced (
+CREATE TABLE public.hard_bounced (
     id integer NOT NULL,
     email character varying(320) NOT NULL,
     message_id character varying NOT NULL,
+    domain character varying NOT NULL,
     err_code integer NOT NULL,
     err_msg character varying NOT NULL,
     "timestamp" timestamp without time zone DEFAULT now() NOT NULL
@@ -60,10 +62,10 @@ CREATE TABLE public.bounced (
 
 
 --
--- Name: bounced_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: hard_bounced_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.bounced_id_seq
+CREATE SEQUENCE public.hard_bounced_id_seq
     AS integer
     START WITH 1
     INCREMENT BY 1
@@ -73,29 +75,31 @@ CREATE SEQUENCE public.bounced_id_seq
 
 
 --
--- Name: bounced_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: hard_bounced_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
-ALTER SEQUENCE public.bounced_id_seq OWNED BY public.bounced.id;
+ALTER SEQUENCE public.hard_bounced_id_seq OWNED BY public.hard_bounced.id;
 
 
 --
--- Name: delivered; Type: TABLE; Schema: public; Owner: -
+-- Name: prepared; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.delivered (
+CREATE TABLE public.prepared (
     id integer NOT NULL,
     email character varying(320) NOT NULL,
     message_id character varying NOT NULL,
-    "timestamp" timestamp without time zone DEFAULT now() NOT NULL
+    domain character varying NOT NULL,
+    "timestamp" timestamp without time zone DEFAULT now() NOT NULL,
+    first_timestamp timestamp without time zone DEFAULT now() NOT NULL
 );
 
 
 --
--- Name: delivered_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: prepared_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.delivered_id_seq
+CREATE SEQUENCE public.prepared_id_seq
     AS integer
     START WITH 1
     INCREMENT BY 1
@@ -105,10 +109,10 @@ CREATE SEQUENCE public.delivered_id_seq
 
 
 --
--- Name: delivered_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: prepared_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
-ALTER SEQUENCE public.delivered_id_seq OWNED BY public.delivered.id;
+ALTER SEQUENCE public.prepared_id_seq OWNED BY public.prepared.id;
 
 
 --
@@ -128,17 +132,17 @@ ALTER TABLE ONLY public.accepted ALTER COLUMN id SET DEFAULT nextval('public.acc
 
 
 --
--- Name: bounced id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: hard_bounced id; Type: DEFAULT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.bounced ALTER COLUMN id SET DEFAULT nextval('public.bounced_id_seq'::regclass);
+ALTER TABLE ONLY public.hard_bounced ALTER COLUMN id SET DEFAULT nextval('public.hard_bounced_id_seq'::regclass);
 
 
 --
--- Name: delivered id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: prepared id; Type: DEFAULT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.delivered ALTER COLUMN id SET DEFAULT nextval('public.delivered_id_seq'::regclass);
+ALTER TABLE ONLY public.prepared ALTER COLUMN id SET DEFAULT nextval('public.prepared_id_seq'::regclass);
 
 
 --
@@ -150,19 +154,19 @@ ALTER TABLE ONLY public.accepted
 
 
 --
--- Name: bounced bounced_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: hard_bounced hard_bounced_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.bounced
-    ADD CONSTRAINT bounced_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY public.hard_bounced
+    ADD CONSTRAINT hard_bounced_pkey PRIMARY KEY (id);
 
 
 --
--- Name: delivered delivered_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: prepared prepared_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.delivered
-    ADD CONSTRAINT delivered_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY public.prepared
+    ADD CONSTRAINT prepared_pkey PRIMARY KEY (id);
 
 
 --
@@ -174,24 +178,45 @@ ALTER TABLE ONLY public.schema_migrations
 
 
 --
+-- Name: accepted_email_message_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX accepted_email_message_id_idx ON public.accepted USING btree (email, message_id, domain);
+
+
+--
 -- Name: accepted_message_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX accepted_message_id_idx ON public.accepted USING btree (message_id);
+CREATE INDEX accepted_message_id_idx ON public.accepted USING btree (message_id, domain);
 
 
 --
--- Name: bounced_message_id_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: hard_bounced_email_message_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX bounced_message_id_idx ON public.bounced USING btree (message_id);
+CREATE UNIQUE INDEX hard_bounced_email_message_id_idx ON public.hard_bounced USING btree (email, message_id, domain);
 
 
 --
--- Name: delivered_message_id_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: hard_bounced_message_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX delivered_message_id_idx ON public.delivered USING btree (message_id);
+CREATE INDEX hard_bounced_message_id_idx ON public.hard_bounced USING btree (message_id, domain);
+
+
+--
+-- Name: prepared_email_message_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX prepared_email_message_id_idx ON public.prepared USING btree (email, message_id, domain);
+
+
+--
+-- Name: prepared_message_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX prepared_message_id_idx ON public.prepared USING btree (message_id, domain);
 
 
 --

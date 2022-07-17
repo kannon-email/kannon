@@ -27,11 +27,11 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.insertAcceptedStmt, err = db.PrepareContext(ctx, insertAccepted); err != nil {
 		return nil, fmt.Errorf("error preparing query InsertAccepted: %w", err)
 	}
-	if q.insertBouncedStmt, err = db.PrepareContext(ctx, insertBounced); err != nil {
-		return nil, fmt.Errorf("error preparing query InsertBounced: %w", err)
+	if q.insertHardBouncedStmt, err = db.PrepareContext(ctx, insertHardBounced); err != nil {
+		return nil, fmt.Errorf("error preparing query InsertHardBounced: %w", err)
 	}
-	if q.insertDeliveredStmt, err = db.PrepareContext(ctx, insertDelivered); err != nil {
-		return nil, fmt.Errorf("error preparing query InsertDelivered: %w", err)
+	if q.insertPreparedStmt, err = db.PrepareContext(ctx, insertPrepared); err != nil {
+		return nil, fmt.Errorf("error preparing query InsertPrepared: %w", err)
 	}
 	return &q, nil
 }
@@ -43,14 +43,14 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing insertAcceptedStmt: %w", cerr)
 		}
 	}
-	if q.insertBouncedStmt != nil {
-		if cerr := q.insertBouncedStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing insertBouncedStmt: %w", cerr)
+	if q.insertHardBouncedStmt != nil {
+		if cerr := q.insertHardBouncedStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing insertHardBouncedStmt: %w", cerr)
 		}
 	}
-	if q.insertDeliveredStmt != nil {
-		if cerr := q.insertDeliveredStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing insertDeliveredStmt: %w", cerr)
+	if q.insertPreparedStmt != nil {
+		if cerr := q.insertPreparedStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing insertPreparedStmt: %w", cerr)
 		}
 	}
 	return err
@@ -90,19 +90,19 @@ func (q *Queries) queryRow(ctx context.Context, stmt *sql.Stmt, query string, ar
 }
 
 type Queries struct {
-	db                  DBTX
-	tx                  *sql.Tx
-	insertAcceptedStmt  *sql.Stmt
-	insertBouncedStmt   *sql.Stmt
-	insertDeliveredStmt *sql.Stmt
+	db                    DBTX
+	tx                    *sql.Tx
+	insertAcceptedStmt    *sql.Stmt
+	insertHardBouncedStmt *sql.Stmt
+	insertPreparedStmt    *sql.Stmt
 }
 
 func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 	return &Queries{
-		db:                  tx,
-		tx:                  tx,
-		insertAcceptedStmt:  q.insertAcceptedStmt,
-		insertBouncedStmt:   q.insertBouncedStmt,
-		insertDeliveredStmt: q.insertDeliveredStmt,
+		db:                    tx,
+		tx:                    tx,
+		insertAcceptedStmt:    q.insertAcceptedStmt,
+		insertHardBouncedStmt: q.insertHardBouncedStmt,
+		insertPreparedStmt:    q.insertPreparedStmt,
 	}
 }
