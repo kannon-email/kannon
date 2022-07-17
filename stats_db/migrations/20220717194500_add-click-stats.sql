@@ -11,7 +11,6 @@ CREATE TABLE click (
 );
 
 CREATE INDEX click_message_id_idx ON click (message_id, domain);
-CREATE UNIQUE INDEX click_email_message_id_idx ON click (email, message_id, domain);
 
 
 -- migrate:down

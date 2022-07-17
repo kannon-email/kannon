@@ -83,6 +83,7 @@ func Run(ctx context.Context, vc *viper.Viper) {
 		claims, err := ss.VertifyLinkToken(ctx, token)
 		if err != nil {
 			logrus.Errorf("cannot verify open token: %v", err)
+			http.NotFound(w, r)
 			return
 		}
 
@@ -109,7 +110,7 @@ func Run(ctx context.Context, vc *viper.Viper) {
 			logrus.Errorf("Cannot send message on nats: %v", err)
 			return
 		}
-		logrus.Infof("👀 %s %s %s %s %s", r.Method, claims.MessageID, r.Header["User-Agent"], r.Host, ip)
+		logrus.Infof("🔗 %s %s %s %s %s", r.Method, claims.MessageID, r.Header["User-Agent"], r.Host, ip)
 	})
 
 	logrus.Infof("running bounce on %s", "localhost:8080")

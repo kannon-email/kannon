@@ -293,13 +293,6 @@ CREATE INDEX accepted_message_id_idx ON public.accepted USING btree (message_id,
 
 
 --
--- Name: click_email_message_id_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX click_email_message_id_idx ON public.click USING btree (email, message_id, domain);
-
-
---
 -- Name: click_message_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -318,13 +311,6 @@ CREATE UNIQUE INDEX hard_bounced_email_message_id_idx ON public.hard_bounced USI
 --
 
 CREATE INDEX hard_bounced_message_id_idx ON public.hard_bounced USING btree (message_id, domain);
-
-
---
--- Name: open_email_message_id_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX open_email_message_id_idx ON public.open USING btree (email, message_id, domain);
 
 
 --
