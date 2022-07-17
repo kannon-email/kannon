@@ -61,6 +61,14 @@ type SendingPoolEmail struct {
 	ErrorCode             int32
 }
 
+type StatsKey struct {
+	ID             string
+	PrivateKey     string
+	PublicKey      string
+	CreationTime   time.Time
+	ExpirationTime time.Time
+}
+
 type Template struct {
 	ID         int32
 	TemplateID string

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/ludusrusso/kannon/internal/pool"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestBuildHeaders(t *testing.T) {
@@ -49,4 +50,11 @@ func TestBuildHeadersShouldCopyBaseHeader(t *testing.T) {
 	if len(baseHeaders) != 1 {
 		t.Errorf("base headers has changed")
 	}
+}
+
+func TestInsertTrackLink(t *testing.T) {
+	html := `<html><body></body></html>`
+	exptectedHtml := `<html><body><img src="https://test.com/o/xxx" style="display:none;" /></body></html>`
+	res := insertTrackLinkInHtml(html, "https://test.com/o/xxx")
+	assert.Equal(t, exptectedHtml, res)
 }

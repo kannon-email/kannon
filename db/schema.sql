@@ -121,6 +121,19 @@ ALTER SEQUENCE public.sending_pool_emails_id_seq OWNED BY public.sending_pool_em
 
 
 --
+-- Name: stats_keys; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.stats_keys (
+    id character varying NOT NULL,
+    private_key character varying NOT NULL,
+    public_key character varying NOT NULL,
+    creation_time timestamp without time zone DEFAULT now() NOT NULL,
+    expiration_time timestamp without time zone NOT NULL
+);
+
+
+--
 -- Name: templates; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -214,6 +227,14 @@ ALTER TABLE ONLY public.sending_pool_emails
 
 
 --
+-- Name: stats_keys stats_keys_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.stats_keys
+    ADD CONSTRAINT stats_keys_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: templates templates_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -295,4 +316,5 @@ ALTER TABLE ONLY public.sending_pool_emails
 --
 
 INSERT INTO public.schema_migrations (version) VALUES
-    ('20210406191606');
+    ('20210406191606'),
+    ('20220717130048');

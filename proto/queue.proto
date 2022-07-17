@@ -27,3 +27,11 @@ message Error {
   bool is_permanent = 5;
   google.protobuf.Timestamp timestamp = 6;
 }
+
+message Open {
+  string message_id = 1;
+  string email = 2;
+  string ip = 3;
+  string user_agent = 4;
+  google.protobuf.Timestamp timestamp = 5;
+}

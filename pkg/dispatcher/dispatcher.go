@@ -14,6 +14,7 @@ import (
 	sqlc "github.com/ludusrusso/kannon/internal/db"
 	"github.com/ludusrusso/kannon/internal/mailbuilder"
 	"github.com/ludusrusso/kannon/internal/pool"
+	"github.com/ludusrusso/kannon/internal/statssec"
 	"github.com/ludusrusso/kannon/internal/utils"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
@@ -36,8 +37,9 @@ func Run(ctx context.Context, vc *viper.Viper) {
 	}
 	defer db.Close()
 
+	ss := statssec.NewStatsService(q)
 	pm := pool.NewSendingPoolManager(q)
-	mb := mailbuilder.NewMailBuilder(q)
+	mb := mailbuilder.NewMailBuilder(q, ss)
 
 	nc, js, closeNats := utils.MustGetNats(natsURL)
 	defer closeNats()

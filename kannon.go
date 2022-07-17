@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/ludusrusso/kannon/pkg/api"
+	"github.com/ludusrusso/kannon/pkg/bounce"
 	"github.com/ludusrusso/kannon/pkg/dispatcher"
 	"github.com/ludusrusso/kannon/pkg/sender"
 	"github.com/ludusrusso/kannon/pkg/stats"
@@ -57,6 +58,14 @@ func main() {
 		wg.Add(1)
 		go func() {
 			stats.Run(ctx, sv)
+			wg.Done()
+		}()
+	}
+
+	if sv := viper.Sub("bounce"); sv != nil {
+		wg.Add(1)
+		go func() {
+			bounce.Run(ctx, sv)
 			wg.Done()
 		}()
 	}

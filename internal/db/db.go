@@ -33,6 +33,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.createPoolStmt, err = db.PrepareContext(ctx, createPool); err != nil {
 		return nil, fmt.Errorf("error preparing query CreatePool: %w", err)
 	}
+	if q.createStatsKeysStmt, err = db.PrepareContext(ctx, createStatsKeys); err != nil {
+		return nil, fmt.Errorf("error preparing query CreateStatsKeys: %w", err)
+	}
 	if q.createTemplateStmt, err = db.PrepareContext(ctx, createTemplate); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateTemplate: %w", err)
 	}
@@ -53,6 +56,12 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.getSendingDataStmt, err = db.PrepareContext(ctx, getSendingData); err != nil {
 		return nil, fmt.Errorf("error preparing query GetSendingData: %w", err)
+	}
+	if q.getValidPublicStatsKeyByKidStmt, err = db.PrepareContext(ctx, getValidPublicStatsKeyByKid); err != nil {
+		return nil, fmt.Errorf("error preparing query GetValidPublicStatsKeyByKid: %w", err)
+	}
+	if q.getValidStatsKeysStmt, err = db.PrepareContext(ctx, getValidStatsKeys); err != nil {
+		return nil, fmt.Errorf("error preparing query GetValidStatsKeys: %w", err)
 	}
 	if q.prepareForSendStmt, err = db.PrepareContext(ctx, prepareForSend); err != nil {
 		return nil, fmt.Errorf("error preparing query PrepareForSend: %w", err)
@@ -84,6 +93,11 @@ func (q *Queries) Close() error {
 	if q.createPoolStmt != nil {
 		if cerr := q.createPoolStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing createPoolStmt: %w", cerr)
+		}
+	}
+	if q.createStatsKeysStmt != nil {
+		if cerr := q.createStatsKeysStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing createStatsKeysStmt: %w", cerr)
 		}
 	}
 	if q.createTemplateStmt != nil {
@@ -119,6 +133,16 @@ func (q *Queries) Close() error {
 	if q.getSendingDataStmt != nil {
 		if cerr := q.getSendingDataStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getSendingDataStmt: %w", cerr)
+		}
+	}
+	if q.getValidPublicStatsKeyByKidStmt != nil {
+		if cerr := q.getValidPublicStatsKeyByKidStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getValidPublicStatsKeyByKidStmt: %w", cerr)
+		}
+	}
+	if q.getValidStatsKeysStmt != nil {
+		if cerr := q.getValidStatsKeysStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getValidStatsKeysStmt: %w", cerr)
 		}
 	}
 	if q.prepareForSendStmt != nil {
@@ -178,41 +202,47 @@ func (q *Queries) queryRow(ctx context.Context, stmt *sql.Stmt, query string, ar
 }
 
 type Queries struct {
-	db                          DBTX
-	tx                          *sql.Tx
-	createDomainStmt            *sql.Stmt
-	createMessageStmt           *sql.Stmt
-	createPoolStmt              *sql.Stmt
-	createTemplateStmt          *sql.Stmt
-	findDomainStmt              *sql.Stmt
-	findDomainWithKeyStmt       *sql.Stmt
-	findTemplateStmt            *sql.Stmt
-	getAllDomainsStmt           *sql.Stmt
-	getDomainsStmt              *sql.Stmt
-	getSendingDataStmt          *sql.Stmt
-	prepareForSendStmt          *sql.Stmt
-	setDomainKeyStmt            *sql.Stmt
-	setSendingPoolDeliveredStmt *sql.Stmt
-	setSendingPoolErrorStmt     *sql.Stmt
+	db                              DBTX
+	tx                              *sql.Tx
+	createDomainStmt                *sql.Stmt
+	createMessageStmt               *sql.Stmt
+	createPoolStmt                  *sql.Stmt
+	createStatsKeysStmt             *sql.Stmt
+	createTemplateStmt              *sql.Stmt
+	findDomainStmt                  *sql.Stmt
+	findDomainWithKeyStmt           *sql.Stmt
+	findTemplateStmt                *sql.Stmt
+	getAllDomainsStmt               *sql.Stmt
+	getDomainsStmt                  *sql.Stmt
+	getSendingDataStmt              *sql.Stmt
+	getValidPublicStatsKeyByKidStmt *sql.Stmt
+	getValidStatsKeysStmt           *sql.Stmt
+	prepareForSendStmt              *sql.Stmt
+	setDomainKeyStmt                *sql.Stmt
+	setSendingPoolDeliveredStmt     *sql.Stmt
+	setSendingPoolErrorStmt         *sql.Stmt
 }
 
 func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 	return &Queries{
-		db:                          tx,
-		tx:                          tx,
-		createDomainStmt:            q.createDomainStmt,
-		createMessageStmt:           q.createMessageStmt,
-		createPoolStmt:              q.createPoolStmt,
-		createTemplateStmt:          q.createTemplateStmt,
-		findDomainStmt:              q.findDomainStmt,
-		findDomainWithKeyStmt:       q.findDomainWithKeyStmt,
-		findTemplateStmt:            q.findTemplateStmt,
-		getAllDomainsStmt:           q.getAllDomainsStmt,
-		getDomainsStmt:              q.getDomainsStmt,
-		getSendingDataStmt:          q.getSendingDataStmt,
-		prepareForSendStmt:          q.prepareForSendStmt,
-		setDomainKeyStmt:            q.setDomainKeyStmt,
-		setSendingPoolDeliveredStmt: q.setSendingPoolDeliveredStmt,
-		setSendingPoolErrorStmt:     q.setSendingPoolErrorStmt,
+		db:                              tx,
+		tx:                              tx,
+		createDomainStmt:                q.createDomainStmt,
+		createMessageStmt:               q.createMessageStmt,
+		createPoolStmt:                  q.createPoolStmt,
+		createStatsKeysStmt:             q.createStatsKeysStmt,
+		createTemplateStmt:              q.createTemplateStmt,
+		findDomainStmt:                  q.findDomainStmt,
+		findDomainWithKeyStmt:           q.findDomainWithKeyStmt,
+		findTemplateStmt:                q.findTemplateStmt,
+		getAllDomainsStmt:               q.getAllDomainsStmt,
+		getDomainsStmt:                  q.getDomainsStmt,
+		getSendingDataStmt:              q.getSendingDataStmt,
+		getValidPublicStatsKeyByKidStmt: q.getValidPublicStatsKeyByKidStmt,
+		getValidStatsKeysStmt:           q.getValidStatsKeysStmt,
+		prepareForSendStmt:              q.prepareForSendStmt,
+		setDomainKeyStmt:                q.setDomainKeyStmt,
+		setSendingPoolDeliveredStmt:     q.setSendingPoolDeliveredStmt,
+		setSendingPoolErrorStmt:         q.setSendingPoolErrorStmt,
 	}
 }

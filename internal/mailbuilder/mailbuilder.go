@@ -3,12 +3,14 @@ package mailbuilder
 import (
 	"bytes"
 	"context"
+	"strings"
 	"time"
 
 	"github.com/ludusrusso/kannon/generated/pb"
 	sqlc "github.com/ludusrusso/kannon/internal/db"
 	"github.com/ludusrusso/kannon/internal/dkim"
 	"github.com/ludusrusso/kannon/internal/pool"
+	"github.com/ludusrusso/kannon/internal/statssec"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/mail.v2"
 )
@@ -18,9 +20,10 @@ type MailBulder interface {
 }
 
 // NewMailBuilder creates an SMTP mailer
-func NewMailBuilder(q *sqlc.Queries) MailBulder {
+func NewMailBuilder(q *sqlc.Queries, st statssec.StatsService) MailBulder {
 	return &mailBuilder{
 		db: q,
+		st: st,
 		headers: headers{
 			"X-Mailer": "SMTP Mailer",
 		},
@@ -30,6 +33,7 @@ func NewMailBuilder(q *sqlc.Queries) MailBulder {
 type mailBuilder struct {
 	headers headers
 	db      *sqlc.Queries
+	st      statssec.StatsService
 }
 
 func (m *mailBuilder) PerpareForSend(ctx context.Context, email sqlc.SendingPoolEmail) (pb.EmailToSend, error) {
@@ -38,10 +42,15 @@ func (m *mailBuilder) PerpareForSend(ctx context.Context, email sqlc.SendingPool
 		return pb.EmailToSend{}, err
 	}
 
+	html, err := m.preparedHtml(ctx, emailData)
+	if err != nil {
+		return pb.EmailToSend{}, err
+	}
+
 	msg, err := prepareMessage(pool.Sender{
 		Email: emailData.SenderEmail,
 		Alias: emailData.SenderAlias,
-	}, emailData.Subject, email.Email, emailData.MessageID, emailData.Html, m.headers)
+	}, emailData.Subject, email.Email, emailData.MessageID, html, m.headers)
 	if err != nil {
 		return pb.EmailToSend{}, err
 	}
@@ -77,6 +86,15 @@ func signMessage(domain string, dkimPrivateKey string, msg []byte) ([]byte, erro
 	return dkim.SignMessage(signData, bytes.NewReader(msg))
 }
 
+func (s *mailBuilder) preparedHtml(ctx context.Context, emailData sqlc.GetSendingDataRow) (string, error) {
+	link, err := s.buildTrackLink(ctx, emailData.SenderEmail, emailData.MessageID, emailData.Domain)
+	if err != nil {
+		return "", err
+	}
+	html := insertTrackLinkInHtml(emailData.Html, link)
+	return html, nil
+}
+
 // renderMsg render a MsgPayload to an SMTP message
 func renderMsg(html string, headers headers) ([]byte, error) {
 	msg := mail.NewMessage()
@@ -94,4 +112,17 @@ func renderMsg(html string, headers headers) ([]byte, error) {
 	}
 
 	return buff.Bytes(), nil
+}
+
+func (m *mailBuilder) buildTrackLink(ctx context.Context, email string, messageID string, domain string) (string, error) {
+	token, err := m.st.CreateOpenToken(ctx, email, messageID)
+	if err != nil {
+		return "", err
+	}
+	url := "https://_k." + domain + "/o/" + token
+	return url, nil
+}
+
+func insertTrackLinkInHtml(html string, link string) string {
+	return strings.Replace(html, "</body>", "<img src=\""+link+"\" style=\"display:none;\" /></body>", 1)
 }
