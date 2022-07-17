@@ -81,7 +81,7 @@ func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (M
 	return i, err
 }
 
-const createPool = `-- name: CreatePool :many
+const createPool = `-- name: CreatePool :exec
 INSERT INTO sending_pool_emails
     (email, status, scheduled_time, original_scheduled_time, message_id)
 (
@@ -103,37 +103,9 @@ type CreatePoolParams struct {
 	Emails        []string
 }
 
-func (q *Queries) CreatePool(ctx context.Context, arg CreatePoolParams) ([]SendingPoolEmail, error) {
-	rows, err := q.query(ctx, q.createPoolStmt, createPool, arg.ScheduledTime, arg.MessageID, pq.Array(arg.Emails))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []SendingPoolEmail
-	for rows.Next() {
-		var i SendingPoolEmail
-		if err := rows.Scan(
-			&i.ID,
-			&i.Status,
-			&i.ScheduledTime,
-			&i.OriginalScheduledTime,
-			&i.SendAttemptsCnt,
-			&i.Email,
-			&i.MessageID,
-			&i.ErrorMsg,
-			&i.ErrorCode,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+func (q *Queries) CreatePool(ctx context.Context, arg CreatePoolParams) error {
+	_, err := q.exec(ctx, q.createPoolStmt, createPool, arg.ScheduledTime, arg.MessageID, pq.Array(arg.Emails))
+	return err
 }
 
 const createTemplate = `-- name: CreateTemplate :one

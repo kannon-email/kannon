@@ -7,7 +7,7 @@ INSERT INTO messages
     (message_id, subject, sender_email, sender_alias, template_id, domain) VALUES
     ($1, $2, $3, $4, $5, $6) RETURNING *;
 
--- name: CreatePool :many
+-- name: CreatePool :exec
 INSERT INTO sending_pool_emails
     (email, status, scheduled_time, original_scheduled_time, message_id)
 (

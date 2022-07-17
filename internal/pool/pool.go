@@ -39,7 +39,7 @@ func (m *sendingPoolManager) AddPool(ctx context.Context, template sqlc.Template
 		return sqlc.Message{}, err
 	}
 
-	_, err = m.db.CreatePool(ctx, sqlc.CreatePoolParams{
+	err = m.db.CreatePool(ctx, sqlc.CreatePoolParams{
 		ScheduledTime: scheduled,
 		MessageID:     msg.MessageID,
 		Emails:        to,

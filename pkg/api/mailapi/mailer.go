@@ -74,13 +74,11 @@ func (s mailAPIService) SendTemplate(ctx context.Context, req *pb.SendTemplateRe
 		return nil, err
 	}
 
-	Res := pb.SendRes{
+	return &pb.SendRes{
 		MessageId:     pool.MessageID,
 		TemplateId:    template.TemplateID,
-		ScheduledTime: timestamppb.New(time.Now()),
-	}
-
-	return &Res, nil
+		ScheduledTime: timestamppb.New(scheduled),
+	}, nil
 }
 
 func (s mailAPIService) Close() error {
