@@ -6,6 +6,7 @@ import (
 	"os"
 	"testing"
 
+	schema "github.com/ludusrusso/kannon/db"
 	"github.com/ludusrusso/kannon/generated/pb"
 	sqlc "github.com/ludusrusso/kannon/internal/db"
 	"github.com/ludusrusso/kannon/internal/tests"
@@ -22,7 +23,7 @@ func TestMain(m *testing.M) {
 	var purge tests.PurgeFunc
 	var err error
 
-	db, purge, err = tests.TestPostgresInit()
+	db, purge, err = tests.TestPostgresInit(schema.Schema)
 	if err != nil {
 		logrus.Fatalf("Could not start resource: %s", err)
 	}

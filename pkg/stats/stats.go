@@ -69,7 +69,7 @@ func handleSends(ctx context.Context, js nats.JetStreamContext, q *sq.Queries) {
 			if err != nil {
 				logrus.Errorf("cannot marshal message %v", err.Error())
 			} else {
-				logrus.Printf("[🚀 Prepared] %v %v - %v", sendMsg.To, sendMsg.MessageId)
+				logrus.Printf("[🚀 Prepared] %v %v", sendMsg.To, sendMsg.MessageId)
 				msgId, domain := utils.ExtractMsgIDAndDomain(sendMsg.MessageId)
 				err := q.InsertPrepared(ctx, sq.InsertPreparedParams{
 					Email:     sendMsg.To,

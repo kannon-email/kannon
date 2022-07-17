@@ -11,13 +11,11 @@ import (
 	"github.com/ory/dockertest"
 	"github.com/ory/dockertest/docker"
 	"github.com/sirupsen/logrus"
-
-	schema "github.com/ludusrusso/kannon/db"
 )
 
 type PurgeFunc func() error
 
-func TestPostgresInit() (*sql.DB, PurgeFunc, error) {
+func TestPostgresInit(schema string) (*sql.DB, PurgeFunc, error) {
 	var db *sql.DB
 
 	// uses a sensible default on windows (tcp/http) and linux/osx (socket)
@@ -62,7 +60,7 @@ func TestPostgresInit() (*sql.DB, PurgeFunc, error) {
 		return nil, nil, fmt.Errorf("cannot connect to docker: %w", err)
 	}
 
-	if err := applySchema(resource.GetPort("5432/tcp")); err != nil {
+	if err := applySchema(resource.GetPort("5432/tcp"), schema); err != nil {
 		return nil, nil, fmt.Errorf("cannot apply schema: %w", err)
 	}
 
@@ -77,14 +75,14 @@ func TestPostgresInit() (*sql.DB, PurgeFunc, error) {
 	return db, purgeFunc, nil
 }
 
-func applySchema(dbPort string) error {
+func applySchema(dbPort string, schema string) error {
 	dbHost := getDBHost()
 	db, err := sqlx.Connect("postgres", fmt.Sprintf("host=%v user=test dbname=test password=test sslmode=disable port=%v", dbHost, dbPort))
 	if err != nil {
 		return fmt.Errorf("cannot open migration: %s", err)
 	}
 
-	if _, err := db.Exec(schema.Schema); err != nil {
+	if _, err := db.Exec(schema); err != nil {
 		return err
 	}
 	return nil
