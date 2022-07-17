@@ -116,7 +116,7 @@ func renderMsg(html string, headers headers) ([]byte, error) {
 }
 
 func (m *mailBuilder) buildTrackLink(ctx context.Context, email string, messageID string, domain string) (string, error) {
-	token, err := m.st.CreateOpenToken(ctx, email, messageID)
+	token, err := m.st.CreateOpenToken(ctx, messageID, email)
 	if err != nil {
 		return "", err
 	}
