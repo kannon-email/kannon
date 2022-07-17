@@ -76,6 +76,42 @@ func Run(ctx context.Context, vc *viper.Viper) {
 		logrus.Infof("👀 %s %s %s %s %s", r.Method, claims.MessageID, r.Header["User-Agent"], r.Host, ip)
 	})
 
+	http.HandleFunc("/c/", func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(ctx, time.Second*10)
+		defer cancel()
+		token := strings.Replace(r.URL.Path, "/c/", "", 1)
+		claims, err := ss.VertifyLinkToken(ctx, token)
+		if err != nil {
+			logrus.Errorf("cannot verify open token: %v", err)
+			return
+		}
+
+		defer func() {
+			http.Redirect(w, r, claims.Url, http.StatusTemporaryRedirect)
+		}()
+
+		ip := readUserIP(r)
+		data := &pb.Click{
+			MessageId: claims.MessageID,
+			Email:     claims.Email,
+			Ip:        ip,
+			UserAgent: r.UserAgent(),
+			Url:       claims.Url,
+			Timestamp: timestamppb.Now(),
+		}
+		msg, err := proto.Marshal(data)
+		if err != nil {
+			logrus.Errorf("Cannot marshal data: %v", err)
+			return
+		}
+		err = nc.Publish("kannon.stats.clicks", msg)
+		if err != nil {
+			logrus.Errorf("Cannot send message on nats: %v", err)
+			return
+		}
+		logrus.Infof("👀 %s %s %s %s %s", r.Method, claims.MessageID, r.Header["User-Agent"], r.Host, ip)
+	})
+
 	logrus.Infof("running bounce on %s", "localhost:8080")
 	log.Fatal(http.ListenAndServe("0.0.0.0:8080", nil))
 }

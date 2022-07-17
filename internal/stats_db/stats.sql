@@ -11,3 +11,6 @@ INSERT INTO hard_bounced (email, message_id, timestamp, domain, err_code, err_ms
 
 -- name: InsertOpen :exec
 INSERT INTO open (email, message_id, timestamp, domain, ip, user_agent) VALUES  (@email, @message_id, @timestamp, @domain, @ip, @user_agent);
+
+-- name: InsertClick :exec
+INSERT INTO click (email, message_id, timestamp, domain, ip, user_agent, url) VALUES  (@email, @message_id, @timestamp, @domain, @ip, @user_agent, @url);

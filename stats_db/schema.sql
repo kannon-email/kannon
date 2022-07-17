@@ -47,6 +47,42 @@ ALTER SEQUENCE public.accepted_id_seq OWNED BY public.accepted.id;
 
 
 --
+-- Name: click; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.click (
+    id integer NOT NULL,
+    email character varying(320) NOT NULL,
+    message_id character varying NOT NULL,
+    domain character varying NOT NULL,
+    ip character varying NOT NULL,
+    url character varying NOT NULL,
+    user_agent character varying NOT NULL,
+    "timestamp" timestamp without time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: click_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.click_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: click_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.click_id_seq OWNED BY public.click.id;
+
+
+--
 -- Name: hard_bounced; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -167,6 +203,13 @@ ALTER TABLE ONLY public.accepted ALTER COLUMN id SET DEFAULT nextval('public.acc
 
 
 --
+-- Name: click id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.click ALTER COLUMN id SET DEFAULT nextval('public.click_id_seq'::regclass);
+
+
+--
 -- Name: hard_bounced id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -193,6 +236,14 @@ ALTER TABLE ONLY public.prepared ALTER COLUMN id SET DEFAULT nextval('public.pre
 
 ALTER TABLE ONLY public.accepted
     ADD CONSTRAINT accepted_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: click click_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.click
+    ADD CONSTRAINT click_pkey PRIMARY KEY (id);
 
 
 --
@@ -239,6 +290,20 @@ CREATE UNIQUE INDEX accepted_email_message_id_idx ON public.accepted USING btree
 --
 
 CREATE INDEX accepted_message_id_idx ON public.accepted USING btree (message_id, domain);
+
+
+--
+-- Name: click_email_message_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX click_email_message_id_idx ON public.click USING btree (email, message_id, domain);
+
+
+--
+-- Name: click_message_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX click_message_id_idx ON public.click USING btree (message_id, domain);
 
 
 --
@@ -294,4 +359,5 @@ CREATE INDEX prepared_message_id_idx ON public.prepared USING btree (message_id,
 
 INSERT INTO public.schema_migrations (version) VALUES
     ('20220715160003'),
-    ('20220717173338');
+    ('20220717173338'),
+    ('20220717194500');

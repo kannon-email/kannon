@@ -3,6 +3,8 @@ package mailbuilder
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -88,7 +90,15 @@ func signMessage(domain string, dkimPrivateKey string, msg []byte) ([]byte, erro
 }
 
 func (s *mailBuilder) preparedHtml(ctx context.Context, html string, email string, domain string, messageID string) (string, error) {
-	link, err := s.buildTrackLink(ctx, email, messageID, domain)
+	html, err := replaceLinks(html, func(link string) (string, error) {
+		buildTrackClickLink, err := s.buildTrackClickLink(ctx, link, email, messageID, domain)
+		if err != nil {
+			return "", err
+		}
+		return buildTrackClickLink, nil
+	})
+
+	link, err := s.buildTrackOpenLink(ctx, email, messageID, domain)
 	if err != nil {
 		return "", err
 	}
@@ -115,15 +125,43 @@ func renderMsg(html string, headers headers) ([]byte, error) {
 	return buff.Bytes(), nil
 }
 
-func (m *mailBuilder) buildTrackLink(ctx context.Context, email string, messageID string, domain string) (string, error) {
+func (m *mailBuilder) buildTrackClickLink(ctx context.Context, url string, email string, messageID string, domain string) (string, error) {
+	token, err := m.st.CreateLinkToken(ctx, messageID, email, url)
+	if err != nil {
+		return "", err
+	}
+	turl := "https://stats." + domain + "/c/" + token
+	return turl, nil
+}
+
+func (m *mailBuilder) buildTrackOpenLink(ctx context.Context, email string, messageID string, domain string) (string, error) {
 	token, err := m.st.CreateOpenToken(ctx, messageID, email)
 	if err != nil {
 		return "", err
 	}
-	url := "https://stats." + domain + "/o/" + token
+	url := "https://stats." + domain + "/c/" + token
 	return url, nil
 }
 
 func insertTrackLinkInHtml(html string, link string) string {
-	return strings.Replace(html, "</body>", "<img src=\""+link+"\" style=\"display:none;\" /></body>", 1)
+	return strings.Replace(html, "</body>", fmt.Sprintf(`<img src="%s" style="display:none;"/></body>`, link), 1)
+}
+
+var regLink = regexp.MustCompile(`<a\s+(?:[^>]*?\s+)?href=["'](.*?)["']`)
+
+func replaceLinks(html string, replace func(link string) (string, error)) (string, error) {
+	matches := regLink.FindAllStringSubmatch(html, -1)
+	for _, match := range matches {
+		if len(match) != 2 {
+			continue
+		}
+		logrus.Infof("🤢 Replacing link: %s\n", match[0])
+		link := match[1]
+		newLink, err := replace(link)
+		if err != nil {
+			return "", err
+		}
+		html = strings.Replace(html, link, newLink, 1)
+	}
+	return html, nil
 }

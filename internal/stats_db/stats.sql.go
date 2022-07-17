@@ -31,6 +31,33 @@ func (q *Queries) InsertAccepted(ctx context.Context, arg InsertAcceptedParams) 
 	return err
 }
 
+const insertClick = `-- name: InsertClick :exec
+INSERT INTO click (email, message_id, timestamp, domain, ip, user_agent, url) VALUES  ($1, $2, $3, $4, $5, $6, $7)
+`
+
+type InsertClickParams struct {
+	Email     string
+	MessageID string
+	Timestamp time.Time
+	Domain    string
+	Ip        string
+	UserAgent string
+	Url       string
+}
+
+func (q *Queries) InsertClick(ctx context.Context, arg InsertClickParams) error {
+	_, err := q.exec(ctx, q.insertClickStmt, insertClick,
+		arg.Email,
+		arg.MessageID,
+		arg.Timestamp,
+		arg.Domain,
+		arg.Ip,
+		arg.UserAgent,
+		arg.Url,
+	)
+	return err
+}
+
 const insertHardBounced = `-- name: InsertHardBounced :exec
 INSERT INTO hard_bounced (email, message_id, timestamp, domain, err_code, err_msg) VALUES  ($1, $2, $3, $4, $5, $6)
 `

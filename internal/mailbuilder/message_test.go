@@ -52,9 +52,32 @@ func TestBuildHeadersShouldCopyBaseHeader(t *testing.T) {
 	}
 }
 
-func TestInsertTrackLink(t *testing.T) {
+func TestInsertTrackOpen(t *testing.T) {
 	html := `<html><body></body></html>`
-	exptectedHtml := `<html><body><img src="https://test.com/o/xxx" style="display:none;" /></body></html>`
+	exptectedHtml := `<html><body><img src="https://test.com/o/xxx" style="display:none;"/></body></html>`
 	res := insertTrackLinkInHtml(html, "https://test.com/o/xxx")
 	assert.Equal(t, exptectedHtml, res)
+}
+
+func TestInsertTrackLink(t *testing.T) {
+	html := `<html>
+<body>
+<a href="http://link1.com" />
+<a href="http://link2.com" />
+<img src="https://test.com/o/xxx" style="display:none;"/>
+</body></html>`
+
+	expectedhtml := `<html>
+<body>
+<a href="http://link1.comx" />
+<a href="http://link2.comx" />
+<img src="https://test.com/o/xxx" style="display:none;"/>
+</body></html>`
+
+	res, err := replaceLinks(html, func(link string) (string, error) {
+		return link + "x", nil
+	})
+
+	assert.Nil(t, err)
+	assert.Equal(t, expectedhtml, res)
 }

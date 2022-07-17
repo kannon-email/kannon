@@ -35,3 +35,12 @@ message Open {
   string user_agent = 4;
   google.protobuf.Timestamp timestamp = 5;
 }
+
+message Click {
+  string message_id = 1;
+  string email = 2;
+  string ip = 3;
+  string user_agent = 4;
+  string url = 5;
+  google.protobuf.Timestamp timestamp = 6;
+}

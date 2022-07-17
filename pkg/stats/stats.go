@@ -36,7 +36,7 @@ func Run(ctx context.Context, vc *viper.Viper) {
 	defer closeNats()
 
 	var wg sync.WaitGroup
-	wg.Add(4)
+	wg.Add(5)
 
 	go func() {
 		handleErrors(ctx, js, q)
@@ -52,6 +52,10 @@ func Run(ctx context.Context, vc *viper.Viper) {
 	}()
 	go func() {
 		handleOpens(ctx, js, q)
+		wg.Done()
+	}()
+	go func() {
+		handleClicks(ctx, js, q)
 		wg.Done()
 	}()
 	wg.Wait()
@@ -212,6 +216,49 @@ func handleOpens(ctx context.Context, js nats.JetStreamContext, q *sq.Queries) {
 				})
 				if err != nil {
 					logrus.Errorf("Cannot insert open: %v", err)
+				}
+			}
+			if err := msg.Ack(); err != nil {
+				logrus.Errorf("Cannot hack msg to nats: %v", err)
+			}
+		}
+	}
+}
+
+func handleClicks(ctx context.Context, js nats.JetStreamContext, q *sq.Queries) {
+	con := utils.MustGetPullSubscriber(js, "kannon.stats.clicks", "kannon-stats-clicks-logs")
+	for {
+		msgs, err := con.Fetch(10, nats.MaxWait(10*time.Second))
+		if err != nil {
+			if err != nats.ErrTimeout {
+				logrus.Errorf("error fetching messages: %v", err)
+			}
+			continue
+		}
+		for _, msg := range msgs {
+			cMsg := pb.Click{}
+			err = proto.Unmarshal(msg.Data, &cMsg)
+			if err != nil {
+				logrus.Errorf("cannot marshal message %v", err.Error())
+			} else {
+				logrus.Printf("[🔗 click] %v %v - %v", cMsg.Email, cMsg.MessageId, cMsg.Url)
+				msgId, domain, err := utils.ExtractMsgIDAndDomain(cMsg.MessageId)
+				if err != nil {
+					logrus.Errorf("Cannot extract msgId and domain: %v", err)
+					msg.Ack()
+					continue
+				}
+				err = q.InsertClick(ctx, sq.InsertClickParams{
+					Email:     cMsg.Email,
+					MessageID: msgId,
+					Timestamp: cMsg.Timestamp.AsTime(),
+					Domain:    domain,
+					Ip:        cMsg.Ip,
+					UserAgent: cMsg.UserAgent,
+					Url:       cMsg.Url,
+				})
+				if err != nil {
+					logrus.Errorf("Cannot insert click: %v", err)
 				}
 			}
 			if err := msg.Ack(); err != nil {
