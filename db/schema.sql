@@ -69,7 +69,7 @@ CREATE TABLE public.messages (
     subject character varying NOT NULL,
     sender_email character varying(320) NOT NULL,
     sender_alias character varying(100) NOT NULL,
-    template_id character varying(50) NOT NULL,
+    template_id character varying(100) NOT NULL,
     domain character varying(254) NOT NULL
 );
 
@@ -94,7 +94,7 @@ CREATE TABLE public.sending_pool_emails (
     original_scheduled_time timestamp without time zone NOT NULL,
     send_attempts_cnt integer DEFAULT 0 NOT NULL,
     email character varying(320) NOT NULL,
-    message_id character varying NOT NULL,
+    message_id character varying(50) NOT NULL,
     error_msg character varying DEFAULT ''::character varying NOT NULL,
     error_code integer DEFAULT 0 NOT NULL
 );
@@ -139,7 +139,7 @@ CREATE TABLE public.stats_keys (
 
 CREATE TABLE public.templates (
     id integer NOT NULL,
-    template_id character varying NOT NULL,
+    template_id character varying(100) NOT NULL,
     html character varying NOT NULL,
     domain character varying(254) NOT NULL
 );
