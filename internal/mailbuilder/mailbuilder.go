@@ -119,7 +119,7 @@ func (m *mailBuilder) buildTrackLink(ctx context.Context, email string, messageI
 	if err != nil {
 		return "", err
 	}
-	url := "https://_k." + domain + "/o/" + token
+	url := "https://stats." + domain + "/o/" + token
 	return url, nil
 }
 
