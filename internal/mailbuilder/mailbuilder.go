@@ -42,7 +42,7 @@ func (m *mailBuilder) PerpareForSend(ctx context.Context, email sqlc.SendingPool
 		return pb.EmailToSend{}, err
 	}
 
-	html, err := m.preparedHtml(ctx, emailData)
+	html, err := m.preparedHtml(ctx, emailData, email)
 	if err != nil {
 		return pb.EmailToSend{}, err
 	}
@@ -86,8 +86,8 @@ func signMessage(domain string, dkimPrivateKey string, msg []byte) ([]byte, erro
 	return dkim.SignMessage(signData, bytes.NewReader(msg))
 }
 
-func (s *mailBuilder) preparedHtml(ctx context.Context, emailData sqlc.GetSendingDataRow) (string, error) {
-	link, err := s.buildTrackLink(ctx, emailData.SenderEmail, emailData.MessageID, emailData.Domain)
+func (s *mailBuilder) preparedHtml(ctx context.Context, emailData sqlc.GetSendingDataRow, email sqlc.SendingPoolEmail) (string, error) {
+	link, err := s.buildTrackLink(ctx, email.Email, email.MessageID, emailData.Domain)
 	if err != nil {
 		return "", err
 	}

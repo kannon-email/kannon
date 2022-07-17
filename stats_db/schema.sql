@@ -82,6 +82,41 @@ ALTER SEQUENCE public.hard_bounced_id_seq OWNED BY public.hard_bounced.id;
 
 
 --
+-- Name: open; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.open (
+    id integer NOT NULL,
+    email character varying(320) NOT NULL,
+    message_id character varying NOT NULL,
+    domain character varying NOT NULL,
+    ip character varying NOT NULL,
+    user_agent character varying NOT NULL,
+    "timestamp" timestamp without time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: open_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.open_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: open_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.open_id_seq OWNED BY public.open.id;
+
+
+--
 -- Name: prepared; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -139,6 +174,13 @@ ALTER TABLE ONLY public.hard_bounced ALTER COLUMN id SET DEFAULT nextval('public
 
 
 --
+-- Name: open id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.open ALTER COLUMN id SET DEFAULT nextval('public.open_id_seq'::regclass);
+
+
+--
 -- Name: prepared id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -159,6 +201,14 @@ ALTER TABLE ONLY public.accepted
 
 ALTER TABLE ONLY public.hard_bounced
     ADD CONSTRAINT hard_bounced_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: open open_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.open
+    ADD CONSTRAINT open_pkey PRIMARY KEY (id);
 
 
 --
@@ -206,6 +256,20 @@ CREATE INDEX hard_bounced_message_id_idx ON public.hard_bounced USING btree (mes
 
 
 --
+-- Name: open_email_message_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX open_email_message_id_idx ON public.open USING btree (email, message_id, domain);
+
+
+--
+-- Name: open_message_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX open_message_id_idx ON public.open USING btree (message_id, domain);
+
+
+--
 -- Name: prepared_email_message_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -229,4 +293,5 @@ CREATE INDEX prepared_message_id_idx ON public.prepared USING btree (message_id,
 --
 
 INSERT INTO public.schema_migrations (version) VALUES
-    ('20220715160003');
+    ('20220715160003'),
+    ('20220717173338');

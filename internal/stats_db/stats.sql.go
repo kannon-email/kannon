@@ -56,6 +56,31 @@ func (q *Queries) InsertHardBounced(ctx context.Context, arg InsertHardBouncedPa
 	return err
 }
 
+const insertOpen = `-- name: InsertOpen :exec
+INSERT INTO open (email, message_id, timestamp, domain, ip, user_agent) VALUES  ($1, $2, $3, $4, $5, $6)
+`
+
+type InsertOpenParams struct {
+	Email     string
+	MessageID string
+	Timestamp time.Time
+	Domain    string
+	Ip        string
+	UserAgent string
+}
+
+func (q *Queries) InsertOpen(ctx context.Context, arg InsertOpenParams) error {
+	_, err := q.exec(ctx, q.insertOpenStmt, insertOpen,
+		arg.Email,
+		arg.MessageID,
+		arg.Timestamp,
+		arg.Domain,
+		arg.Ip,
+		arg.UserAgent,
+	)
+	return err
+}
+
 const insertPrepared = `-- name: InsertPrepared :exec
 INSERT INTO prepared (email, message_id, timestamp, first_timestamp, domain) VALUES ($1, $2, $3, $3, $4)
 	ON CONFLICT (email, message_id, domain) DO UPDATE

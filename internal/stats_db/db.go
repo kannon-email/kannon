@@ -30,6 +30,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.insertHardBouncedStmt, err = db.PrepareContext(ctx, insertHardBounced); err != nil {
 		return nil, fmt.Errorf("error preparing query InsertHardBounced: %w", err)
 	}
+	if q.insertOpenStmt, err = db.PrepareContext(ctx, insertOpen); err != nil {
+		return nil, fmt.Errorf("error preparing query InsertOpen: %w", err)
+	}
 	if q.insertPreparedStmt, err = db.PrepareContext(ctx, insertPrepared); err != nil {
 		return nil, fmt.Errorf("error preparing query InsertPrepared: %w", err)
 	}
@@ -46,6 +49,11 @@ func (q *Queries) Close() error {
 	if q.insertHardBouncedStmt != nil {
 		if cerr := q.insertHardBouncedStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing insertHardBouncedStmt: %w", cerr)
+		}
+	}
+	if q.insertOpenStmt != nil {
+		if cerr := q.insertOpenStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing insertOpenStmt: %w", cerr)
 		}
 	}
 	if q.insertPreparedStmt != nil {
@@ -94,6 +102,7 @@ type Queries struct {
 	tx                    *sql.Tx
 	insertAcceptedStmt    *sql.Stmt
 	insertHardBouncedStmt *sql.Stmt
+	insertOpenStmt        *sql.Stmt
 	insertPreparedStmt    *sql.Stmt
 }
 
@@ -103,6 +112,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		tx:                    tx,
 		insertAcceptedStmt:    q.insertAcceptedStmt,
 		insertHardBouncedStmt: q.insertHardBouncedStmt,
+		insertOpenStmt:        q.insertOpenStmt,
 		insertPreparedStmt:    q.insertPreparedStmt,
 	}
 }

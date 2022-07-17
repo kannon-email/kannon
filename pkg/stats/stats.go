@@ -36,7 +36,7 @@ func Run(ctx context.Context, vc *viper.Viper) {
 	defer closeNats()
 
 	var wg sync.WaitGroup
-	wg.Add(3)
+	wg.Add(4)
 
 	go func() {
 		handleErrors(ctx, js, q)
@@ -48,6 +48,10 @@ func Run(ctx context.Context, vc *viper.Viper) {
 	}()
 	go func() {
 		handleSends(ctx, js, q)
+		wg.Done()
+	}()
+	go func() {
+		handleOpens(ctx, js, q)
 		wg.Done()
 	}()
 	wg.Wait()
@@ -151,6 +155,43 @@ func handleDelivereds(ctx context.Context, js nats.JetStreamContext, q *sq.Queri
 				})
 				if err != nil {
 					logrus.Errorf("Cannot insert delivered: %v", err)
+				}
+			}
+			if err := msg.Ack(); err != nil {
+				logrus.Errorf("Cannot hack msg to nats: %v", err)
+			}
+		}
+	}
+}
+
+func handleOpens(ctx context.Context, js nats.JetStreamContext, q *sq.Queries) {
+	con := utils.MustGetPullSubscriber(js, "kannon.stats.opens", "kannon-stats-opens-logs")
+	for {
+		msgs, err := con.Fetch(10, nats.MaxWait(10*time.Second))
+		if err != nil {
+			if err != nats.ErrTimeout {
+				logrus.Errorf("error fetching messages: %v", err)
+			}
+			continue
+		}
+		for _, msg := range msgs {
+			oMsg := pb.Open{}
+			err = proto.Unmarshal(msg.Data, &oMsg)
+			if err != nil {
+				logrus.Errorf("cannot marshal message %v", err.Error())
+			} else {
+				logrus.Printf("[👀 open] %v %v", oMsg.Email, oMsg.MessageId)
+				msgId, domain := utils.ExtractMsgIDAndDomain(oMsg.MessageId)
+				err := q.InsertOpen(ctx, sq.InsertOpenParams{
+					Email:     oMsg.Email,
+					MessageID: msgId,
+					Timestamp: oMsg.Timestamp.AsTime(),
+					Domain:    domain,
+					Ip:        oMsg.Ip,
+					UserAgent: oMsg.UserAgent,
+				})
+				if err != nil {
+					logrus.Errorf("Cannot insert open: %v", err)
 				}
 			}
 			if err := msg.Ack(); err != nil {

@@ -8,3 +8,6 @@ INSERT INTO accepted (email, message_id, timestamp, domain) VALUES (@email, @mes
 
 -- name: InsertHardBounced :exec
 INSERT INTO hard_bounced (email, message_id, timestamp, domain, err_code, err_msg) VALUES  (@email, @message_id, @timestamp, @domain, @err_code, @err_msg);
+
+-- name: InsertOpen :exec
+INSERT INTO open (email, message_id, timestamp, domain, ip, user_agent) VALUES  (@email, @message_id, @timestamp, @domain, @ip, @user_agent);

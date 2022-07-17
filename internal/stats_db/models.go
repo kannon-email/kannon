@@ -26,6 +26,16 @@ type HardBounced struct {
 	Timestamp time.Time
 }
 
+type Open struct {
+	ID        int32
+	Email     string
+	MessageID string
+	Domain    string
+	Ip        string
+	UserAgent string
+	Timestamp time.Time
+}
+
 type Prepared struct {
 	ID             int32
 	Email          string
