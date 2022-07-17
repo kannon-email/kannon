@@ -139,7 +139,7 @@ func (m *mailBuilder) buildTrackOpenLink(ctx context.Context, email string, mess
 	if err != nil {
 		return "", err
 	}
-	url := "https://stats." + domain + "/c/" + token
+	url := "https://stats." + domain + "/o/" + token
 	return url, nil
 }
 
