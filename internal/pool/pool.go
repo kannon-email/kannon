@@ -55,7 +55,10 @@ func (m *sendingPoolManager) PrepareForSend(ctx context.Context, max uint) ([]sq
 }
 
 func (m *sendingPoolManager) SetError(ctx context.Context, messageID string, email string, errMsg string) error {
-	msgID, _ := utils.ExtractMsgIDAndDomain(messageID)
+	msgID, _, err := utils.ExtractMsgIDAndDomain(messageID)
+	if err != nil {
+		return err
+	}
 	return m.db.SetSendingPoolError(ctx, sqlc.SetSendingPoolErrorParams{
 		Email:     email,
 		MessageID: msgID,
@@ -64,7 +67,10 @@ func (m *sendingPoolManager) SetError(ctx context.Context, messageID string, ema
 }
 
 func (m *sendingPoolManager) SetDelivered(ctx context.Context, messageID string, email string) error {
-	msgID, _ := utils.ExtractMsgIDAndDomain(messageID)
+	msgID, _, err := utils.ExtractMsgIDAndDomain(messageID)
+	if err != nil {
+		return err
+	}
 	return m.db.SetSendingPoolDelivered(ctx, sqlc.SetSendingPoolDeliveredParams{
 		Email:     email,
 		MessageID: msgID,

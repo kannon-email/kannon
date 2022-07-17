@@ -74,8 +74,13 @@ func handleSends(ctx context.Context, js nats.JetStreamContext, q *sq.Queries) {
 				logrus.Errorf("cannot marshal message %v", err.Error())
 			} else {
 				logrus.Printf("[🚀 Prepared] %v %v", sendMsg.To, sendMsg.MessageId)
-				msgId, domain := utils.ExtractMsgIDAndDomain(sendMsg.MessageId)
-				err := q.InsertPrepared(ctx, sq.InsertPreparedParams{
+				msgId, domain, err := utils.ExtractMsgIDAndDomain(sendMsg.MessageId)
+				if err != nil {
+					logrus.Errorf("Cannot extract msgId and domain: %v", err)
+					msg.Ack()
+					continue
+				}
+				err = q.InsertPrepared(ctx, sq.InsertPreparedParams{
 					Email:     sendMsg.To,
 					MessageID: msgId,
 					Timestamp: time.Now(),
@@ -109,8 +114,13 @@ func handleErrors(ctx context.Context, js nats.JetStreamContext, q *sq.Queries) 
 				logrus.Errorf("cannot marshal message %v", err.Error())
 			} else {
 				logrus.Printf("[🛑 bounce] %v %v - %v", errMsg.Email, errMsg.MessageId, errMsg.Msg)
-				msgId, domain := utils.ExtractMsgIDAndDomain(errMsg.MessageId)
-				err := q.InsertHardBounced(ctx, sq.InsertHardBouncedParams{
+				msgId, domain, err := utils.ExtractMsgIDAndDomain(errMsg.MessageId)
+				if err != nil {
+					logrus.Errorf("Cannot extract msgId and domain: %v", err)
+					msg.Ack()
+					continue
+				}
+				err = q.InsertHardBounced(ctx, sq.InsertHardBouncedParams{
 					Email:     errMsg.Email,
 					MessageID: msgId,
 					Timestamp: errMsg.Timestamp.AsTime(),
@@ -146,8 +156,13 @@ func handleDelivereds(ctx context.Context, js nats.JetStreamContext, q *sq.Queri
 				logrus.Errorf("cannot marshal message %v", err.Error())
 			} else {
 				logrus.Printf("[✅ delivered] %v %v", deliveredMsg.Email, deliveredMsg.MessageId)
-				msgId, domain := utils.ExtractMsgIDAndDomain(deliveredMsg.MessageId)
-				err := q.InsertAccepted(ctx, sq.InsertAcceptedParams{
+				msgId, domain, err := utils.ExtractMsgIDAndDomain(deliveredMsg.MessageId)
+				if err != nil {
+					logrus.Errorf("Cannot extract msgId and domain: %v", err)
+					msg.Ack()
+					continue
+				}
+				err = q.InsertAccepted(ctx, sq.InsertAcceptedParams{
 					Email:     deliveredMsg.Email,
 					MessageID: msgId,
 					Timestamp: deliveredMsg.Timestamp.AsTime(),
@@ -181,8 +196,13 @@ func handleOpens(ctx context.Context, js nats.JetStreamContext, q *sq.Queries) {
 				logrus.Errorf("cannot marshal message %v", err.Error())
 			} else {
 				logrus.Printf("[👀 open] %v %v", oMsg.Email, oMsg.MessageId)
-				msgId, domain := utils.ExtractMsgIDAndDomain(oMsg.MessageId)
-				err := q.InsertOpen(ctx, sq.InsertOpenParams{
+				msgId, domain, err := utils.ExtractMsgIDAndDomain(oMsg.MessageId)
+				if err != nil {
+					logrus.Errorf("Cannot extract msgId and domain: %v", err)
+					msg.Ack()
+					continue
+				}
+				err = q.InsertOpen(ctx, sq.InsertOpenParams{
 					Email:     oMsg.Email,
 					MessageID: msgId,
 					Timestamp: oMsg.Timestamp.AsTime(),
