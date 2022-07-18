@@ -22,12 +22,10 @@ import (
 
 var retImage = image.NewGray(image.Rect(0, 0, 0, 0))
 
-func Run(ctx context.Context, vc *viper.Viper) {
-	vc.SetEnvPrefix("BOUNCE")
-	vc.AutomaticEnv()
+func Run(ctx context.Context) {
+	dbURL := viper.GetString("database_url")
+	natsURL := viper.GetString("nats_url")
 
-	dbURL := vc.GetString("database_url")
-	natsURL := vc.GetString("nats_url")
 	db, q, err := sqlc.Conn(ctx, dbURL)
 	if err != nil {
 		logrus.Fatalf("cannot connect to database: %v", err)

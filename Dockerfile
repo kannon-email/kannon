@@ -4,6 +4,7 @@ WORKDIR /app
 COPY go.mod go.sum /app/
 RUN go mod download
 COPY ./pkg ./pkg
+COPY ./cmd ./cmd
 COPY ./internal ./internal
 COPY ./generated ./generated
 COPY ./kannon.go  ./

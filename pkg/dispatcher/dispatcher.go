@@ -22,12 +22,9 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-func Run(ctx context.Context, vc *viper.Viper) {
-	vc.SetEnvPrefix("DISPATCHER")
-	vc.AutomaticEnv()
-
-	dbURL := vc.GetString("database_url")
-	natsURL := vc.GetString("nats_url")
+func Run(ctx context.Context) {
+	dbURL := viper.GetString("database_url")
+	natsURL := viper.GetString("nats_url")
 
 	logrus.Info("🚀 Starting dispatcher")
 

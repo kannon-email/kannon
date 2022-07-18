@@ -15,14 +15,9 @@ import (
 	"google.golang.org/grpc"
 )
 
-func Run(ctx context.Context, vc *viper.Viper) {
-	vc.SetEnvPrefix("API")
-	vc.AutomaticEnv()
-
-	vc.SetDefault("port", 50051)
-
-	dbURL := vc.GetString("database_url")
-	port := vc.GetUint("port")
+func Run(ctx context.Context) {
+	dbURL := viper.GetString("database_url")
+	port := viper.GetUint("api.port")
 
 	logrus.Infof("Starting API Service on port %d", port)
 

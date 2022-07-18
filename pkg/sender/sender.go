@@ -15,15 +15,12 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func Run(ctx context.Context, vc *viper.Viper) {
-	vc.SetEnvPrefix("DISPATCHER")
-	vc.AutomaticEnv()
+func Run(ctx context.Context) {
+	viper.SetDefault("sender.max_jobs", 10)
 
-	vc.SetDefault("max_jobs", 10)
-
-	senderHost := vc.GetString("hostname")
-	natsURL := vc.GetString("nats_url")
-	maxSendingJobs := vc.GetUint("max_jobs")
+	senderHost := viper.GetString("sender.hostname")
+	natsURL := viper.GetString("nats_url")
+	maxSendingJobs := viper.GetUint("sender.max_jobs")
 
 	logrus.Infof("Starting Sender Service with hostname: %v and %d jobs", senderHost, maxSendingJobs)
 
