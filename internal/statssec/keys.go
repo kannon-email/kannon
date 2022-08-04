@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/lucsky/cuid"
 	sqlc "github.com/ludusrusso/kannon/internal/db"
 )
