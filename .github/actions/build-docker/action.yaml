@@ -40,7 +40,7 @@ runs:
       id: docker_build
       uses: docker/build-push-action@v2
       with:
-        push: github.event_name == 'release' && github.event.action == 'created'
+        push: ${{ github.event_name == 'release' && github.event.action == 'created' }}
         network: host
         tags: ${{ steps.docker_meta.outputs.tags }}
         target: ${{ inputs.docker-target }}
