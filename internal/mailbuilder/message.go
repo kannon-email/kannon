@@ -28,5 +28,7 @@ func buildHeaders(subject string, sender pool.Sender, to string, poolMessageID s
 	h["To"] = to
 	h["Message-ID"] = messageID
 	h["X-Pool-Message-ID"] = poolMessageID
+	h["Return-Path"] = buildReturnPath(to, messageID)
+	h["Reply-To"] = fmt.Sprintf("%v <%v>", sender.Alias, sender.Email)
 	return h
 }
