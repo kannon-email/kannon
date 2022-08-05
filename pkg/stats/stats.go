@@ -33,7 +33,7 @@ func Run(ctx context.Context) {
 	defer closeNats()
 
 	var wg sync.WaitGroup
-	wg.Add(5)
+	wg.Add(6)
 
 	go func() {
 		handleErrors(ctx, js, q)
@@ -53,6 +53,10 @@ func Run(ctx context.Context) {
 	}()
 	go func() {
 		handleClicks(ctx, js, q)
+		wg.Done()
+	}()
+	go func() {
+		handleSoftBounce(ctx, js, q)
 		wg.Done()
 	}()
 	wg.Wait()
@@ -256,6 +260,48 @@ func handleClicks(ctx context.Context, js nats.JetStreamContext, q *sq.Queries) 
 				})
 				if err != nil {
 					logrus.Errorf("Cannot insert click: %v", err)
+				}
+			}
+			if err := msg.Ack(); err != nil {
+				logrus.Errorf("Cannot hack msg to nats: %v", err)
+			}
+		}
+	}
+}
+
+func handleSoftBounce(ctx context.Context, js nats.JetStreamContext, q *sq.Queries) {
+	con := utils.MustGetPullSubscriber(js, "kannon.stats.soft-bounce", "kannon-stats-soft-bounce-logs")
+	for {
+		msgs, err := con.Fetch(10, nats.MaxWait(10*time.Second))
+		if err != nil {
+			if err != nats.ErrTimeout {
+				logrus.Errorf("error fetching messages: %v", err)
+			}
+			continue
+		}
+		for _, msg := range msgs {
+			sMsg := pb.SoftBounce{}
+			err = proto.Unmarshal(msg.Data, &sMsg)
+			if err != nil {
+				logrus.Errorf("cannot marshal message %v", err.Error())
+			} else {
+				logrus.Printf("[🤷 soft bounce] %v %v - %d", sMsg.Email, sMsg.MessageId, sMsg.Code)
+				msgId, domain, err := utils.ExtractMsgIDAndDomain(sMsg.MessageId)
+				if err != nil {
+					logrus.Errorf("Cannot extract msgId and domain: %v", err)
+					msg.Ack()
+					continue
+				}
+				err = q.InsertSoftBounce(ctx, sq.InsertSoftBounceParams{
+					Email:     sMsg.Email,
+					MessageID: msgId,
+					Timestamp: sMsg.Timestamp.AsTime(),
+					Domain:    domain,
+					Code:      int32(sMsg.Code),
+					Msg:       sMsg.Msg,
+				})
+				if err != nil {
+					logrus.Errorf("Cannot insert soft bounce: %v", err)
 				}
 			}
 			if err := msg.Ack(); err != nil {

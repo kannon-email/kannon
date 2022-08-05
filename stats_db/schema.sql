@@ -196,6 +196,41 @@ CREATE TABLE public.schema_migrations (
 
 
 --
+-- Name: soft_bounce; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.soft_bounce (
+    id integer NOT NULL,
+    email character varying(320) NOT NULL,
+    message_id character varying NOT NULL,
+    domain character varying NOT NULL,
+    code integer NOT NULL,
+    msg character varying NOT NULL,
+    "timestamp" timestamp without time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: soft_bounce_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.soft_bounce_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: soft_bounce_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.soft_bounce_id_seq OWNED BY public.soft_bounce.id;
+
+
+--
 -- Name: accepted id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -228,6 +263,13 @@ ALTER TABLE ONLY public.open ALTER COLUMN id SET DEFAULT nextval('public.open_id
 --
 
 ALTER TABLE ONLY public.prepared ALTER COLUMN id SET DEFAULT nextval('public.prepared_id_seq'::regclass);
+
+
+--
+-- Name: soft_bounce id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.soft_bounce ALTER COLUMN id SET DEFAULT nextval('public.soft_bounce_id_seq'::regclass);
 
 
 --
@@ -279,6 +321,14 @@ ALTER TABLE ONLY public.schema_migrations
 
 
 --
+-- Name: soft_bounce soft_bounce_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.soft_bounce
+    ADD CONSTRAINT soft_bounce_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: accepted_email_message_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -290,6 +340,13 @@ CREATE UNIQUE INDEX accepted_email_message_id_idx ON public.accepted USING btree
 --
 
 CREATE INDEX accepted_message_id_idx ON public.accepted USING btree (message_id, domain);
+
+
+--
+-- Name: click_email_message_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX click_email_message_id_idx ON public.click USING btree (email, message_id, domain);
 
 
 --
@@ -314,6 +371,13 @@ CREATE INDEX hard_bounced_message_id_idx ON public.hard_bounced USING btree (mes
 
 
 --
+-- Name: open_email_message_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX open_email_message_id_idx ON public.open USING btree (email, message_id, domain);
+
+
+--
 -- Name: open_message_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -335,6 +399,13 @@ CREATE INDEX prepared_message_id_idx ON public.prepared USING btree (message_id,
 
 
 --
+-- Name: soft_bounce_message_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX soft_bounce_message_id_idx ON public.soft_bounce USING btree (message_id, domain);
+
+
+--
 -- PostgreSQL database dump complete
 --
 
@@ -346,4 +417,5 @@ CREATE INDEX prepared_message_id_idx ON public.prepared USING btree (message_id,
 INSERT INTO public.schema_migrations (version) VALUES
     ('20220715160003'),
     ('20220717173338'),
-    ('20220717194500');
+    ('20220717194500'),
+    ('20220805093047');

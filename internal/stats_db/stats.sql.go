@@ -130,3 +130,28 @@ func (q *Queries) InsertPrepared(ctx context.Context, arg InsertPreparedParams) 
 	)
 	return err
 }
+
+const insertSoftBounce = `-- name: InsertSoftBounce :exec
+INSERT INTO soft_bounce (email, message_id, timestamp, domain, code, msg) VALUES  ($1, $2, $3, $4, $5, $6)
+`
+
+type InsertSoftBounceParams struct {
+	Email     string
+	MessageID string
+	Timestamp time.Time
+	Domain    string
+	Code      int32
+	Msg       string
+}
+
+func (q *Queries) InsertSoftBounce(ctx context.Context, arg InsertSoftBounceParams) error {
+	_, err := q.exec(ctx, q.insertSoftBounceStmt, insertSoftBounce,
+		arg.Email,
+		arg.MessageID,
+		arg.Timestamp,
+		arg.Domain,
+		arg.Code,
+		arg.Msg,
+	)
+	return err
+}

@@ -14,3 +14,6 @@ INSERT INTO open (email, message_id, timestamp, domain, ip, user_agent) VALUES  
 
 -- name: InsertClick :exec
 INSERT INTO click (email, message_id, timestamp, domain, ip, user_agent, url) VALUES  (@email, @message_id, @timestamp, @domain, @ip, @user_agent, @url);
+
+-- name: InsertSoftBounce :exec
+INSERT INTO soft_bounce (email, message_id, timestamp, domain, code, msg) VALUES  (@email, @message_id, @timestamp, @domain, @code, @msg);
