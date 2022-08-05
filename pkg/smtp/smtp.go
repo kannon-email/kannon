@@ -98,9 +98,20 @@ func (s *Session) Logout() error {
 }
 
 func Run(ctx context.Context) {
+	viper.SetDefault("smtp.address", ":25")
+	viper.SetDefault("smtp.domain", "localhost")
+	viper.SetDefault("smtp.read_timeout", "10s")
+	viper.SetDefault("smtp.write_timeout", "10s")
+	viper.SetDefault("smtp.max_payload", "1024kb")
+	viper.SetDefault("smtp.max_recipients", 50)
+
 	natsURL := viper.GetString("nats_url")
-	// addr := viper.GetString("smtp.address")
-	// domain := viper.GetString("smtp.domain")
+	addr := viper.GetString("smtp.address")
+	domain := viper.GetString("smtp.domain")
+	readTimeout := viper.GetDuration("smtp.read_timeout")
+	writeTimeout := viper.GetDuration("smtp.write_timeout")
+	maxPayload := viper.GetSizeInBytes("smtp.max_payload")
+	maxRecipients := viper.GetInt("smtp.max_recipients")
 
 	nc, js, closeNats := utils.MustGetNats(natsURL)
 	mustConfigureSoftBounceJS(js)
@@ -113,12 +124,12 @@ func Run(ctx context.Context) {
 	s := smtp.NewServer(be)
 	defer s.Close()
 
-	s.Addr = ":1025"
-	s.Domain = "localhost"
-	s.ReadTimeout = 10 * time.Second
-	s.WriteTimeout = 10 * time.Second
-	s.MaxMessageBytes = 1024 * 1024
-	s.MaxRecipients = 50
+	s.Addr = addr
+	s.Domain = domain
+	s.ReadTimeout = readTimeout
+	s.WriteTimeout = writeTimeout
+	s.MaxMessageBytes = int(maxPayload)
+	s.MaxRecipients = maxRecipients
 	s.AllowInsecureAuth = true
 
 	go func() {
