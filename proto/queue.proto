@@ -9,6 +9,7 @@ message EmailToSend {
   string message_id = 1;
   string from = 2;
   string to = 3;
+  string return_path = 4;
   bytes body = 5;
 }
 

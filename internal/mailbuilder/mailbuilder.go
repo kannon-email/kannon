@@ -61,10 +61,11 @@ func (m *mailBuilder) PerpareForSend(ctx context.Context, email sqlc.SendingPool
 	}
 
 	return pb.EmailToSend{
-		From:      returnPath,
-		To:        email.Email,
-		Body:      signedMsg,
-		MessageId: buildEmailMessageID(email.Email, emailData.MessageID),
+		From:       emailData.SenderEmail,
+		ReturnPath: returnPath,
+		To:         email.Email,
+		Body:       signedMsg,
+		MessageId:  buildEmailMessageID(email.Email, emailData.MessageID),
 	}, nil
 }
 
