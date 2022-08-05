@@ -51,4 +51,5 @@ message SoftBounce {
   uint32 code = 4;
   string msg = 5;
   google.protobuf.Timestamp timestamp = 6;
+  string domain = 7;
 }

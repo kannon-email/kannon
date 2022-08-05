@@ -286,17 +286,11 @@ func handleSoftBounce(ctx context.Context, js nats.JetStreamContext, q *sq.Queri
 				logrus.Errorf("cannot marshal message %v", err.Error())
 			} else {
 				logrus.Printf("[🤷 soft bounce] %v %v - %d", sMsg.Email, sMsg.MessageId, sMsg.Code)
-				msgId, domain, err := utils.ExtractMsgIDAndDomain(sMsg.MessageId)
-				if err != nil {
-					logrus.Errorf("Cannot extract msgId and domain: %v", err)
-					msg.Ack()
-					continue
-				}
 				err = q.InsertSoftBounce(ctx, sq.InsertSoftBounceParams{
 					Email:     sMsg.Email,
-					MessageID: msgId,
+					MessageID: sMsg.MessageId,
 					Timestamp: sMsg.Timestamp.AsTime(),
-					Domain:    domain,
+					Domain:    sMsg.Domain,
 					Code:      int32(sMsg.Code),
 					Msg:       sMsg.Msg,
 				})
