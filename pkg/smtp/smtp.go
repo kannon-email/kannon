@@ -1,12 +1,13 @@
 package smtp
 
 import (
-	"bytes"
+	"bufio"
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"net/mail"
+	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/emersion/go-smtp"
@@ -58,11 +59,6 @@ func (s *Session) Data(r io.Reader) error {
 		return err
 	}
 
-	for h := range emailmsg.Header {
-		header := emailmsg.Header.Get(h)
-		logrus.Debugf("Header: %v: %v", h, header)
-	}
-
 	email, messageID, domain, found, err := utils.ParseBounceReturnPath(s.To)
 	if err != nil {
 		logrus.Warnf("Error parsing bounce return path: %s", err)
@@ -72,29 +68,26 @@ func (s *Session) Data(r io.Reader) error {
 	if !found {
 		return nil
 	}
-	logrus.Debugf("got bounce for %s with %s", email, messageID)
+
+	code, errMsg := parseCode(emailmsg.Body)
 
 	m := &pb.SoftBounce{
 		MessageId: messageID,
 		Email:     email,
 		From:      s.From,
-		Code:      550,
-		Msg:       "",
+		Code:      uint32(code),
+		Msg:       errMsg,
 		Timestamp: timestamppb.Now(),
 		Domain:    domain,
 	}
+
+	logrus.Infof("[🤷 got soft bounce] %vs - %d - %s", email, code, errMsg)
 
 	msg, err := proto.Marshal(m)
 	if err != nil {
 		logrus.Errorf("Cannot marshal data: %v", err)
 		return nil
 	}
-
-	buf := new(bytes.Buffer)
-	buf.ReadFrom(emailmsg.Body)
-
-	logrus.Debugf("Got bounce msg: %+v", m)
-	fmt.Printf("Got bounce msg: %s", buf.String())
 
 	err = s.nc.Publish("kannon.stats.soft-bounce", msg)
 	if err != nil {
@@ -175,4 +168,25 @@ func mustConfigureSoftBounceJS(js nats.JetStreamContext) {
 		logrus.Fatalf("cannot create js stream: %v", err)
 	}
 	logrus.Infof("created js stream: %v", info)
+}
+
+var parseMessageReg = regexp.MustCompile(`^Diagnostic-Code: (SMTP; ([0-9]+) .*$)`)
+
+func parseCode(msg io.Reader) (int, string) {
+	scanner := bufio.NewScanner(msg)
+	for scanner.Scan() {
+		line := scanner.Text()
+		m := parseMessageReg.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+		msg := m[1]
+		code, err := strconv.Atoi(m[2])
+		if err != nil {
+			continue
+		}
+		return code, msg
+	}
+
+	return 550, "unknown error"
 }
