@@ -28,7 +28,7 @@ var db *sql.DB
 var q *sqlc.Queries
 var mb mailbuilder.MailBulder
 var ma pb.MailerServer
-var adminApi pb.ApiServer
+var adminAPI pb.ApiServer
 var pm pool.SendingPoolManager
 
 func TestMain(m *testing.M) {
@@ -44,7 +44,7 @@ func TestMain(m *testing.M) {
 
 	mb = mailbuilder.NewMailBuilder(q, statssec.NewStatsService(q))
 	ma = mailapi.NewMailAPIService(q)
-	adminApi = adminapi.CreateAdminAPIService(q)
+	adminAPI = adminapi.CreateAdminAPIService(q)
 	pm = pool.NewSendingPoolManager(q)
 
 	code := m.Run()
@@ -58,7 +58,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestPrepareMail(t *testing.T) {
-	d, err := adminApi.CreateDomain(context.Background(), &pb.CreateDomainRequest{
+	d, err := adminAPI.CreateDomain(context.Background(), &pb.CreateDomainRequest{
 		Domain: "test.com",
 	})
 	assert.Nil(t, err)

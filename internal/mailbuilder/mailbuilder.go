@@ -70,7 +70,7 @@ func (m *mailBuilder) PerpareForSend(ctx context.Context, email sqlc.SendingPool
 func (m *mailBuilder) prepareMessage(ctx context.Context, sender pool.Sender, subject string, to string, domain string, messageID string, html string, baseHeaders headers) ([]byte, error) {
 	emailMessageID := buildEmailMessageID(to, messageID)
 	returnPath := buildReturnPath(to, messageID)
-	html, err := m.preparedHtml(ctx, html, to, domain, emailMessageID)
+	html, err := m.preparedHTML(ctx, html, to, domain, emailMessageID)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +89,7 @@ func signMessage(domain string, dkimPrivateKey string, msg []byte) ([]byte, erro
 	return dkim.SignMessage(signData, bytes.NewReader(msg))
 }
 
-func (s *mailBuilder) preparedHtml(ctx context.Context, html string, email string, domain string, messageID string) (string, error) {
+func (s *mailBuilder) preparedHTML(ctx context.Context, html string, email string, domain string, messageID string) (string, error) {
 	html, err := replaceLinks(html, func(link string) (string, error) {
 		buildTrackClickLink, err := s.buildTrackClickLink(ctx, link, email, messageID, domain)
 		if err != nil {
@@ -102,7 +102,7 @@ func (s *mailBuilder) preparedHtml(ctx context.Context, html string, email strin
 	if err != nil {
 		return "", err
 	}
-	html = insertTrackLinkInHtml(html, link)
+	html = insertTrackLinkInHTML(html, link)
 	return html, nil
 }
 
@@ -143,7 +143,7 @@ func (m *mailBuilder) buildTrackOpenLink(ctx context.Context, email string, mess
 	return url, nil
 }
 
-func insertTrackLinkInHtml(html string, link string) string {
+func insertTrackLinkInHTML(html string, link string) string {
 	return strings.Replace(html, "</body>", fmt.Sprintf(`<img src="%s" style="display:none;"/></body>`, link), 1)
 }
 

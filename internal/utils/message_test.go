@@ -31,10 +31,10 @@ func TestParseBounceReturnPathNoBounce(t *testing.T) {
 
 func TestParseBounceReturnPath(t *testing.T) {
 	returnPath := "bump_dGVzdEB0ZXN0LmNvbQ==+msg_cl6g7ndft0001018ut5octeun@k.test.com"
-	email, messageId, domain, found, err := utils.ParseBounceReturnPath(returnPath)
+	email, messageID, domain, found, err := utils.ParseBounceReturnPath(returnPath)
 	assert.Nil(t, err)
 	assert.True(t, found)
 	assert.Equal(t, "k.test.com", domain)
 	assert.Equal(t, "test@test.com", email)
-	assert.Equal(t, "msg_cl6g7ndft0001018ut5octeun@k.test.com", messageId)
+	assert.Equal(t, "msg_cl6g7ndft0001018ut5octeun@k.test.com", messageID)
 }
