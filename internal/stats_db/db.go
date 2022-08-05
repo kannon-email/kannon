@@ -39,6 +39,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.insertPreparedStmt, err = db.PrepareContext(ctx, insertPrepared); err != nil {
 		return nil, fmt.Errorf("error preparing query InsertPrepared: %w", err)
 	}
+	if q.insertSoftBounceStmt, err = db.PrepareContext(ctx, insertSoftBounce); err != nil {
+		return nil, fmt.Errorf("error preparing query InsertSoftBounce: %w", err)
+	}
 	return &q, nil
 }
 
@@ -67,6 +70,11 @@ func (q *Queries) Close() error {
 	if q.insertPreparedStmt != nil {
 		if cerr := q.insertPreparedStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing insertPreparedStmt: %w", cerr)
+		}
+	}
+	if q.insertSoftBounceStmt != nil {
+		if cerr := q.insertSoftBounceStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing insertSoftBounceStmt: %w", cerr)
 		}
 	}
 	return err
@@ -113,6 +121,7 @@ type Queries struct {
 	insertHardBouncedStmt *sql.Stmt
 	insertOpenStmt        *sql.Stmt
 	insertPreparedStmt    *sql.Stmt
+	insertSoftBounceStmt  *sql.Stmt
 }
 
 func (q *Queries) WithTx(tx *sql.Tx) *Queries {
@@ -124,5 +133,6 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		insertHardBouncedStmt: q.insertHardBouncedStmt,
 		insertOpenStmt:        q.insertOpenStmt,
 		insertPreparedStmt:    q.insertPreparedStmt,
+		insertSoftBounceStmt:  q.insertSoftBounceStmt,
 	}
 }

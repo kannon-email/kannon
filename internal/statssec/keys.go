@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
-	"github.com/lucsky/cuid"
 	sqlc "github.com/ludusrusso/kannon/internal/db"
 )
 
@@ -176,13 +175,4 @@ func getVerifyTokenFunc(ctx context.Context, q *sqlc.Queries) func(token *jwt.To
 
 		return publicKey, nil
 	}
-}
-
-func generateRandomString() (string, error) {
-	randomString, err := cuid.NewCrypto(rand.Reader)
-	if err != nil {
-		return "", err
-	}
-
-	return randomString, nil
 }

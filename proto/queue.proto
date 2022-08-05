@@ -43,3 +43,12 @@ message Click {
   string url = 5;
   google.protobuf.Timestamp timestamp = 6;
 }
+
+message SoftBounce {
+  string message_id = 1;
+  string email = 2;
+  string from = 3;
+  uint32 code = 4;
+  string msg = 5;
+  google.protobuf.Timestamp timestamp = 6;
+}

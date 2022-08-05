@@ -21,3 +21,20 @@ func TestExtractMsgIDAndDomainErr(t *testing.T) {
 	_, _, err := utils.ExtractMsgIDAndDomain(msg)
 	assert.NotNil(t, err)
 }
+
+func TestParseBounceReturnPathNoBounce(t *testing.T) {
+	returnPath := "xxx@test.com"
+	_, _, _, found, err := utils.ParseBounceReturnPath(returnPath)
+	assert.Nil(t, err)
+	assert.False(t, found)
+}
+
+func TestParseBounceReturnPath(t *testing.T) {
+	returnPath := "bump_dGVzdEB0ZXN0LmNvbQ==+msg_cl6g7ndft0001018ut5octeun@k.test.com"
+	email, messageID, domain, found, err := utils.ParseBounceReturnPath(returnPath)
+	assert.Nil(t, err)
+	assert.True(t, found)
+	assert.Equal(t, "k.test.com", domain)
+	assert.Equal(t, "test@test.com", email)
+	assert.Equal(t, "msg_cl6g7ndft0001018ut5octeun@k.test.com", messageID)
+}

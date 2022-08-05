@@ -55,3 +55,13 @@ type Prepared struct {
 	Timestamp      time.Time
 	FirstTimestamp time.Time
 }
+
+type SoftBounce struct {
+	ID        int32
+	Email     string
+	MessageID string
+	Domain    string
+	Code      int32
+	Msg       string
+	Timestamp time.Time
+}
