@@ -60,21 +60,21 @@ func (m *mailBuilder) PerpareForSend(ctx context.Context, email sqlc.SendingPool
 	}
 
 	return pb.EmailToSend{
-		From:       emailData.SenderEmail,
-		To:         email.Email,
-		Body:       signedMsg,
-		MessageId:  buildEmailMessageID(email.Email, emailData.MessageID),
-		ReturnPath: buildReturnPath(email.Email, emailData.MessageID),
+		From:      emailData.SenderEmail,
+		To:        email.Email,
+		Body:      signedMsg,
+		MessageId: buildEmailMessageID(email.Email, emailData.MessageID),
 	}, nil
 }
 
 func (m *mailBuilder) prepareMessage(ctx context.Context, sender pool.Sender, subject string, to string, domain string, messageID string, html string, baseHeaders headers) ([]byte, error) {
 	emailMessageID := buildEmailMessageID(to, messageID)
+	returnPath := buildReturnPath(to, messageID)
 	html, err := m.preparedHtml(ctx, html, to, domain, emailMessageID)
 	if err != nil {
 		return nil, err
 	}
-	h := buildHeaders(subject, sender, to, messageID, emailMessageID, baseHeaders)
+	h := buildHeaders(subject, sender, to, messageID, emailMessageID, returnPath, baseHeaders)
 	return renderMsg(html, h)
 }
 

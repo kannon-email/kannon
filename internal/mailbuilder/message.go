@@ -14,11 +14,11 @@ func buildEmailMessageID(to string, messageID string) string {
 
 func buildReturnPath(to string, messageID string) string {
 	emailBase64 := base64.URLEncoding.EncodeToString([]byte(to))
-	return fmt.Sprintf("bump_%v-%v", emailBase64, messageID)
+	return fmt.Sprintf("bump_%v+%v", emailBase64, messageID)
 }
 
 // buildHeaders for a message
-func buildHeaders(subject string, sender pool.Sender, to string, poolMessageID string, messageID string, baseHeaders headers) headers {
+func buildHeaders(subject string, sender pool.Sender, to string, poolMessageID string, messageID string, returnPath string, baseHeaders headers) headers {
 	h := make(headers)
 	for k, v := range baseHeaders {
 		h[k] = v
@@ -28,7 +28,7 @@ func buildHeaders(subject string, sender pool.Sender, to string, poolMessageID s
 	h["To"] = to
 	h["Message-ID"] = messageID
 	h["X-Pool-Message-ID"] = poolMessageID
-	h["Return-Path"] = buildReturnPath(to, messageID)
+	h["Return-Path"] = returnPath
 	h["Reply-To"] = fmt.Sprintf("%v <%v>", sender.Alias, sender.Email)
 	return h
 }

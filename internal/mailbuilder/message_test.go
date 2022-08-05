@@ -17,7 +17,7 @@ func TestBuildHeaders(t *testing.T) {
 	baseHeaders := headers{
 		"testH": "testH",
 	}
-	h := buildHeaders("test subject", sender, "to@email.com", "132@email.com", "<msg-123@email.com>", baseHeaders)
+	h := buildHeaders("test subject", sender, "to@email.com", "132@email.com", "<msg-123@email.com>", "xxx", baseHeaders)
 
 	if h["testH"] != "testH" {
 		t.Errorf("baseHeaders did not propagaged: %v", baseHeaders)
@@ -46,7 +46,7 @@ func TestBuildHeadersShouldCopyBaseHeader(t *testing.T) {
 		Alias: "email",
 	}
 
-	buildHeaders("test subject", sender, "to@email.com", "132@email.com", "<msg-123@email.com>", baseHeaders)
+	buildHeaders("test subject", sender, "to@email.com", "132@email.com", "<msg-123@email.com>", "bump_msg_asd@asd.com", baseHeaders)
 	if len(baseHeaders) != 1 {
 		t.Errorf("base headers has changed")
 	}

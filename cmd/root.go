@@ -87,6 +87,7 @@ func init() {
 	createBoolFlagAndBindToViper("run-bounce", false, "run bounce")
 	createBoolFlagAndBindToViper("run-stats", false, "run stats")
 	createBoolFlagAndBindToViper("run-api", false, "run api")
+	createBoolFlagAndBindToViper("run-smtp", false, "run smtp server")
 }
 
 func createBoolFlagAndBindToViper(name string, value bool, usage string) {
