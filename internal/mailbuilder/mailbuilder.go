@@ -49,7 +49,8 @@ func (m *mailBuilder) PerpareForSend(ctx context.Context, email sqlc.SendingPool
 		Alias: emailData.SenderAlias,
 	}
 
-	msg, err := m.prepareMessage(ctx, sender, emailData.Subject, email.Email, emailData.Domain, emailData.MessageID, emailData.Html, m.headers)
+	returnPath := buildReturnPath(email.Email, emailData.MessageID)
+	msg, err := m.prepareMessage(ctx, sender, emailData.Subject, email.Email, emailData.Domain, emailData.MessageID, returnPath, emailData.Html, m.headers)
 	if err != nil {
 		return pb.EmailToSend{}, err
 	}
@@ -61,15 +62,14 @@ func (m *mailBuilder) PerpareForSend(ctx context.Context, email sqlc.SendingPool
 
 	return pb.EmailToSend{
 		From:      emailData.SenderEmail,
-		To:        email.Email,
+		To:        returnPath,
 		Body:      signedMsg,
 		MessageId: buildEmailMessageID(email.Email, emailData.MessageID),
 	}, nil
 }
 
-func (m *mailBuilder) prepareMessage(ctx context.Context, sender pool.Sender, subject string, to string, domain string, messageID string, html string, baseHeaders headers) ([]byte, error) {
+func (m *mailBuilder) prepareMessage(ctx context.Context, sender pool.Sender, subject string, to string, domain string, messageID string, returnPath string, html string, baseHeaders headers) ([]byte, error) {
 	emailMessageID := buildEmailMessageID(to, messageID)
-	returnPath := buildReturnPath(to, messageID)
 	html, err := m.preparedHTML(ctx, html, to, domain, emailMessageID)
 	if err != nil {
 		return nil, err

@@ -41,7 +41,7 @@ type Session struct {
 }
 
 func (s *Session) Mail(from string, opts smtp.MailOptions) error {
-	log.Println("Mail from:", from)
+	logrus.Debugf("Mail from: %s", from)
 	s.From = from
 	return nil
 }
@@ -135,7 +135,7 @@ func Run(ctx context.Context) {
 	go func() {
 		log.Println("Starting server at", s.Addr)
 		if err := s.ListenAndServe(); err != nil {
-			log.Fatal(err)
+			logrus.Fatalf("error serving: %v", err)
 		}
 	}()
 
