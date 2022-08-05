@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"log"
 	"net/mail"
 	"time"
 
@@ -52,12 +51,17 @@ func (s *Session) Rcpt(to string) error {
 }
 
 func (s *Session) Data(r io.Reader) error {
-	_, err := mail.ReadMessage(r)
+	emailmsg, err := mail.ReadMessage(r)
 	if err != nil {
 		return err
 	}
 
-	email, messageID, _, found, err := utils.ParseBounceReturnPath(s.To)
+	for h := range emailmsg.Header {
+		header := emailmsg.Header.Get(h)
+		logrus.Debugf("Header: %v: %v", h, header)
+	}
+
+	email, messageID, domain, found, err := utils.ParseBounceReturnPath(s.To)
 	if err != nil {
 		logrus.Warnf("Error parsing bounce return path: %s", err)
 		return nil
@@ -66,6 +70,7 @@ func (s *Session) Data(r io.Reader) error {
 	if !found {
 		return nil
 	}
+	logrus.Debugf("got bounce for %s with %s", email, messageID)
 
 	m := &pb.SoftBounce{
 		MessageId: messageID,
@@ -74,6 +79,7 @@ func (s *Session) Data(r io.Reader) error {
 		Code:      550,
 		Msg:       "",
 		Timestamp: timestamppb.Now(),
+		Domain:    domain,
 	}
 
 	msg, err := proto.Marshal(m)
@@ -81,6 +87,8 @@ func (s *Session) Data(r io.Reader) error {
 		logrus.Errorf("Cannot marshal data: %v", err)
 		return nil
 	}
+
+	logrus.Debugf("Got bounce msg: %+v", m)
 
 	err = s.nc.Publish("kannon.stats.soft-bounce", msg)
 	if err != nil {
@@ -133,7 +141,7 @@ func Run(ctx context.Context) {
 	s.AllowInsecureAuth = true
 
 	go func() {
-		log.Println("Starting server at", s.Addr)
+		logrus.Printf("Starting server at: %v", s.Addr)
 		if err := s.ListenAndServe(); err != nil {
 			logrus.Fatalf("error serving: %v", err)
 		}

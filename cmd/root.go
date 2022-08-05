@@ -12,6 +12,7 @@ import (
 	"github.com/ludusrusso/kannon/pkg/sender"
 	"github.com/ludusrusso/kannon/pkg/smtp"
 	"github.com/ludusrusso/kannon/pkg/stats"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -126,5 +127,10 @@ func initConfig() {
 
 	if err := viper.ReadInConfig(); err == nil {
 		fmt.Println("Using config file:", viper.ConfigFileUsed())
+	}
+
+	if viper.GetBool("debug") {
+		logrus.Infof("setting deubg mode")
+		logrus.SetLevel(logrus.DebugLevel)
 	}
 }
