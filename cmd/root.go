@@ -10,6 +10,7 @@ import (
 	"github.com/ludusrusso/kannon/pkg/bounce"
 	"github.com/ludusrusso/kannon/pkg/dispatcher"
 	"github.com/ludusrusso/kannon/pkg/sender"
+	"github.com/ludusrusso/kannon/pkg/smtp"
 	"github.com/ludusrusso/kannon/pkg/stats"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -69,6 +70,14 @@ func run(cmd *cobra.Command, args []string) {
 		wg.Add(1)
 		go func() {
 			api.Run(ctx)
+			wg.Done()
+		}()
+	}
+
+	if viper.GetBool("run-smtp") {
+		wg.Add(1)
+		go func() {
+			smtp.Run(ctx)
 			wg.Done()
 		}()
 	}
