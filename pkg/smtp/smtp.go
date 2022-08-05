@@ -1,8 +1,10 @@
 package smtp
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/mail"
 	"time"
@@ -88,7 +90,11 @@ func (s *Session) Data(r io.Reader) error {
 		return nil
 	}
 
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(emailmsg.Body)
+
 	logrus.Debugf("Got bounce msg: %+v", m)
+	fmt.Printf("Got bounce msg: %s", buf.String())
 
 	err = s.nc.Publish("kannon.stats.soft-bounce", msg)
 	if err != nil {

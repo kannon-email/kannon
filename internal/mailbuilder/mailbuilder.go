@@ -61,8 +61,8 @@ func (m *mailBuilder) PerpareForSend(ctx context.Context, email sqlc.SendingPool
 	}
 
 	return pb.EmailToSend{
-		From:      emailData.SenderEmail,
-		To:        returnPath,
+		From:      returnPath,
+		To:        email.Email,
 		Body:      signedMsg,
 		MessageId: buildEmailMessageID(email.Email, emailData.MessageID),
 	}, nil
