@@ -91,6 +91,7 @@ func TestPrepareMail(t *testing.T) {
 	assert.Equal(t, 1, len(emails))
 
 	m, err := mb.PerpareForSend(context.Background(), emails[0])
+	assert.Nil(t, err)
 	parsed, err := mail.ReadMessage(bytes.NewReader(m.Body))
 	assert.Nil(t, err)
 

@@ -18,14 +18,14 @@ const tokenExpirePeriod = time.Hour * 24 * 30 * 3 // 3 months
 type OpenClaims struct {
 	MessageID string `json:"message_id"`
 	Email     string `json:"email"`
-	jwt.StandardClaims
+	jwt.RegisteredClaims
 }
 
 type LinkClaims struct {
 	MessageID string `json:"message_id"`
 	Email     string `json:"email"`
 	URL       string `json:"url"`
-	jwt.StandardClaims
+	jwt.RegisteredClaims
 }
 
 func generateKeyPair() (*rsa.PrivateKey, *rsa.PublicKey, error) {
@@ -38,14 +38,14 @@ func generateKeyPair() (*rsa.PrivateKey, *rsa.PublicKey, error) {
 	return privatekey, publickey.(*rsa.PublicKey), nil
 }
 
-func createOpenToken(ctx context.Context, q *sqlc.Queries, privateKey *rsa.PrivateKey, kid string, now time.Time, messageID string, email string) (string, error) {
+func createOpenToken(privateKey *rsa.PrivateKey, kid string, now time.Time, messageID string, email string) (string, error) {
 	claims := &OpenClaims{
 		MessageID: messageID,
 		Email:     email,
-		StandardClaims: jwt.StandardClaims{
-			ExpiresAt: now.Add(tokenExpirePeriod).Unix(),
-			Audience:  "stats",
-			IssuedAt:  now.Unix(),
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(now.Add(tokenExpirePeriod)),
+			Audience:  []string{"stats"},
+			IssuedAt:  jwt.NewNumericDate(now),
 		},
 	}
 
@@ -57,15 +57,15 @@ func createOpenToken(ctx context.Context, q *sqlc.Queries, privateKey *rsa.Priva
 	return token, nil
 }
 
-func createLinkToken(ctx context.Context, q *sqlc.Queries, privateKey *rsa.PrivateKey, kid string, now time.Time, messageID string, email string, url string) (string, error) {
+func createLinkToken(privateKey *rsa.PrivateKey, kid string, now time.Time, messageID string, email string, url string) (string, error) {
 	claims := &LinkClaims{
 		MessageID: messageID,
 		Email:     email,
 		URL:       url,
-		StandardClaims: jwt.StandardClaims{
-			ExpiresAt: now.Add(tokenExpirePeriod).Unix(),
-			Audience:  "stats",
-			IssuedAt:  now.Unix(),
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(now.Add(tokenExpirePeriod)),
+			Audience:  []string{"stats"},
+			IssuedAt:  jwt.NewNumericDate(now),
 		},
 	}
 

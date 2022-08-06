@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"image"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -112,7 +111,10 @@ func Run(ctx context.Context) {
 	})
 
 	logrus.Infof("running bounce on %s", "localhost:8080")
-	log.Fatal(http.ListenAndServe("0.0.0.0:8080", nil))
+
+	if err := http.ListenAndServe("0.0.0.0:8080", nil); err != nil {
+		logrus.Fatal(err)
+	}
 }
 
 func readUserIP(r *http.Request) string {
