@@ -1,7 +1,12 @@
 package main
 
-import "github.com/ludusrusso/kannon/cmd"
+import (
+	"github.com/ludusrusso/kannon/cmd"
+	"github.com/sirupsen/logrus"
+)
 
 func main() {
-	cmd.Execute()
+	if err := cmd.Execute(); err != nil {
+		logrus.Fatalf("Error: %v", err)
+	}
 }

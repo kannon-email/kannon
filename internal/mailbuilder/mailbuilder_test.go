@@ -41,7 +41,7 @@ func TestMain(m *testing.M) {
 		logrus.Fatalf("Could not start resource: %s", err)
 	}
 
-	q := sqlc.New(db)
+	q = sqlc.New(db)
 
 	mb = mailbuilder.NewMailBuilder(q, statssec.NewStatsService(q))
 	ma = mailapi.NewMailAPIService(q)

@@ -24,7 +24,7 @@ type OpenClaims struct {
 type LinkClaims struct {
 	MessageID string `json:"message_id"`
 	Email     string `json:"email"`
-	Url       string `json:"url"`
+	URL       string `json:"url"`
 	jwt.StandardClaims
 }
 
@@ -61,7 +61,7 @@ func createLinkToken(ctx context.Context, q *sqlc.Queries, privateKey *rsa.Priva
 	claims := &LinkClaims{
 		MessageID: messageID,
 		Email:     email,
-		Url:       url,
+		URL:       url,
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: now.Add(tokenExpirePeriod).Unix(),
 			Audience:  "stats",
@@ -90,32 +90,32 @@ func createJWT(claims jwt.Claims, privateKey *rsa.PrivateKey, kid string) (strin
 }
 
 func exportRsaPrivateKeyAsPemStr(privkey *rsa.PrivateKey) (string, error) {
-	privkey_bytes, err := x509.MarshalPKCS8PrivateKey(privkey)
+	privkeyBytes, err := x509.MarshalPKCS8PrivateKey(privkey)
 	if err != nil {
 		return "", err
 	}
-	privkey_pem := pem.EncodeToMemory(
+	privkeyPem := pem.EncodeToMemory(
 		&pem.Block{
 			Type:  "PRIVATE KEY",
-			Bytes: privkey_bytes,
+			Bytes: privkeyBytes,
 		},
 	)
-	return string(privkey_pem), nil
+	return string(privkeyPem), nil
 }
 
 func exportRsaPublicKeyAsPemStr(pubkey *rsa.PublicKey) (string, error) {
-	pubkey_bytes, err := x509.MarshalPKIXPublicKey(pubkey)
+	pubkeyBytes, err := x509.MarshalPKIXPublicKey(pubkey)
 	if err != nil {
 		return "", err
 	}
-	pubkey_pem := pem.EncodeToMemory(
+	pubkeyPem := pem.EncodeToMemory(
 		&pem.Block{
 			Type:  "PUBLIC KEY",
-			Bytes: pubkey_bytes,
+			Bytes: pubkeyBytes,
 		},
 	)
 
-	return string(pubkey_pem), nil
+	return string(pubkeyPem), nil
 }
 
 func verifyOpenToken(ctx context.Context, tokenString string, q *sqlc.Queries) (*OpenClaims, error) {
