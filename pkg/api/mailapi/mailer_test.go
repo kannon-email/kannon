@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
-	"encoding/json"
 	"os"
 	"testing"
 
@@ -78,10 +77,8 @@ func TestInsertMail(t *testing.T) {
 	assert.Equal(t, 1, len(sp))
 	assert.Equal(t, "test@email.com", sp[0].Email)
 
-	var fiedls = map[string]string{}
-	err = json.Unmarshal(sp[0].Fields, &fiedls)
 	assert.Nil(t, err)
-	assert.Equal(t, "Test", fiedls["name"])
+	assert.Equal(t, "Test", sp[0].Fields["name"])
 	cleanDB(t)
 }
 
@@ -108,10 +105,8 @@ func TestInsertMailOld(t *testing.T) {
 	assert.Equal(t, 1, len(sp))
 	assert.Equal(t, "test@email.com", sp[0].Email)
 
-	var fiedls = map[string]string{}
-	err = json.Unmarshal(sp[0].Fields, &fiedls)
 	assert.Nil(t, err)
-	assert.Equal(t, 0, len(fiedls))
+	assert.Equal(t, 0, len(sp[0].Fields))
 	cleanDB(t)
 }
 

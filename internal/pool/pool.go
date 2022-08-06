@@ -2,8 +2,6 @@ package pool
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/ludusrusso/kannon/generated/pb"
@@ -69,15 +67,10 @@ func (m *sendingPoolManager) AddRecipientsPool(ctx context.Context, template sql
 	}
 
 	for _, r := range recipents {
-		fraw, err := json.Marshal(r.Fields)
-		if err != nil {
-			return sqlc.Message{}, fmt.Errorf("error marshaling fields: %w", err)
-		}
-
 		err = m.db.CreatePoolWithFields(ctx, sqlc.CreatePoolWithFieldsParams{
 			MessageID: msg.MessageID,
 			Email:     r.Email,
-			Fields:    json.RawMessage(fraw),
+			Fields:    r.Fields,
 		})
 		if err != nil {
 			return sqlc.Message{}, err

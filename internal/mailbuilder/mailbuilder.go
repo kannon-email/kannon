@@ -3,7 +3,6 @@ package mailbuilder
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
@@ -50,13 +49,8 @@ func (m *mailBuilder) PerpareForSend(ctx context.Context, email sqlc.SendingPool
 		Alias: emailData.SenderAlias,
 	}
 
-	var fields = map[string]string{}
-	if err := json.Unmarshal(email.Fields, &fields); err != nil {
-		return pb.EmailToSend{}, fmt.Errorf("error unmarshalling fields: %v", err)
-	}
-
 	returnPath := buildReturnPath(email.Email, emailData.MessageID)
-	msg, err := m.prepareMessage(ctx, sender, emailData.Subject, email.Email, emailData.Domain, emailData.MessageID, emailData.Html, m.headers, fields)
+	msg, err := m.prepareMessage(ctx, sender, emailData.Subject, email.Email, emailData.Domain, emailData.MessageID, emailData.Html, m.headers, email.Fields)
 	if err != nil {
 		return pb.EmailToSend{}, err
 	}
