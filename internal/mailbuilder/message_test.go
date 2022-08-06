@@ -17,7 +17,7 @@ func TestBuildHeaders(t *testing.T) {
 	baseHeaders := headers{
 		"testH": "testH",
 	}
-	h := buildHeaders("test subject", sender, "to@email.com", "132@email.com", "<msg-123@email.com>", "xxx", baseHeaders)
+	h := buildHeaders("test subject", sender, "to@email.com", "132@email.com", "<msg-123@email.com>", baseHeaders)
 
 	if h["testH"] != "testH" {
 		t.Errorf("baseHeaders did not propagaged: %v", baseHeaders)
@@ -46,7 +46,7 @@ func TestBuildHeadersShouldCopyBaseHeader(t *testing.T) {
 		Alias: "email",
 	}
 
-	buildHeaders("test subject", sender, "to@email.com", "132@email.com", "<msg-123@email.com>", "bump_msg_asd@asd.com", baseHeaders)
+	buildHeaders("test subject", sender, "to@email.com", "132@email.com", "<msg-123@email.com>", baseHeaders)
 	if len(baseHeaders) != 1 {
 		t.Errorf("base headers has changed")
 	}
@@ -80,4 +80,16 @@ func TestInsertTrackLink(t *testing.T) {
 
 	assert.Nil(t, err)
 	assert.Equal(t, expectedhtml, res)
+}
+
+func TestReplaceCustomFields(t *testing.T) {
+	str := "Hello {{name}}"
+	fields := map[string]string{
+		"name": "world",
+	}
+
+	res, err := replaceCustomFields(str, fields)
+	assert.Nil(t, err)
+
+	assert.Equal(t, "Hello world", res)
 }

@@ -18,7 +18,7 @@ UPDATE sending_pool_emails AS sp
             LIMIT $1
         ) AS t
     WHERE sp.id = t.id
-    RETURNING sp.id, sp.status, sp.scheduled_time, sp.original_scheduled_time, sp.send_attempts_cnt, sp.email, sp.message_id, sp.error_msg, sp.error_code
+    RETURNING sp.id, sp.status, sp.scheduled_time, sp.original_scheduled_time, sp.send_attempts_cnt, sp.email, sp.message_id, sp.error_msg, sp.error_code, sp.fields
 `
 
 func (q *Queries) PrepareForSend(ctx context.Context, limit int32) ([]SendingPoolEmail, error) {
@@ -40,6 +40,7 @@ func (q *Queries) PrepareForSend(ctx context.Context, limit int32) ([]SendingPoo
 			&i.MessageID,
 			&i.ErrorMsg,
 			&i.ErrorCode,
+			&i.Fields,
 		); err != nil {
 			return nil, err
 		}

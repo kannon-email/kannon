@@ -66,5 +66,5 @@ func TestCreateLinkToken(t *testing.T) {
 
 	assert.Equal(t, "<xxxx/test@test.com>", c.MessageID)
 	assert.Equal(t, "test@test.com", c.Email)
-	assert.Equal(t, "https://test.com", c.Url)
+	assert.Equal(t, "https://test.com", c.URL)
 }

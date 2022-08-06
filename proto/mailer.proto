@@ -12,18 +12,20 @@ service Mailer {
 
 message SendHTMLReq {
   Sender sender = 1;
-  repeated string to = 2;
+  repeated string to = 2 [deprecated = true];
   string subject = 3;
   string html = 4;
   optional google.protobuf.Timestamp scheduled_time = 5;
+  repeated Recipient recipients = 6;
 }
 
 message SendTemplateReq {
   Sender sender = 1;
-  repeated string to = 2;
+  repeated string to = 2 [deprecated = true];
   string subject = 3;
   string template_id = 4;
   optional google.protobuf.Timestamp scheduled_time = 5;
+  repeated Recipient recipients = 6;
 }
 
 message SendRes {
@@ -35,4 +37,9 @@ message SendRes {
 message Sender {
   string email = 1;
   string alias = 2;
+}
+
+message Recipient {
+  string email = 1;
+  map<string, string> fields = 2;
 }

@@ -100,7 +100,7 @@ func handleSendSuccess(data *pb.EmailToSend, nc *nats.Conn) error {
 func handleSendError(sendErr smtp.SenderError, data *pb.EmailToSend, nc *nats.Conn) error {
 	msg := pb.Error{
 		MessageId:   data.MessageId,
-		Code:        uint32(sendErr.Code()),
+		Code:        sendErr.Code(),
 		Msg:         sendErr.Error(),
 		Email:       data.To,
 		IsPermanent: sendErr.IsPermanent(),

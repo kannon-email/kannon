@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"image"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -86,7 +85,7 @@ func Run(ctx context.Context) {
 		}
 
 		defer func() {
-			http.Redirect(w, r, claims.Url, http.StatusTemporaryRedirect)
+			http.Redirect(w, r, claims.URL, http.StatusTemporaryRedirect)
 		}()
 
 		ip := readUserIP(r)
@@ -95,7 +94,7 @@ func Run(ctx context.Context) {
 			Email:     claims.Email,
 			Ip:        ip,
 			UserAgent: r.UserAgent(),
-			Url:       claims.Url,
+			Url:       claims.URL,
 			Timestamp: timestamppb.Now(),
 		}
 		msg, err := proto.Marshal(data)
@@ -108,11 +107,14 @@ func Run(ctx context.Context) {
 			logrus.Errorf("Cannot send message on nats: %v", err)
 			return
 		}
-		logrus.Infof("🔗 %s %s %s %s %s %s", r.Method, claims.Url, claims.MessageID, r.Header["User-Agent"], r.Host, ip)
+		logrus.Infof("🔗 %s %s %s %s %s %s", r.Method, claims.URL, claims.MessageID, r.Header["User-Agent"], r.Host, ip)
 	})
 
 	logrus.Infof("running bounce on %s", "localhost:8080")
-	log.Fatal(http.ListenAndServe("0.0.0.0:8080", nil))
+
+	if err := http.ListenAndServe("0.0.0.0:8080", nil); err != nil {
+		logrus.Fatal(err)
+	}
 }
 
 func readUserIP(r *http.Request) string {

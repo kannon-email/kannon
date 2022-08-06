@@ -33,14 +33,12 @@ type service struct {
 }
 
 func (s *service) CreateOpenToken(ctx context.Context, messageID string, email string) (string, error) {
-	q := s.q
-
 	privateKey, _, kid, err := s.getSignKeys(ctx)
 	if err != nil {
 		return "", err
 	}
 
-	token, err := createOpenToken(ctx, q, privateKey, kid, s.now(), messageID, email)
+	token, err := createOpenToken(privateKey, kid, s.now(), messageID, email)
 	if err != nil {
 		return "", err
 	}
@@ -49,14 +47,12 @@ func (s *service) CreateOpenToken(ctx context.Context, messageID string, email s
 }
 
 func (s *service) CreateLinkToken(ctx context.Context, messageID string, email string, url string) (string, error) {
-	q := s.q
-
 	privateKey, _, kid, err := s.getSignKeys(ctx)
 	if err != nil {
 		return "", err
 	}
 
-	token, err := createLinkToken(ctx, q, privateKey, kid, s.now(), messageID, email, url)
+	token, err := createLinkToken(privateKey, kid, s.now(), messageID, email, url)
 	if err != nil {
 		return "", err
 	}

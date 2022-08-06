@@ -3,6 +3,7 @@ package mailbuilder
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
@@ -49,8 +50,13 @@ func (m *mailBuilder) PerpareForSend(ctx context.Context, email sqlc.SendingPool
 		Alias: emailData.SenderAlias,
 	}
 
+	var fields = map[string]string{}
+	if err := json.Unmarshal(email.Fields, &fields); err != nil {
+		return pb.EmailToSend{}, fmt.Errorf("error unmarshalling fields: %v", err)
+	}
+
 	returnPath := buildReturnPath(email.Email, emailData.MessageID)
-	msg, err := m.prepareMessage(ctx, sender, emailData.Subject, email.Email, emailData.Domain, emailData.MessageID, returnPath, emailData.Html, m.headers)
+	msg, err := m.prepareMessage(ctx, sender, emailData.Subject, email.Email, emailData.Domain, emailData.MessageID, emailData.Html, m.headers, fields)
 	if err != nil {
 		return pb.EmailToSend{}, err
 	}
@@ -69,13 +75,17 @@ func (m *mailBuilder) PerpareForSend(ctx context.Context, email sqlc.SendingPool
 	}, nil
 }
 
-func (m *mailBuilder) prepareMessage(ctx context.Context, sender pool.Sender, subject string, to string, domain string, messageID string, returnPath string, html string, baseHeaders headers) ([]byte, error) {
+func (m *mailBuilder) prepareMessage(ctx context.Context, sender pool.Sender, subject string, to string, domain string, messageID string, html string, baseHeaders headers, fields map[string]string) ([]byte, error) {
 	emailMessageID := buildEmailMessageID(to, messageID)
-	html, err := m.preparedHTML(ctx, html, to, domain, emailMessageID)
+	html, err := m.preparedHTML(ctx, html, to, domain, emailMessageID, fields)
 	if err != nil {
 		return nil, err
 	}
-	h := buildHeaders(subject, sender, to, messageID, emailMessageID, returnPath, baseHeaders)
+	subject, err = replaceCustomFields(subject, fields)
+	if err != nil {
+		return nil, err
+	}
+	h := buildHeaders(subject, sender, to, messageID, emailMessageID, baseHeaders)
 	return renderMsg(html, h)
 }
 
@@ -90,16 +100,37 @@ func signMessage(domain string, dkimPrivateKey string, msg []byte) ([]byte, erro
 	return dkim.SignMessage(signData, bytes.NewReader(msg))
 }
 
-func (s *mailBuilder) preparedHTML(ctx context.Context, html string, email string, domain string, messageID string) (string, error) {
-	html, err := replaceLinks(html, func(link string) (string, error) {
-		buildTrackClickLink, err := s.buildTrackClickLink(ctx, link, email, messageID, domain)
+func (m *mailBuilder) preparedHTML(ctx context.Context, html string, email string, domain string, messageID string, fields map[string]string) (string, error) {
+	html, err := replaceCustomFields(html, fields)
+	if err != nil {
+		return "", err
+	}
+
+	html, err = m.replaceAllLinks(ctx, html, email, messageID, domain)
+	if err != nil {
+		return "", err
+	}
+
+	html, err = m.addTrackPixel(ctx, html, email, messageID, domain)
+	if err != nil {
+		return "", err
+	}
+
+	return html, nil
+}
+
+func (m *mailBuilder) replaceAllLinks(ctx context.Context, html string, email string, messageID string, domain string) (string, error) {
+	return replaceLinks(html, func(link string) (string, error) {
+		buildTrackClickLink, err := m.buildTrackClickLink(ctx, link, email, messageID, domain)
 		if err != nil {
 			return "", err
 		}
 		return buildTrackClickLink, nil
 	})
+}
 
-	link, err := s.buildTrackOpenLink(ctx, email, messageID, domain)
+func (m *mailBuilder) addTrackPixel(ctx context.Context, html string, email string, messageID string, domain string) (string, error) {
+	link, err := m.buildTrackOpenLink(ctx, email, messageID, domain)
 	if err != nil {
 		return "", err
 	}

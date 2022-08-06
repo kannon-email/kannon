@@ -7,6 +7,7 @@ package sqlc
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/lib/pq"
@@ -94,7 +95,7 @@ INSERT INTO sending_pool_emails
     FROM
         UNNEST($3::varchar[]) as email
 )
-RETURNING id, status, scheduled_time, original_scheduled_time, send_attempts_cnt, email, message_id, error_msg, error_code
+RETURNING id, status, scheduled_time, original_scheduled_time, send_attempts_cnt, email, message_id, error_msg, error_code, fields
 `
 
 type CreatePoolParams struct {
@@ -105,6 +106,28 @@ type CreatePoolParams struct {
 
 func (q *Queries) CreatePool(ctx context.Context, arg CreatePoolParams) error {
 	_, err := q.exec(ctx, q.createPoolStmt, createPool, arg.ScheduledTime, arg.MessageID, pq.Array(arg.Emails))
+	return err
+}
+
+const createPoolWithFields = `-- name: CreatePoolWithFields :exec
+INSERT INTO sending_pool_emails (email, status, scheduled_time, original_scheduled_time, message_id, fields) VALUES 
+    ($1, 'scheduled', $2, $2, $3, $4)
+`
+
+type CreatePoolWithFieldsParams struct {
+	Email         string
+	ScheduledTime time.Time
+	MessageID     string
+	Fields        json.RawMessage
+}
+
+func (q *Queries) CreatePoolWithFields(ctx context.Context, arg CreatePoolWithFieldsParams) error {
+	_, err := q.exec(ctx, q.createPoolWithFieldsStmt, createPoolWithFields,
+		arg.Email,
+		arg.ScheduledTime,
+		arg.MessageID,
+		arg.Fields,
+	)
 	return err
 }
 

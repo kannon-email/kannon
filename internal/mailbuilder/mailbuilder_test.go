@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
+	"io/ioutil"
 	"net/mail"
 	"os"
 	"testing"
@@ -40,7 +41,7 @@ func TestMain(m *testing.M) {
 		logrus.Fatalf("Could not start resource: %s", err)
 	}
 
-	q := sqlc.New(db)
+	q = sqlc.New(db)
 
 	mb = mailbuilder.NewMailBuilder(q, statssec.NewStatsService(q))
 	ma = mailapi.NewMailAPIService(q)
@@ -66,15 +67,22 @@ func TestPrepareMail(t *testing.T) {
 	token := base64.StdEncoding.EncodeToString([]byte(d.Domain + ":" + d.Key))
 	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Basic "+token))
 
-	sendRes, err := ma.SendHTML(ctx, &pb.SendHTMLReq{
+	_, err = ma.SendHTML(ctx, &pb.SendHTMLReq{
 		Sender: &pb.Sender{
 			Email: "test@test.com",
 			Alias: "Test",
 		},
-		To:            []string{"test@emailtest.com"},
-		Subject:       "Test",
-		Html:          "test",
+		Subject:       "Test {{ name }}",
+		Html:          "test {{name }}",
 		ScheduledTime: timestamppb.Now(),
+		Recipients: []*pb.Recipient{
+			{
+				Email: "test@emailtest.com",
+				Fields: map[string]string{
+					"name": "Test",
+				},
+			},
+		},
 	})
 	assert.Nil(t, err)
 
@@ -83,11 +91,19 @@ func TestPrepareMail(t *testing.T) {
 	assert.Equal(t, 1, len(emails))
 
 	m, err := mb.PerpareForSend(context.Background(), emails[0])
+	assert.Nil(t, err)
 	parsed, err := mail.ReadMessage(bytes.NewReader(m.Body))
 	assert.Nil(t, err)
 
 	assert.Nil(t, err)
-	assert.Equal(t, "bump_dGVzdEBlbWFpbHRlc3QuY29t+"+sendRes.MessageId, parsed.Header.Get("Return-Path"))
 	assert.Equal(t, "test@emailtest.com", parsed.Header.Get("To"))
 	assert.Equal(t, "Test <test@test.com>", parsed.Header.Get("From"))
+
+	// test subject
+	assert.Equal(t, "Test Test", parsed.Header.Get("Subject"))
+
+	// test html
+	html, _ := ioutil.ReadAll(parsed.Body)
+
+	assert.Equal(t, "test Test", string(html))
 }

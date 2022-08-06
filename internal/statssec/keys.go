@@ -18,14 +18,14 @@ const tokenExpirePeriod = time.Hour * 24 * 30 * 3 // 3 months
 type OpenClaims struct {
 	MessageID string `json:"message_id"`
 	Email     string `json:"email"`
-	jwt.StandardClaims
+	jwt.RegisteredClaims
 }
 
 type LinkClaims struct {
 	MessageID string `json:"message_id"`
 	Email     string `json:"email"`
-	Url       string `json:"url"`
-	jwt.StandardClaims
+	URL       string `json:"url"`
+	jwt.RegisteredClaims
 }
 
 func generateKeyPair() (*rsa.PrivateKey, *rsa.PublicKey, error) {
@@ -38,14 +38,14 @@ func generateKeyPair() (*rsa.PrivateKey, *rsa.PublicKey, error) {
 	return privatekey, publickey.(*rsa.PublicKey), nil
 }
 
-func createOpenToken(ctx context.Context, q *sqlc.Queries, privateKey *rsa.PrivateKey, kid string, now time.Time, messageID string, email string) (string, error) {
+func createOpenToken(privateKey *rsa.PrivateKey, kid string, now time.Time, messageID string, email string) (string, error) {
 	claims := &OpenClaims{
 		MessageID: messageID,
 		Email:     email,
-		StandardClaims: jwt.StandardClaims{
-			ExpiresAt: now.Add(tokenExpirePeriod).Unix(),
-			Audience:  "stats",
-			IssuedAt:  now.Unix(),
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(now.Add(tokenExpirePeriod)),
+			Audience:  []string{"stats"},
+			IssuedAt:  jwt.NewNumericDate(now),
 		},
 	}
 
@@ -57,15 +57,15 @@ func createOpenToken(ctx context.Context, q *sqlc.Queries, privateKey *rsa.Priva
 	return token, nil
 }
 
-func createLinkToken(ctx context.Context, q *sqlc.Queries, privateKey *rsa.PrivateKey, kid string, now time.Time, messageID string, email string, url string) (string, error) {
+func createLinkToken(privateKey *rsa.PrivateKey, kid string, now time.Time, messageID string, email string, url string) (string, error) {
 	claims := &LinkClaims{
 		MessageID: messageID,
 		Email:     email,
-		Url:       url,
-		StandardClaims: jwt.StandardClaims{
-			ExpiresAt: now.Add(tokenExpirePeriod).Unix(),
-			Audience:  "stats",
-			IssuedAt:  now.Unix(),
+		URL:       url,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(now.Add(tokenExpirePeriod)),
+			Audience:  []string{"stats"},
+			IssuedAt:  jwt.NewNumericDate(now),
 		},
 	}
 
@@ -90,32 +90,32 @@ func createJWT(claims jwt.Claims, privateKey *rsa.PrivateKey, kid string) (strin
 }
 
 func exportRsaPrivateKeyAsPemStr(privkey *rsa.PrivateKey) (string, error) {
-	privkey_bytes, err := x509.MarshalPKCS8PrivateKey(privkey)
+	privkeyBytes, err := x509.MarshalPKCS8PrivateKey(privkey)
 	if err != nil {
 		return "", err
 	}
-	privkey_pem := pem.EncodeToMemory(
+	privkeyPem := pem.EncodeToMemory(
 		&pem.Block{
 			Type:  "PRIVATE KEY",
-			Bytes: privkey_bytes,
+			Bytes: privkeyBytes,
 		},
 	)
-	return string(privkey_pem), nil
+	return string(privkeyPem), nil
 }
 
 func exportRsaPublicKeyAsPemStr(pubkey *rsa.PublicKey) (string, error) {
-	pubkey_bytes, err := x509.MarshalPKIXPublicKey(pubkey)
+	pubkeyBytes, err := x509.MarshalPKIXPublicKey(pubkey)
 	if err != nil {
 		return "", err
 	}
-	pubkey_pem := pem.EncodeToMemory(
+	pubkeyPem := pem.EncodeToMemory(
 		&pem.Block{
 			Type:  "PUBLIC KEY",
-			Bytes: pubkey_bytes,
+			Bytes: pubkeyBytes,
 		},
 	)
 
-	return string(pubkey_pem), nil
+	return string(pubkeyPem), nil
 }
 
 func verifyOpenToken(ctx context.Context, tokenString string, q *sqlc.Queries) (*OpenClaims, error) {

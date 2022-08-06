@@ -43,6 +43,7 @@ func (s mailAPIService) SendHTML(ctx context.Context, req *pb.SendHTMLReq) (*pb.
 		Subject:       req.Subject,
 		TemplateId:    template.TemplateID,
 		ScheduledTime: req.ScheduledTime,
+		Recipients:    req.Recipients,
 	})
 }
 
@@ -67,7 +68,13 @@ func (s mailAPIService) SendTemplate(ctx context.Context, req *pb.SendTemplateRe
 		scheduled = req.ScheduledTime.AsTime()
 	}
 
-	pool, err := s.sendingPoll.AddPool(ctx, template, req.To, sender, scheduled, req.Subject, domain.Domain)
+	var pool sqlc.Message
+
+	if len(req.To) != 0 {
+		pool, err = s.sendingPoll.AddPool(ctx, template, req.To, sender, scheduled, req.Subject, domain.Domain)
+	} else {
+		pool, err = s.sendingPoll.AddRecipientsPool(ctx, template, req.Recipients, sender, scheduled, req.Subject, domain.Domain)
+	}
 
 	if err != nil {
 		logrus.Errorf("cannot create pool %v\n", err)
