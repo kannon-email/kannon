@@ -16,7 +16,7 @@ message SendHTMLReq {
   string subject = 3;
   string html = 4;
   optional google.protobuf.Timestamp scheduled_time = 5;
-  repeated Recipent recipients = 6;
+  repeated Recipient recipients = 6;
 }
 
 message SendTemplateReq {
@@ -25,7 +25,7 @@ message SendTemplateReq {
   string subject = 3;
   string template_id = 4;
   optional google.protobuf.Timestamp scheduled_time = 5;
-  repeated Recipent recipients = 6;
+  repeated Recipient recipients = 6;
 }
 
 message SendRes {
@@ -39,7 +39,7 @@ message Sender {
   string alias = 2;
 }
 
-message Recipent {
+message Recipient {
   string email = 1;
   map<string, string> fields = 2;
 }

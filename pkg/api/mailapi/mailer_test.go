@@ -59,7 +59,7 @@ func TestInsertMail(t *testing.T) {
 			Email: "test@test.com",
 			Alias: "Test",
 		},
-		Recipients: []*pb.Recipent{
+		Recipients: []*pb.Recipient{
 			{
 				Email: "test@email.com",
 				Fields: map[string]string{

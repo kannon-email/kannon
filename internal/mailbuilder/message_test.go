@@ -81,3 +81,15 @@ func TestInsertTrackLink(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, expectedhtml, res)
 }
+
+func TestReplaceCustomFields(t *testing.T) {
+	str := "Hello {{name}}"
+	fields := map[string]string{
+		"name": "world",
+	}
+
+	res, err := replaceCustomFields(str, fields)
+	assert.Nil(t, err)
+
+	assert.Equal(t, "Hello world", res)
+}

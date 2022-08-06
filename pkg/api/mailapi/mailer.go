@@ -73,7 +73,7 @@ func (s mailAPIService) SendTemplate(ctx context.Context, req *pb.SendTemplateRe
 	if len(req.To) != 0 {
 		pool, err = s.sendingPoll.AddPool(ctx, template, req.To, sender, scheduled, req.Subject, domain.Domain)
 	} else {
-		pool, err = s.sendingPoll.AddRecipentsPool(ctx, template, req.Recipients, sender, scheduled, req.Subject, domain.Domain)
+		pool, err = s.sendingPoll.AddRecipientsPool(ctx, template, req.Recipients, sender, scheduled, req.Subject, domain.Domain)
 	}
 
 	if err != nil {

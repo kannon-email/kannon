@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
+	"io/ioutil"
 	"net/mail"
 	"os"
 	"testing"
@@ -71,10 +72,17 @@ func TestPrepareMail(t *testing.T) {
 			Email: "test@test.com",
 			Alias: "Test",
 		},
-		To:            []string{"test@emailtest.com"},
-		Subject:       "Test",
-		Html:          "test",
+		Subject:       "Test {{ name }}",
+		Html:          "test {{name }}",
 		ScheduledTime: timestamppb.Now(),
+		Recipients: []*pb.Recipient{
+			{
+				Email: "test@emailtest.com",
+				Fields: map[string]string{
+					"name": "Test",
+				},
+			},
+		},
 	})
 	assert.Nil(t, err)
 
@@ -89,4 +97,12 @@ func TestPrepareMail(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, "test@emailtest.com", parsed.Header.Get("To"))
 	assert.Equal(t, "Test <test@test.com>", parsed.Header.Get("From"))
+
+	// test subject
+	assert.Equal(t, "Test Test", parsed.Header.Get("Subject"))
+
+	// test html
+	html, _ := ioutil.ReadAll(parsed.Body)
+
+	assert.Equal(t, "test Test", string(html))
 }

@@ -19,7 +19,7 @@ type Sender struct {
 // SendingPoolManager is a manger for sending pool
 type SendingPoolManager interface {
 	AddPool(ctx context.Context, template sqlc.Template, to []string, from Sender, scheduled time.Time, subject string, domain string) (sqlc.Message, error)
-	AddRecipentsPool(ctx context.Context, template sqlc.Template, recipents []*pb.Recipent, from Sender, scheduled time.Time, subject string, domain string) (sqlc.Message, error)
+	AddRecipientsPool(ctx context.Context, template sqlc.Template, recipents []*pb.Recipient, from Sender, scheduled time.Time, subject string, domain string) (sqlc.Message, error)
 	PrepareForSend(ctx context.Context, max uint) ([]sqlc.SendingPoolEmail, error)
 	SetError(ctx context.Context, messageID string, email string, errMsg string) error
 	SetDelivered(ctx context.Context, messageID string, email string) error
@@ -55,7 +55,7 @@ func (m *sendingPoolManager) AddPool(ctx context.Context, template sqlc.Template
 }
 
 // AddPool starts a new schedule in the pool
-func (m *sendingPoolManager) AddRecipentsPool(ctx context.Context, template sqlc.Template, recipents []*pb.Recipent, from Sender, scheduled time.Time, subject string, domain string) (sqlc.Message, error) {
+func (m *sendingPoolManager) AddRecipientsPool(ctx context.Context, template sqlc.Template, recipents []*pb.Recipient, from Sender, scheduled time.Time, subject string, domain string) (sqlc.Message, error) {
 	msg, err := m.db.CreateMessage(ctx, sqlc.CreateMessageParams{
 		TemplateID:  template.TemplateID,
 		Domain:      domain,
