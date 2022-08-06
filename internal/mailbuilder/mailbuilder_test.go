@@ -66,7 +66,7 @@ func TestPrepareMail(t *testing.T) {
 	token := base64.StdEncoding.EncodeToString([]byte(d.Domain + ":" + d.Key))
 	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Basic "+token))
 
-	sendRes, err := ma.SendHTML(ctx, &pb.SendHTMLReq{
+	_, err = ma.SendHTML(ctx, &pb.SendHTMLReq{
 		Sender: &pb.Sender{
 			Email: "test@test.com",
 			Alias: "Test",
@@ -87,7 +87,6 @@ func TestPrepareMail(t *testing.T) {
 	assert.Nil(t, err)
 
 	assert.Nil(t, err)
-	assert.Equal(t, "bump_dGVzdEBlbWFpbHRlc3QuY29t+"+sendRes.MessageId, parsed.Header.Get("Return-Path"))
 	assert.Equal(t, "test@emailtest.com", parsed.Header.Get("To"))
 	assert.Equal(t, "Test <test@test.com>", parsed.Header.Get("From"))
 }

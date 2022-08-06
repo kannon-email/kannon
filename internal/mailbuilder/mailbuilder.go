@@ -75,7 +75,7 @@ func (m *mailBuilder) prepareMessage(ctx context.Context, sender pool.Sender, su
 	if err != nil {
 		return nil, err
 	}
-	h := buildHeaders(subject, sender, to, messageID, emailMessageID, returnPath, baseHeaders)
+	h := buildHeaders(subject, sender, to, messageID, emailMessageID, baseHeaders)
 	return renderMsg(html, h)
 }
 

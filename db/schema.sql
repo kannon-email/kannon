@@ -69,7 +69,7 @@ CREATE TABLE public.messages (
     subject character varying NOT NULL,
     sender_email character varying(320) NOT NULL,
     sender_alias character varying(100) NOT NULL,
-    template_id character varying(100) NOT NULL,
+    template_id character varying(50) NOT NULL,
     domain character varying(254) NOT NULL
 );
 
@@ -94,9 +94,10 @@ CREATE TABLE public.sending_pool_emails (
     original_scheduled_time timestamp without time zone NOT NULL,
     send_attempts_cnt integer DEFAULT 0 NOT NULL,
     email character varying(320) NOT NULL,
-    message_id character varying(50) NOT NULL,
+    message_id character varying NOT NULL,
     error_msg character varying DEFAULT ''::character varying NOT NULL,
-    error_code integer DEFAULT 0 NOT NULL
+    error_code integer DEFAULT 0 NOT NULL,
+    fields jsonb DEFAULT '{}'::jsonb NOT NULL
 );
 
 
@@ -139,7 +140,7 @@ CREATE TABLE public.stats_keys (
 
 CREATE TABLE public.templates (
     id integer NOT NULL,
-    template_id character varying(100) NOT NULL,
+    template_id character varying NOT NULL,
     html character varying NOT NULL,
     domain character varying(254) NOT NULL
 );
@@ -317,4 +318,5 @@ ALTER TABLE ONLY public.sending_pool_emails
 
 INSERT INTO public.schema_migrations (version) VALUES
     ('20210406191606'),
-    ('20220717130048');
+    ('20220717130048'),
+    ('20220806075424');

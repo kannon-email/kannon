@@ -33,6 +33,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.createPoolStmt, err = db.PrepareContext(ctx, createPool); err != nil {
 		return nil, fmt.Errorf("error preparing query CreatePool: %w", err)
 	}
+	if q.createPoolWithFieldsStmt, err = db.PrepareContext(ctx, createPoolWithFields); err != nil {
+		return nil, fmt.Errorf("error preparing query CreatePoolWithFields: %w", err)
+	}
 	if q.createStatsKeysStmt, err = db.PrepareContext(ctx, createStatsKeys); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateStatsKeys: %w", err)
 	}
@@ -93,6 +96,11 @@ func (q *Queries) Close() error {
 	if q.createPoolStmt != nil {
 		if cerr := q.createPoolStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing createPoolStmt: %w", cerr)
+		}
+	}
+	if q.createPoolWithFieldsStmt != nil {
+		if cerr := q.createPoolWithFieldsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing createPoolWithFieldsStmt: %w", cerr)
 		}
 	}
 	if q.createStatsKeysStmt != nil {
@@ -207,6 +215,7 @@ type Queries struct {
 	createDomainStmt                *sql.Stmt
 	createMessageStmt               *sql.Stmt
 	createPoolStmt                  *sql.Stmt
+	createPoolWithFieldsStmt        *sql.Stmt
 	createStatsKeysStmt             *sql.Stmt
 	createTemplateStmt              *sql.Stmt
 	findDomainStmt                  *sql.Stmt
@@ -230,6 +239,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		createDomainStmt:                q.createDomainStmt,
 		createMessageStmt:               q.createMessageStmt,
 		createPoolStmt:                  q.createPoolStmt,
+		createPoolWithFieldsStmt:        q.createPoolWithFieldsStmt,
 		createStatsKeysStmt:             q.createStatsKeysStmt,
 		createTemplateStmt:              q.createTemplateStmt,
 		findDomainStmt:                  q.findDomainStmt,

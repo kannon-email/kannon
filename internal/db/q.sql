@@ -22,6 +22,11 @@ INSERT INTO sending_pool_emails
 )
 RETURNING *;
 
+-- name: CreatePoolWithFields :exec
+INSERT INTO sending_pool_emails (email, status, scheduled_time, original_scheduled_time, message_id, fields) VALUES 
+    (@email, 'scheduled', @scheduled_time, @scheduled_time, @message_id, @fields);
+    
+
 -- name: GetSendingData :one
 SELECT
     t.html,
