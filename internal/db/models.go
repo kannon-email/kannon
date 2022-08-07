@@ -5,7 +5,6 @@
 package sqlc
 
 import (
-	"encoding/json"
 	"fmt"
 	"time"
 )
@@ -60,7 +59,7 @@ type SendingPoolEmail struct {
 	MessageID             string
 	ErrorMsg              string
 	ErrorCode             int32
-	Fields                json.RawMessage
+	Fields                CustomFields
 }
 
 type StatsKey struct {

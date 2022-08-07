@@ -7,7 +7,6 @@ package sqlc
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"github.com/lib/pq"
@@ -118,7 +117,7 @@ type CreatePoolWithFieldsParams struct {
 	Email         string
 	ScheduledTime time.Time
 	MessageID     string
-	Fields        json.RawMessage
+	Fields        CustomFields
 }
 
 func (q *Queries) CreatePoolWithFields(ctx context.Context, arg CreatePoolWithFieldsParams) error {

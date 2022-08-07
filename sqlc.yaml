@@ -10,6 +10,10 @@ packages:
     emit_exact_table_names: false
     emit_empty_slices: false
     emit_json_tags: false
+    overrides:
+      - column: "sending_pool_emails.fields"
+        go_type:
+          type: "CustomFields"
   - name: "sq"
     path: "internal/stats_db"
     queries: "./internal/stats_db/"
