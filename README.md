@@ -1,6 +1,6 @@
 # Kannon 💥
 
-[![CI](https://github.com/gyozatech/kannon/actions/workflows/ci.yaml/badge.svg?branch=master)](https://github.com/gyozatech/kannon/actions/workflows/ci.yaml)
+[![CI](https://github.com/gyozatech/kannon/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/gyozatech/kannon/actions/workflows/ci.yaml)
 
 ![alt text](assets/kannonlogo.png?raw=true)
 
