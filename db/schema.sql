@@ -22,6 +22,16 @@ CREATE TYPE public.sending_pool_status AS ENUM (
 );
 
 
+--
+-- Name: template_type; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.template_type AS ENUM (
+    'transient',
+    'template'
+);
+
+
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
@@ -142,7 +152,11 @@ CREATE TABLE public.templates (
     id integer NOT NULL,
     template_id character varying NOT NULL,
     html character varying NOT NULL,
-    domain character varying(254) NOT NULL
+    domain character varying(254) NOT NULL,
+    type public.template_type DEFAULT 'transient'::public.template_type NOT NULL,
+    title character varying(200) DEFAULT ''::character varying NOT NULL,
+    created_at timestamp without time zone DEFAULT now() NOT NULL,
+    updated_at timestamp without time zone DEFAULT now() NOT NULL
 );
 
 
@@ -272,6 +286,13 @@ CREATE INDEX scheduled_time_status_idx ON public.sending_pool_emails USING btree
 
 
 --
+-- Name: template_type_domain_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX template_type_domain_idx ON public.templates USING btree (type, domain);
+
+
+--
 -- Name: templates_domain_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -319,4 +340,5 @@ ALTER TABLE ONLY public.sending_pool_emails
 INSERT INTO public.schema_migrations (version) VALUES
     ('20210406191606'),
     ('20220717130048'),
-    ('20220806075424');
+    ('20220806075424'),
+    ('20220809092503');

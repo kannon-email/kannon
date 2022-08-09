@@ -31,6 +31,25 @@ func (e *SendingPoolStatus) Scan(src interface{}) error {
 	return nil
 }
 
+type TemplateType string
+
+const (
+	TemplateTypeTransient TemplateType = "transient"
+	TemplateTypeTemplate  TemplateType = "template"
+)
+
+func (e *TemplateType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TemplateType(s)
+	case string:
+		*e = TemplateType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TemplateType: %T", src)
+	}
+	return nil
+}
+
 type Domain struct {
 	ID             int32
 	Domain         string
@@ -75,4 +94,8 @@ type Template struct {
 	TemplateID string
 	Html       string
 	Domain     string
+	Type       TemplateType
+	Title      string
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 }
