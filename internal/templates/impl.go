@@ -24,14 +24,14 @@ func (m *manager) FindTemplate(ctx context.Context, domain string, templateID st
 	return template, nil
 }
 
-func (m *manager) CreateTransientTemplate(ctx context.Context, HTML string, domain string) (sqlc.Template, error) {
+func (m *manager) CreateTransientTemplate(ctx context.Context, html string, domain string) (sqlc.Template, error) {
 	id, err := newTemplateID(domain)
 	if err != nil {
 		return sqlc.Template{}, err
 	}
 	template, err := m.db.CreateTemplate(ctx, sqlc.CreateTemplateParams{
 		TemplateID: id,
-		Html:       HTML,
+		Html:       html,
 		Domain:     domain,
 		Title:      "",
 		Type:       sqlc.TemplateTypeTransient,
@@ -42,14 +42,14 @@ func (m *manager) CreateTransientTemplate(ctx context.Context, HTML string, doma
 	return template, nil
 }
 
-func (m *manager) CreateTemplate(ctx context.Context, HTML string, domain string, title string) (sqlc.Template, error) {
+func (m *manager) CreateTemplate(ctx context.Context, html string, domain string, title string) (sqlc.Template, error) {
 	id, err := newTemplateID(domain)
 	if err != nil {
 		return sqlc.Template{}, err
 	}
 	template, err := m.db.CreateTemplate(ctx, sqlc.CreateTemplateParams{
 		TemplateID: id,
-		Html:       HTML,
+		Html:       html,
 		Domain:     domain,
 		Title:      title,
 		Type:       sqlc.TemplateTypeTemplate,
@@ -60,10 +60,10 @@ func (m *manager) CreateTemplate(ctx context.Context, HTML string, domain string
 	return template, nil
 }
 
-func (m *manager) UpdateTemplate(ctx context.Context, templateID string, HTML string, title string) (sqlc.Template, error) {
+func (m *manager) UpdateTemplate(ctx context.Context, templateID string, html string, title string) (sqlc.Template, error) {
 	template, err := m.db.UpdateTemplate(ctx, sqlc.UpdateTemplateParams{
 		TemplateID: templateID,
-		Html:       HTML,
+		Html:       html,
 		Title:      title,
 	})
 	if err != nil {
