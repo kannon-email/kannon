@@ -20,11 +20,6 @@ const _ = grpc.SupportPackageIsVersion7
 type MailerClient interface {
 	SendHTML(ctx context.Context, in *SendHTMLReq, opts ...grpc.CallOption) (*SendRes, error)
 	SendTemplate(ctx context.Context, in *SendTemplateReq, opts ...grpc.CallOption) (*SendRes, error)
-	CreateTemplate(ctx context.Context, in *CreateTemplateReq, opts ...grpc.CallOption) (*CreateTemplateRes, error)
-	UpdateTemplate(ctx context.Context, in *UpdateTemplateReq, opts ...grpc.CallOption) (*UpdateTemplateRes, error)
-	DeleteTemplate(ctx context.Context, in *DeleteTemplateReq, opts ...grpc.CallOption) (*DeleteTemplateRes, error)
-	GetTemplate(ctx context.Context, in *GetTemplateReq, opts ...grpc.CallOption) (*GetTemplateRes, error)
-	GetTemplates(ctx context.Context, in *GetTemplatesReq, opts ...grpc.CallOption) (*GetTemplatesRes, error)
 }
 
 type mailerClient struct {
@@ -53,62 +48,12 @@ func (c *mailerClient) SendTemplate(ctx context.Context, in *SendTemplateReq, op
 	return out, nil
 }
 
-func (c *mailerClient) CreateTemplate(ctx context.Context, in *CreateTemplateReq, opts ...grpc.CallOption) (*CreateTemplateRes, error) {
-	out := new(CreateTemplateRes)
-	err := c.cc.Invoke(ctx, "/kannon.Mailer/CreateTemplate", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *mailerClient) UpdateTemplate(ctx context.Context, in *UpdateTemplateReq, opts ...grpc.CallOption) (*UpdateTemplateRes, error) {
-	out := new(UpdateTemplateRes)
-	err := c.cc.Invoke(ctx, "/kannon.Mailer/UpdateTemplate", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *mailerClient) DeleteTemplate(ctx context.Context, in *DeleteTemplateReq, opts ...grpc.CallOption) (*DeleteTemplateRes, error) {
-	out := new(DeleteTemplateRes)
-	err := c.cc.Invoke(ctx, "/kannon.Mailer/DeleteTemplate", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *mailerClient) GetTemplate(ctx context.Context, in *GetTemplateReq, opts ...grpc.CallOption) (*GetTemplateRes, error) {
-	out := new(GetTemplateRes)
-	err := c.cc.Invoke(ctx, "/kannon.Mailer/GetTemplate", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *mailerClient) GetTemplates(ctx context.Context, in *GetTemplatesReq, opts ...grpc.CallOption) (*GetTemplatesRes, error) {
-	out := new(GetTemplatesRes)
-	err := c.cc.Invoke(ctx, "/kannon.Mailer/GetTemplates", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // MailerServer is the server API for Mailer service.
 // All implementations should embed UnimplementedMailerServer
 // for forward compatibility
 type MailerServer interface {
 	SendHTML(context.Context, *SendHTMLReq) (*SendRes, error)
 	SendTemplate(context.Context, *SendTemplateReq) (*SendRes, error)
-	CreateTemplate(context.Context, *CreateTemplateReq) (*CreateTemplateRes, error)
-	UpdateTemplate(context.Context, *UpdateTemplateReq) (*UpdateTemplateRes, error)
-	DeleteTemplate(context.Context, *DeleteTemplateReq) (*DeleteTemplateRes, error)
-	GetTemplate(context.Context, *GetTemplateReq) (*GetTemplateRes, error)
-	GetTemplates(context.Context, *GetTemplatesReq) (*GetTemplatesRes, error)
 }
 
 // UnimplementedMailerServer should be embedded to have forward compatible implementations.
@@ -120,21 +65,6 @@ func (UnimplementedMailerServer) SendHTML(context.Context, *SendHTMLReq) (*SendR
 }
 func (UnimplementedMailerServer) SendTemplate(context.Context, *SendTemplateReq) (*SendRes, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendTemplate not implemented")
-}
-func (UnimplementedMailerServer) CreateTemplate(context.Context, *CreateTemplateReq) (*CreateTemplateRes, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CreateTemplate not implemented")
-}
-func (UnimplementedMailerServer) UpdateTemplate(context.Context, *UpdateTemplateReq) (*UpdateTemplateRes, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpdateTemplate not implemented")
-}
-func (UnimplementedMailerServer) DeleteTemplate(context.Context, *DeleteTemplateReq) (*DeleteTemplateRes, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DeleteTemplate not implemented")
-}
-func (UnimplementedMailerServer) GetTemplate(context.Context, *GetTemplateReq) (*GetTemplateRes, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetTemplate not implemented")
-}
-func (UnimplementedMailerServer) GetTemplates(context.Context, *GetTemplatesReq) (*GetTemplatesRes, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetTemplates not implemented")
 }
 
 // UnsafeMailerServer may be embedded to opt out of forward compatibility for this service.
@@ -184,96 +114,6 @@ func _Mailer_SendTemplate_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Mailer_CreateTemplate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateTemplateReq)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(MailerServer).CreateTemplate(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/kannon.Mailer/CreateTemplate",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MailerServer).CreateTemplate(ctx, req.(*CreateTemplateReq))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Mailer_UpdateTemplate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpdateTemplateReq)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(MailerServer).UpdateTemplate(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/kannon.Mailer/UpdateTemplate",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MailerServer).UpdateTemplate(ctx, req.(*UpdateTemplateReq))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Mailer_DeleteTemplate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeleteTemplateReq)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(MailerServer).DeleteTemplate(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/kannon.Mailer/DeleteTemplate",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MailerServer).DeleteTemplate(ctx, req.(*DeleteTemplateReq))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Mailer_GetTemplate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetTemplateReq)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(MailerServer).GetTemplate(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/kannon.Mailer/GetTemplate",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MailerServer).GetTemplate(ctx, req.(*GetTemplateReq))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Mailer_GetTemplates_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetTemplatesReq)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(MailerServer).GetTemplates(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/kannon.Mailer/GetTemplates",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MailerServer).GetTemplates(ctx, req.(*GetTemplatesReq))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // Mailer_ServiceDesc is the grpc.ServiceDesc for Mailer service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -288,26 +128,6 @@ var Mailer_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SendTemplate",
 			Handler:    _Mailer_SendTemplate_Handler,
-		},
-		{
-			MethodName: "CreateTemplate",
-			Handler:    _Mailer_CreateTemplate_Handler,
-		},
-		{
-			MethodName: "UpdateTemplate",
-			Handler:    _Mailer_UpdateTemplate_Handler,
-		},
-		{
-			MethodName: "DeleteTemplate",
-			Handler:    _Mailer_DeleteTemplate_Handler,
-		},
-		{
-			MethodName: "GetTemplate",
-			Handler:    _Mailer_GetTemplate_Handler,
-		},
-		{
-			MethodName: "GetTemplates",
-			Handler:    _Mailer_GetTemplates_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

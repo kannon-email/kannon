@@ -1,4 +1,4 @@
-package mailapi_test
+package adminapi_test
 
 import (
 	"context"
@@ -12,9 +12,9 @@ import (
 
 func TestCreateTemplate(t *testing.T) {
 	d := createTestDomain(t)
-	ctx := getDomainCtx(d)
+	ctx := context.Background()
 
-	res, err := ts.CreateTemplate(ctx, &pb.CreateTemplateReq{
+	res, err := testservice.CreateTemplate(ctx, &pb.CreateTemplateReq{
 		Html:   "Hello {{ name }}",
 		Title:  "Hello",
 		Domain: d.Domain,
@@ -26,11 +26,11 @@ func TestCreateTemplate(t *testing.T) {
 
 func TestGetTemplate(t *testing.T) {
 	d := createTestDomain(t)
-	ctx := getDomainCtx(d)
+	ctx := context.Background()
 
 	t1 := createTemplate(t, ctx, d, "Hello {{ name }}")
 
-	res, err := ts.GetTemplate(ctx, &pb.GetTemplateReq{
+	res, err := testservice.GetTemplate(ctx, &pb.GetTemplateReq{
 		TemplateId: t1.TemplateId,
 	})
 	assert.Nil(t, err)
@@ -40,17 +40,17 @@ func TestGetTemplate(t *testing.T) {
 
 func TestDeleteTemplate(t *testing.T) {
 	d := createTestDomain(t)
-	ctx := getDomainCtx(d)
+	ctx := context.Background()
 
 	t1 := createTemplate(t, ctx, d, "Hello {{ name }}")
 
-	res, err := ts.DeleteTemplate(ctx, &pb.DeleteTemplateReq{
+	res, err := testservice.DeleteTemplate(ctx, &pb.DeleteTemplateReq{
 		TemplateId: t1.TemplateId,
 	})
 	assert.Nil(t, err)
 	assert.Equal(t, t1.TemplateId, res.Template.TemplateId)
 
-	resG, err := ts.GetTemplates(ctx, &pb.GetTemplatesReq{
+	resG, err := testservice.GetTemplates(ctx, &pb.GetTemplatesReq{
 		Skip: 0,
 		Take: 10,
 	})
@@ -62,12 +62,12 @@ func TestDeleteTemplate(t *testing.T) {
 
 func TestGetTemplates(t *testing.T) {
 	d := createTestDomain(t)
-	ctx := getDomainCtx(d)
+	ctx := context.Background()
 
 	t1 := createTemplate(t, ctx, d, "Hello {{ name }}")
 	t2 := createTemplate(t, ctx, d, "Hello 2 {{ name }}")
 
-	res, err := ts.GetTemplates(ctx, &pb.GetTemplatesReq{
+	res, err := testservice.GetTemplates(ctx, &pb.GetTemplatesReq{
 		Skip:   0,
 		Take:   10,
 		Domain: d.Domain,
@@ -83,12 +83,12 @@ func TestGetTemplates(t *testing.T) {
 
 func TestUpdateTemplates(t *testing.T) {
 	d := createTestDomain(t)
-	ctx := getDomainCtx(d)
+	ctx := context.Background()
 
 	t1 := createTemplate(t, ctx, d, "Hello {{ name }}")
 
 	// update template
-	res, err := ts.UpdateTemplate(ctx, &pb.UpdateTemplateReq{
+	res, err := testservice.UpdateTemplate(ctx, &pb.UpdateTemplateReq{
 		TemplateId: t1.TemplateId,
 		Html:       "Hello Updated",
 	})
@@ -101,7 +101,7 @@ func TestUpdateTemplates(t *testing.T) {
 }
 
 func createTemplate(t *testing.T, ctx context.Context, d *pb.Domain, html string) *pb.Template {
-	res, err := ts.CreateTemplate(ctx, &pb.CreateTemplateReq{
+	res, err := testservice.CreateTemplate(ctx, &pb.CreateTemplateReq{
 		Html:   html,
 		Title:  "Hello",
 		Domain: d.Domain,

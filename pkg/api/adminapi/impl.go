@@ -6,10 +6,12 @@ import (
 	"github.com/ludusrusso/kannon/generated/pb"
 	sqlc "github.com/ludusrusso/kannon/internal/db"
 	"github.com/ludusrusso/kannon/internal/domains"
+	"github.com/ludusrusso/kannon/internal/templates"
 )
 
 type adminAPIService struct {
 	dm domains.DomainManager
+	tm templates.Manager
 }
 
 func (s *adminAPIService) GetDomains(ctx context.Context, in *pb.GetDomainsReq) (*pb.GetDomainsResponse, error) {
