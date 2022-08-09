@@ -8,6 +8,11 @@ package kannon;
 service Mailer {
   rpc SendHTML(SendHTMLReq) returns (SendRes) {}
   rpc SendTemplate(SendTemplateReq) returns (SendRes) {}
+  rpc CreateTemplate(CreateTemplateReq) returns (CreateTemplateRes) {}
+  rpc UpdateTemplate(UpdateTemplateReq) returns (UpdateTemplateRes) {}
+  rpc DeleteTemplate(DeleteTemplateReq) returns (DeleteTemplateRes) {}
+  rpc GetTemplate(GetTemplateReq) returns (GetTemplateRes) {}
+  rpc GetTemplates(GetTemplatesReq) returns (GetTemplatesRes) {}
 }
 
 message SendHTMLReq {
@@ -42,4 +47,58 @@ message Sender {
 message Recipient {
   string email = 1;
   map<string, string> fields = 2;
+}
+
+message Template {
+  string template_id = 1;
+  string html = 2;
+  string title = 3;
+  string type = 4;
+}
+
+message CreateTemplateReq {
+  string html = 1;
+  string title = 2;
+  string domain = 3;
+}
+
+message CreateTemplateRes {
+  Template template = 1;
+}
+
+message UpdateTemplateReq {
+  string template_id = 1;
+  string html = 2;
+  string title = 3;
+}
+
+message UpdateTemplateRes {
+  Template template = 1;
+}
+
+message DeleteTemplateReq {
+  string template_id = 1;
+}
+
+message DeleteTemplateRes {
+  Template template = 1;
+}
+
+message GetTemplateReq {
+  string template_id = 1;
+}
+
+message GetTemplateRes {
+  Template template = 1;
+}
+
+message GetTemplatesReq {
+  string domain = 1;
+  uint32 skip = 2;
+  uint32 take = 3;
+}
+
+message GetTemplatesRes {
+  repeated Template templates = 1;
+  uint32 total = 2;
 }

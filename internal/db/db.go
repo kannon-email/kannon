@@ -24,6 +24,9 @@ func New(db DBTX) *Queries {
 func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	q := Queries{db: db}
 	var err error
+	if q.countTemplatesStmt, err = db.PrepareContext(ctx, countTemplates); err != nil {
+		return nil, fmt.Errorf("error preparing query CountTemplates: %w", err)
+	}
 	if q.createDomainStmt, err = db.PrepareContext(ctx, createDomain); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateDomain: %w", err)
 	}
@@ -41,6 +44,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.createTemplateStmt, err = db.PrepareContext(ctx, createTemplate); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateTemplate: %w", err)
+	}
+	if q.deleteTemplateStmt, err = db.PrepareContext(ctx, deleteTemplate); err != nil {
+		return nil, fmt.Errorf("error preparing query DeleteTemplate: %w", err)
 	}
 	if q.findDomainStmt, err = db.PrepareContext(ctx, findDomain); err != nil {
 		return nil, fmt.Errorf("error preparing query FindDomain: %w", err)
@@ -60,6 +66,12 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.getSendingDataStmt, err = db.PrepareContext(ctx, getSendingData); err != nil {
 		return nil, fmt.Errorf("error preparing query GetSendingData: %w", err)
 	}
+	if q.getTemplateStmt, err = db.PrepareContext(ctx, getTemplate); err != nil {
+		return nil, fmt.Errorf("error preparing query GetTemplate: %w", err)
+	}
+	if q.getTemplatesStmt, err = db.PrepareContext(ctx, getTemplates); err != nil {
+		return nil, fmt.Errorf("error preparing query GetTemplates: %w", err)
+	}
 	if q.getValidPublicStatsKeyByKidStmt, err = db.PrepareContext(ctx, getValidPublicStatsKeyByKid); err != nil {
 		return nil, fmt.Errorf("error preparing query GetValidPublicStatsKeyByKid: %w", err)
 	}
@@ -78,11 +90,19 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.setSendingPoolErrorStmt, err = db.PrepareContext(ctx, setSendingPoolError); err != nil {
 		return nil, fmt.Errorf("error preparing query SetSendingPoolError: %w", err)
 	}
+	if q.updateTemplateStmt, err = db.PrepareContext(ctx, updateTemplate); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateTemplate: %w", err)
+	}
 	return &q, nil
 }
 
 func (q *Queries) Close() error {
 	var err error
+	if q.countTemplatesStmt != nil {
+		if cerr := q.countTemplatesStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing countTemplatesStmt: %w", cerr)
+		}
+	}
 	if q.createDomainStmt != nil {
 		if cerr := q.createDomainStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing createDomainStmt: %w", cerr)
@@ -111,6 +131,11 @@ func (q *Queries) Close() error {
 	if q.createTemplateStmt != nil {
 		if cerr := q.createTemplateStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing createTemplateStmt: %w", cerr)
+		}
+	}
+	if q.deleteTemplateStmt != nil {
+		if cerr := q.deleteTemplateStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing deleteTemplateStmt: %w", cerr)
 		}
 	}
 	if q.findDomainStmt != nil {
@@ -143,6 +168,16 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing getSendingDataStmt: %w", cerr)
 		}
 	}
+	if q.getTemplateStmt != nil {
+		if cerr := q.getTemplateStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getTemplateStmt: %w", cerr)
+		}
+	}
+	if q.getTemplatesStmt != nil {
+		if cerr := q.getTemplatesStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getTemplatesStmt: %w", cerr)
+		}
+	}
 	if q.getValidPublicStatsKeyByKidStmt != nil {
 		if cerr := q.getValidPublicStatsKeyByKidStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getValidPublicStatsKeyByKidStmt: %w", cerr)
@@ -171,6 +206,11 @@ func (q *Queries) Close() error {
 	if q.setSendingPoolErrorStmt != nil {
 		if cerr := q.setSendingPoolErrorStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing setSendingPoolErrorStmt: %w", cerr)
+		}
+	}
+	if q.updateTemplateStmt != nil {
+		if cerr := q.updateTemplateStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateTemplateStmt: %w", cerr)
 		}
 	}
 	return err
@@ -212,47 +252,57 @@ func (q *Queries) queryRow(ctx context.Context, stmt *sql.Stmt, query string, ar
 type Queries struct {
 	db                              DBTX
 	tx                              *sql.Tx
+	countTemplatesStmt              *sql.Stmt
 	createDomainStmt                *sql.Stmt
 	createMessageStmt               *sql.Stmt
 	createPoolStmt                  *sql.Stmt
 	createPoolWithFieldsStmt        *sql.Stmt
 	createStatsKeysStmt             *sql.Stmt
 	createTemplateStmt              *sql.Stmt
+	deleteTemplateStmt              *sql.Stmt
 	findDomainStmt                  *sql.Stmt
 	findDomainWithKeyStmt           *sql.Stmt
 	findTemplateStmt                *sql.Stmt
 	getAllDomainsStmt               *sql.Stmt
 	getDomainsStmt                  *sql.Stmt
 	getSendingDataStmt              *sql.Stmt
+	getTemplateStmt                 *sql.Stmt
+	getTemplatesStmt                *sql.Stmt
 	getValidPublicStatsKeyByKidStmt *sql.Stmt
 	getValidStatsKeysStmt           *sql.Stmt
 	prepareForSendStmt              *sql.Stmt
 	setDomainKeyStmt                *sql.Stmt
 	setSendingPoolDeliveredStmt     *sql.Stmt
 	setSendingPoolErrorStmt         *sql.Stmt
+	updateTemplateStmt              *sql.Stmt
 }
 
 func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 	return &Queries{
 		db:                              tx,
 		tx:                              tx,
+		countTemplatesStmt:              q.countTemplatesStmt,
 		createDomainStmt:                q.createDomainStmt,
 		createMessageStmt:               q.createMessageStmt,
 		createPoolStmt:                  q.createPoolStmt,
 		createPoolWithFieldsStmt:        q.createPoolWithFieldsStmt,
 		createStatsKeysStmt:             q.createStatsKeysStmt,
 		createTemplateStmt:              q.createTemplateStmt,
+		deleteTemplateStmt:              q.deleteTemplateStmt,
 		findDomainStmt:                  q.findDomainStmt,
 		findDomainWithKeyStmt:           q.findDomainWithKeyStmt,
 		findTemplateStmt:                q.findTemplateStmt,
 		getAllDomainsStmt:               q.getAllDomainsStmt,
 		getDomainsStmt:                  q.getDomainsStmt,
 		getSendingDataStmt:              q.getSendingDataStmt,
+		getTemplateStmt:                 q.getTemplateStmt,
+		getTemplatesStmt:                q.getTemplatesStmt,
 		getValidPublicStatsKeyByKidStmt: q.getValidPublicStatsKeyByKidStmt,
 		getValidStatsKeysStmt:           q.getValidStatsKeysStmt,
 		prepareForSendStmt:              q.prepareForSendStmt,
 		setDomainKeyStmt:                q.setDomainKeyStmt,
 		setSendingPoolDeliveredStmt:     q.setSendingPoolDeliveredStmt,
 		setSendingPoolErrorStmt:         q.setSendingPoolErrorStmt,
+		updateTemplateStmt:              q.updateTemplateStmt,
 	}
 }
