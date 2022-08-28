@@ -231,6 +231,41 @@ ALTER SEQUENCE public.soft_bounce_id_seq OWNED BY public.soft_bounce.id;
 
 
 --
+-- Name: stats; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.stats (
+    id integer NOT NULL,
+    type character varying NOT NULL,
+    email character varying(320) NOT NULL,
+    message_id character varying NOT NULL,
+    domain character varying NOT NULL,
+    "timestamp" timestamp without time zone DEFAULT now() NOT NULL,
+    data jsonb NOT NULL
+);
+
+
+--
+-- Name: stats_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.stats_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: stats_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.stats_id_seq OWNED BY public.stats.id;
+
+
+--
 -- Name: accepted id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -270,6 +305,13 @@ ALTER TABLE ONLY public.prepared ALTER COLUMN id SET DEFAULT nextval('public.pre
 --
 
 ALTER TABLE ONLY public.soft_bounce ALTER COLUMN id SET DEFAULT nextval('public.soft_bounce_id_seq'::regclass);
+
+
+--
+-- Name: stats id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.stats ALTER COLUMN id SET DEFAULT nextval('public.stats_id_seq'::regclass);
 
 
 --
@@ -326,6 +368,14 @@ ALTER TABLE ONLY public.schema_migrations
 
 ALTER TABLE ONLY public.soft_bounce
     ADD CONSTRAINT soft_bounce_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: stats stats_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.stats
+    ADD CONSTRAINT stats_pkey PRIMARY KEY (id);
 
 
 --
@@ -406,6 +456,20 @@ CREATE INDEX soft_bounce_message_id_idx ON public.soft_bounce USING btree (messa
 
 
 --
+-- Name: stats_email_message_id_type_timestamp_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX stats_email_message_id_type_timestamp_idx ON public.stats USING btree (email, message_id, domain, type, "timestamp");
+
+
+--
+-- Name: stats_type_message_id_type_timestamp_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX stats_type_message_id_type_timestamp_idx ON public.stats USING btree (message_id, domain, type, "timestamp");
+
+
+--
 -- PostgreSQL database dump complete
 --
 
@@ -418,4 +482,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20220715160003'),
     ('20220717173338'),
     ('20220717194500'),
-    ('20220805093047');
+    ('20220805093047'),
+    ('20220828122331');

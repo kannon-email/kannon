@@ -19,6 +19,16 @@ packages:
     queries: "./internal/stats_db/"
     schema: "./stats_db/migrations/"
     engine: "postgresql"
+    overrides:
+      - column: "stats.type"
+        go_type:
+          type: "StatsType"
+      - column: "stats.data"
+        go_type:
+          import: "github.com/ludusrusso/kannon/generated/pb/stats"
+          type: "StatsData"
+          package: pbtypes 
+          pointer: true
     emit_prepared_queries: true
     emit_interface: false
     emit_exact_table_names: false
