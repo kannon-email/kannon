@@ -5,3 +5,14 @@ INSERT INTO prepared (email, message_id, timestamp, first_timestamp, domain) VAL
 
 -- name: InsertStat :exec
 INSERT INTO stats (email, message_id, type, timestamp, domain, data) VALUES  (@email, @message_id, @type, @timestamp, @domain, @data);
+
+-- name: QueryStats :many
+SELECT * FROM stats 
+WHERE domain = $1 
+AND timestamp BETWEEN @start AND @stop
+LIMIT @take OFFSET @skip;
+
+-- name: CountQueryStats :one
+SELECT COUNT(*) FROM stats 
+WHERE domain = $1 
+AND timestamp BETWEEN @start AND @stop;
