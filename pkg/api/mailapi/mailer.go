@@ -31,7 +31,7 @@ func (s mailAPIService) SendHTML(ctx context.Context, req *pb.SendHTMLReq) (*pb.
 		return nil, status.Errorf(codes.Unauthenticated, "invalid or wrong auth")
 	}
 
-	template, err := s.templates.CreateTemplate(ctx, req.Html, domain.Domain)
+	template, err := s.templates.CreateTransientTemplate(ctx, req.Html, domain.Domain)
 	if err != nil {
 		logrus.Errorf("cannot create template %v\n", err)
 		return nil, status.Errorf(codes.Internal, "cannot create template %v", err)
@@ -39,7 +39,6 @@ func (s mailAPIService) SendHTML(ctx context.Context, req *pb.SendHTMLReq) (*pb.
 
 	return s.SendTemplate(ctx, &pb.SendTemplateReq{
 		Sender:        req.Sender,
-		To:            req.To,
 		Subject:       req.Subject,
 		TemplateId:    template.TemplateID,
 		ScheduledTime: req.ScheduledTime,
@@ -68,13 +67,7 @@ func (s mailAPIService) SendTemplate(ctx context.Context, req *pb.SendTemplateRe
 		scheduled = req.ScheduledTime.AsTime()
 	}
 
-	var pool sqlc.Message
-
-	if len(req.To) != 0 {
-		pool, err = s.sendingPoll.AddPool(ctx, template, req.To, sender, scheduled, req.Subject, domain.Domain)
-	} else {
-		pool, err = s.sendingPoll.AddRecipientsPool(ctx, template, req.Recipients, sender, scheduled, req.Subject, domain.Domain)
-	}
+	pool, err := s.sendingPoll.AddRecipientsPool(ctx, template, req.Recipients, sender, scheduled, req.Subject, domain.Domain)
 
 	if err != nil {
 		logrus.Errorf("cannot create pool %v\n", err)

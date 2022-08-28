@@ -21,6 +21,11 @@ type ApiClient interface {
 	GetDomains(ctx context.Context, in *GetDomainsReq, opts ...grpc.CallOption) (*GetDomainsResponse, error)
 	CreateDomain(ctx context.Context, in *CreateDomainRequest, opts ...grpc.CallOption) (*Domain, error)
 	RegenerateDomainKey(ctx context.Context, in *RegenerateDomainKeyRequest, opts ...grpc.CallOption) (*Domain, error)
+	CreateTemplate(ctx context.Context, in *CreateTemplateReq, opts ...grpc.CallOption) (*CreateTemplateRes, error)
+	UpdateTemplate(ctx context.Context, in *UpdateTemplateReq, opts ...grpc.CallOption) (*UpdateTemplateRes, error)
+	DeleteTemplate(ctx context.Context, in *DeleteTemplateReq, opts ...grpc.CallOption) (*DeleteTemplateRes, error)
+	GetTemplate(ctx context.Context, in *GetTemplateReq, opts ...grpc.CallOption) (*GetTemplateRes, error)
+	GetTemplates(ctx context.Context, in *GetTemplatesReq, opts ...grpc.CallOption) (*GetTemplatesRes, error)
 }
 
 type apiClient struct {
@@ -58,6 +63,51 @@ func (c *apiClient) RegenerateDomainKey(ctx context.Context, in *RegenerateDomai
 	return out, nil
 }
 
+func (c *apiClient) CreateTemplate(ctx context.Context, in *CreateTemplateReq, opts ...grpc.CallOption) (*CreateTemplateRes, error) {
+	out := new(CreateTemplateRes)
+	err := c.cc.Invoke(ctx, "/kannon.Api/CreateTemplate", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *apiClient) UpdateTemplate(ctx context.Context, in *UpdateTemplateReq, opts ...grpc.CallOption) (*UpdateTemplateRes, error) {
+	out := new(UpdateTemplateRes)
+	err := c.cc.Invoke(ctx, "/kannon.Api/UpdateTemplate", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *apiClient) DeleteTemplate(ctx context.Context, in *DeleteTemplateReq, opts ...grpc.CallOption) (*DeleteTemplateRes, error) {
+	out := new(DeleteTemplateRes)
+	err := c.cc.Invoke(ctx, "/kannon.Api/DeleteTemplate", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *apiClient) GetTemplate(ctx context.Context, in *GetTemplateReq, opts ...grpc.CallOption) (*GetTemplateRes, error) {
+	out := new(GetTemplateRes)
+	err := c.cc.Invoke(ctx, "/kannon.Api/GetTemplate", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *apiClient) GetTemplates(ctx context.Context, in *GetTemplatesReq, opts ...grpc.CallOption) (*GetTemplatesRes, error) {
+	out := new(GetTemplatesRes)
+	err := c.cc.Invoke(ctx, "/kannon.Api/GetTemplates", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ApiServer is the server API for Api service.
 // All implementations should embed UnimplementedApiServer
 // for forward compatibility
@@ -65,6 +115,11 @@ type ApiServer interface {
 	GetDomains(context.Context, *GetDomainsReq) (*GetDomainsResponse, error)
 	CreateDomain(context.Context, *CreateDomainRequest) (*Domain, error)
 	RegenerateDomainKey(context.Context, *RegenerateDomainKeyRequest) (*Domain, error)
+	CreateTemplate(context.Context, *CreateTemplateReq) (*CreateTemplateRes, error)
+	UpdateTemplate(context.Context, *UpdateTemplateReq) (*UpdateTemplateRes, error)
+	DeleteTemplate(context.Context, *DeleteTemplateReq) (*DeleteTemplateRes, error)
+	GetTemplate(context.Context, *GetTemplateReq) (*GetTemplateRes, error)
+	GetTemplates(context.Context, *GetTemplatesReq) (*GetTemplatesRes, error)
 }
 
 // UnimplementedApiServer should be embedded to have forward compatible implementations.
@@ -79,6 +134,21 @@ func (UnimplementedApiServer) CreateDomain(context.Context, *CreateDomainRequest
 }
 func (UnimplementedApiServer) RegenerateDomainKey(context.Context, *RegenerateDomainKeyRequest) (*Domain, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RegenerateDomainKey not implemented")
+}
+func (UnimplementedApiServer) CreateTemplate(context.Context, *CreateTemplateReq) (*CreateTemplateRes, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateTemplate not implemented")
+}
+func (UnimplementedApiServer) UpdateTemplate(context.Context, *UpdateTemplateReq) (*UpdateTemplateRes, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateTemplate not implemented")
+}
+func (UnimplementedApiServer) DeleteTemplate(context.Context, *DeleteTemplateReq) (*DeleteTemplateRes, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteTemplate not implemented")
+}
+func (UnimplementedApiServer) GetTemplate(context.Context, *GetTemplateReq) (*GetTemplateRes, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetTemplate not implemented")
+}
+func (UnimplementedApiServer) GetTemplates(context.Context, *GetTemplatesReq) (*GetTemplatesRes, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetTemplates not implemented")
 }
 
 // UnsafeApiServer may be embedded to opt out of forward compatibility for this service.
@@ -146,6 +216,96 @@ func _Api_RegenerateDomainKey_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Api_CreateTemplate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateTemplateReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ApiServer).CreateTemplate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/kannon.Api/CreateTemplate",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ApiServer).CreateTemplate(ctx, req.(*CreateTemplateReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Api_UpdateTemplate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateTemplateReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ApiServer).UpdateTemplate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/kannon.Api/UpdateTemplate",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ApiServer).UpdateTemplate(ctx, req.(*UpdateTemplateReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Api_DeleteTemplate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteTemplateReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ApiServer).DeleteTemplate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/kannon.Api/DeleteTemplate",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ApiServer).DeleteTemplate(ctx, req.(*DeleteTemplateReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Api_GetTemplate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetTemplateReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ApiServer).GetTemplate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/kannon.Api/GetTemplate",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ApiServer).GetTemplate(ctx, req.(*GetTemplateReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Api_GetTemplates_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetTemplatesReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ApiServer).GetTemplates(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/kannon.Api/GetTemplates",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ApiServer).GetTemplates(ctx, req.(*GetTemplatesReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Api_ServiceDesc is the grpc.ServiceDesc for Api service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -164,6 +324,26 @@ var Api_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RegenerateDomainKey",
 			Handler:    _Api_RegenerateDomainKey_Handler,
+		},
+		{
+			MethodName: "CreateTemplate",
+			Handler:    _Api_CreateTemplate_Handler,
+		},
+		{
+			MethodName: "UpdateTemplate",
+			Handler:    _Api_UpdateTemplate_Handler,
+		},
+		{
+			MethodName: "DeleteTemplate",
+			Handler:    _Api_DeleteTemplate_Handler,
+		},
+		{
+			MethodName: "GetTemplate",
+			Handler:    _Api_GetTemplate_Handler,
+		},
+		{
+			MethodName: "GetTemplates",
+			Handler:    _Api_GetTemplates_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

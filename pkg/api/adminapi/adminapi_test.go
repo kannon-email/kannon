@@ -77,4 +77,25 @@ func TestCreateANewDomain(t *testing.T) {
 		assert.Nil(t, err)
 		assert.NotEqual(t, domain.Key, domain2.Key)
 	})
+
+	cleanDB(t)
+}
+
+func createTestDomain(t *testing.T) *pb.Domain {
+	res, err := testservice.CreateDomain(context.Background(), &pb.CreateDomainRequest{
+		Domain: "test.test.test",
+	})
+	assert.Nil(t, err)
+	return res
+}
+
+func cleanDB(t *testing.T) {
+	_, err := db.ExecContext(context.Background(), "DELETE FROM domains")
+	assert.Nil(t, err)
+
+	_, err = db.ExecContext(context.Background(), "DELETE FROM sending_pool_emails")
+	assert.Nil(t, err)
+
+	_, err = db.ExecContext(context.Background(), "DELETE FROM templates")
+	assert.Nil(t, err)
 }

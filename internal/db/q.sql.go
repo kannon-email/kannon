@@ -130,30 +130,6 @@ func (q *Queries) CreatePoolWithFields(ctx context.Context, arg CreatePoolWithFi
 	return err
 }
 
-const createTemplate = `-- name: CreateTemplate :one
-INSERT INTO templates (template_id, html, domain)
-    VALUES ($1, $2, $3)
-    RETURNING id, template_id, html, domain
-`
-
-type CreateTemplateParams struct {
-	TemplateID string
-	Html       string
-	Domain     string
-}
-
-func (q *Queries) CreateTemplate(ctx context.Context, arg CreateTemplateParams) (Template, error) {
-	row := q.queryRow(ctx, q.createTemplateStmt, createTemplate, arg.TemplateID, arg.Html, arg.Domain)
-	var i Template
-	err := row.Scan(
-		&i.ID,
-		&i.TemplateID,
-		&i.Html,
-		&i.Domain,
-	)
-	return i, err
-}
-
 const findDomain = `-- name: FindDomain :one
 SELECT
     id, domain, created_at, key, dkim_private_key, dkim_public_key
@@ -201,7 +177,7 @@ func (q *Queries) FindDomainWithKey(ctx context.Context, arg FindDomainWithKeyPa
 }
 
 const findTemplate = `-- name: FindTemplate :one
-SELECT id, template_id, html, domain FROM templates
+SELECT id, template_id, html, domain, type, title, created_at, updated_at FROM templates
 WHERE template_id = $1
 AND domain = $2
 `
@@ -219,6 +195,10 @@ func (q *Queries) FindTemplate(ctx context.Context, arg FindTemplateParams) (Tem
 		&i.TemplateID,
 		&i.Html,
 		&i.Domain,
+		&i.Type,
+		&i.Title,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }

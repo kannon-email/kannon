@@ -12,7 +12,6 @@ service Mailer {
 
 message SendHTMLReq {
   Sender sender = 1;
-  repeated string to = 2 [deprecated = true];
   string subject = 3;
   string html = 4;
   optional google.protobuf.Timestamp scheduled_time = 5;
@@ -21,7 +20,6 @@ message SendHTMLReq {
 
 message SendTemplateReq {
   Sender sender = 1;
-  repeated string to = 2 [deprecated = true];
   string subject = 3;
   string template_id = 4;
   optional google.protobuf.Timestamp scheduled_time = 5;

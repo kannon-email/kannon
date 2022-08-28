@@ -262,6 +262,603 @@ func (x *Domain) GetDkimPubKey() string {
 	return ""
 }
 
+type Template struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	TemplateId string `protobuf:"bytes,1,opt,name=template_id,json=templateId,proto3" json:"template_id,omitempty"`
+	Html       string `protobuf:"bytes,2,opt,name=html,proto3" json:"html,omitempty"`
+	Title      string `protobuf:"bytes,3,opt,name=title,proto3" json:"title,omitempty"`
+	Type       string `protobuf:"bytes,4,opt,name=type,proto3" json:"type,omitempty"`
+}
+
+func (x *Template) Reset() {
+	*x = Template{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_api_proto_msgTypes[5]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Template) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Template) ProtoMessage() {}
+
+func (x *Template) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_msgTypes[5]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Template.ProtoReflect.Descriptor instead.
+func (*Template) Descriptor() ([]byte, []int) {
+	return file_api_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *Template) GetTemplateId() string {
+	if x != nil {
+		return x.TemplateId
+	}
+	return ""
+}
+
+func (x *Template) GetHtml() string {
+	if x != nil {
+		return x.Html
+	}
+	return ""
+}
+
+func (x *Template) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *Template) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+type CreateTemplateReq struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Html   string `protobuf:"bytes,1,opt,name=html,proto3" json:"html,omitempty"`
+	Title  string `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
+	Domain string `protobuf:"bytes,3,opt,name=domain,proto3" json:"domain,omitempty"`
+}
+
+func (x *CreateTemplateReq) Reset() {
+	*x = CreateTemplateReq{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_api_proto_msgTypes[6]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *CreateTemplateReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateTemplateReq) ProtoMessage() {}
+
+func (x *CreateTemplateReq) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_msgTypes[6]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateTemplateReq.ProtoReflect.Descriptor instead.
+func (*CreateTemplateReq) Descriptor() ([]byte, []int) {
+	return file_api_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *CreateTemplateReq) GetHtml() string {
+	if x != nil {
+		return x.Html
+	}
+	return ""
+}
+
+func (x *CreateTemplateReq) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *CreateTemplateReq) GetDomain() string {
+	if x != nil {
+		return x.Domain
+	}
+	return ""
+}
+
+type CreateTemplateRes struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Template *Template `protobuf:"bytes,1,opt,name=template,proto3" json:"template,omitempty"`
+}
+
+func (x *CreateTemplateRes) Reset() {
+	*x = CreateTemplateRes{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_api_proto_msgTypes[7]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *CreateTemplateRes) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateTemplateRes) ProtoMessage() {}
+
+func (x *CreateTemplateRes) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_msgTypes[7]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateTemplateRes.ProtoReflect.Descriptor instead.
+func (*CreateTemplateRes) Descriptor() ([]byte, []int) {
+	return file_api_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *CreateTemplateRes) GetTemplate() *Template {
+	if x != nil {
+		return x.Template
+	}
+	return nil
+}
+
+type UpdateTemplateReq struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	TemplateId string `protobuf:"bytes,1,opt,name=template_id,json=templateId,proto3" json:"template_id,omitempty"`
+	Html       string `protobuf:"bytes,2,opt,name=html,proto3" json:"html,omitempty"`
+	Title      string `protobuf:"bytes,3,opt,name=title,proto3" json:"title,omitempty"`
+}
+
+func (x *UpdateTemplateReq) Reset() {
+	*x = UpdateTemplateReq{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_api_proto_msgTypes[8]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *UpdateTemplateReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateTemplateReq) ProtoMessage() {}
+
+func (x *UpdateTemplateReq) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_msgTypes[8]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateTemplateReq.ProtoReflect.Descriptor instead.
+func (*UpdateTemplateReq) Descriptor() ([]byte, []int) {
+	return file_api_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *UpdateTemplateReq) GetTemplateId() string {
+	if x != nil {
+		return x.TemplateId
+	}
+	return ""
+}
+
+func (x *UpdateTemplateReq) GetHtml() string {
+	if x != nil {
+		return x.Html
+	}
+	return ""
+}
+
+func (x *UpdateTemplateReq) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+type UpdateTemplateRes struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Template *Template `protobuf:"bytes,1,opt,name=template,proto3" json:"template,omitempty"`
+}
+
+func (x *UpdateTemplateRes) Reset() {
+	*x = UpdateTemplateRes{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_api_proto_msgTypes[9]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *UpdateTemplateRes) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateTemplateRes) ProtoMessage() {}
+
+func (x *UpdateTemplateRes) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_msgTypes[9]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateTemplateRes.ProtoReflect.Descriptor instead.
+func (*UpdateTemplateRes) Descriptor() ([]byte, []int) {
+	return file_api_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *UpdateTemplateRes) GetTemplate() *Template {
+	if x != nil {
+		return x.Template
+	}
+	return nil
+}
+
+type DeleteTemplateReq struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	TemplateId string `protobuf:"bytes,1,opt,name=template_id,json=templateId,proto3" json:"template_id,omitempty"`
+}
+
+func (x *DeleteTemplateReq) Reset() {
+	*x = DeleteTemplateReq{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_api_proto_msgTypes[10]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *DeleteTemplateReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteTemplateReq) ProtoMessage() {}
+
+func (x *DeleteTemplateReq) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_msgTypes[10]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteTemplateReq.ProtoReflect.Descriptor instead.
+func (*DeleteTemplateReq) Descriptor() ([]byte, []int) {
+	return file_api_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *DeleteTemplateReq) GetTemplateId() string {
+	if x != nil {
+		return x.TemplateId
+	}
+	return ""
+}
+
+type DeleteTemplateRes struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Template *Template `protobuf:"bytes,1,opt,name=template,proto3" json:"template,omitempty"`
+}
+
+func (x *DeleteTemplateRes) Reset() {
+	*x = DeleteTemplateRes{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_api_proto_msgTypes[11]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *DeleteTemplateRes) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteTemplateRes) ProtoMessage() {}
+
+func (x *DeleteTemplateRes) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_msgTypes[11]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteTemplateRes.ProtoReflect.Descriptor instead.
+func (*DeleteTemplateRes) Descriptor() ([]byte, []int) {
+	return file_api_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *DeleteTemplateRes) GetTemplate() *Template {
+	if x != nil {
+		return x.Template
+	}
+	return nil
+}
+
+type GetTemplateReq struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	TemplateId string `protobuf:"bytes,1,opt,name=template_id,json=templateId,proto3" json:"template_id,omitempty"`
+}
+
+func (x *GetTemplateReq) Reset() {
+	*x = GetTemplateReq{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_api_proto_msgTypes[12]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GetTemplateReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetTemplateReq) ProtoMessage() {}
+
+func (x *GetTemplateReq) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_msgTypes[12]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetTemplateReq.ProtoReflect.Descriptor instead.
+func (*GetTemplateReq) Descriptor() ([]byte, []int) {
+	return file_api_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *GetTemplateReq) GetTemplateId() string {
+	if x != nil {
+		return x.TemplateId
+	}
+	return ""
+}
+
+type GetTemplateRes struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Template *Template `protobuf:"bytes,1,opt,name=template,proto3" json:"template,omitempty"`
+}
+
+func (x *GetTemplateRes) Reset() {
+	*x = GetTemplateRes{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_api_proto_msgTypes[13]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GetTemplateRes) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetTemplateRes) ProtoMessage() {}
+
+func (x *GetTemplateRes) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_msgTypes[13]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetTemplateRes.ProtoReflect.Descriptor instead.
+func (*GetTemplateRes) Descriptor() ([]byte, []int) {
+	return file_api_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *GetTemplateRes) GetTemplate() *Template {
+	if x != nil {
+		return x.Template
+	}
+	return nil
+}
+
+type GetTemplatesReq struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Domain string `protobuf:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"`
+	Skip   uint32 `protobuf:"varint,2,opt,name=skip,proto3" json:"skip,omitempty"`
+	Take   uint32 `protobuf:"varint,3,opt,name=take,proto3" json:"take,omitempty"`
+}
+
+func (x *GetTemplatesReq) Reset() {
+	*x = GetTemplatesReq{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_api_proto_msgTypes[14]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GetTemplatesReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetTemplatesReq) ProtoMessage() {}
+
+func (x *GetTemplatesReq) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_msgTypes[14]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetTemplatesReq.ProtoReflect.Descriptor instead.
+func (*GetTemplatesReq) Descriptor() ([]byte, []int) {
+	return file_api_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *GetTemplatesReq) GetDomain() string {
+	if x != nil {
+		return x.Domain
+	}
+	return ""
+}
+
+func (x *GetTemplatesReq) GetSkip() uint32 {
+	if x != nil {
+		return x.Skip
+	}
+	return 0
+}
+
+func (x *GetTemplatesReq) GetTake() uint32 {
+	if x != nil {
+		return x.Take
+	}
+	return 0
+}
+
+type GetTemplatesRes struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Templates []*Template `protobuf:"bytes,1,rep,name=templates,proto3" json:"templates,omitempty"`
+	Total     uint32      `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
+}
+
+func (x *GetTemplatesRes) Reset() {
+	*x = GetTemplatesRes{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_api_proto_msgTypes[15]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GetTemplatesRes) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetTemplatesRes) ProtoMessage() {}
+
+func (x *GetTemplatesRes) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_msgTypes[15]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetTemplatesRes.ProtoReflect.Descriptor instead.
+func (*GetTemplatesRes) Descriptor() ([]byte, []int) {
+	return file_api_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *GetTemplatesRes) GetTemplates() []*Template {
+	if x != nil {
+		return x.Templates
+	}
+	return nil
+}
+
+func (x *GetTemplatesRes) GetTotal() uint32 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
 var File_api_proto protoreflect.FileDescriptor
 
 var file_api_proto_rawDesc = []byte{
@@ -282,8 +879,60 @@ var file_api_proto_rawDesc = []byte{
 	0x01, 0x28, 0x09, 0x52, 0x06, 0x64, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x12, 0x10, 0x0a, 0x03, 0x6b,
 	0x65, 0x79, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x20, 0x0a,
 	0x0c, 0x64, 0x6b, 0x69, 0x6d, 0x5f, 0x70, 0x75, 0x62, 0x5f, 0x6b, 0x65, 0x79, 0x18, 0x03, 0x20,
-	0x01, 0x28, 0x09, 0x52, 0x0a, 0x64, 0x6b, 0x69, 0x6d, 0x50, 0x75, 0x62, 0x4b, 0x65, 0x79, 0x32,
-	0xd4, 0x01, 0x0a, 0x03, 0x41, 0x70, 0x69, 0x12, 0x41, 0x0a, 0x0a, 0x47, 0x65, 0x74, 0x44, 0x6f,
+	0x01, 0x28, 0x09, 0x52, 0x0a, 0x64, 0x6b, 0x69, 0x6d, 0x50, 0x75, 0x62, 0x4b, 0x65, 0x79, 0x22,
+	0x69, 0x0a, 0x08, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x12, 0x1f, 0x0a, 0x0b, 0x74,
+	0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09,
+	0x52, 0x0a, 0x74, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x49, 0x64, 0x12, 0x12, 0x0a, 0x04,
+	0x68, 0x74, 0x6d, 0x6c, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x68, 0x74, 0x6d, 0x6c,
+	0x12, 0x14, 0x0a, 0x05, 0x74, 0x69, 0x74, 0x6c, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x05, 0x74, 0x69, 0x74, 0x6c, 0x65, 0x12, 0x12, 0x0a, 0x04, 0x74, 0x79, 0x70, 0x65, 0x18, 0x04,
+	0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x74, 0x79, 0x70, 0x65, 0x22, 0x55, 0x0a, 0x11, 0x43, 0x72,
+	0x65, 0x61, 0x74, 0x65, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x52, 0x65, 0x71, 0x12,
+	0x12, 0x0a, 0x04, 0x68, 0x74, 0x6d, 0x6c, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x68,
+	0x74, 0x6d, 0x6c, 0x12, 0x14, 0x0a, 0x05, 0x74, 0x69, 0x74, 0x6c, 0x65, 0x18, 0x02, 0x20, 0x01,
+	0x28, 0x09, 0x52, 0x05, 0x74, 0x69, 0x74, 0x6c, 0x65, 0x12, 0x16, 0x0a, 0x06, 0x64, 0x6f, 0x6d,
+	0x61, 0x69, 0x6e, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x64, 0x6f, 0x6d, 0x61, 0x69,
+	0x6e, 0x22, 0x41, 0x0a, 0x11, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x54, 0x65, 0x6d, 0x70, 0x6c,
+	0x61, 0x74, 0x65, 0x52, 0x65, 0x73, 0x12, 0x2c, 0x0a, 0x08, 0x74, 0x65, 0x6d, 0x70, 0x6c, 0x61,
+	0x74, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x10, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6f,
+	0x6e, 0x2e, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x52, 0x08, 0x74, 0x65, 0x6d, 0x70,
+	0x6c, 0x61, 0x74, 0x65, 0x22, 0x5e, 0x0a, 0x11, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x54, 0x65,
+	0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x52, 0x65, 0x71, 0x12, 0x1f, 0x0a, 0x0b, 0x74, 0x65, 0x6d,
+	0x70, 0x6c, 0x61, 0x74, 0x65, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0a,
+	0x74, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x49, 0x64, 0x12, 0x12, 0x0a, 0x04, 0x68, 0x74,
+	0x6d, 0x6c, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x68, 0x74, 0x6d, 0x6c, 0x12, 0x14,
+	0x0a, 0x05, 0x74, 0x69, 0x74, 0x6c, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x74,
+	0x69, 0x74, 0x6c, 0x65, 0x22, 0x41, 0x0a, 0x11, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x54, 0x65,
+	0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x52, 0x65, 0x73, 0x12, 0x2c, 0x0a, 0x08, 0x74, 0x65, 0x6d,
+	0x70, 0x6c, 0x61, 0x74, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x10, 0x2e, 0x6b, 0x61,
+	0x6e, 0x6e, 0x6f, 0x6e, 0x2e, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x52, 0x08, 0x74,
+	0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x22, 0x34, 0x0a, 0x11, 0x44, 0x65, 0x6c, 0x65, 0x74,
+	0x65, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x52, 0x65, 0x71, 0x12, 0x1f, 0x0a, 0x0b,
+	0x74, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28,
+	0x09, 0x52, 0x0a, 0x74, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x49, 0x64, 0x22, 0x41, 0x0a,
+	0x11, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x52,
+	0x65, 0x73, 0x12, 0x2c, 0x0a, 0x08, 0x74, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x18, 0x01,
+	0x20, 0x01, 0x28, 0x0b, 0x32, 0x10, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6f, 0x6e, 0x2e, 0x54, 0x65,
+	0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x52, 0x08, 0x74, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65,
+	0x22, 0x31, 0x0a, 0x0e, 0x47, 0x65, 0x74, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x52,
+	0x65, 0x71, 0x12, 0x1f, 0x0a, 0x0b, 0x74, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x5f, 0x69,
+	0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0a, 0x74, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74,
+	0x65, 0x49, 0x64, 0x22, 0x3e, 0x0a, 0x0e, 0x47, 0x65, 0x74, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61,
+	0x74, 0x65, 0x52, 0x65, 0x73, 0x12, 0x2c, 0x0a, 0x08, 0x74, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74,
+	0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x10, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6f, 0x6e,
+	0x2e, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x52, 0x08, 0x74, 0x65, 0x6d, 0x70, 0x6c,
+	0x61, 0x74, 0x65, 0x22, 0x51, 0x0a, 0x0f, 0x47, 0x65, 0x74, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61,
+	0x74, 0x65, 0x73, 0x52, 0x65, 0x71, 0x12, 0x16, 0x0a, 0x06, 0x64, 0x6f, 0x6d, 0x61, 0x69, 0x6e,
+	0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x64, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x12, 0x12,
+	0x0a, 0x04, 0x73, 0x6b, 0x69, 0x70, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x04, 0x73, 0x6b,
+	0x69, 0x70, 0x12, 0x12, 0x0a, 0x04, 0x74, 0x61, 0x6b, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0d,
+	0x52, 0x04, 0x74, 0x61, 0x6b, 0x65, 0x22, 0x57, 0x0a, 0x0f, 0x47, 0x65, 0x74, 0x54, 0x65, 0x6d,
+	0x70, 0x6c, 0x61, 0x74, 0x65, 0x73, 0x52, 0x65, 0x73, 0x12, 0x2e, 0x0a, 0x09, 0x74, 0x65, 0x6d,
+	0x70, 0x6c, 0x61, 0x74, 0x65, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x10, 0x2e, 0x6b,
+	0x61, 0x6e, 0x6e, 0x6f, 0x6e, 0x2e, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x52, 0x09,
+	0x74, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x73, 0x12, 0x14, 0x0a, 0x05, 0x74, 0x6f, 0x74,
+	0x61, 0x6c, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x05, 0x74, 0x6f, 0x74, 0x61, 0x6c, 0x32,
+	0xb7, 0x04, 0x0a, 0x03, 0x41, 0x70, 0x69, 0x12, 0x41, 0x0a, 0x0a, 0x47, 0x65, 0x74, 0x44, 0x6f,
 	0x6d, 0x61, 0x69, 0x6e, 0x73, 0x12, 0x15, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6f, 0x6e, 0x2e, 0x47,
 	0x65, 0x74, 0x44, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x73, 0x52, 0x65, 0x71, 0x1a, 0x1a, 0x2e, 0x6b,
 	0x61, 0x6e, 0x6e, 0x6f, 0x6e, 0x2e, 0x47, 0x65, 0x74, 0x44, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x73,
@@ -296,8 +945,31 @@ var file_api_proto_rawDesc = []byte{
 	0x12, 0x22, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6f, 0x6e, 0x2e, 0x52, 0x65, 0x67, 0x65, 0x6e, 0x65,
 	0x72, 0x61, 0x74, 0x65, 0x44, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x4b, 0x65, 0x79, 0x52, 0x65, 0x71,
 	0x75, 0x65, 0x73, 0x74, 0x1a, 0x0e, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6f, 0x6e, 0x2e, 0x44, 0x6f,
-	0x6d, 0x61, 0x69, 0x6e, 0x22, 0x00, 0x42, 0x0e, 0x5a, 0x0c, 0x67, 0x65, 0x6e, 0x65, 0x72, 0x61,
-	0x74, 0x65, 0x64, 0x2f, 0x70, 0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x6d, 0x61, 0x69, 0x6e, 0x22, 0x00, 0x12, 0x48, 0x0a, 0x0e, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65,
+	0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x12, 0x19, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6f,
+	0x6e, 0x2e, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65,
+	0x52, 0x65, 0x71, 0x1a, 0x19, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6f, 0x6e, 0x2e, 0x43, 0x72, 0x65,
+	0x61, 0x74, 0x65, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x52, 0x65, 0x73, 0x22, 0x00,
+	0x12, 0x48, 0x0a, 0x0e, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61,
+	0x74, 0x65, 0x12, 0x19, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6f, 0x6e, 0x2e, 0x55, 0x70, 0x64, 0x61,
+	0x74, 0x65, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x52, 0x65, 0x71, 0x1a, 0x19, 0x2e,
+	0x6b, 0x61, 0x6e, 0x6e, 0x6f, 0x6e, 0x2e, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x54, 0x65, 0x6d,
+	0x70, 0x6c, 0x61, 0x74, 0x65, 0x52, 0x65, 0x73, 0x22, 0x00, 0x12, 0x48, 0x0a, 0x0e, 0x44, 0x65,
+	0x6c, 0x65, 0x74, 0x65, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x12, 0x19, 0x2e, 0x6b,
+	0x61, 0x6e, 0x6e, 0x6f, 0x6e, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x54, 0x65, 0x6d, 0x70,
+	0x6c, 0x61, 0x74, 0x65, 0x52, 0x65, 0x71, 0x1a, 0x19, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6f, 0x6e,
+	0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x52,
+	0x65, 0x73, 0x22, 0x00, 0x12, 0x3f, 0x0a, 0x0b, 0x47, 0x65, 0x74, 0x54, 0x65, 0x6d, 0x70, 0x6c,
+	0x61, 0x74, 0x65, 0x12, 0x16, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6f, 0x6e, 0x2e, 0x47, 0x65, 0x74,
+	0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x52, 0x65, 0x71, 0x1a, 0x16, 0x2e, 0x6b, 0x61,
+	0x6e, 0x6e, 0x6f, 0x6e, 0x2e, 0x47, 0x65, 0x74, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65,
+	0x52, 0x65, 0x73, 0x22, 0x00, 0x12, 0x42, 0x0a, 0x0c, 0x47, 0x65, 0x74, 0x54, 0x65, 0x6d, 0x70,
+	0x6c, 0x61, 0x74, 0x65, 0x73, 0x12, 0x17, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6f, 0x6e, 0x2e, 0x47,
+	0x65, 0x74, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x73, 0x52, 0x65, 0x71, 0x1a, 0x17,
+	0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6f, 0x6e, 0x2e, 0x47, 0x65, 0x74, 0x54, 0x65, 0x6d, 0x70, 0x6c,
+	0x61, 0x74, 0x65, 0x73, 0x52, 0x65, 0x73, 0x22, 0x00, 0x42, 0x0e, 0x5a, 0x0c, 0x67, 0x65, 0x6e,
+	0x65, 0x72, 0x61, 0x74, 0x65, 0x64, 0x2f, 0x70, 0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f,
+	0x33,
 }
 
 var (
@@ -312,27 +984,53 @@ func file_api_proto_rawDescGZIP() []byte {
 	return file_api_proto_rawDescData
 }
 
-var file_api_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_api_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_api_proto_goTypes = []interface{}{
 	(*GetDomainsReq)(nil),              // 0: kannon.GetDomainsReq
 	(*GetDomainsResponse)(nil),         // 1: kannon.GetDomainsResponse
 	(*CreateDomainRequest)(nil),        // 2: kannon.CreateDomainRequest
 	(*RegenerateDomainKeyRequest)(nil), // 3: kannon.RegenerateDomainKeyRequest
 	(*Domain)(nil),                     // 4: kannon.Domain
+	(*Template)(nil),                   // 5: kannon.Template
+	(*CreateTemplateReq)(nil),          // 6: kannon.CreateTemplateReq
+	(*CreateTemplateRes)(nil),          // 7: kannon.CreateTemplateRes
+	(*UpdateTemplateReq)(nil),          // 8: kannon.UpdateTemplateReq
+	(*UpdateTemplateRes)(nil),          // 9: kannon.UpdateTemplateRes
+	(*DeleteTemplateReq)(nil),          // 10: kannon.DeleteTemplateReq
+	(*DeleteTemplateRes)(nil),          // 11: kannon.DeleteTemplateRes
+	(*GetTemplateReq)(nil),             // 12: kannon.GetTemplateReq
+	(*GetTemplateRes)(nil),             // 13: kannon.GetTemplateRes
+	(*GetTemplatesReq)(nil),            // 14: kannon.GetTemplatesReq
+	(*GetTemplatesRes)(nil),            // 15: kannon.GetTemplatesRes
 }
 var file_api_proto_depIdxs = []int32{
-	4, // 0: kannon.GetDomainsResponse.domains:type_name -> kannon.Domain
-	0, // 1: kannon.Api.GetDomains:input_type -> kannon.GetDomainsReq
-	2, // 2: kannon.Api.CreateDomain:input_type -> kannon.CreateDomainRequest
-	3, // 3: kannon.Api.RegenerateDomainKey:input_type -> kannon.RegenerateDomainKeyRequest
-	1, // 4: kannon.Api.GetDomains:output_type -> kannon.GetDomainsResponse
-	4, // 5: kannon.Api.CreateDomain:output_type -> kannon.Domain
-	4, // 6: kannon.Api.RegenerateDomainKey:output_type -> kannon.Domain
-	4, // [4:7] is the sub-list for method output_type
-	1, // [1:4] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	4,  // 0: kannon.GetDomainsResponse.domains:type_name -> kannon.Domain
+	5,  // 1: kannon.CreateTemplateRes.template:type_name -> kannon.Template
+	5,  // 2: kannon.UpdateTemplateRes.template:type_name -> kannon.Template
+	5,  // 3: kannon.DeleteTemplateRes.template:type_name -> kannon.Template
+	5,  // 4: kannon.GetTemplateRes.template:type_name -> kannon.Template
+	5,  // 5: kannon.GetTemplatesRes.templates:type_name -> kannon.Template
+	0,  // 6: kannon.Api.GetDomains:input_type -> kannon.GetDomainsReq
+	2,  // 7: kannon.Api.CreateDomain:input_type -> kannon.CreateDomainRequest
+	3,  // 8: kannon.Api.RegenerateDomainKey:input_type -> kannon.RegenerateDomainKeyRequest
+	6,  // 9: kannon.Api.CreateTemplate:input_type -> kannon.CreateTemplateReq
+	8,  // 10: kannon.Api.UpdateTemplate:input_type -> kannon.UpdateTemplateReq
+	10, // 11: kannon.Api.DeleteTemplate:input_type -> kannon.DeleteTemplateReq
+	12, // 12: kannon.Api.GetTemplate:input_type -> kannon.GetTemplateReq
+	14, // 13: kannon.Api.GetTemplates:input_type -> kannon.GetTemplatesReq
+	1,  // 14: kannon.Api.GetDomains:output_type -> kannon.GetDomainsResponse
+	4,  // 15: kannon.Api.CreateDomain:output_type -> kannon.Domain
+	4,  // 16: kannon.Api.RegenerateDomainKey:output_type -> kannon.Domain
+	7,  // 17: kannon.Api.CreateTemplate:output_type -> kannon.CreateTemplateRes
+	9,  // 18: kannon.Api.UpdateTemplate:output_type -> kannon.UpdateTemplateRes
+	11, // 19: kannon.Api.DeleteTemplate:output_type -> kannon.DeleteTemplateRes
+	13, // 20: kannon.Api.GetTemplate:output_type -> kannon.GetTemplateRes
+	15, // 21: kannon.Api.GetTemplates:output_type -> kannon.GetTemplatesRes
+	14, // [14:22] is the sub-list for method output_type
+	6,  // [6:14] is the sub-list for method input_type
+	6,  // [6:6] is the sub-list for extension type_name
+	6,  // [6:6] is the sub-list for extension extendee
+	0,  // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_api_proto_init() }
@@ -401,6 +1099,138 @@ func file_api_proto_init() {
 				return nil
 			}
 		}
+		file_api_proto_msgTypes[5].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Template); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_api_proto_msgTypes[6].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*CreateTemplateReq); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_api_proto_msgTypes[7].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*CreateTemplateRes); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_api_proto_msgTypes[8].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*UpdateTemplateReq); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_api_proto_msgTypes[9].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*UpdateTemplateRes); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_api_proto_msgTypes[10].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*DeleteTemplateReq); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_api_proto_msgTypes[11].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*DeleteTemplateRes); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_api_proto_msgTypes[12].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GetTemplateReq); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_api_proto_msgTypes[13].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GetTemplateRes); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_api_proto_msgTypes[14].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GetTemplatesReq); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_api_proto_msgTypes[15].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GetTemplatesRes); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -408,7 +1238,7 @@ func file_api_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_api_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

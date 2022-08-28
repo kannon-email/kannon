@@ -71,10 +71,5 @@ SELECT * FROM templates
 WHERE template_id = $1
 AND domain = $2;
 
--- name: CreateTemplate :one
-INSERT INTO templates (template_id, html, domain)
-    VALUES ($1, $2, $3)
-    RETURNING *;
-
 -- name: SetDomainKey :one
 UPDATE domains SET key = @key WHERE domain = @domain RETURNING *;

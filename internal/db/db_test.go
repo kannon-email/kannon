@@ -90,6 +90,7 @@ func TestTemplates(t *testing.T) {
 		TemplateID: "template id",
 		Html:       "template",
 		Domain:     domain.Domain,
+		Type:       TemplateTypeTransient,
 	})
 	assert.Nil(t, err)
 	assert.Equal(t, template.Html, "template")
