@@ -16,3 +16,9 @@ FROM scratch as kannon
 COPY --from=builder  /build/kannon /bin/cmd
 USER 1000
 ENTRYPOINT ["/bin/cmd"]
+
+FROM amacneil/dbmate as migrator-db
+COPY ./db /db
+
+FROM amacneil/dbmate as migrator-stats
+COPY ./stats_db /db
