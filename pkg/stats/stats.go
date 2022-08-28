@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/ludusrusso/kannon/generated/pb"
+	types "github.com/ludusrusso/kannon/generated/pb/stats"
 	sq "github.com/ludusrusso/kannon/internal/stats_db"
 	"github.com/ludusrusso/kannon/internal/utils"
 	"github.com/sirupsen/logrus"
@@ -125,20 +126,50 @@ func handleErrors(ctx context.Context, js nats.JetStreamContext, q *sq.Queries) 
 					msg.Ack()
 					continue
 				}
-				err = q.InsertHardBounced(ctx, sq.InsertHardBouncedParams{
-					Email:     errMsg.Email,
-					MessageID: msgID,
-					Timestamp: errMsg.Timestamp.AsTime(),
-					Domain:    domain,
-					ErrCode:   int32(errMsg.Code),
-					ErrMsg:    errMsg.Msg,
+				storeBounce(ctx, q, errMsg.Email, msgID, domain, errMsg.Timestamp.AsTime(), &types.StatsDataBounced{
+					Permanent: errMsg.IsPermanent,
+					Code:      errMsg.Code,
+					Msg:       errMsg.Msg,
 				})
-				if err != nil {
-					logrus.Errorf("Cannot insert bounced: %v", err)
-				}
 			}
 			if err := msg.Ack(); err != nil {
 				logrus.Errorf("Cannot hack msg to nats: %v\n", err)
+			}
+		}
+	}
+}
+
+func handleSoftBounce(ctx context.Context, js nats.JetStreamContext, q *sq.Queries) {
+	con := utils.MustGetPullSubscriber(js, "kannon.stats.soft-bounce", "kannon-stats-soft-bounce-logs")
+	for {
+		msgs, err := con.Fetch(10, nats.MaxWait(10*time.Second))
+		if err != nil {
+			if err != nats.ErrTimeout {
+				logrus.Errorf("error fetching messages: %v", err)
+			}
+			continue
+		}
+		for _, msg := range msgs {
+			sMsg := pb.SoftBounce{}
+			err = proto.Unmarshal(msg.Data, &sMsg)
+			if err != nil {
+				logrus.Errorf("cannot marshal message %v", err.Error())
+			} else {
+				logrus.Printf("[🤷 soft bounce] %v %v - %d", sMsg.Email, sMsg.MessageId, sMsg.Code)
+				msgID, domain, err := utils.ExtractMsgIDAndDomain(sMsg.MessageId)
+				if err != nil {
+					logrus.Errorf("Cannot extract msgID and domain: %v", err)
+					msg.Ack()
+					continue
+				}
+				storeBounce(ctx, q, sMsg.Email, msgID, domain, sMsg.Timestamp.AsTime(), &types.StatsDataBounced{
+					Permanent: false,
+					Code:      sMsg.Code,
+					Msg:       sMsg.Msg,
+				})
+			}
+			if err := msg.Ack(); err != nil {
+				logrus.Errorf("Cannot hack msg to nats: %v", err)
 			}
 		}
 	}
@@ -167,15 +198,7 @@ func handleDelivereds(ctx context.Context, js nats.JetStreamContext, q *sq.Queri
 					msg.Ack()
 					continue
 				}
-				err = q.InsertAccepted(ctx, sq.InsertAcceptedParams{
-					Email:     deliveredMsg.Email,
-					MessageID: msgID,
-					Timestamp: deliveredMsg.Timestamp.AsTime(),
-					Domain:    domain,
-				})
-				if err != nil {
-					logrus.Errorf("Cannot insert delivered: %v", err)
-				}
+				storeDelivered(ctx, q, deliveredMsg.Email, msgID, domain, deliveredMsg.Timestamp.AsTime(), &types.StatsDataDelivered{})
 			}
 			if err := msg.Ack(); err != nil {
 				logrus.Errorf("Cannot hack msg to nats: %v", err)
@@ -207,17 +230,10 @@ func handleOpens(ctx context.Context, js nats.JetStreamContext, q *sq.Queries) {
 					msg.Ack()
 					continue
 				}
-				err = q.InsertOpen(ctx, sq.InsertOpenParams{
-					Email:     oMsg.Email,
-					MessageID: msgID,
-					Timestamp: oMsg.Timestamp.AsTime(),
-					Domain:    domain,
-					Ip:        oMsg.Ip,
+				storeOpened(ctx, q, oMsg.Email, msgID, domain, oMsg.Timestamp.AsTime(), &types.StatsDataOpened{
 					UserAgent: oMsg.UserAgent,
+					Ip:        oMsg.Ip,
 				})
-				if err != nil {
-					logrus.Errorf("Cannot insert open: %v", err)
-				}
 			}
 			if err := msg.Ack(); err != nil {
 				logrus.Errorf("Cannot hack msg to nats: %v", err)
@@ -249,18 +265,11 @@ func handleClicks(ctx context.Context, js nats.JetStreamContext, q *sq.Queries) 
 					msg.Ack()
 					continue
 				}
-				err = q.InsertClick(ctx, sq.InsertClickParams{
-					Email:     cMsg.Email,
-					MessageID: msgID,
-					Timestamp: cMsg.Timestamp.AsTime(),
-					Domain:    domain,
-					Ip:        cMsg.Ip,
+				storeClicked(ctx, q, cMsg.Email, msgID, domain, cMsg.Timestamp.AsTime(), &types.StatsDataClicked{
 					UserAgent: cMsg.UserAgent,
+					Ip:        cMsg.Ip,
 					Url:       cMsg.Url,
 				})
-				if err != nil {
-					logrus.Errorf("Cannot insert click: %v", err)
-				}
 			}
 			if err := msg.Ack(); err != nil {
 				logrus.Errorf("Cannot hack msg to nats: %v", err)
@@ -269,38 +278,48 @@ func handleClicks(ctx context.Context, js nats.JetStreamContext, q *sq.Queries) 
 	}
 }
 
-func handleSoftBounce(ctx context.Context, js nats.JetStreamContext, q *sq.Queries) {
-	con := utils.MustGetPullSubscriber(js, "kannon.stats.soft-bounce", "kannon-stats-soft-bounce-logs")
-	for {
-		msgs, err := con.Fetch(10, nats.MaxWait(10*time.Second))
-		if err != nil {
-			if err != nats.ErrTimeout {
-				logrus.Errorf("error fetching messages: %v", err)
-			}
-			continue
-		}
-		for _, msg := range msgs {
-			sMsg := pb.SoftBounce{}
-			err = proto.Unmarshal(msg.Data, &sMsg)
-			if err != nil {
-				logrus.Errorf("cannot marshal message %v", err.Error())
-			} else {
-				logrus.Printf("[🤷 soft bounce] %v %v - %d", sMsg.Email, sMsg.MessageId, sMsg.Code)
-				err = q.InsertSoftBounce(ctx, sq.InsertSoftBounceParams{
-					Email:     sMsg.Email,
-					MessageID: sMsg.MessageId,
-					Timestamp: sMsg.Timestamp.AsTime(),
-					Domain:    sMsg.Domain,
-					Code:      int32(sMsg.Code),
-					Msg:       sMsg.Msg,
-				})
-				if err != nil {
-					logrus.Errorf("Cannot insert soft bounce: %v", err)
-				}
-			}
-			if err := msg.Ack(); err != nil {
-				logrus.Errorf("Cannot hack msg to nats: %v", err)
-			}
-		}
+func storeBounce(ctx context.Context, q *sq.Queries, email, messageID, domain string, timestamp time.Time, data *types.StatsDataBounced) {
+	storeStat(ctx, q, sq.StatsTypeBounce, email, messageID, domain, timestamp, &types.StatsData{
+		Data: &types.StatsData_Bounced{
+			Bounced: data,
+		},
+	})
+}
+
+func storeDelivered(ctx context.Context, q *sq.Queries, email, messageID, domain string, timestamp time.Time, data *types.StatsDataDelivered) {
+	storeStat(ctx, q, sq.StatsTypeOpened, email, messageID, domain, timestamp, &types.StatsData{
+		Data: &types.StatsData_Delivered{
+			Delivered: data,
+		},
+	})
+}
+
+func storeOpened(ctx context.Context, q *sq.Queries, email, messageID, domain string, timestamp time.Time, data *types.StatsDataOpened) {
+	storeStat(ctx, q, sq.StatsTypeOpened, email, messageID, domain, timestamp, &types.StatsData{
+		Data: &types.StatsData_Opened{
+			Opened: data,
+		},
+	})
+}
+
+func storeClicked(ctx context.Context, q *sq.Queries, email, messageID, domain string, timestamp time.Time, data *types.StatsDataClicked) {
+	storeStat(ctx, q, sq.StatsTypeClicked, email, messageID, domain, timestamp, &types.StatsData{
+		Data: &types.StatsData_Clicked{
+			Clicked: data,
+		},
+	})
+}
+
+func storeStat(ctx context.Context, q *sq.Queries, stype sq.StatsType, email, messageID, domain string, timestamp time.Time, data *types.StatsData) {
+	err := q.InsertStat(ctx, sq.InsertStatParams{
+		Email:     email,
+		MessageID: messageID,
+		Timestamp: timestamp,
+		Domain:    domain,
+		Type:      stype,
+		Data:      data,
+	})
+	if err != nil {
+		logrus.Errorf("Cannot insert %v stat: %v", stype, err)
 	}
 }

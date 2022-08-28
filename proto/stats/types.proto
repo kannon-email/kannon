@@ -1,0 +1,50 @@
+syntax = "proto3";
+import "google/protobuf/timestamp.proto";
+
+package pkg.kannon.stats.types;
+
+option go_package = "github.com/schrodinger-hat/kannon/genereted/pb/stats/types";
+
+message Stats {
+  string id = 1;
+  string message_id = 2;
+  string domain = 3;
+  string email = 4;
+  string timestamp = 5;
+  string type = 6;
+  StatsData data = 7;
+}
+
+message StatsData {
+  oneof data {
+    StatsDataAccepted accepted = 1;
+    StatsDataDelivered delivered = 2;
+    StatsDataFailed failed = 3;
+    StatsDataBounced bounced = 4;
+    StatsDataOpened opened = 5;
+    StatsDataClicked clicked = 6;
+  }
+}
+
+message StatsDataAccepted {}
+
+message StatsDataDelivered {}
+
+message StatsDataFailed {}
+
+message StatsDataBounced {
+  bool permanent = 1;
+  uint32 code = 2;
+  string msg = 3;
+}
+
+message StatsDataOpened {
+  string user_agent = 1;
+  string ip = 2;
+}
+
+message StatsDataClicked {
+  string user_agent = 1;
+  string ip = 2;
+  string url = 3;
+}
