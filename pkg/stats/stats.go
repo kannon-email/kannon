@@ -37,7 +37,7 @@ func Run(ctx context.Context) {
 	wg.Add(6)
 
 	go func() {
-		handleErrors(ctx, js, q)
+		handleBounces(ctx, js, q)
 		wg.Done()
 	}()
 	go func() {
@@ -103,7 +103,7 @@ func handleSends(ctx context.Context, js nats.JetStreamContext, q *sq.Queries) {
 	}
 }
 
-func handleErrors(ctx context.Context, js nats.JetStreamContext, q *sq.Queries) {
+func handleBounces(ctx context.Context, js nats.JetStreamContext, q *sq.Queries) {
 	con := utils.MustGetPullSubscriber(js, "kannon.stats.error", "kannon-stats-error-logs")
 	for {
 		msgs, err := con.Fetch(10, nats.MaxWait(10*time.Second))

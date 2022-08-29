@@ -18,3 +18,4 @@ vendor
 .DS_Store
 
 .env
+.bin

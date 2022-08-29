@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	"github.com/ludusrusso/kannon/pkg/api"
-	"github.com/ludusrusso/kannon/pkg/bounce"
+	"github.com/ludusrusso/kannon/pkg/bump"
 	"github.com/ludusrusso/kannon/pkg/dispatcher"
 	"github.com/ludusrusso/kannon/pkg/sender"
 	"github.com/ludusrusso/kannon/pkg/smtp"
@@ -63,7 +63,7 @@ func run(cmd *cobra.Command, args []string) {
 	if viper.GetBool("run-bounce") {
 		wg.Add(1)
 		go func() {
-			bounce.Run(ctx)
+			bump.Run(ctx)
 			wg.Done()
 		}()
 	}

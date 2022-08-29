@@ -1,4 +1,4 @@
-package bounce
+package bump
 
 import (
 	"context"

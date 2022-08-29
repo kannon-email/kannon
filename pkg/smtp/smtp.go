@@ -81,7 +81,7 @@ func (s *Session) Data(r io.Reader) error {
 		Domain:    domain,
 	}
 
-	logrus.Infof("[🤷 got soft bounce] %vs - %d - %s", email, code, errMsg)
+	logrus.Infof("[🤷 got bounce] %vs - %d - %s", email, code, errMsg)
 
 	msg, err := proto.Marshal(m)
 	if err != nil {
