@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/ludusrusso/kannon/generated/pb"
-	types "github.com/ludusrusso/kannon/generated/pb/stats"
+	"github.com/ludusrusso/kannon/generated/pb/stats/types"
 	sq "github.com/ludusrusso/kannon/internal/stats_db"
 	"github.com/ludusrusso/kannon/internal/utils"
 	"github.com/sirupsen/logrus"

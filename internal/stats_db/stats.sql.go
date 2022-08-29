@@ -9,8 +9,27 @@ import (
 	"context"
 	"time"
 
-	pbtypes "github.com/ludusrusso/kannon/generated/pb/stats"
+	pbtypes "github.com/ludusrusso/kannon/generated/pb/stats/types"
 )
+
+const countQueryStats = `-- name: CountQueryStats :one
+SELECT COUNT(*) FROM stats 
+WHERE domain = $1 
+AND timestamp BETWEEN $2 AND $3
+`
+
+type CountQueryStatsParams struct {
+	Domain string
+	Start  time.Time
+	Stop   time.Time
+}
+
+func (q *Queries) CountQueryStats(ctx context.Context, arg CountQueryStatsParams) (int64, error) {
+	row := q.queryRow(ctx, q.countQueryStatsStmt, countQueryStats, arg.Domain, arg.Start, arg.Stop)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
 
 const insertPrepared = `-- name: InsertPrepared :exec
 INSERT INTO prepared (email, message_id, timestamp, first_timestamp, domain) VALUES ($1, $2, $3, $3, $4)
@@ -58,4 +77,56 @@ func (q *Queries) InsertStat(ctx context.Context, arg InsertStatParams) error {
 		arg.Data,
 	)
 	return err
+}
+
+const queryStats = `-- name: QueryStats :many
+SELECT id, type, email, message_id, domain, timestamp, data FROM stats 
+WHERE domain = $1 
+AND timestamp BETWEEN $2 AND $3
+LIMIT $5 OFFSET $4
+`
+
+type QueryStatsParams struct {
+	Domain string
+	Start  time.Time
+	Stop   time.Time
+	Skip   int32
+	Take   int32
+}
+
+func (q *Queries) QueryStats(ctx context.Context, arg QueryStatsParams) ([]Stat, error) {
+	rows, err := q.query(ctx, q.queryStatsStmt, queryStats,
+		arg.Domain,
+		arg.Start,
+		arg.Stop,
+		arg.Skip,
+		arg.Take,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Stat
+	for rows.Next() {
+		var i Stat
+		if err := rows.Scan(
+			&i.ID,
+			&i.Type,
+			&i.Email,
+			&i.MessageID,
+			&i.Domain,
+			&i.Timestamp,
+			&i.Data,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

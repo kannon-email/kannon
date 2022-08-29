@@ -24,17 +24,28 @@ func New(db DBTX) *Queries {
 func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	q := Queries{db: db}
 	var err error
+	if q.countQueryStatsStmt, err = db.PrepareContext(ctx, countQueryStats); err != nil {
+		return nil, fmt.Errorf("error preparing query CountQueryStats: %w", err)
+	}
 	if q.insertPreparedStmt, err = db.PrepareContext(ctx, insertPrepared); err != nil {
 		return nil, fmt.Errorf("error preparing query InsertPrepared: %w", err)
 	}
 	if q.insertStatStmt, err = db.PrepareContext(ctx, insertStat); err != nil {
 		return nil, fmt.Errorf("error preparing query InsertStat: %w", err)
 	}
+	if q.queryStatsStmt, err = db.PrepareContext(ctx, queryStats); err != nil {
+		return nil, fmt.Errorf("error preparing query QueryStats: %w", err)
+	}
 	return &q, nil
 }
 
 func (q *Queries) Close() error {
 	var err error
+	if q.countQueryStatsStmt != nil {
+		if cerr := q.countQueryStatsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing countQueryStatsStmt: %w", cerr)
+		}
+	}
 	if q.insertPreparedStmt != nil {
 		if cerr := q.insertPreparedStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing insertPreparedStmt: %w", cerr)
@@ -43,6 +54,11 @@ func (q *Queries) Close() error {
 	if q.insertStatStmt != nil {
 		if cerr := q.insertStatStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing insertStatStmt: %w", cerr)
+		}
+	}
+	if q.queryStatsStmt != nil {
+		if cerr := q.queryStatsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing queryStatsStmt: %w", cerr)
 		}
 	}
 	return err
@@ -82,17 +98,21 @@ func (q *Queries) queryRow(ctx context.Context, stmt *sql.Stmt, query string, ar
 }
 
 type Queries struct {
-	db                 DBTX
-	tx                 *sql.Tx
-	insertPreparedStmt *sql.Stmt
-	insertStatStmt     *sql.Stmt
+	db                  DBTX
+	tx                  *sql.Tx
+	countQueryStatsStmt *sql.Stmt
+	insertPreparedStmt  *sql.Stmt
+	insertStatStmt      *sql.Stmt
+	queryStatsStmt      *sql.Stmt
 }
 
 func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 	return &Queries{
-		db:                 tx,
-		tx:                 tx,
-		insertPreparedStmt: q.insertPreparedStmt,
-		insertStatStmt:     q.insertStatStmt,
+		db:                  tx,
+		tx:                  tx,
+		countQueryStatsStmt: q.countQueryStatsStmt,
+		insertPreparedStmt:  q.insertPreparedStmt,
+		insertStatStmt:      q.insertStatStmt,
+		queryStatsStmt:      q.queryStatsStmt,
 	}
 }

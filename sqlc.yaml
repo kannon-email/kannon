@@ -25,7 +25,7 @@ packages:
           type: "StatsType"
       - column: "stats.data"
         go_type:
-          import: "github.com/ludusrusso/kannon/generated/pb/stats"
+          import: "github.com/ludusrusso/kannon/generated/pb/stats/types"
           type: "StatsData"
           package: pbtypes 
           pointer: true

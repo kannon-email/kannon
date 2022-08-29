@@ -3,16 +3,15 @@ import "google/protobuf/timestamp.proto";
 
 package pkg.kannon.stats.types;
 
-option go_package = "github.com/schrodinger-hat/kannon/genereted/pb/stats/types";
+option go_package = "github.com/ludusrusso/kannon/generated/pb/stats/types";
 
 message Stats {
-  string id = 1;
-  string message_id = 2;
-  string domain = 3;
-  string email = 4;
-  string timestamp = 5;
-  string type = 6;
-  StatsData data = 7;
+  string message_id = 1;
+  string domain = 2;
+  string email = 3;
+  google.protobuf.Timestamp timestamp = 4;
+  string type = 5;
+  StatsData data = 6;
 }
 
 message StatsData {
