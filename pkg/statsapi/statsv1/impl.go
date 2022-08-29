@@ -16,7 +16,7 @@ func (a *api) GetStats(ctx context.Context, req *apiv1.GetStatsReq) (*apiv1.GetS
 	stats, err := a.q.QueryStats(ctx, sq.QueryStatsParams{
 		Domain: req.Domain,
 		Start:  req.FromDate.AsTime(),
-		Stop:   req.FromDate.AsTime(),
+		Stop:   req.ToDate.AsTime(),
 		Skip:   int32(req.Skip),
 		Take:   int32(req.Take),
 	})
@@ -27,7 +27,7 @@ func (a *api) GetStats(ctx context.Context, req *apiv1.GetStatsReq) (*apiv1.GetS
 	total, err := a.q.CountQueryStats(ctx, sq.CountQueryStatsParams{
 		Domain: req.Domain,
 		Start:  req.FromDate.AsTime(),
-		Stop:   req.FromDate.AsTime(),
+		Stop:   req.ToDate.AsTime(),
 	})
 	if err != nil {
 		return nil, err
