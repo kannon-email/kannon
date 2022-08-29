@@ -287,7 +287,7 @@ func storeBounce(ctx context.Context, q *sq.Queries, email, messageID, domain st
 }
 
 func storeDelivered(ctx context.Context, q *sq.Queries, email, messageID, domain string, timestamp time.Time, data *types.StatsDataDelivered) {
-	storeStat(ctx, q, sq.StatsTypeOpened, email, messageID, domain, timestamp, &types.StatsData{
+	storeStat(ctx, q, sq.StatsTypeDelivered, email, messageID, domain, timestamp, &types.StatsData{
 		Data: &types.StatsData_Delivered{
 			Delivered: data,
 		},
