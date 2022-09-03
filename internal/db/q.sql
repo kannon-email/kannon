@@ -7,25 +7,9 @@ INSERT INTO messages
     (message_id, subject, sender_email, sender_alias, template_id, domain) VALUES
     ($1, $2, $3, $4, $5, $6) RETURNING *;
 
--- name: CreatePool :exec
-INSERT INTO sending_pool_emails
-    (email, status, scheduled_time, original_scheduled_time, message_id)
-(
-    SELECT
-        email,
-        'scheduled',
-        @scheduled_time,
-        @scheduled_time,
-        @message_id
-    FROM
-        UNNEST(@emails::varchar[]) as email
-)
-RETURNING *;
-
 -- name: CreatePoolWithFields :exec
 INSERT INTO sending_pool_emails (email, status, scheduled_time, original_scheduled_time, message_id, fields) VALUES 
-    (@email, 'scheduled', @scheduled_time, @scheduled_time, @message_id, @fields);
-    
+    (@email, 'to_verify', @scheduled_time, @scheduled_time, @message_id, @fields);
 
 -- name: GetSendingData :one
 SELECT

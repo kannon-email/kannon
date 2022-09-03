@@ -9,7 +9,7 @@ import (
 	"context"
 	"time"
 
-	pbtypes "github.com/ludusrusso/kannon/generated/pb/stats/types"
+	pbtypes "github.com/ludusrusso/kannon/proto/kannon/stats/types"
 )
 
 const countQueryStats = `-- name: CountQueryStats :one

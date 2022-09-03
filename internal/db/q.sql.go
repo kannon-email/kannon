@@ -8,8 +8,6 @@ package sqlc
 import (
 	"context"
 	"time"
-
-	"github.com/lib/pq"
 )
 
 const createDomain = `-- name: CreateDomain :one
@@ -81,36 +79,9 @@ func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (M
 	return i, err
 }
 
-const createPool = `-- name: CreatePool :exec
-INSERT INTO sending_pool_emails
-    (email, status, scheduled_time, original_scheduled_time, message_id)
-(
-    SELECT
-        email,
-        'scheduled',
-        $1,
-        $1,
-        $2
-    FROM
-        UNNEST($3::varchar[]) as email
-)
-RETURNING id, status, scheduled_time, original_scheduled_time, send_attempts_cnt, email, message_id, error_msg, error_code, fields
-`
-
-type CreatePoolParams struct {
-	ScheduledTime time.Time
-	MessageID     string
-	Emails        []string
-}
-
-func (q *Queries) CreatePool(ctx context.Context, arg CreatePoolParams) error {
-	_, err := q.exec(ctx, q.createPoolStmt, createPool, arg.ScheduledTime, arg.MessageID, pq.Array(arg.Emails))
-	return err
-}
-
 const createPoolWithFields = `-- name: CreatePoolWithFields :exec
 INSERT INTO sending_pool_emails (email, status, scheduled_time, original_scheduled_time, message_id, fields) VALUES 
-    ($1, 'scheduled', $2, $2, $3, $4)
+    ($1, 'to_verify', $2, $2, $3, $4)
 `
 
 type CreatePoolWithFieldsParams struct {

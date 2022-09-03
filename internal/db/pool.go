@@ -6,6 +6,17 @@ import (
 	"fmt"
 )
 
+type SendingPoolStatus string
+
+const (
+	SendingPoolStatusInitializing SendingPoolStatus = "initializing"
+	SendingPoolStatusToVerify     SendingPoolStatus = "to_verify"
+	SendingPoolStatusSending      SendingPoolStatus = "sending"
+	SendingPoolStatusSent         SendingPoolStatus = "sent"
+	SendingPoolStatusScheduled    SendingPoolStatus = "scheduled"
+	SendingPoolStatusError        SendingPoolStatus = "error"
+)
+
 type CustomFields map[string]string
 
 func (c *CustomFields) Scan(src interface{}) error {

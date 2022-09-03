@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	schema "github.com/ludusrusso/kannon/db"
-	"github.com/ludusrusso/kannon/generated/pb"
 	sqlc "github.com/ludusrusso/kannon/internal/db"
 	"github.com/ludusrusso/kannon/internal/mailbuilder"
 	"github.com/ludusrusso/kannon/internal/pool"
@@ -19,17 +18,23 @@ import (
 	"github.com/ludusrusso/kannon/internal/tests"
 	"github.com/ludusrusso/kannon/pkg/api/adminapi"
 	"github.com/ludusrusso/kannon/pkg/api/mailapi"
+	pb "github.com/ludusrusso/kannon/proto/kannon/mailer/types"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	adminapiv1 "github.com/ludusrusso/kannon/proto/kannon/admin/apiv1"
+	mailerapiv1 "github.com/ludusrusso/kannon/proto/kannon/mailer/apiv1"
+
+	_ "github.com/lib/pq"
 )
 
 var db *sql.DB
 var q *sqlc.Queries
 var mb mailbuilder.MailBulder
-var ma pb.MailerServer
-var adminAPI pb.ApiServer
+var ma mailerapiv1.MailerServer
+var adminAPI adminapiv1.ApiServer
 var pm pool.SendingPoolManager
 
 func TestMain(m *testing.M) {
@@ -44,7 +49,7 @@ func TestMain(m *testing.M) {
 	q = sqlc.New(db)
 
 	mb = mailbuilder.NewMailBuilder(q, statssec.NewStatsService(q))
-	ma = mailapi.NewMailAPIService(q)
+	ma = mailapi.NewMailerAPIV1(q)
 	adminAPI = adminapi.CreateAdminAPIService(q)
 	pm = pool.NewSendingPoolManager(q)
 
@@ -59,7 +64,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestPrepareMail(t *testing.T) {
-	d, err := adminAPI.CreateDomain(context.Background(), &pb.CreateDomainRequest{
+	d, err := adminAPI.CreateDomain(context.Background(), &adminapiv1.CreateDomainRequest{
 		Domain: "test.com",
 	})
 	assert.Nil(t, err)
@@ -67,7 +72,7 @@ func TestPrepareMail(t *testing.T) {
 	token := base64.StdEncoding.EncodeToString([]byte(d.Domain + ":" + d.Key))
 	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Basic "+token))
 
-	_, err = ma.SendHTML(ctx, &pb.SendHTMLReq{
+	res, err := ma.SendHTML(ctx, &mailerapiv1.SendHTMLReq{
 		Sender: &pb.Sender{
 			Email: "test@test.com",
 			Alias: "Test",
@@ -86,11 +91,14 @@ func TestPrepareMail(t *testing.T) {
 	})
 	assert.Nil(t, err)
 
+	err = pm.SetScheduled(ctx, res.MessageId, "test@emailtest.com")
+	assert.Nil(t, err)
+
 	emails, err := pm.PrepareForSend(context.Background(), 1)
 	assert.Nil(t, err)
 	assert.Equal(t, 1, len(emails))
 
-	m, err := mb.PerpareForSend(context.Background(), emails[0])
+	m, err := mb.BuildEmail(context.Background(), emails[0])
 	assert.Nil(t, err)
 	parsed, err := mail.ReadMessage(bytes.NewReader(m.Body))
 	assert.Nil(t, err)

@@ -11,7 +11,7 @@ import (
 var extractMsgIDReg = regexp.MustCompile(`<.+\/(?P<messageId>.+)>`)
 var matchDomainReg = regexp.MustCompile(`.+@(?P<domain>.+)`)
 
-func matchDomain(messageID string) (domain string, err error) {
+func ExtractDomainFromMessageID(messageID string) (domain string, err error) {
 	match := matchDomainReg.FindStringSubmatch(messageID)
 	if len(match) != 2 {
 		return "", fmt.Errorf("invalid messageID: %v", messageID)
@@ -20,14 +20,14 @@ func matchDomain(messageID string) (domain string, err error) {
 	return
 }
 
-func ExtractMsgIDAndDomain(messageID string) (msgID string, domain string, err error) {
-	match := extractMsgIDReg.FindStringSubmatch(messageID)
+func ExtractMsgIDAndDomainFromEmailID(emailID string) (msgID string, domain string, err error) {
+	match := extractMsgIDReg.FindStringSubmatch(emailID)
 	if len(match) != 2 {
-		return "", "", fmt.Errorf("invalid messageID: %v", messageID)
+		return "", "", fmt.Errorf("invalid emailID: %v", emailID)
 	}
 	msgID = match[1]
 
-	domain, err = matchDomain(msgID)
+	domain, err = ExtractDomainFromMessageID(msgID)
 	if err != nil {
 		return "", "", err
 	}
@@ -58,7 +58,7 @@ func ParseBounceReturnPath(returnPath string) (email string, messageID string, d
 	}
 	email = string(emailBytes)
 
-	domain, err = matchDomain(messageID)
+	domain, err = ExtractDomainFromMessageID(messageID)
 	if err != nil {
 		return "", "", "", false, err
 	}

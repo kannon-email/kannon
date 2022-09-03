@@ -7,7 +7,7 @@ package sq
 import (
 	"time"
 
-	pbtypes "github.com/ludusrusso/kannon/generated/pb/stats/types"
+	pbtypes "github.com/ludusrusso/kannon/proto/kannon/stats/types"
 )
 
 type Accepted struct {

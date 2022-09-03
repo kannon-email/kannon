@@ -6,8 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ludusrusso/kannon/generated/pb"
+	pb "github.com/ludusrusso/kannon/proto/kannon/admin/apiv1"
 	"github.com/stretchr/testify/assert"
+
+	_ "github.com/lib/pq"
 )
 
 func TestCreateTemplate(t *testing.T) {

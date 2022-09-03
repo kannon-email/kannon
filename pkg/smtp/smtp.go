@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/emersion/go-smtp"
-	"github.com/ludusrusso/kannon/generated/pb"
 	"github.com/ludusrusso/kannon/internal/utils"
+	st "github.com/ludusrusso/kannon/proto/kannon/stats/types"
 	"github.com/nats-io/nats.go"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
@@ -71,14 +71,20 @@ func (s *Session) Data(r io.Reader) error {
 
 	code, errMsg := parseCode(emailmsg.Body)
 
-	m := &pb.SoftBounce{
+	m := &st.Stats{
 		MessageId: messageID,
 		Email:     email,
-		From:      s.From,
-		Code:      uint32(code),
-		Msg:       errMsg,
 		Timestamp: timestamppb.Now(),
 		Domain:    domain,
+		Data: &st.StatsData{
+			Data: &st.StatsData_Bounced{
+				Bounced: &st.StatsDataBounced{
+					Permanent: true,
+					Code:      uint32(code),
+					Msg:       errMsg,
+				},
+			},
+		},
 	}
 
 	logrus.Infof("[🤷 got bounce] %vs - %d - %s", email, code, errMsg)

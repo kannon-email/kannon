@@ -10,51 +10,6 @@ import (
 	"time"
 )
 
-type SendingPoolStatus string
-
-const (
-	SendingPoolStatusInitializing SendingPoolStatus = "initializing"
-	SendingPoolStatusSending      SendingPoolStatus = "sending"
-	SendingPoolStatusSent         SendingPoolStatus = "sent"
-	SendingPoolStatusScheduled    SendingPoolStatus = "scheduled"
-	SendingPoolStatusError        SendingPoolStatus = "error"
-)
-
-func (e *SendingPoolStatus) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = SendingPoolStatus(s)
-	case string:
-		*e = SendingPoolStatus(s)
-	default:
-		return fmt.Errorf("unsupported scan type for SendingPoolStatus: %T", src)
-	}
-	return nil
-}
-
-type NullSendingPoolStatus struct {
-	SendingPoolStatus SendingPoolStatus
-	Valid             bool // Valid is true if String is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullSendingPoolStatus) Scan(value interface{}) error {
-	if value == nil {
-		ns.SendingPoolStatus, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.SendingPoolStatus.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullSendingPoolStatus) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return ns.SendingPoolStatus, nil
-}
-
 type TemplateType string
 
 const (
@@ -117,7 +72,6 @@ type Message struct {
 
 type SendingPoolEmail struct {
 	ID                    int32
-	Status                SendingPoolStatus
 	ScheduledTime         time.Time
 	OriginalScheduledTime time.Time
 	SendAttemptsCnt       int32
@@ -126,6 +80,7 @@ type SendingPoolEmail struct {
 	ErrorMsg              string
 	ErrorCode             int32
 	Fields                CustomFields
+	Status                SendingPoolStatus
 }
 
 type StatsKey struct {

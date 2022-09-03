@@ -7,12 +7,14 @@ import (
 	"testing"
 
 	schema "github.com/ludusrusso/kannon/db"
-	"github.com/ludusrusso/kannon/generated/pb"
 	sqlc "github.com/ludusrusso/kannon/internal/db"
 	"github.com/ludusrusso/kannon/internal/tests"
 	"github.com/ludusrusso/kannon/pkg/api/adminapi"
+	pb "github.com/ludusrusso/kannon/proto/kannon/admin/apiv1"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+
+	_ "github.com/lib/pq"
 )
 
 var db *sql.DB

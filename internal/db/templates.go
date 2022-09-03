@@ -1,6 +1,6 @@
 package sqlc
 
-import "github.com/ludusrusso/kannon/generated/pb"
+import pb "github.com/ludusrusso/kannon/proto/kannon/admin/apiv1"
 
 func (t Template) Pb() *pb.Template {
 	return &pb.Template{

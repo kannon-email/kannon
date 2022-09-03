@@ -11,6 +11,8 @@ import (
 	schema "github.com/ludusrusso/kannon/stats_db"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+
+	_ "github.com/lib/pq"
 )
 
 var db *sql.DB

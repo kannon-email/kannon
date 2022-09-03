@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ludusrusso/kannon/generated/pb"
 	sqlc "github.com/ludusrusso/kannon/internal/db"
 	"github.com/ludusrusso/kannon/internal/domains"
 	"github.com/ludusrusso/kannon/internal/pool"
 	"github.com/ludusrusso/kannon/internal/templates"
+	pb "github.com/ludusrusso/kannon/proto/kannon/mailer/apiv1"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -126,7 +126,7 @@ func (s mailAPIService) getCallDomainFromContext(ctx context.Context) (sqlc.Doma
 	return domain, nil
 }
 
-func NewMailAPIService(q *sqlc.Queries) pb.MailerServer {
+func NewMailerAPIV1(q *sqlc.Queries) pb.MailerServer {
 	domainsCli := domains.NewDomainManager(q)
 
 	sendingPoolCli := pool.NewSendingPoolManager(q)

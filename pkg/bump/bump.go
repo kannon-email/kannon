@@ -8,10 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ludusrusso/kannon/generated/pb"
 	sqlc "github.com/ludusrusso/kannon/internal/db"
+	sq "github.com/ludusrusso/kannon/internal/stats_db"
 	"github.com/ludusrusso/kannon/internal/statssec"
 	"github.com/ludusrusso/kannon/internal/utils"
+	pb "github.com/ludusrusso/kannon/proto/kannon/stats/types"
 	"github.com/nats-io/nats.go"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
@@ -52,12 +53,27 @@ func Run(ctx context.Context) {
 			logrus.Errorf("cannot verify open token: %v", err)
 			return
 		}
+		domain, err := utils.ExtractDomainFromMessageID(claims.MessageID)
+		if err != nil {
+			logrus.Errorf("cannot verify open token: %v", err)
+			http.NotFound(w, r)
+			return
+		}
+
 		ip := readUserIP(r)
-		data := &pb.Open{
+		data := &pb.Stats{
 			MessageId: claims.MessageID,
 			Email:     claims.Email,
-			Ip:        ip,
-			UserAgent: r.UserAgent(),
+			Data: &pb.StatsData{
+				Data: &pb.StatsData_Opened{
+					Opened: &pb.StatsDataOpened{
+						UserAgent: r.UserAgent(),
+						Ip:        ip,
+					},
+				},
+			},
+			Domain:    domain,
+			Type:      string(sq.StatsTypeOpened),
 			Timestamp: timestamppb.Now(),
 		}
 		msg, err := proto.Marshal(data)
@@ -88,13 +104,28 @@ func Run(ctx context.Context) {
 			http.Redirect(w, r, claims.URL, http.StatusTemporaryRedirect)
 		}()
 
+		domain, err := utils.ExtractDomainFromMessageID(claims.MessageID)
+		if err != nil {
+			logrus.Errorf("cannot verify open token: %v", err)
+			http.NotFound(w, r)
+			return
+		}
+
 		ip := readUserIP(r)
-		data := &pb.Click{
+		data := &pb.Stats{
 			MessageId: claims.MessageID,
 			Email:     claims.Email,
-			Ip:        ip,
-			UserAgent: r.UserAgent(),
-			Url:       claims.URL,
+			Domain:    domain,
+			Data: &pb.StatsData{
+				Data: &pb.StatsData_Clicked{
+					Clicked: &pb.StatsDataClicked{
+						UserAgent: r.UserAgent(),
+						Ip:        ip,
+						Url:       claims.URL,
+					},
+				},
+			},
+			Type:      string(sq.StatsTypeClicked),
 			Timestamp: timestamppb.Now(),
 		}
 		msg, err := proto.Marshal(data)

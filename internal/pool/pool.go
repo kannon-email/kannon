@@ -2,11 +2,12 @@ package pool
 
 import (
 	"context"
+	"math"
 	"time"
 
-	"github.com/ludusrusso/kannon/generated/pb"
 	sqlc "github.com/ludusrusso/kannon/internal/db"
 	"github.com/ludusrusso/kannon/internal/utils"
+	pb "github.com/ludusrusso/kannon/proto/kannon/mailer/types"
 )
 
 type Sender struct {
@@ -18,8 +19,10 @@ type Sender struct {
 type SendingPoolManager interface {
 	AddRecipientsPool(ctx context.Context, template sqlc.Template, recipents []*pb.Recipient, from Sender, scheduled time.Time, subject string, domain string) (sqlc.Message, error)
 	PrepareForSend(ctx context.Context, max uint) ([]sqlc.SendingPoolEmail, error)
-	SetError(ctx context.Context, messageID string, email string, errMsg string) error
-	SetDelivered(ctx context.Context, messageID string, email string) error
+	GetToVerify(ctx context.Context, max uint) ([]sqlc.SendingPoolEmail, error)
+	SetScheduled(ctx context.Context, messageID string, email string) error
+	RescheduleEmail(ctx context.Context, messageID string, email string) error
+	CleanEmail(ctx context.Context, messageID string, email string) error
 }
 
 type sendingPoolManager struct {
@@ -58,26 +61,39 @@ func (m *sendingPoolManager) PrepareForSend(ctx context.Context, max uint) ([]sq
 	return m.db.PrepareForSend(ctx, int32(max))
 }
 
-func (m *sendingPoolManager) SetError(ctx context.Context, messageID string, email string, errMsg string) error {
-	msgID, _, err := utils.ExtractMsgIDAndDomain(messageID)
-	if err != nil {
-		return err
-	}
-	return m.db.SetSendingPoolError(ctx, sqlc.SetSendingPoolErrorParams{
+func (m *sendingPoolManager) GetToVerify(ctx context.Context, max uint) ([]sqlc.SendingPoolEmail, error) {
+	return m.db.GetToVerify(ctx, int32(max))
+}
+
+func (m *sendingPoolManager) CleanEmail(ctx context.Context, messageID string, email string) error {
+	return m.db.CleanPool(ctx, sqlc.CleanPoolParams{
 		Email:     email,
-		MessageID: msgID,
-		ErrorMsg:  errMsg,
+		MessageID: messageID,
 	})
 }
 
-func (m *sendingPoolManager) SetDelivered(ctx context.Context, messageID string, email string) error {
-	msgID, _, err := utils.ExtractMsgIDAndDomain(messageID)
+func (m *sendingPoolManager) SetScheduled(ctx context.Context, messageID string, email string) error {
+	return m.db.SetSendingPoolScheduled(ctx, sqlc.SetSendingPoolScheduledParams{
+		Email:     email,
+		MessageID: messageID,
+	})
+}
+
+func (m *sendingPoolManager) RescheduleEmail(ctx context.Context, messageID string, email string) error {
+	pool, err := m.db.GetPool(ctx, sqlc.GetPoolParams{
+		Email:     email,
+		MessageID: messageID,
+	})
 	if err != nil {
 		return err
 	}
-	return m.db.SetSendingPoolDelivered(ctx, sqlc.SetSendingPoolDeliveredParams{
-		Email:     email,
-		MessageID: msgID,
+
+	rescheduleDelay := 2 * time.Minute * time.Duration(math.Pow(2, float64(pool.SendAttemptsCnt)))
+
+	return m.db.ReschedulePool(ctx, sqlc.ReschedulePoolParams{
+		Email:         email,
+		MessageID:     messageID,
+		ScheduledTime: pool.OriginalScheduledTime.Add(rescheduleDelay),
 	})
 }
 

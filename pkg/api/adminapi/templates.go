@@ -3,7 +3,7 @@ package adminapi
 import (
 	"context"
 
-	"github.com/ludusrusso/kannon/generated/pb"
+	pb "github.com/ludusrusso/kannon/proto/kannon/admin/apiv1"
 )
 
 func (s *adminAPIService) CreateTemplate(ctx context.Context, req *pb.CreateTemplateReq) (*pb.CreateTemplateRes, error) {

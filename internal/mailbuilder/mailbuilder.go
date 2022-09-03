@@ -8,17 +8,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ludusrusso/kannon/generated/pb"
 	sqlc "github.com/ludusrusso/kannon/internal/db"
 	"github.com/ludusrusso/kannon/internal/dkim"
 	"github.com/ludusrusso/kannon/internal/pool"
 	"github.com/ludusrusso/kannon/internal/statssec"
+	pb "github.com/ludusrusso/kannon/proto/kannon/mailer/types"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/mail.v2"
 )
 
 type MailBulder interface {
-	PerpareForSend(ctx context.Context, email sqlc.SendingPoolEmail) (pb.EmailToSend, error)
+	BuildEmail(ctx context.Context, email sqlc.SendingPoolEmail) (*pb.EmailToSend, error)
 }
 
 // NewMailBuilder creates an SMTP mailer
@@ -38,10 +38,10 @@ type mailBuilder struct {
 	st      statssec.StatsService
 }
 
-func (m *mailBuilder) PerpareForSend(ctx context.Context, email sqlc.SendingPoolEmail) (pb.EmailToSend, error) {
+func (m *mailBuilder) BuildEmail(ctx context.Context, email sqlc.SendingPoolEmail) (*pb.EmailToSend, error) {
 	emailData, err := m.db.GetSendingData(ctx, email.MessageID)
 	if err != nil {
-		return pb.EmailToSend{}, err
+		return nil, err
 	}
 
 	sender := pool.Sender{
@@ -52,25 +52,25 @@ func (m *mailBuilder) PerpareForSend(ctx context.Context, email sqlc.SendingPool
 	returnPath := buildReturnPath(email.Email, emailData.MessageID)
 	msg, err := m.prepareMessage(ctx, sender, emailData.Subject, email.Email, emailData.Domain, emailData.MessageID, emailData.Html, m.headers, email.Fields)
 	if err != nil {
-		return pb.EmailToSend{}, err
+		return nil, err
 	}
 
 	signedMsg, err := signMessage(emailData.Domain, emailData.DkimPrivateKey, msg)
 	if err != nil {
-		return pb.EmailToSend{}, err
+		return nil, err
 	}
 
-	return pb.EmailToSend{
+	return &pb.EmailToSend{
 		From:       emailData.SenderEmail,
 		ReturnPath: returnPath,
 		To:         email.Email,
 		Body:       signedMsg,
-		MessageId:  buildEmailMessageID(email.Email, emailData.MessageID),
+		EmailId:    buildEmailID(email.Email, emailData.MessageID),
 	}, nil
 }
 
 func (m *mailBuilder) prepareMessage(ctx context.Context, sender pool.Sender, subject string, to string, domain string, messageID string, html string, baseHeaders headers, fields map[string]string) ([]byte, error) {
-	emailMessageID := buildEmailMessageID(to, messageID)
+	emailMessageID := buildEmailID(to, messageID)
 	html, err := m.preparedHTML(ctx, html, to, domain, emailMessageID, fields)
 	if err != nil {
 		return nil, err
@@ -156,8 +156,8 @@ func (m *mailBuilder) buildTrackClickLink(ctx context.Context, url string, email
 	if err != nil {
 		return "", err
 	}
-	turl := "https://stats." + domain + "/c/" + token
-	return turl, nil
+
+	return fmt.Sprintf("https://stats.%v/c/%v", domain, token), nil
 }
 
 func (m *mailBuilder) buildTrackOpenLink(ctx context.Context, email string, messageID string, domain string) (string, error) {
@@ -165,8 +165,8 @@ func (m *mailBuilder) buildTrackOpenLink(ctx context.Context, email string, mess
 	if err != nil {
 		return "", err
 	}
-	url := "https://stats." + domain + "/o/" + token
-	return url, nil
+
+	return fmt.Sprintf("https://stats.%v/o/%v", domain, token), nil
 }
 
 func insertTrackLinkInHTML(html string, link string) string {
@@ -181,7 +181,6 @@ func replaceLinks(html string, replace func(link string) (string, error)) (strin
 		if len(match) != 2 {
 			continue
 		}
-		logrus.Infof("🤢 Replacing link: %s\n", match[0])
 		link := match[1]
 		newLink, err := replace(link)
 		if err != nil {

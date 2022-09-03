@@ -3,16 +3,16 @@ package statsv1
 import (
 	"context"
 
-	"github.com/ludusrusso/kannon/generated/pb/stats/apiv1"
-	"github.com/ludusrusso/kannon/generated/pb/stats/types"
 	sq "github.com/ludusrusso/kannon/internal/stats_db"
+	"github.com/ludusrusso/kannon/proto/kannon/stats/apiv1"
+	"github.com/ludusrusso/kannon/proto/kannon/stats/types"
 )
 
-type api struct {
+type a struct {
 	q *sq.Queries
 }
 
-func (a *api) GetStats(ctx context.Context, req *apiv1.GetStatsReq) (*apiv1.GetStatsRes, error) {
+func (a *a) GetStats(ctx context.Context, req *apiv1.GetStatsReq) (*apiv1.GetStatsRes, error) {
 	stats, err := a.q.QueryStats(ctx, sq.QueryStatsParams{
 		Domain: req.Domain,
 		Start:  req.FromDate.AsTime(),
