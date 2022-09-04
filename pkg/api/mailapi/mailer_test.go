@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	sqlc "github.com/ludusrusso/kannon/internal/db"
 	"github.com/stretchr/testify/assert"
@@ -17,6 +18,8 @@ func TestInsertMail(t *testing.T) {
 	d := createTestDomain(t)
 
 	ctx := getDomainCtx(d)
+
+	schedTime := time.Now().Add(10 * time.Minute)
 
 	res, err := ts.SendHTML(ctx, &mailerv1.SendHTMLReq{
 		Sender: &types.Sender{
@@ -33,7 +36,7 @@ func TestInsertMail(t *testing.T) {
 		},
 		Subject:       "Test",
 		Html:          "Hello {{ name }}",
-		ScheduledTime: timestamppb.Now(),
+		ScheduledTime: timestamppb.New(schedTime),
 	})
 	assert.Nil(t, err)
 	assert.NotEmpty(t, res.MessageId)
@@ -51,5 +54,7 @@ func TestInsertMail(t *testing.T) {
 	assert.Equal(t, "test@email.com", sp[0].Email)
 	assert.Equal(t, sqlc.SendingPoolStatusToVerify, sp[0].Status)
 	assert.Equal(t, "Test", sp[0].Fields["name"])
+
+	assert.Equal(t, schedTime.UTC(), sp[0].ScheduledTime.UTC())
 	cleanDB(t)
 }

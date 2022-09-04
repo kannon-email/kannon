@@ -45,9 +45,10 @@ func (m *sendingPoolManager) AddRecipientsPool(ctx context.Context, template sql
 
 	for _, r := range recipents {
 		err = m.db.CreatePoolWithFields(ctx, sqlc.CreatePoolWithFieldsParams{
-			MessageID: msg.MessageID,
-			Email:     r.Email,
-			Fields:    r.Fields,
+			MessageID:     msg.MessageID,
+			Email:         r.Email,
+			Fields:        r.Fields,
+			ScheduledTime: scheduled,
 		})
 		if err != nil {
 			return sqlc.Message{}, err
