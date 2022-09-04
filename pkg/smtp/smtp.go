@@ -3,12 +3,10 @@ package smtp
 import (
 	"bufio"
 	"context"
-	"errors"
 	"io"
 	"net/mail"
 	"regexp"
 	"strconv"
-	"time"
 
 	"github.com/emersion/go-smtp"
 	"github.com/ludusrusso/kannon/internal/utils"
@@ -126,8 +124,7 @@ func Run(ctx context.Context) {
 	maxPayload := viper.GetSizeInBytes("smtp.max_payload")
 	maxRecipients := viper.GetInt("smtp.max_recipients")
 
-	nc, js, closeNats := utils.MustGetNats(natsURL)
-	mustConfigureSoftBounceJS(js)
+	nc, _, closeNats := utils.MustGetNats(natsURL)
 	defer closeNats()
 
 	be := &Backend{
@@ -153,27 +150,6 @@ func Run(ctx context.Context) {
 	}()
 
 	<-ctx.Done()
-}
-
-func mustConfigureSoftBounceJS(js nats.JetStreamContext) {
-	confs := nats.StreamConfig{
-		Name:        "kannon-stats-soft-bounce",
-		Description: "Email Soft Bounce for Kannon",
-		Replicas:    1,
-		Subjects:    []string{"kannon.stats.soft-bounce"},
-		Retention:   nats.LimitsPolicy,
-		Duplicates:  10 * time.Minute,
-		MaxAge:      24 * time.Hour,
-		Storage:     nats.FileStorage,
-		Discard:     nats.DiscardOld,
-	}
-	info, err := js.AddStream(&confs)
-	if errors.Is(err, nats.ErrStreamNameAlreadyInUse) {
-		logrus.Infof("stream exists")
-	} else if err != nil {
-		logrus.Fatalf("cannot create js stream: %v", err)
-	}
-	logrus.Infof("created js stream: %v", info)
 }
 
 var parseMessageReg = regexp.MustCompile(`^Diagnostic-Code: (SMTP; ([0-9]+) .*$)`)

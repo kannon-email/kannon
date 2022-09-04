@@ -149,10 +149,10 @@ func handleSendError(sendErr smtp.SenderError, data *msgtypes.EmailToSend, nc *n
 
 func mustConfigureJS(js nats.JetStreamContext) {
 	confs := nats.StreamConfig{
-		Name:        "kannon-stats-delivered",
+		Name:        "kannon-stats",
 		Description: "Email Stats for Kannon",
 		Replicas:    1,
-		Subjects:    []string{"kannon.stats.delivered"},
+		Subjects:    []string{"kannon.stats.*"},
 		Retention:   nats.LimitsPolicy,
 		Duplicates:  10 * time.Minute,
 		MaxAge:      24 * time.Hour,
@@ -160,25 +160,6 @@ func mustConfigureJS(js nats.JetStreamContext) {
 		Discard:     nats.DiscardOld,
 	}
 	info, err := js.AddStream(&confs)
-	if errors.Is(err, nats.ErrStreamNameAlreadyInUse) {
-		logrus.Infof("stream exists\n")
-	} else if err != nil {
-		logrus.Fatalf("cannot create js stream: %v", err)
-	}
-	logrus.Infof("created js stream: %v", info)
-
-	confs = nats.StreamConfig{
-		Name:        "kannon-stats-error",
-		Description: "Email Stats for Kannon",
-		Replicas:    1,
-		Subjects:    []string{"kannon.stats.error"},
-		Retention:   nats.LimitsPolicy,
-		Duplicates:  10 * time.Minute,
-		MaxAge:      24 * time.Hour,
-		Storage:     nats.FileStorage,
-		Discard:     nats.DiscardOld,
-	}
-	info, err = js.AddStream(&confs)
 	if errors.Is(err, nats.ErrStreamNameAlreadyInUse) {
 		logrus.Infof("stream exists\n")
 	} else if err != nil {
