@@ -63,7 +63,7 @@ func (d *Verifier) Cycle(pctx context.Context) error {
 		return fmt.Errorf("cannot prepare emails for send: %v", err)
 	}
 	for _, pool := range poolEmails {
-		if err := d.handlePool(pool); err != nil {
+		if err := d.handlePool(ctx, pool); err != nil {
 			logrus.Errorf("error handling pool email: %#v", pool)
 		}
 	}
@@ -71,7 +71,7 @@ func (d *Verifier) Cycle(pctx context.Context) error {
 	return nil
 }
 
-func (d *Verifier) handlePool(pool sqlc.SendingPoolEmail) error {
+func (d *Verifier) handlePool(ctx context.Context, pool sqlc.SendingPoolEmail) error {
 	domain := strings.Split(pool.MessageID, "@")[1]
 	statData := &types.Stats{
 		MessageId: pool.MessageID,
@@ -83,9 +83,13 @@ func (d *Verifier) handlePool(pool sqlc.SendingPoolEmail) error {
 	err := verifyPool(pool)
 	if err != nil {
 		statData.Data = newRejectedStatData(err)
-	} else {
-		statData.Data = newAcceptedStatData()
+		return publisher.PublishStat(d.pub, statData)
 	}
+	if err := d.pm.SetScheduled(ctx, pool.MessageID, pool.Email); err != nil {
+		return err
+	}
+
+	statData.Data = newAcceptedStatData()
 	return publisher.PublishStat(d.pub, statData)
 }
 

@@ -49,28 +49,32 @@ func Run(ctx context.Context) {
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(5)
 
+	wg.Add(1)
 	go func() {
 		d.handleErrors(ctx)
 		wg.Done()
 	}()
 
+	wg.Add(1)
 	go func() {
 		d.handleDelivereds(ctx)
 		wg.Done()
 	}()
 
+	wg.Add(1)
 	go func() {
 		d.handleBounced(ctx)
 		wg.Done()
 	}()
 
+	wg.Add(1)
 	go func() {
 		d.handleRejected(ctx)
 		wg.Done()
 	}()
 
+	wg.Add(1)
 	go func() {
 		err := runner.Run(ctx, d.DispatchCycle)
 		if err != nil {
