@@ -33,7 +33,7 @@ func Run(ctx context.Context, loop loopFunc, confOptions ...RunOpts) error {
 
 func buildOptions(opts []RunOpts) runOpts {
 	o := runOpts{
-		loopWait: 10 * time.Millisecond,
+		loopWait: 10 * time.Second,
 	}
 	for _, opt := range opts {
 		if opt == nil {

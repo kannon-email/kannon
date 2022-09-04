@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"regexp"
-	"strings"
 	"time"
 
 	sqlc "github.com/ludusrusso/kannon/internal/db"
@@ -52,7 +51,7 @@ func Run(ctx context.Context) error {
 		pub: nc,
 	}
 
-	return runner.Run(ctx, v.Cycle, runner.WaitLoop(10*time.Second))
+	return runner.Run(ctx, v.Cycle, runner.WaitLoop(1*time.Second))
 }
 
 func (d *Verifier) Cycle(pctx context.Context) error {
@@ -72,7 +71,10 @@ func (d *Verifier) Cycle(pctx context.Context) error {
 }
 
 func (d *Verifier) handlePool(ctx context.Context, pool sqlc.SendingPoolEmail) error {
-	domain := strings.Split(pool.MessageID, "@")[1]
+	domain, err := utils.ExtractDomainFromMessageID(pool.MessageID)
+	if err != nil {
+		return err
+	}
 	statData := &types.Stats{
 		MessageId: pool.MessageID,
 		Domain:    domain,
@@ -80,8 +82,7 @@ func (d *Verifier) handlePool(ctx context.Context, pool sqlc.SendingPoolEmail) e
 		Timestamp: timestamppb.Now(),
 	}
 
-	err := verifyPool(pool)
-	if err != nil {
+	if err := verifyPool(pool); err != nil {
 		statData.Data = newRejectedStatData(err)
 		if err := d.pm.CleanEmail(ctx, pool.MessageID, pool.Email); err != nil {
 			return err

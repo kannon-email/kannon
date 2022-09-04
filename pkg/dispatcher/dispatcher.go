@@ -70,7 +70,7 @@ func Run(ctx context.Context) {
 
 	wg.Add(1)
 	go func() {
-		err := runner.Run(ctx, d.DispatchCycle)
+		err := runner.Run(ctx, d.DispatchCycle, runner.WaitLoop(1*time.Second))
 		if err != nil {
 			logrus.Fatalf("error in runner, %v", err)
 		}
