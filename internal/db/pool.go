@@ -10,7 +10,8 @@ type SendingPoolStatus string
 
 const (
 	SendingPoolStatusInitializing SendingPoolStatus = "initializing"
-	SendingPoolStatusToVerify     SendingPoolStatus = "to_verify"
+	SendingPoolStatusToValidate   SendingPoolStatus = "to_validate"
+	SendingPoolStatusValidating   SendingPoolStatus = "validating"
 	SendingPoolStatusSending      SendingPoolStatus = "sending"
 	SendingPoolStatusSent         SendingPoolStatus = "sent"
 	SendingPoolStatusScheduled    SendingPoolStatus = "scheduled"

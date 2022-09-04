@@ -97,14 +97,20 @@ func (q *Queries) GetSendingPoolsEmails(ctx context.Context, arg GetSendingPools
 	return items, nil
 }
 
-const getToVerify = `-- name: GetToVerify :many
-SELECT id, scheduled_time, original_scheduled_time, send_attempts_cnt, email, message_id, error_msg, error_code, fields, status FROM sending_pool_emails
-    WHERE status = 'to_verify' ORDER BY scheduled_time asc
-    LIMIT $1
+const prepareForSend = `-- name: PrepareForSend :many
+UPDATE sending_pool_emails AS sp
+    SET status = 'sending'
+    FROM (
+            SELECT id FROM sending_pool_emails
+            WHERE scheduled_time <= NOW() AND status = 'scheduled'
+            LIMIT $1
+        ) AS t
+    WHERE sp.id = t.id
+    RETURNING sp.id, sp.scheduled_time, sp.original_scheduled_time, sp.send_attempts_cnt, sp.email, sp.message_id, sp.error_msg, sp.error_code, sp.fields, sp.status
 `
 
-func (q *Queries) GetToVerify(ctx context.Context, limit int32) ([]SendingPoolEmail, error) {
-	rows, err := q.query(ctx, q.getToVerifyStmt, getToVerify, limit)
+func (q *Queries) PrepareForSend(ctx context.Context, limit int32) ([]SendingPoolEmail, error) {
+	rows, err := q.query(ctx, q.prepareForSendStmt, prepareForSend, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -137,20 +143,20 @@ func (q *Queries) GetToVerify(ctx context.Context, limit int32) ([]SendingPoolEm
 	return items, nil
 }
 
-const prepareForSend = `-- name: PrepareForSend :many
+const prepareForValidate = `-- name: PrepareForValidate :many
 UPDATE sending_pool_emails AS sp
-    SET status = 'sending'
+    SET status = 'validating'
     FROM (
             SELECT id FROM sending_pool_emails
-            WHERE scheduled_time <= NOW() AND status = 'scheduled'
+            WHERE scheduled_time <= NOW() AND status = 'to_validate'
             LIMIT $1
         ) AS t
     WHERE sp.id = t.id
     RETURNING sp.id, sp.scheduled_time, sp.original_scheduled_time, sp.send_attempts_cnt, sp.email, sp.message_id, sp.error_msg, sp.error_code, sp.fields, sp.status
 `
 
-func (q *Queries) PrepareForSend(ctx context.Context, limit int32) ([]SendingPoolEmail, error) {
-	rows, err := q.query(ctx, q.prepareForSendStmt, prepareForSend, limit)
+func (q *Queries) PrepareForValidate(ctx context.Context, limit int32) ([]SendingPoolEmail, error) {
+	rows, err := q.query(ctx, q.prepareForValidateStmt, prepareForValidate, limit)
 	if err != nil {
 		return nil, err
 	}

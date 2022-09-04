@@ -9,10 +9,16 @@ UPDATE sending_pool_emails AS sp
     WHERE sp.id = t.id
     RETURNING sp.*;
 
--- name: GetToVerify :many
-SELECT * FROM sending_pool_emails
-    WHERE status = 'to_verify' ORDER BY scheduled_time asc
-    LIMIT $1;
+-- name: PrepareForValidate :many
+UPDATE sending_pool_emails AS sp
+    SET status = 'validating'
+    FROM (
+            SELECT id FROM sending_pool_emails
+            WHERE scheduled_time <= NOW() AND status = 'to_validate'
+            LIMIT $1
+        ) AS t
+    WHERE sp.id = t.id
+    RETURNING sp.*;
 
 -- name: SetSendingPoolDelivered :exec
 UPDATE sending_pool_emails 

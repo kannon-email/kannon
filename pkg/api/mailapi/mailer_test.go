@@ -52,7 +52,7 @@ func TestInsertMail(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, 1, len(sp))
 	assert.Equal(t, "test@email.com", sp[0].Email)
-	assert.Equal(t, sqlc.SendingPoolStatusToVerify, sp[0].Status)
+	assert.Equal(t, sqlc.SendingPoolStatusToValidate, sp[0].Status)
 	assert.Equal(t, "Test", sp[0].Fields["name"])
 
 	assert.Equal(t, schedTime.UTC(), sp[0].ScheduledTime.UTC())

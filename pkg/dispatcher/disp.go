@@ -78,20 +78,6 @@ func (d disp) parsDeliveredFunc(ctx context.Context, m *statstypes.Stats) error 
 	return nil
 }
 
-func (d disp) handleRejected(ctx context.Context) {
-	sbj := "kannon.stats.rejected"
-	subName := "dispatcher-rejected"
-	handleMsg(ctx, d.js, sbj, subName, d.parsRejectedFunc)
-}
-
-func (d disp) parsRejectedFunc(ctx context.Context, m *statstypes.Stats) error {
-	if err := d.pm.CleanEmail(ctx, m.MessageId, m.Email); err != nil {
-		return fmt.Errorf("cannot set delivered: %w", err)
-	}
-
-	return nil
-}
-
 func (d disp) handleBounced(ctx context.Context) {
 	sbj := "kannon.stats.bounced"
 	subName := "dispatcher-bounced"

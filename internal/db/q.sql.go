@@ -81,7 +81,7 @@ func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (M
 
 const createPoolWithFields = `-- name: CreatePoolWithFields :exec
 INSERT INTO sending_pool_emails (email, status, scheduled_time, original_scheduled_time, message_id, fields) VALUES 
-    ($1, 'to_verify', $2, $2, $3, $4)
+    ($1, 'to_validate', $2, $2, $3, $4)
 `
 
 type CreatePoolWithFieldsParams struct {

@@ -19,7 +19,7 @@ type Sender struct {
 type SendingPoolManager interface {
 	AddRecipientsPool(ctx context.Context, template sqlc.Template, recipents []*pb.Recipient, from Sender, scheduled time.Time, subject string, domain string) (sqlc.Message, error)
 	PrepareForSend(ctx context.Context, max uint) ([]sqlc.SendingPoolEmail, error)
-	GetToVerify(ctx context.Context, max uint) ([]sqlc.SendingPoolEmail, error)
+	PrepareForValidate(ctx context.Context, max uint) ([]sqlc.SendingPoolEmail, error)
 	SetScheduled(ctx context.Context, messageID string, email string) error
 	RescheduleEmail(ctx context.Context, messageID string, email string) error
 	CleanEmail(ctx context.Context, messageID string, email string) error
@@ -62,8 +62,8 @@ func (m *sendingPoolManager) PrepareForSend(ctx context.Context, max uint) ([]sq
 	return m.db.PrepareForSend(ctx, int32(max))
 }
 
-func (m *sendingPoolManager) GetToVerify(ctx context.Context, max uint) ([]sqlc.SendingPoolEmail, error) {
-	return m.db.GetToVerify(ctx, int32(max))
+func (m *sendingPoolManager) PrepareForValidate(ctx context.Context, max uint) ([]sqlc.SendingPoolEmail, error) {
+	return m.db.PrepareForValidate(ctx, int32(max))
 }
 
 func (m *sendingPoolManager) CleanEmail(ctx context.Context, messageID string, email string) error {

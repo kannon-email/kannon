@@ -70,12 +70,6 @@ func Run(ctx context.Context) {
 
 	wg.Add(1)
 	go func() {
-		d.handleRejected(ctx)
-		wg.Done()
-	}()
-
-	wg.Add(1)
-	go func() {
 		err := runner.Run(ctx, d.DispatchCycle)
 		if err != nil {
 			logrus.Fatalf("error in runner, %v", err)

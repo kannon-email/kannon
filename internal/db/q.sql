@@ -9,7 +9,7 @@ INSERT INTO messages
 
 -- name: CreatePoolWithFields :exec
 INSERT INTO sending_pool_emails (email, status, scheduled_time, original_scheduled_time, message_id, fields) VALUES 
-    (@email, 'to_verify', @scheduled_time, @scheduled_time, @message_id, @fields);
+    (@email, 'to_validate', @scheduled_time, @scheduled_time, @message_id, @fields);
 
 -- name: GetSendingData :one
 SELECT

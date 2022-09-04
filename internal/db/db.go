@@ -78,9 +78,6 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.getTemplatesStmt, err = db.PrepareContext(ctx, getTemplates); err != nil {
 		return nil, fmt.Errorf("error preparing query GetTemplates: %w", err)
 	}
-	if q.getToVerifyStmt, err = db.PrepareContext(ctx, getToVerify); err != nil {
-		return nil, fmt.Errorf("error preparing query GetToVerify: %w", err)
-	}
 	if q.getValidPublicStatsKeyByKidStmt, err = db.PrepareContext(ctx, getValidPublicStatsKeyByKid); err != nil {
 		return nil, fmt.Errorf("error preparing query GetValidPublicStatsKeyByKid: %w", err)
 	}
@@ -89,6 +86,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.prepareForSendStmt, err = db.PrepareContext(ctx, prepareForSend); err != nil {
 		return nil, fmt.Errorf("error preparing query PrepareForSend: %w", err)
+	}
+	if q.prepareForValidateStmt, err = db.PrepareContext(ctx, prepareForValidate); err != nil {
+		return nil, fmt.Errorf("error preparing query PrepareForValidate: %w", err)
 	}
 	if q.reschedulePoolStmt, err = db.PrepareContext(ctx, reschedulePool); err != nil {
 		return nil, fmt.Errorf("error preparing query ReschedulePool: %w", err)
@@ -200,11 +200,6 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing getTemplatesStmt: %w", cerr)
 		}
 	}
-	if q.getToVerifyStmt != nil {
-		if cerr := q.getToVerifyStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing getToVerifyStmt: %w", cerr)
-		}
-	}
 	if q.getValidPublicStatsKeyByKidStmt != nil {
 		if cerr := q.getValidPublicStatsKeyByKidStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getValidPublicStatsKeyByKidStmt: %w", cerr)
@@ -218,6 +213,11 @@ func (q *Queries) Close() error {
 	if q.prepareForSendStmt != nil {
 		if cerr := q.prepareForSendStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing prepareForSendStmt: %w", cerr)
+		}
+	}
+	if q.prepareForValidateStmt != nil {
+		if cerr := q.prepareForValidateStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing prepareForValidateStmt: %w", cerr)
 		}
 	}
 	if q.reschedulePoolStmt != nil {
@@ -302,10 +302,10 @@ type Queries struct {
 	getSendingPoolsEmailsStmt       *sql.Stmt
 	getTemplateStmt                 *sql.Stmt
 	getTemplatesStmt                *sql.Stmt
-	getToVerifyStmt                 *sql.Stmt
 	getValidPublicStatsKeyByKidStmt *sql.Stmt
 	getValidStatsKeysStmt           *sql.Stmt
 	prepareForSendStmt              *sql.Stmt
+	prepareForValidateStmt          *sql.Stmt
 	reschedulePoolStmt              *sql.Stmt
 	setDomainKeyStmt                *sql.Stmt
 	setSendingPoolDeliveredStmt     *sql.Stmt
@@ -335,10 +335,10 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		getSendingPoolsEmailsStmt:       q.getSendingPoolsEmailsStmt,
 		getTemplateStmt:                 q.getTemplateStmt,
 		getTemplatesStmt:                q.getTemplatesStmt,
-		getToVerifyStmt:                 q.getToVerifyStmt,
 		getValidPublicStatsKeyByKidStmt: q.getValidPublicStatsKeyByKidStmt,
 		getValidStatsKeysStmt:           q.getValidStatsKeysStmt,
 		prepareForSendStmt:              q.prepareForSendStmt,
+		prepareForValidateStmt:          q.prepareForValidateStmt,
 		reschedulePoolStmt:              q.reschedulePoolStmt,
 		setDomainKeyStmt:                q.setDomainKeyStmt,
 		setSendingPoolDeliveredStmt:     q.setSendingPoolDeliveredStmt,

@@ -58,7 +58,7 @@ func Run(ctx context.Context) error {
 func (d *Verifier) Cycle(pctx context.Context) error {
 	ctx, cancel := context.WithTimeout(pctx, 10*time.Second)
 	defer cancel()
-	poolEmails, err := d.pm.GetToVerify(ctx, 100)
+	poolEmails, err := d.pm.PrepareForValidate(ctx, 100)
 	if err != nil {
 		return fmt.Errorf("cannot prepare emails for send: %v", err)
 	}
@@ -83,12 +83,15 @@ func (d *Verifier) handlePool(ctx context.Context, pool sqlc.SendingPoolEmail) e
 	err := verifyPool(pool)
 	if err != nil {
 		statData.Data = newRejectedStatData(err)
+		if err := d.pm.CleanEmail(ctx, pool.MessageID, pool.Email); err != nil {
+			return err
+		}
 		return publisher.PublishStat(d.pub, statData)
 	}
+
 	if err := d.pm.SetScheduled(ctx, pool.MessageID, pool.Email); err != nil {
 		return err
 	}
-
 	statData.Data = newAcceptedStatData()
 	return publisher.PublishStat(d.pub, statData)
 }
