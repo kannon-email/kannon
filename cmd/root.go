@@ -59,7 +59,9 @@ func run(cmd *cobra.Command, args []string) {
 	if viper.GetBool("run-verifier") {
 		wg.Add(1)
 		go func() {
-			verifier.Run(ctx)
+			if err := verifier.Run(ctx); err != nil {
+				logrus.Fatalf("error in verifier: %v", err)
+			}
 			wg.Done()
 		}()
 	}
