@@ -9,7 +9,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func buildEmailMessageID(to string, messageID string) string {
+func buildEmailID(to string, messageID string) string {
 	emailBase64 := base64.URLEncoding.EncodeToString([]byte(to))
 	return fmt.Sprintf("<%v/%v>", emailBase64, messageID)
 }

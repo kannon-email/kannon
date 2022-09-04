@@ -10,6 +10,8 @@ import (
 	"github.com/ludusrusso/kannon/internal/tests"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+
+	_ "github.com/lib/pq"
 )
 
 var db *sql.DB

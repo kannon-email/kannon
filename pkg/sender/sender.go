@@ -5,7 +5,10 @@ import (
 	"errors"
 	"time"
 
-	"github.com/ludusrusso/kannon/generated/pb"
+	msgtypes "github.com/ludusrusso/kannon/proto/kannon/mailer/types"
+	statstypes "github.com/ludusrusso/kannon/proto/kannon/stats/types"
+
+	"github.com/ludusrusso/kannon/internal/publisher"
 	"github.com/ludusrusso/kannon/internal/smtp"
 	"github.com/ludusrusso/kannon/internal/utils"
 	"github.com/nats-io/nats.go"
@@ -66,55 +69,82 @@ func handleSend(sender smtp.Sender, con *nats.Subscription, nc *nats.Conn, maxPa
 }
 
 func handleMessage(msg *nats.Msg, sender smtp.Sender, nc *nats.Conn) error {
-	data := pb.EmailToSend{}
-	err := proto.Unmarshal(msg.Data, &data)
+	data := &msgtypes.EmailToSend{}
+	err := proto.Unmarshal(msg.Data, data)
 	if err != nil {
 		return err
 	}
 	sendErr := sender.Send(data.ReturnPath, data.To, data.Body)
 	if sendErr != nil {
-		logrus.Infof("Cannot send email %v - %v: %v", data.To, data.MessageId, sendErr.Error())
-		return handleSendError(sendErr, &data, nc)
+		logrus.Infof("Cannot send email %v - %v: %v", data.To, data.EmailId, sendErr.Error())
+		return handleSendError(sendErr, data, nc)
 	}
-	logrus.Infof("Email delivered: %v - %v", data.To, data.MessageId)
-	return handleSendSuccess(&data, nc)
+	logrus.Infof("Email delivered: %v - %v", data.To, data.EmailId)
+	return handleSendSuccess(data, nc)
 }
 
-func handleSendSuccess(data *pb.EmailToSend, nc *nats.Conn) error {
-	msgProto := pb.Delivered{
-		MessageId: data.MessageId,
+func handleSendSuccess(data *msgtypes.EmailToSend, nc *nats.Conn) error {
+	msgID, domain, err := utils.ExtractMsgIDAndDomainFromEmailID(data.EmailId)
+	if err != nil {
+		return nil
+	}
+
+	msg := &statstypes.Stats{
+		MessageId: msgID,
+		Domain:    domain,
+		Email:     data.To,
+		Timestamp: timestamppb.Now(),
+		Data: &statstypes.StatsData{
+			Data: &statstypes.StatsData_Delivered{
+				Delivered: &statstypes.StatsDataDelivered{},
+			},
+		},
+	}
+	rm, err := proto.Marshal(msg)
+	if err != nil {
+		return err
+	}
+	err = nc.Publish("kannon.stats.delivered", rm)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func handleSendError(sendErr smtp.SenderError, data *msgtypes.EmailToSend, nc *nats.Conn) error {
+	msgID, domain, err := utils.ExtractMsgIDAndDomainFromEmailID(data.EmailId)
+	if err != nil {
+		return nil
+	}
+
+	msg := &statstypes.Stats{
+		MessageId: msgID,
+		Domain:    domain,
 		Email:     data.To,
 		Timestamp: timestamppb.Now(),
 	}
-	msg, err := proto.Marshal(&msgProto)
-	if err != nil {
-		return err
+	if !data.ShouldRetry || sendErr.IsPermanent() {
+		msg.Data = &statstypes.StatsData{
+			Data: &statstypes.StatsData_Bounced{
+				Bounced: &statstypes.StatsDataBounced{
+					Permanent: sendErr.IsPermanent(),
+					Code:      sendErr.Code(),
+					Msg:       sendErr.Error(),
+				},
+			},
+		}
+	} else {
+		msg.Data = &statstypes.StatsData{
+			Data: &statstypes.StatsData_Error{
+				Error: &statstypes.StatsDataError{
+					Code: sendErr.Code(),
+					Msg:  sendErr.Error(),
+				},
+			},
+		}
 	}
-	err = nc.Publish("kannon.stats.delivered", msg)
-	if err != nil {
-		return err
-	}
-	return nil
-}
 
-func handleSendError(sendErr smtp.SenderError, data *pb.EmailToSend, nc *nats.Conn) error {
-	msg := pb.Error{
-		MessageId:   data.MessageId,
-		Code:        sendErr.Code(),
-		Msg:         sendErr.Error(),
-		Email:       data.To,
-		IsPermanent: sendErr.IsPermanent(),
-		Timestamp:   timestamppb.Now(),
-	}
-	errMsg, err := proto.Marshal(&msg)
-	if err != nil {
-		return err
-	}
-	err = nc.Publish("kannon.stats.error", errMsg)
-	if err != nil {
-		return err
-	}
-	return nil
+	return publisher.PublishStat(nc, msg)
 }
 
 func mustConfigureJS(js nats.JetStreamContext) {

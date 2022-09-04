@@ -12,6 +12,7 @@ import (
 	"github.com/ludusrusso/kannon/pkg/sender"
 	"github.com/ludusrusso/kannon/pkg/smtp"
 	"github.com/ludusrusso/kannon/pkg/stats"
+	"github.com/ludusrusso/kannon/pkg/verifier"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -46,6 +47,7 @@ func run(cmd *cobra.Command, args []string) {
 			wg.Done()
 		}()
 	}
+
 	if viper.GetBool("run-dispatcher") {
 		wg.Add(1)
 		go func() {
@@ -53,6 +55,17 @@ func run(cmd *cobra.Command, args []string) {
 			wg.Done()
 		}()
 	}
+
+	if viper.GetBool("run-verifier") {
+		wg.Add(1)
+		go func() {
+			if err := verifier.Run(ctx); err != nil {
+				logrus.Fatalf("error in verifier: %v", err)
+			}
+			wg.Done()
+		}()
+	}
+
 	if viper.GetBool("run-stats") {
 		wg.Add(1)
 		go func() {
@@ -60,6 +73,7 @@ func run(cmd *cobra.Command, args []string) {
 			wg.Done()
 		}()
 	}
+
 	if viper.GetBool("run-bounce") {
 		wg.Add(1)
 		go func() {
@@ -67,6 +81,7 @@ func run(cmd *cobra.Command, args []string) {
 			wg.Done()
 		}()
 	}
+
 	if viper.GetBool("run-api") {
 		wg.Add(1)
 		go func() {
@@ -94,15 +109,20 @@ func init() {
 	rootCmd.PersistentFlags().Bool("viper", true, "use Viper for configuration")
 	createBoolFlagAndBindToViper("run-sender", false, "run sender")
 	createBoolFlagAndBindToViper("run-dispatcher", false, "run dispatcher")
+	createBoolFlagAndBindToViper("run-verifier", false, "run verifier")
 	createBoolFlagAndBindToViper("run-bounce", false, "run bounce")
 	createBoolFlagAndBindToViper("run-stats", false, "run stats")
 	createBoolFlagAndBindToViper("run-api", false, "run api")
 	createBoolFlagAndBindToViper("run-smtp", false, "run smtp server")
 }
 
+//nolint:unparam
 func createBoolFlagAndBindToViper(name string, value bool, usage string) {
 	rootCmd.PersistentFlags().Bool(name, value, usage)
-	viper.BindPFlag(name, rootCmd.PersistentFlags().Lookup(name))
+	err := viper.BindPFlag(name, rootCmd.PersistentFlags().Lookup(name))
+	if err != nil {
+		logrus.Fatalf("cannot set flat '%v': %v", name, err)
+	}
 }
 
 func initConfig() {

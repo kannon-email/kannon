@@ -33,7 +33,7 @@ type service struct {
 }
 
 func (s *service) CreateOpenToken(ctx context.Context, messageID string, email string) (string, error) {
-	privateKey, _, kid, err := s.getSignKeys(ctx)
+	privateKey, kid, err := s.getSignKeys(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -47,7 +47,7 @@ func (s *service) CreateOpenToken(ctx context.Context, messageID string, email s
 }
 
 func (s *service) CreateLinkToken(ctx context.Context, messageID string, email string, url string) (string, error) {
-	privateKey, _, kid, err := s.getSignKeys(ctx)
+	privateKey, kid, err := s.getSignKeys(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -68,21 +68,21 @@ func (s *service) VertifyLinkToken(ctx context.Context, token string) (*LinkClai
 	return verifyLinkToken(ctx, token, s.q)
 }
 
-func (s *service) getSignKeys(ctx context.Context) (*rsa.PrivateKey, *rsa.PublicKey, string, error) {
-	privateKey, publicKey, kid, err := s.getExistingSignKeys(ctx)
+func (s *service) getSignKeys(ctx context.Context) (*rsa.PrivateKey, string, error) {
+	privateKey, _, kid, err := s.getExistingSignKeys(ctx)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return nil, nil, "", err
+		return nil, "", err
 	}
 
 	if errors.Is(err, sql.ErrNoRows) {
-		privateKey, publicKey, kid, err := s.generateNewKeyPairs(ctx)
+		privateKey, _, kid, err := s.generateNewKeyPairs(ctx)
 		if err != nil {
-			return nil, nil, "", fmt.Errorf("cannot generate new keys: %w", err)
+			return nil, "", fmt.Errorf("cannot generate new keys: %w", err)
 		}
-		return privateKey, publicKey, kid, nil
+		return privateKey, kid, nil
 	}
 
-	return privateKey, publicKey, kid, nil
+	return privateKey, kid, nil
 }
 
 func (s *service) getExistingSignKeys(ctx context.Context) (*rsa.PrivateKey, *rsa.PublicKey, string, error) {

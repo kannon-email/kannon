@@ -10,19 +10,6 @@ SET client_min_messages = warning;
 SET row_security = off;
 
 --
--- Name: sending_pool_status; Type: TYPE; Schema: public; Owner: -
---
-
-CREATE TYPE public.sending_pool_status AS ENUM (
-    'initializing',
-    'sending',
-    'sent',
-    'scheduled',
-    'error'
-);
-
-
---
 -- Name: template_type; Type: TYPE; Schema: public; Owner: -
 --
 
@@ -99,7 +86,6 @@ CREATE TABLE public.schema_migrations (
 
 CREATE TABLE public.sending_pool_emails (
     id integer NOT NULL,
-    status public.sending_pool_status DEFAULT 'initializing'::public.sending_pool_status NOT NULL,
     scheduled_time timestamp without time zone DEFAULT now() NOT NULL,
     original_scheduled_time timestamp without time zone NOT NULL,
     send_attempts_cnt integer DEFAULT 0 NOT NULL,
@@ -107,7 +93,8 @@ CREATE TABLE public.sending_pool_emails (
     message_id character varying NOT NULL,
     error_msg character varying DEFAULT ''::character varying NOT NULL,
     error_code integer DEFAULT 0 NOT NULL,
-    fields jsonb DEFAULT '{}'::jsonb NOT NULL
+    fields jsonb DEFAULT '{}'::jsonb NOT NULL,
+    status character varying(100) DEFAULT 'initializing'::character varying NOT NULL
 );
 
 
@@ -279,13 +266,6 @@ CREATE INDEX messages_message_id_idx ON public.messages USING btree (message_id)
 
 
 --
--- Name: scheduled_time_status_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX scheduled_time_status_idx ON public.sending_pool_emails USING btree (scheduled_time, status);
-
-
---
 -- Name: template_type_domain_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -341,4 +321,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20210406191606'),
     ('20220717130048'),
     ('20220806075424'),
-    ('20220809092503');
+    ('20220809092503'),
+    ('20220830073617');
