@@ -1,4 +1,4 @@
-package verifier_test
+package validator_test
 
 import (
 	"context"
@@ -15,7 +15,7 @@ import (
 	"github.com/ludusrusso/kannon/mocks"
 	"github.com/ludusrusso/kannon/pkg/api/adminapi"
 	"github.com/ludusrusso/kannon/pkg/api/mailapi"
-	"github.com/ludusrusso/kannon/pkg/verifier"
+	"github.com/ludusrusso/kannon/pkg/validator"
 	adminapiv1 "github.com/ludusrusso/kannon/proto/kannon/admin/apiv1"
 	mailerapiv1 "github.com/ludusrusso/kannon/proto/kannon/mailer/apiv1"
 	mailertypes "github.com/ludusrusso/kannon/proto/kannon/mailer/types"
@@ -31,7 +31,7 @@ import (
 
 var db *sql.DB
 var q *sqlc.Queries
-var vt *verifier.Verifier
+var vt *validator.Validator
 var mp mocks.Publisher
 
 var ts mailerapiv1.MailerServer
@@ -48,7 +48,7 @@ func TestMain(m *testing.M) {
 
 	q = sqlc.New(db)
 	pm := pool.NewSendingPoolManager(q)
-	vt = verifier.NewVerifier(pm, &mp)
+	vt = validator.NewValidator(pm, &mp)
 
 	ts = mailapi.NewMailerAPIV1(q)
 	adminAPI = adminapi.CreateAdminAPIService(q)

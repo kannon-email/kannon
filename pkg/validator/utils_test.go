@@ -1,4 +1,4 @@
-package verifier
+package validator
 
 import (
 	"testing"
@@ -7,12 +7,12 @@ import (
 )
 
 func TestValidEmail(t *testing.T) {
-	err := verifyEmail("test@test.com")
+	err := validateEmail("test@test.com")
 	assert.Nil(t, err)
 }
 
 func TestInvalidEmail(t *testing.T) {
-	err := verifyEmail("thisisnota validemail-test.com")
+	err := validateEmail("thisisnota validemail-test.com")
 	assert.NotNil(t, err)
 	assert.ErrorIs(t, ErrInvalidEmailAddress, err)
 }

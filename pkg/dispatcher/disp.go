@@ -31,6 +31,9 @@ func (d disp) DispatchCycle(pctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("cannot prepare emails for send: %v", err)
 	}
+
+	logrus.Debugf("[dispatcher] seding %d emails", len(emails))
+
 	for _, email := range emails {
 		data, err := d.mb.BuildEmail(ctx, email)
 		if err != nil {
@@ -43,7 +46,8 @@ func (d disp) DispatchCycle(pctx context.Context) error {
 		}
 		logrus.Infof("[✅ accepted]: %v %v", data.To, data.EmailId)
 	}
-	logrus.Debugf("done sending emails")
+
+	logrus.Debugf("[dispatcher] done sending emails")
 	return nil
 }
 

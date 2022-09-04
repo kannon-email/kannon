@@ -1,4 +1,4 @@
-package verifier
+package validator
 
 import (
 	"context"
@@ -17,14 +17,14 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func NewVerifier(pm pool.SendingPoolManager, pub publisher.Publisher) *Verifier {
-	return &Verifier{
+func NewValidator(pm pool.SendingPoolManager, pub publisher.Publisher) *Validator {
+	return &Validator{
 		pm:  pm,
 		pub: pub,
 	}
 }
 
-type Verifier struct {
+type Validator struct {
 	pm  pool.SendingPoolManager
 	pub publisher.Publisher
 }
@@ -46,7 +46,7 @@ func Run(ctx context.Context) error {
 	nc, _, closeNats := utils.MustGetNats(natsURL)
 	defer closeNats()
 
-	v := Verifier{
+	v := Validator{
 		pm:  pm,
 		pub: nc,
 	}
@@ -54,23 +54,25 @@ func Run(ctx context.Context) error {
 	return runner.Run(ctx, v.Cycle, runner.WaitLoop(1*time.Second))
 }
 
-func (d *Verifier) Cycle(pctx context.Context) error {
+func (d *Validator) Cycle(pctx context.Context) error {
 	ctx, cancel := context.WithTimeout(pctx, 10*time.Second)
 	defer cancel()
-	poolEmails, err := d.pm.PrepareForValidate(ctx, 100)
+	emails, err := d.pm.PrepareForValidate(ctx, 100)
 	if err != nil {
 		return fmt.Errorf("cannot prepare emails for send: %v", err)
 	}
-	for _, pool := range poolEmails {
+
+	logrus.Debugf("[validator] preparing %d emails", len(emails))
+
+	for _, pool := range emails {
 		if err := d.handlePool(ctx, pool); err != nil {
 			logrus.Errorf("error handling pool email: %#v", pool)
 		}
 	}
-	logrus.Debugf("done sending emails")
 	return nil
 }
 
-func (d *Verifier) handlePool(ctx context.Context, pool sqlc.SendingPoolEmail) error {
+func (d *Validator) handlePool(ctx context.Context, pool sqlc.SendingPoolEmail) error {
 	domain, err := utils.ExtractDomainFromMessageID(pool.MessageID)
 	if err != nil {
 		return err
@@ -82,7 +84,7 @@ func (d *Verifier) handlePool(ctx context.Context, pool sqlc.SendingPoolEmail) e
 		Timestamp: timestamppb.Now(),
 	}
 
-	if err := verifyPool(pool); err != nil {
+	if err := validatePool(pool); err != nil {
 		statData.Data = newRejectedStatData(err)
 		if err := d.pm.CleanEmail(ctx, pool.MessageID, pool.Email); err != nil {
 			return err
@@ -115,8 +117,8 @@ func newAcceptedStatData() *types.StatsData {
 	}
 }
 
-func verifyPool(pool sqlc.SendingPoolEmail) error {
-	if err := verifyEmail(pool.Email); err != nil {
+func validatePool(pool sqlc.SendingPoolEmail) error {
+	if err := validateEmail(pool.Email); err != nil {
 		return err
 	}
 	return nil
@@ -124,7 +126,7 @@ func verifyPool(pool sqlc.SendingPoolEmail) error {
 
 var emailReg = regexp.MustCompile("(?:[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*|\"(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21\x23-\x5b\x5d-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])*\")@(?:(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?|\\[(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?|[a-z0-9-]*[a-z0-9]:(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21-\x5a\x53-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])+)\\])")
 
-func verifyEmail(email string) error {
+func validateEmail(email string) error {
 	if emailReg.Match([]byte(email)) {
 		return nil
 	}

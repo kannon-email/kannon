@@ -12,7 +12,7 @@ import (
 	"github.com/ludusrusso/kannon/pkg/sender"
 	"github.com/ludusrusso/kannon/pkg/smtp"
 	"github.com/ludusrusso/kannon/pkg/stats"
-	"github.com/ludusrusso/kannon/pkg/verifier"
+	"github.com/ludusrusso/kannon/pkg/validator"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -59,7 +59,7 @@ func run(cmd *cobra.Command, args []string) {
 	if viper.GetBool("run-verifier") {
 		wg.Add(1)
 		go func() {
-			if err := verifier.Run(ctx); err != nil {
+			if err := validator.Run(ctx); err != nil {
 				logrus.Fatalf("error in verifier: %v", err)
 			}
 			wg.Done()
