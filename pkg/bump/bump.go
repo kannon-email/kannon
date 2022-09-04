@@ -2,7 +2,6 @@ package bump
 
 import (
 	"context"
-	"errors"
 	"image"
 	"net/http"
 	"strings"
@@ -13,7 +12,6 @@ import (
 	"github.com/ludusrusso/kannon/internal/statssec"
 	"github.com/ludusrusso/kannon/internal/utils"
 	pb "github.com/ludusrusso/kannon/proto/kannon/stats/types"
-	"github.com/nats-io/nats.go"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"google.golang.org/protobuf/proto"
@@ -32,10 +30,8 @@ func Run(ctx context.Context) {
 	}
 	defer db.Close()
 
-	nc, js, closeNats := utils.MustGetNats(natsURL)
+	nc, _, closeNats := utils.MustGetNats(natsURL)
 	defer closeNats()
-	mustConfigureOpenJS(js)
-	mustConfigureClickJS(js)
 
 	ss := statssec.NewStatsService(q)
 
@@ -159,48 +155,4 @@ func readUserIP(r *http.Request) string {
 		IPAddress = r.RemoteAddr
 	}
 	return IPAddress
-}
-
-//nolint:dupl
-func mustConfigureOpenJS(js nats.JetStreamContext) {
-	confs := nats.StreamConfig{
-		Name:        "kannon-stats-opens",
-		Description: "Email Open for Kannon",
-		Replicas:    1,
-		Subjects:    []string{"kannon.stats.opens"},
-		Retention:   nats.LimitsPolicy,
-		Duplicates:  10 * time.Minute,
-		MaxAge:      24 * time.Hour,
-		Storage:     nats.FileStorage,
-		Discard:     nats.DiscardOld,
-	}
-	info, err := js.AddStream(&confs)
-	if errors.Is(err, nats.ErrStreamNameAlreadyInUse) {
-		logrus.Infof("stream exists")
-	} else if err != nil {
-		logrus.Fatalf("cannot create js stream: %v", err)
-	}
-	logrus.Infof("created js stream: %v", info)
-}
-
-//nolint:dupl
-func mustConfigureClickJS(js nats.JetStreamContext) {
-	confs := nats.StreamConfig{
-		Name:        "kannon-stats-clicks",
-		Description: "Email Click for Kannon",
-		Replicas:    1,
-		Subjects:    []string{"kannon.stats.clicks"},
-		Retention:   nats.LimitsPolicy,
-		Duplicates:  10 * time.Minute,
-		MaxAge:      24 * time.Hour,
-		Storage:     nats.FileStorage,
-		Discard:     nats.DiscardOld,
-	}
-	info, err := js.AddStream(&confs)
-	if errors.Is(err, nats.ErrStreamNameAlreadyInUse) {
-		logrus.Infof("stream exists")
-	} else if err != nil {
-		logrus.Fatalf("cannot create js stream: %v", err)
-	}
-	logrus.Infof("created js stream: %v", info)
 }
