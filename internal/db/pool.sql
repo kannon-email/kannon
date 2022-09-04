@@ -14,7 +14,7 @@ UPDATE sending_pool_emails AS sp
     SET status = 'validating'
     FROM (
             SELECT id FROM sending_pool_emails
-            WHERE scheduled_time <= NOW() AND status = 'to_validate'
+            WHERE status = 'to_validate'
             LIMIT $1
         ) AS t
     WHERE sp.id = t.id
