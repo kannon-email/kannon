@@ -91,10 +91,10 @@ CREATE TABLE public.sending_pool_emails (
     send_attempts_cnt integer DEFAULT 0 NOT NULL,
     email character varying(320) NOT NULL,
     message_id character varying NOT NULL,
-    error_msg character varying DEFAULT ''::character varying NOT NULL,
-    error_code integer DEFAULT 0 NOT NULL,
     fields jsonb DEFAULT '{}'::jsonb NOT NULL,
-    status character varying(100) DEFAULT 'initializing'::character varying NOT NULL
+    status character varying(100) DEFAULT 'initializing'::character varying NOT NULL,
+    created_at timestamp without time zone DEFAULT now() NOT NULL,
+    domain character varying NOT NULL
 );
 
 
@@ -322,4 +322,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20220717130048'),
     ('20220806075424'),
     ('20220809092503'),
-    ('20220830073617');
+    ('20220830073617'),
+    ('20220904111715');

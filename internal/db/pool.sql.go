@@ -25,8 +25,68 @@ func (q *Queries) CleanPool(ctx context.Context, arg CleanPoolParams) error {
 	return err
 }
 
+const createMessage = `-- name: CreateMessage :one
+INSERT INTO messages
+    (message_id, subject, sender_email, sender_alias, template_id, domain) VALUES
+    ($1, $2, $3, $4, $5, $6) RETURNING message_id, subject, sender_email, sender_alias, template_id, domain
+`
+
+type CreateMessageParams struct {
+	MessageID   string
+	Subject     string
+	SenderEmail string
+	SenderAlias string
+	TemplateID  string
+	Domain      string
+}
+
+func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (Message, error) {
+	row := q.queryRow(ctx, q.createMessageStmt, createMessage,
+		arg.MessageID,
+		arg.Subject,
+		arg.SenderEmail,
+		arg.SenderAlias,
+		arg.TemplateID,
+		arg.Domain,
+	)
+	var i Message
+	err := row.Scan(
+		&i.MessageID,
+		&i.Subject,
+		&i.SenderEmail,
+		&i.SenderAlias,
+		&i.TemplateID,
+		&i.Domain,
+	)
+	return i, err
+}
+
+const createPool = `-- name: CreatePool :exec
+INSERT INTO sending_pool_emails (email, status, scheduled_time, original_scheduled_time, message_id, fields, domain) VALUES 
+    ($1, 'to_validate', $2, $2, $3, $4, $5)
+`
+
+type CreatePoolParams struct {
+	Email         string
+	ScheduledTime time.Time
+	MessageID     string
+	Fields        CustomFields
+	Domain        string
+}
+
+func (q *Queries) CreatePool(ctx context.Context, arg CreatePoolParams) error {
+	_, err := q.exec(ctx, q.createPoolStmt, createPool,
+		arg.Email,
+		arg.ScheduledTime,
+		arg.MessageID,
+		arg.Fields,
+		arg.Domain,
+	)
+	return err
+}
+
 const getPool = `-- name: GetPool :one
-SELECT id, scheduled_time, original_scheduled_time, send_attempts_cnt, email, message_id, error_msg, error_code, fields, status FROM  sending_pool_emails 
+SELECT id, scheduled_time, original_scheduled_time, send_attempts_cnt, email, message_id, fields, status, created_at, domain FROM  sending_pool_emails 
 WHERE email = $1 AND message_id = $2
 `
 
@@ -45,16 +105,59 @@ func (q *Queries) GetPool(ctx context.Context, arg GetPoolParams) (SendingPoolEm
 		&i.SendAttemptsCnt,
 		&i.Email,
 		&i.MessageID,
-		&i.ErrorMsg,
-		&i.ErrorCode,
 		&i.Fields,
 		&i.Status,
+		&i.CreatedAt,
+		&i.Domain,
+	)
+	return i, err
+}
+
+const getSendingData = `-- name: GetSendingData :one
+SELECT
+    t.html,
+    m.domain,
+    d.dkim_private_key,
+    d.dkim_public_key,
+    m.subject,
+    m.message_id,
+    m.sender_email,
+    m.sender_alias
+FROM messages as m
+    JOIN templates as t ON t.template_id = m.template_id
+    JOIN domains as d ON d.domain = m.domain
+    WHERE m.message_id = $1
+`
+
+type GetSendingDataRow struct {
+	Html           string
+	Domain         string
+	DkimPrivateKey string
+	DkimPublicKey  string
+	Subject        string
+	MessageID      string
+	SenderEmail    string
+	SenderAlias    string
+}
+
+func (q *Queries) GetSendingData(ctx context.Context, messageID string) (GetSendingDataRow, error) {
+	row := q.queryRow(ctx, q.getSendingDataStmt, getSendingData, messageID)
+	var i GetSendingDataRow
+	err := row.Scan(
+		&i.Html,
+		&i.Domain,
+		&i.DkimPrivateKey,
+		&i.DkimPublicKey,
+		&i.Subject,
+		&i.MessageID,
+		&i.SenderEmail,
+		&i.SenderAlias,
 	)
 	return i, err
 }
 
 const getSendingPoolsEmails = `-- name: GetSendingPoolsEmails :many
-SELECT id, scheduled_time, original_scheduled_time, send_attempts_cnt, email, message_id, error_msg, error_code, fields, status FROM sending_pool_emails WHERE message_id = $1 LIMIT $2 OFFSET $3
+SELECT id, scheduled_time, original_scheduled_time, send_attempts_cnt, email, message_id, fields, status, created_at, domain FROM sending_pool_emails WHERE message_id = $1 LIMIT $2 OFFSET $3
 `
 
 type GetSendingPoolsEmailsParams struct {
@@ -79,10 +182,10 @@ func (q *Queries) GetSendingPoolsEmails(ctx context.Context, arg GetSendingPools
 			&i.SendAttemptsCnt,
 			&i.Email,
 			&i.MessageID,
-			&i.ErrorMsg,
-			&i.ErrorCode,
 			&i.Fields,
 			&i.Status,
+			&i.CreatedAt,
+			&i.Domain,
 		); err != nil {
 			return nil, err
 		}
@@ -106,7 +209,7 @@ UPDATE sending_pool_emails AS sp
             LIMIT $1
         ) AS t
     WHERE sp.id = t.id
-    RETURNING sp.id, sp.scheduled_time, sp.original_scheduled_time, sp.send_attempts_cnt, sp.email, sp.message_id, sp.error_msg, sp.error_code, sp.fields, sp.status
+    RETURNING sp.id, sp.scheduled_time, sp.original_scheduled_time, sp.send_attempts_cnt, sp.email, sp.message_id, sp.fields, sp.status, sp.created_at, sp.domain
 `
 
 func (q *Queries) PrepareForSend(ctx context.Context, limit int32) ([]SendingPoolEmail, error) {
@@ -125,10 +228,10 @@ func (q *Queries) PrepareForSend(ctx context.Context, limit int32) ([]SendingPoo
 			&i.SendAttemptsCnt,
 			&i.Email,
 			&i.MessageID,
-			&i.ErrorMsg,
-			&i.ErrorCode,
 			&i.Fields,
 			&i.Status,
+			&i.CreatedAt,
+			&i.Domain,
 		); err != nil {
 			return nil, err
 		}
@@ -152,7 +255,7 @@ UPDATE sending_pool_emails AS sp
             LIMIT $1
         ) AS t
     WHERE sp.id = t.id
-    RETURNING sp.id, sp.scheduled_time, sp.original_scheduled_time, sp.send_attempts_cnt, sp.email, sp.message_id, sp.error_msg, sp.error_code, sp.fields, sp.status
+    RETURNING sp.id, sp.scheduled_time, sp.original_scheduled_time, sp.send_attempts_cnt, sp.email, sp.message_id, sp.fields, sp.status, sp.created_at, sp.domain
 `
 
 func (q *Queries) PrepareForValidate(ctx context.Context, limit int32) ([]SendingPoolEmail, error) {
@@ -171,10 +274,10 @@ func (q *Queries) PrepareForValidate(ctx context.Context, limit int32) ([]Sendin
 			&i.SendAttemptsCnt,
 			&i.Email,
 			&i.MessageID,
-			&i.ErrorMsg,
-			&i.ErrorCode,
 			&i.Fields,
 			&i.Status,
+			&i.CreatedAt,
+			&i.Domain,
 		); err != nil {
 			return nil, err
 		}

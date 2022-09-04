@@ -24,7 +24,6 @@ UPDATE sending_pool_emails AS sp
 UPDATE sending_pool_emails 
 	SET status = 'sent' WHERE email = @email AND message_id = @message_id;
 
-
 -- name: SetSendingPoolScheduled :exec
 UPDATE sending_pool_emails 
 	SET status = 'scheduled' WHERE email = @email AND message_id = @message_id;
@@ -42,4 +41,28 @@ SELECT * FROM  sending_pool_emails
 WHERE email = @email AND message_id = @message_id;
 
 -- name: GetSendingPoolsEmails :many
-SELECT * FROM sending_pool_emails WHERE message_id = $1 LIMIT $2 OFFSET $3;;
+SELECT * FROM sending_pool_emails WHERE message_id = $1 LIMIT $2 OFFSET $3;
+
+-- name: CreateMessage :one
+INSERT INTO messages
+    (message_id, subject, sender_email, sender_alias, template_id, domain) VALUES
+    ($1, $2, $3, $4, $5, $6) RETURNING *;
+
+-- name: CreatePool :exec
+INSERT INTO sending_pool_emails (email, status, scheduled_time, original_scheduled_time, message_id, fields, domain) VALUES 
+    (@email, 'to_validate', @scheduled_time, @scheduled_time, @message_id, @fields, @domain);
+
+-- name: GetSendingData :one
+SELECT
+    t.html,
+    m.domain,
+    d.dkim_private_key,
+    d.dkim_public_key,
+    m.subject,
+    m.message_id,
+    m.sender_email,
+    m.sender_alias
+FROM messages as m
+    JOIN templates as t ON t.template_id = m.template_id
+    JOIN domains as d ON d.domain = m.domain
+    WHERE m.message_id = @message_id;

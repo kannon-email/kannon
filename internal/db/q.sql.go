@@ -7,7 +7,6 @@ package sqlc
 
 import (
 	"context"
-	"time"
 )
 
 const createDomain = `-- name: CreateDomain :one
@@ -41,64 +40,6 @@ func (q *Queries) CreateDomain(ctx context.Context, arg CreateDomainParams) (Dom
 		&i.DkimPublicKey,
 	)
 	return i, err
-}
-
-const createMessage = `-- name: CreateMessage :one
-INSERT INTO messages
-    (message_id, subject, sender_email, sender_alias, template_id, domain) VALUES
-    ($1, $2, $3, $4, $5, $6) RETURNING message_id, subject, sender_email, sender_alias, template_id, domain
-`
-
-type CreateMessageParams struct {
-	MessageID   string
-	Subject     string
-	SenderEmail string
-	SenderAlias string
-	TemplateID  string
-	Domain      string
-}
-
-func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (Message, error) {
-	row := q.queryRow(ctx, q.createMessageStmt, createMessage,
-		arg.MessageID,
-		arg.Subject,
-		arg.SenderEmail,
-		arg.SenderAlias,
-		arg.TemplateID,
-		arg.Domain,
-	)
-	var i Message
-	err := row.Scan(
-		&i.MessageID,
-		&i.Subject,
-		&i.SenderEmail,
-		&i.SenderAlias,
-		&i.TemplateID,
-		&i.Domain,
-	)
-	return i, err
-}
-
-const createPoolWithFields = `-- name: CreatePoolWithFields :exec
-INSERT INTO sending_pool_emails (email, status, scheduled_time, original_scheduled_time, message_id, fields) VALUES 
-    ($1, 'to_validate', $2, $2, $3, $4)
-`
-
-type CreatePoolWithFieldsParams struct {
-	Email         string
-	ScheduledTime time.Time
-	MessageID     string
-	Fields        CustomFields
-}
-
-func (q *Queries) CreatePoolWithFields(ctx context.Context, arg CreatePoolWithFieldsParams) error {
-	_, err := q.exec(ctx, q.createPoolWithFieldsStmt, createPoolWithFields,
-		arg.Email,
-		arg.ScheduledTime,
-		arg.MessageID,
-		arg.Fields,
-	)
-	return err
 }
 
 const findDomain = `-- name: FindDomain :one
@@ -242,49 +183,6 @@ func (q *Queries) GetDomains(ctx context.Context) ([]Domain, error) {
 		return nil, err
 	}
 	return items, nil
-}
-
-const getSendingData = `-- name: GetSendingData :one
-SELECT
-    t.html,
-    m.domain,
-    d.dkim_private_key,
-    d.dkim_public_key,
-    m.subject,
-    m.message_id,
-    m.sender_email,
-    m.sender_alias
-FROM messages as m
-    JOIN templates as t ON t.template_id = m.template_id
-    JOIN domains as d ON d.domain = m.domain
-    WHERE m.message_id = $1
-`
-
-type GetSendingDataRow struct {
-	Html           string
-	Domain         string
-	DkimPrivateKey string
-	DkimPublicKey  string
-	Subject        string
-	MessageID      string
-	SenderEmail    string
-	SenderAlias    string
-}
-
-func (q *Queries) GetSendingData(ctx context.Context, messageID string) (GetSendingDataRow, error) {
-	row := q.queryRow(ctx, q.getSendingDataStmt, getSendingData, messageID)
-	var i GetSendingDataRow
-	err := row.Scan(
-		&i.Html,
-		&i.Domain,
-		&i.DkimPrivateKey,
-		&i.DkimPublicKey,
-		&i.Subject,
-		&i.MessageID,
-		&i.SenderEmail,
-		&i.SenderAlias,
-	)
-	return i, err
 }
 
 const setDomainKey = `-- name: SetDomainKey :one

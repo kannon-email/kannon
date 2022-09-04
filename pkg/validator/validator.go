@@ -73,13 +73,9 @@ func (d *Validator) Cycle(pctx context.Context) error {
 }
 
 func (d *Validator) handlePool(ctx context.Context, pool sqlc.SendingPoolEmail) error {
-	domain, err := utils.ExtractDomainFromMessageID(pool.MessageID)
-	if err != nil {
-		return err
-	}
 	statData := &types.Stats{
 		MessageId: pool.MessageID,
-		Domain:    domain,
+		Domain:    pool.Domain,
 		Email:     pool.Email,
 		Timestamp: timestamppb.Now(),
 	}

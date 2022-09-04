@@ -36,8 +36,8 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.createMessageStmt, err = db.PrepareContext(ctx, createMessage); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateMessage: %w", err)
 	}
-	if q.createPoolWithFieldsStmt, err = db.PrepareContext(ctx, createPoolWithFields); err != nil {
-		return nil, fmt.Errorf("error preparing query CreatePoolWithFields: %w", err)
+	if q.createPoolStmt, err = db.PrepareContext(ctx, createPool); err != nil {
+		return nil, fmt.Errorf("error preparing query CreatePool: %w", err)
 	}
 	if q.createStatsKeysStmt, err = db.PrepareContext(ctx, createStatsKeys); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateStatsKeys: %w", err)
@@ -130,9 +130,9 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing createMessageStmt: %w", cerr)
 		}
 	}
-	if q.createPoolWithFieldsStmt != nil {
-		if cerr := q.createPoolWithFieldsStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing createPoolWithFieldsStmt: %w", cerr)
+	if q.createPoolStmt != nil {
+		if cerr := q.createPoolStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing createPoolStmt: %w", cerr)
 		}
 	}
 	if q.createStatsKeysStmt != nil {
@@ -288,7 +288,7 @@ type Queries struct {
 	countTemplatesStmt              *sql.Stmt
 	createDomainStmt                *sql.Stmt
 	createMessageStmt               *sql.Stmt
-	createPoolWithFieldsStmt        *sql.Stmt
+	createPoolStmt                  *sql.Stmt
 	createStatsKeysStmt             *sql.Stmt
 	createTemplateStmt              *sql.Stmt
 	deleteTemplateStmt              *sql.Stmt
@@ -321,7 +321,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		countTemplatesStmt:              q.countTemplatesStmt,
 		createDomainStmt:                q.createDomainStmt,
 		createMessageStmt:               q.createMessageStmt,
-		createPoolWithFieldsStmt:        q.createPoolWithFieldsStmt,
+		createPoolStmt:                  q.createPoolStmt,
 		createStatsKeysStmt:             q.createStatsKeysStmt,
 		createTemplateStmt:              q.createTemplateStmt,
 		deleteTemplateStmt:              q.deleteTemplateStmt,

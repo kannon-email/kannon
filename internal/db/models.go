@@ -77,10 +77,10 @@ type SendingPoolEmail struct {
 	SendAttemptsCnt       int32
 	Email                 string
 	MessageID             string
-	ErrorMsg              string
-	ErrorCode             int32
 	Fields                CustomFields
 	Status                SendingPoolStatus
+	CreatedAt             time.Time
+	Domain                string
 }
 
 type StatsKey struct {
