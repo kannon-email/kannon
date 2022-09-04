@@ -17,6 +17,8 @@ import (
 	"gopkg.in/mail.v2"
 )
 
+const maxRetry = 10
+
 type MailBulder interface {
 	BuildEmail(ctx context.Context, email sqlc.SendingPoolEmail) (*pb.EmailToSend, error)
 }
@@ -61,11 +63,12 @@ func (m *mailBuilder) BuildEmail(ctx context.Context, email sqlc.SendingPoolEmai
 	}
 
 	return &pb.EmailToSend{
-		From:       emailData.SenderEmail,
-		ReturnPath: returnPath,
-		To:         email.Email,
-		Body:       signedMsg,
-		EmailId:    buildEmailID(email.Email, emailData.MessageID),
+		From:        emailData.SenderEmail,
+		ReturnPath:  returnPath,
+		To:          email.Email,
+		Body:        signedMsg,
+		EmailId:     buildEmailID(email.Email, emailData.MessageID),
+		ShouldRetry: email.SendAttemptsCnt < maxRetry,
 	}, nil
 }
 

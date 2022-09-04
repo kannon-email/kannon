@@ -10,8 +10,11 @@ import (
 	sqlc "github.com/ludusrusso/kannon/internal/db"
 	"github.com/ludusrusso/kannon/internal/pool"
 	"github.com/ludusrusso/kannon/internal/publisher"
+	"github.com/ludusrusso/kannon/internal/runner"
+	"github.com/ludusrusso/kannon/internal/utils"
 	"github.com/ludusrusso/kannon/proto/kannon/stats/types"
 	"github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -25,6 +28,31 @@ func NewVerifier(pm pool.SendingPoolManager, pub publisher.Publisher) *Verifier 
 type Verifier struct {
 	pm  pool.SendingPoolManager
 	pub publisher.Publisher
+}
+
+func Run(ctx context.Context) error {
+	dbURL := viper.GetString("database_url")
+	natsURL := viper.GetString("nats_url")
+
+	logrus.Info("🚀 Starting dispatcher")
+
+	db, q, err := sqlc.Conn(ctx, dbURL)
+	if err != nil {
+		logrus.Fatalf("cannot connect to database: %v", err)
+	}
+	defer db.Close()
+
+	pm := pool.NewSendingPoolManager(q)
+
+	nc, _, closeNats := utils.MustGetNats(natsURL)
+	defer closeNats()
+
+	v := Verifier{
+		pm:  pm,
+		pub: nc,
+	}
+
+	return runner.Run(ctx, v.Cycle, runner.WaitLoop(10*time.Second))
 }
 
 func (d *Verifier) Cycle(pctx context.Context) error {
