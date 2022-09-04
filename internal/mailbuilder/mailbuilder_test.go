@@ -5,7 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
-	"io/ioutil"
+	"io"
 	"net/mail"
 	"os"
 	"testing"
@@ -111,7 +111,7 @@ func TestPrepareMail(t *testing.T) {
 	assert.Equal(t, "Test Test", parsed.Header.Get("Subject"))
 
 	// test html
-	html, _ := ioutil.ReadAll(parsed.Body)
+	html, _ := io.ReadAll(parsed.Body)
 
 	assert.Equal(t, "test Test", string(html))
 }

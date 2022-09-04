@@ -42,7 +42,9 @@ func Run(ctx context.Context) {
 	http.HandleFunc("/o/", func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			w.Header().Set("Content-Type", "image/png")
-			w.Write(retImage.Pix)
+			if _, err := w.Write(retImage.Pix); err != nil {
+				logrus.Errorf("cannot write image: %v", err)
+			}
 		}()
 
 		ctx, cancel := context.WithTimeout(ctx, time.Second*10)
@@ -159,6 +161,7 @@ func readUserIP(r *http.Request) string {
 	return IPAddress
 }
 
+//nolint:dupl
 func mustConfigureOpenJS(js nats.JetStreamContext) {
 	confs := nats.StreamConfig{
 		Name:        "kannon-stats-opens",
@@ -180,6 +183,7 @@ func mustConfigureOpenJS(js nats.JetStreamContext) {
 	logrus.Infof("created js stream: %v", info)
 }
 
+//nolint:dupl
 func mustConfigureClickJS(js nats.JetStreamContext) {
 	confs := nats.StreamConfig{
 		Name:        "kannon-stats-clicks",

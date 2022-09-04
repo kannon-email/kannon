@@ -24,6 +24,7 @@ func TestExtractMsgIDAndDomainErr(t *testing.T) {
 
 func TestParseBounceReturnPathNoBounce(t *testing.T) {
 	returnPath := "xxx@test.com"
+	//nolint:dogsled
 	_, _, _, found, err := utils.ParseBounceReturnPath(returnPath)
 	assert.Nil(t, err)
 	assert.False(t, found)

@@ -1,0 +1,90 @@
+syntax = "proto3";
+option go_package = "github.com/ludusrusso/kannon/proto/kannon/admin/apiv1";
+
+package pkg.kannon.admin.apiv1;
+
+service Api {
+  rpc GetDomains(GetDomainsReq) returns (GetDomainsResponse) {}
+  rpc CreateDomain(CreateDomainRequest) returns (Domain) {}
+  rpc RegenerateDomainKey(RegenerateDomainKeyRequest) returns (Domain) {}
+
+  rpc CreateTemplate(CreateTemplateReq) returns (CreateTemplateRes) {}
+  rpc UpdateTemplate(UpdateTemplateReq) returns (UpdateTemplateRes) {}
+  rpc DeleteTemplate(DeleteTemplateReq) returns (DeleteTemplateRes) {}
+  rpc GetTemplate(GetTemplateReq) returns (GetTemplateRes) {}
+  rpc GetTemplates(GetTemplatesReq) returns (GetTemplatesRes) {}
+}
+
+message GetDomainsReq {}
+
+message GetDomainsResponse {
+  repeated Domain domains = 1;
+}
+
+message CreateDomainRequest {
+  string domain = 1;
+}
+
+message RegenerateDomainKeyRequest {
+  string domain = 1;
+}
+
+message Domain {
+  string domain = 1;
+  string key = 2;
+  string dkim_pub_key = 3;
+}
+
+message Template {
+  string template_id = 1;
+  string html = 2;
+  string title = 3;
+  string type = 4;
+}
+
+message CreateTemplateReq {
+  string html = 1;
+  string title = 2;
+  string domain = 3;
+}
+
+message CreateTemplateRes {
+  Template template = 1;
+}
+
+message UpdateTemplateReq {
+  string template_id = 1;
+  string html = 2;
+  string title = 3;
+}
+
+message UpdateTemplateRes {
+  Template template = 1;
+}
+
+message DeleteTemplateReq {
+  string template_id = 1;
+}
+
+message DeleteTemplateRes {
+  Template template = 1;
+}
+
+message GetTemplateReq {
+  string template_id = 1;
+}
+
+message GetTemplateRes {
+  Template template = 1;
+}
+
+message GetTemplatesReq {
+  string domain = 1;
+  uint32 skip = 2;
+  uint32 take = 3;
+}
+
+message GetTemplatesRes {
+  repeated Template templates = 1;
+  uint32 total = 2;
+}

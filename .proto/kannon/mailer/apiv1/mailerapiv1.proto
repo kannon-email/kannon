@@ -1,0 +1,34 @@
+syntax = "proto3";
+option go_package = "github.com/ludusrusso/kannon/proto/kannon/mailer/apiv1";
+
+import "google/protobuf/timestamp.proto";
+import "kannon/mailer/types/send.proto";
+
+package pkg.kannon.mailer.apiv1;
+
+service Mailer {
+  rpc SendHTML(SendHTMLReq) returns (SendRes) {}
+  rpc SendTemplate(SendTemplateReq) returns (SendRes) {}
+}
+
+message SendHTMLReq {
+  pkg.kannon.mailer.types.Sender sender = 1;
+  string subject = 3;
+  string html = 4;
+  optional google.protobuf.Timestamp scheduled_time = 5;
+  repeated pkg.kannon.mailer.types.Recipient recipients = 6;
+}
+
+message SendTemplateReq {
+  pkg.kannon.mailer.types.Sender sender = 1;
+  string subject = 3;
+  string template_id = 4;
+  optional google.protobuf.Timestamp scheduled_time = 5;
+  repeated pkg.kannon.mailer.types.Recipient recipients = 6;
+}
+
+message SendRes {
+  string message_id = 1;
+  string template_id = 2;
+  google.protobuf.Timestamp scheduled_time = 3;
+}

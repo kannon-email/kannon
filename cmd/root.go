@@ -100,9 +100,13 @@ func init() {
 	createBoolFlagAndBindToViper("run-smtp", false, "run smtp server")
 }
 
+//nolint:unparam
 func createBoolFlagAndBindToViper(name string, value bool, usage string) {
 	rootCmd.PersistentFlags().Bool(name, value, usage)
-	viper.BindPFlag(name, rootCmd.PersistentFlags().Lookup(name))
+	err := viper.BindPFlag(name, rootCmd.PersistentFlags().Lookup(name))
+	if err != nil {
+		logrus.Fatalf("cannot set flat '%v': %v", name, err)
+	}
 }
 
 func initConfig() {

@@ -49,7 +49,7 @@ func Run(ctx context.Context) {
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(4)
+	wg.Add(5)
 
 	go func() {
 		d.handleErrors(ctx)
@@ -62,7 +62,20 @@ func Run(ctx context.Context) {
 	}()
 
 	go func() {
-		runner.Run(ctx, d.DispatchCycle)
+		d.handleBounced(ctx)
+		wg.Done()
+	}()
+
+	go func() {
+		d.handleRejected(ctx)
+		wg.Done()
+	}()
+
+	go func() {
+		err := runner.Run(ctx, d.DispatchCycle)
+		if err != nil {
+			logrus.Fatalf("error in runner, %v", err)
+		}
 		wg.Done()
 	}()
 

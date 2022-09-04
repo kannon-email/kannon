@@ -6,7 +6,7 @@ RUN go mod download
 COPY ./pkg ./pkg
 COPY ./cmd ./cmd
 COPY ./internal ./internal
-COPY ./generated ./generated
+COPY ./proto ./proto
 COPY ./kannon.go  ./
 
 ENV CGO_ENABLED=0

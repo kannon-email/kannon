@@ -1,0 +1,24 @@
+syntax = "proto3";
+option go_package = "github.com/ludusrusso/kannon/proto/kannon/stats/apiv1";
+
+import "google/protobuf/timestamp.proto";
+import "kannon/stats/types/stats.proto";
+
+package kannon;
+
+service StatsApiV1 {
+  rpc GetStats(GetStatsReq) returns (GetStatsRes) {}
+}
+
+message GetStatsReq {
+  string domain = 1;
+  google.protobuf.Timestamp from_date = 2;
+  google.protobuf.Timestamp to_date = 3;
+  uint32 skip = 4;
+  uint32 take = 5;
+}
+
+message GetStatsRes {
+  uint32 total = 1;
+  repeated pkg.kannon.stats.types.Stats stats = 2;
+}
