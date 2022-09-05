@@ -10,6 +10,7 @@ INSERT INTO stats (email, message_id, type, timestamp, domain, data) VALUES  (@e
 SELECT * FROM stats 
 WHERE domain = $1 
 AND timestamp BETWEEN @start AND @stop
+ORDER BY timestamp DESC
 LIMIT @take OFFSET @skip;
 
 -- name: CountQueryStats :one

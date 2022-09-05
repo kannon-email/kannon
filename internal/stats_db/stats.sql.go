@@ -83,6 +83,7 @@ const queryStats = `-- name: QueryStats :many
 SELECT id, type, email, message_id, domain, timestamp, data FROM stats 
 WHERE domain = $1 
 AND timestamp BETWEEN $2 AND $3
+ORDER BY timestamp DESC
 LIMIT $5 OFFSET $4
 `
 
