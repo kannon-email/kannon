@@ -9,7 +9,7 @@ require (
 	github.com/emersion/go-smtp v0.15.0
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/golang-jwt/jwt/v4 v4.4.2
-	github.com/jackc/pgx/v4 v4.17.1
+	github.com/jackc/pgx/v4 v4.17.2
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/kyleconroy/sqlc v1.15.0
 	github.com/lib/pq v1.10.6
