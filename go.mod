@@ -12,7 +12,7 @@ require (
 	github.com/jackc/pgx/v4 v4.17.1
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/kyleconroy/sqlc v1.15.0
-	github.com/lib/pq v1.10.6
+	github.com/lib/pq v1.10.7
 	github.com/lucsky/cuid v1.2.1
 	github.com/nats-io/nats.go v1.16.0
 	github.com/ory/dockertest v3.3.5+incompatible
