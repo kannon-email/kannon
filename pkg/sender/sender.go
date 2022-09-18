@@ -45,7 +45,7 @@ func handleSend(sender smtp.Sender, con *nats.Subscription, nc *nats.Conn, maxPa
 	logrus.Infof("🚀 Ready to send!\n")
 	ch := make(chan bool, maxParallelJobs)
 	for {
-		msgs, err := con.Fetch(int(maxParallelJobs), nats.MaxWait(10*time.Second))
+		msgs, err := con.Fetch(int(maxParallelJobs), nats.MaxWait(10*time.Second), nats.RetryWait(5*time.Minute))
 		if err != nil {
 			if err != nats.ErrTimeout {
 				logrus.Errorf("error fetching messages: %v", err)

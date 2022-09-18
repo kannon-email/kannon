@@ -93,3 +93,16 @@ func TestReplaceCustomFields(t *testing.T) {
 
 	assert.Equal(t, "Hello world", res)
 }
+
+func TestReplaceCustomFieldsInLinks(t *testing.T) {
+	str := "Hello <a href=\"https://{{link}}\" />"
+	fields := map[string]string{
+		"name": "world",
+		"link": "mylink.com",
+	}
+
+	res, err := replaceCustomFields(str, fields)
+	assert.Nil(t, err)
+
+	assert.Equal(t, "Hello <a href=\"https://mylink.com\" />", res)
+}
