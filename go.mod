@@ -14,7 +14,7 @@ require (
 	github.com/kyleconroy/sqlc v1.15.0
 	github.com/lib/pq v1.10.7
 	github.com/lucsky/cuid v1.2.1
-	github.com/nats-io/nats.go v1.17.0
+	github.com/nats-io/nats.go v1.20.0
 	github.com/ory/dockertest v3.3.5+incompatible
 	github.com/sirupsen/logrus v1.9.0
 	github.com/spf13/cobra v1.5.0
