@@ -28,6 +28,17 @@ func (s *adminAPIService) GetDomains(ctx context.Context, in *pb.GetDomainsReq) 
 	return &res, nil
 }
 
+func (s *adminAPIService) GetDomain(ctx context.Context, in *pb.GetDomainReq) (*pb.GetDomainRes, error) {
+	domain, err := s.dm.FindDomain(ctx, in.Domain)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.GetDomainRes{
+		Domain: dbDomainToProtoDomain(domain),
+	}, nil
+}
+
 func (s *adminAPIService) CreateDomain(ctx context.Context, in *pb.CreateDomainRequest) (*pb.Domain, error) {
 	domain, err := s.dm.CreateDomain(ctx, in.Domain)
 	if err != nil {

@@ -23,6 +23,7 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ApiClient interface {
 	GetDomains(ctx context.Context, in *GetDomainsReq, opts ...grpc.CallOption) (*GetDomainsResponse, error)
+	GetDomain(ctx context.Context, in *GetDomainReq, opts ...grpc.CallOption) (*GetDomainRes, error)
 	CreateDomain(ctx context.Context, in *CreateDomainRequest, opts ...grpc.CallOption) (*Domain, error)
 	RegenerateDomainKey(ctx context.Context, in *RegenerateDomainKeyRequest, opts ...grpc.CallOption) (*Domain, error)
 	CreateTemplate(ctx context.Context, in *CreateTemplateReq, opts ...grpc.CallOption) (*CreateTemplateRes, error)
@@ -43,6 +44,15 @@ func NewApiClient(cc grpc.ClientConnInterface) ApiClient {
 func (c *apiClient) GetDomains(ctx context.Context, in *GetDomainsReq, opts ...grpc.CallOption) (*GetDomainsResponse, error) {
 	out := new(GetDomainsResponse)
 	err := c.cc.Invoke(ctx, "/pkg.kannon.admin.apiv1.Api/GetDomains", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *apiClient) GetDomain(ctx context.Context, in *GetDomainReq, opts ...grpc.CallOption) (*GetDomainRes, error) {
+	out := new(GetDomainRes)
+	err := c.cc.Invoke(ctx, "/pkg.kannon.admin.apiv1.Api/GetDomain", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -117,6 +127,7 @@ func (c *apiClient) GetTemplates(ctx context.Context, in *GetTemplatesReq, opts 
 // for forward compatibility
 type ApiServer interface {
 	GetDomains(context.Context, *GetDomainsReq) (*GetDomainsResponse, error)
+	GetDomain(context.Context, *GetDomainReq) (*GetDomainRes, error)
 	CreateDomain(context.Context, *CreateDomainRequest) (*Domain, error)
 	RegenerateDomainKey(context.Context, *RegenerateDomainKeyRequest) (*Domain, error)
 	CreateTemplate(context.Context, *CreateTemplateReq) (*CreateTemplateRes, error)
@@ -132,6 +143,9 @@ type UnimplementedApiServer struct {
 
 func (UnimplementedApiServer) GetDomains(context.Context, *GetDomainsReq) (*GetDomainsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetDomains not implemented")
+}
+func (UnimplementedApiServer) GetDomain(context.Context, *GetDomainReq) (*GetDomainRes, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetDomain not implemented")
 }
 func (UnimplementedApiServer) CreateDomain(context.Context, *CreateDomainRequest) (*Domain, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateDomain not implemented")
@@ -180,6 +194,24 @@ func _Api_GetDomains_Handler(srv interface{}, ctx context.Context, dec func(inte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ApiServer).GetDomains(ctx, req.(*GetDomainsReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Api_GetDomain_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetDomainReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ApiServer).GetDomain(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/pkg.kannon.admin.apiv1.Api/GetDomain",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ApiServer).GetDomain(ctx, req.(*GetDomainReq))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -320,6 +352,10 @@ var Api_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetDomains",
 			Handler:    _Api_GetDomains_Handler,
+		},
+		{
+			MethodName: "GetDomain",
+			Handler:    _Api_GetDomain_Handler,
 		},
 		{
 			MethodName: "CreateDomain",
