@@ -74,7 +74,7 @@ func (m *mailBuilder) BuildEmail(ctx context.Context, email sqlc.SendingPoolEmai
 
 func (m *mailBuilder) prepareMessage(ctx context.Context, sender pool.Sender, subject string, to string, domain string, messageID string, html string, baseHeaders headers, fields map[string]string) ([]byte, error) {
 	emailMessageID := buildEmailID(to, messageID)
-	html, err := m.preparedHTML(ctx, html, to, domain, emailMessageID, fields)
+	html, err := m.preparedHTML(ctx, html, to, domain, messageID, fields)
 	if err != nil {
 		return nil, err
 	}
