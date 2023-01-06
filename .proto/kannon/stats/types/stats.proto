@@ -5,6 +5,12 @@ package pkg.kannon.stats.types;
 
 option go_package = "github.com/ludusrusso/kannon/proto/kannon/stats/types";
 
+message StatsAggregated {
+  string type = 1;
+  google.protobuf.Timestamp timestamp = 2;
+  uint32 count = 3;
+}
+
 message Stats {
   string message_id = 1;
   string domain = 2;

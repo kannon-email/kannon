@@ -36,6 +36,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.queryStatsStmt, err = db.PrepareContext(ctx, queryStats); err != nil {
 		return nil, fmt.Errorf("error preparing query QueryStats: %w", err)
 	}
+	if q.queryStatsTimelineStmt, err = db.PrepareContext(ctx, queryStatsTimeline); err != nil {
+		return nil, fmt.Errorf("error preparing query QueryStatsTimeline: %w", err)
+	}
 	return &q, nil
 }
 
@@ -59,6 +62,11 @@ func (q *Queries) Close() error {
 	if q.queryStatsStmt != nil {
 		if cerr := q.queryStatsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing queryStatsStmt: %w", cerr)
+		}
+	}
+	if q.queryStatsTimelineStmt != nil {
+		if cerr := q.queryStatsTimelineStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing queryStatsTimelineStmt: %w", cerr)
 		}
 	}
 	return err
@@ -98,21 +106,23 @@ func (q *Queries) queryRow(ctx context.Context, stmt *sql.Stmt, query string, ar
 }
 
 type Queries struct {
-	db                  DBTX
-	tx                  *sql.Tx
-	countQueryStatsStmt *sql.Stmt
-	insertPreparedStmt  *sql.Stmt
-	insertStatStmt      *sql.Stmt
-	queryStatsStmt      *sql.Stmt
+	db                     DBTX
+	tx                     *sql.Tx
+	countQueryStatsStmt    *sql.Stmt
+	insertPreparedStmt     *sql.Stmt
+	insertStatStmt         *sql.Stmt
+	queryStatsStmt         *sql.Stmt
+	queryStatsTimelineStmt *sql.Stmt
 }
 
 func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 	return &Queries{
-		db:                  tx,
-		tx:                  tx,
-		countQueryStatsStmt: q.countQueryStatsStmt,
-		insertPreparedStmt:  q.insertPreparedStmt,
-		insertStatStmt:      q.insertStatStmt,
-		queryStatsStmt:      q.queryStatsStmt,
+		db:                     tx,
+		tx:                     tx,
+		countQueryStatsStmt:    q.countQueryStatsStmt,
+		insertPreparedStmt:     q.insertPreparedStmt,
+		insertStatStmt:         q.insertStatStmt,
+		queryStatsStmt:         q.queryStatsStmt,
+		queryStatsTimelineStmt: q.queryStatsTimelineStmt,
 	}
 }

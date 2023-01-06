@@ -8,6 +8,8 @@ package kannon;
 
 service StatsApiV1 {
   rpc GetStats(GetStatsReq) returns (GetStatsRes) {}
+  rpc GetStatsAggregated(GetStatsAggregatedReq)
+      returns (GetStatsAggregatedRes) {}
 }
 
 message GetStatsReq {
@@ -21,4 +23,14 @@ message GetStatsReq {
 message GetStatsRes {
   uint32 total = 1;
   repeated pkg.kannon.stats.types.Stats stats = 2;
+}
+
+message GetStatsAggregatedReq {
+  string domain = 1;
+  google.protobuf.Timestamp from_date = 2;
+  google.protobuf.Timestamp to_date = 3;
+}
+
+message GetStatsAggregatedRes {
+  repeated pkg.kannon.stats.types.StatsAggregated stats = 1;
 }

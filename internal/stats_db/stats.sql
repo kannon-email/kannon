@@ -17,3 +17,14 @@ LIMIT @take OFFSET @skip;
 SELECT COUNT(*) FROM stats 
 WHERE domain = $1 
 AND timestamp BETWEEN @start AND @stop;
+
+-- name: QueryStatsTimeline :many
+SELECT 
+	type, 
+	COUNT(*) as count, 
+	date_trunc('hour', timestamp)::TIMESTAMP AS ts 
+FROM stats 
+WHERE domain = @domain
+AND timestamp BETWEEN @start AND @stop
+GROUP BY type, ts
+ORDER BY ts DESC, type;

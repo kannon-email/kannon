@@ -131,3 +131,50 @@ func (q *Queries) QueryStats(ctx context.Context, arg QueryStatsParams) ([]Stat,
 	}
 	return items, nil
 }
+
+const queryStatsTimeline = `-- name: QueryStatsTimeline :many
+SELECT 
+	type, 
+	COUNT(*) as count, 
+	date_trunc('hour', timestamp)::TIMESTAMP AS ts 
+FROM stats 
+WHERE domain = $1
+AND timestamp BETWEEN $2 AND $3
+GROUP BY type, ts
+ORDER BY ts DESC, type
+`
+
+type QueryStatsTimelineParams struct {
+	Domain string
+	Start  time.Time
+	Stop   time.Time
+}
+
+type QueryStatsTimelineRow struct {
+	Type  StatsType
+	Count int64
+	Ts    time.Time
+}
+
+func (q *Queries) QueryStatsTimeline(ctx context.Context, arg QueryStatsTimelineParams) ([]QueryStatsTimelineRow, error) {
+	rows, err := q.query(ctx, q.queryStatsTimelineStmt, queryStatsTimeline, arg.Domain, arg.Start, arg.Stop)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []QueryStatsTimelineRow
+	for rows.Next() {
+		var i QueryStatsTimelineRow
+		if err := rows.Scan(&i.Type, &i.Count, &i.Ts); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
