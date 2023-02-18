@@ -19,7 +19,7 @@ func TestInsertMail(t *testing.T) {
 
 	ctx := getDomainCtx(d)
 
-	schedTime := time.Now().Add(10 * time.Minute)
+	schedTime := time.Now().Add(10 * time.Minute).Truncate(1 * time.Second)
 
 	res, err := ts.SendHTML(ctx, &mailerv1.SendHTMLReq{
 		Sender: &types.Sender{
@@ -38,6 +38,7 @@ func TestInsertMail(t *testing.T) {
 		Html:          "Hello {{ name }}",
 		ScheduledTime: timestamppb.New(schedTime),
 	})
+
 	assert.Nil(t, err)
 	assert.NotEmpty(t, res.MessageId)
 	assert.NotEmpty(t, res.TemplateId)
