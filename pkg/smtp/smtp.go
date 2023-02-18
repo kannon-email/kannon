@@ -23,14 +23,8 @@ type Backend struct {
 	nc *nats.Conn
 }
 
-func (bkd *Backend) AnonymousLogin(_ *smtp.ConnectionState) (smtp.Session, error) {
-	return &Session{
-		nc: bkd.nc,
-	}, nil
-}
-
-func (bkd *Backend) Login(_ *smtp.ConnectionState, _, _ string) (smtp.Session, error) {
-	return nil, smtp.ErrAuthUnsupported
+func (bkd *Backend) NewSession(_ *smtp.Conn) (smtp.Session, error) {
+	return &Session{}, nil
 }
 
 // A Session is returned after EHLO.
@@ -40,7 +34,11 @@ type Session struct {
 	nc   *nats.Conn
 }
 
-func (s *Session) Mail(from string, opts smtp.MailOptions) error {
+func (s *Session) AuthPlain(username, password string) error {
+	return nil
+}
+
+func (s *Session) Mail(from string, opts *smtp.MailOptions) error {
 	logrus.Debugf("Mail from: %s", from)
 	s.From = from
 	return nil
