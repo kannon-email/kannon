@@ -17,6 +17,10 @@ inputs:
   sha:
     description: "Git SHA"
     required: true
+  push:
+    description: "Push Docker"
+    required: false
+    default: "false"
 outputs:
   digest:
     description: "Docker Digest"
@@ -33,14 +37,14 @@ runs:
         tags: |
             type=ref,event=branch
             type=ref,event=pr
-            type=semver,pattern={{version}}
+            type=semver,pattern=v{{version}}
             type=sha
             type=raw,value=${{inputs.branch}}-${{inputs.sha}}-${{ inputs.ts }}
     - name: Build and push
       id: docker_build
       uses: docker/build-push-action@v4
       with:
-        push: ${{ github.ref == 'refs/heads/main' }}
+        push: ${{ inputs.push }}
         network: host
         tags: ${{ steps.docker_meta.outputs.tags }}
         target: ${{ inputs.docker-target }}

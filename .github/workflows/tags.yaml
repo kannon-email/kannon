@@ -2,12 +2,9 @@ name: CI
 
 on:
   push:
-    branches:
-      - 'main'
-  pull_request:
-    branches:
-      - 'main'
-
+     tags:
+      - 'v*'
+ 
 jobs:
   test:
     runs-on: ubuntu-20.04
@@ -50,7 +47,7 @@ jobs:
           branch: ${{ steps.get_vars.outputs.branch }}
           sha: ${{ steps.get_vars.outputs.sha }}
           ts: ${{ steps.get_vars.outputs.ts }}
-          push: ${{ github.ref == 'refs/heads/main' }}
+          push: true
       - name: Build Main DB migrations
         uses: ./.github/actions/build-docker
         with:
@@ -58,7 +55,7 @@ jobs:
           branch: ${{ steps.get_vars.outputs.branch }}
           sha: ${{ steps.get_vars.outputs.sha }}
           ts: ${{ steps.get_vars.outputs.ts }}
-          push: ${{ github.ref == 'refs/heads/main' }}
+          push: true
       - name: Build Stats DB migrations
         uses: ./.github/actions/build-docker
         with:
@@ -66,4 +63,4 @@ jobs:
           branch: ${{ steps.get_vars.outputs.branch }}
           sha: ${{ steps.get_vars.outputs.sha }}
           ts: ${{ steps.get_vars.outputs.ts }}
-          push: ${{ github.ref == 'refs/heads/main' }}
+          push: true
