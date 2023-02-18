@@ -3,11 +3,12 @@ name: CI
 on:
   push:
     branches:
-      - '**'
+      - 'main'
     tags:
       - 'v*'
   pull_request:
-    branches: ['*']
+    branches:
+      - 'main'
 
 jobs:
   test:
@@ -28,9 +29,10 @@ jobs:
         run: go test -v ./...
   build:
     runs-on: ubuntu-20.04
+    needs: test
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Log in to the Container registry
         uses: docker/login-action@v2
         with:
