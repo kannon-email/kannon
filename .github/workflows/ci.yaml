@@ -26,9 +26,9 @@ jobs:
       - name: Get Vars
         id: get_vars
         run: |
-          echo "::set-output name=ts::$(date +%s)"
-          echo "::set-output name=sha::$(git rev-parse --short HEAD)"
-          echo "::set-output name=branch::$(git rev-parse --abbrev-ref HEAD)"
+          echo "ts=$(date +%s) >> $GITHUB_OUTPU"
+          echo "sha=$(git rev-parse --short HEAD) >> $GITHUB_OUTPU"
+          echo "branch=$(git rev-parse --abbrev-ref HEAD) >> $GITHUB_OUTPU"
       - name: Build Kannon
         uses: ./.github/actions/build-docker
         with:
