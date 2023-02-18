@@ -26,19 +26,19 @@ runs:
   steps:
     - name: Docker meta
       id: docker_meta
-      uses: crazy-max/ghaction-docker-meta@v1
+      uses: docker/metadata-action@v4
       with:
         images: |
           ghcr.io/${{ github.repository }}/${{ inputs.docker-target }}
-        tag-sha: true
-        tag-semver: |
-          {{version}}
-          {{major}}.{{minor}}
-        tag-custom: |
-          ${{inputs.branch}}-${{inputs.sha}}-${{ inputs.ts }}
+        tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=sha
+            type=raw,value=${{inputs.branch}}-${{inputs.sha}}-${{ inputs.ts }}
     - name: Build and push
       id: docker_build
-      uses: docker/build-push-action@v2
+      uses: docker/build-push-action@v4
       with:
         push: ${{ github.ref == 'refs/heads/main' }}
         network: host
