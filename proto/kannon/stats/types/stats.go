@@ -4,7 +4,6 @@ import (
 	"database/sql/driver"
 	"fmt"
 
-	"github.com/networkteam/obfuscate"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -26,8 +25,4 @@ func (d *StatsData) Scan(src interface{}) error {
 
 func (d *StatsData) Value() (driver.Value, error) {
 	return protojson.Marshal(d)
-}
-
-func (d *Stats) GetObfuscatedEmail() string {
-	return obfuscate.EmailAddressPartially(d.Email)
 }

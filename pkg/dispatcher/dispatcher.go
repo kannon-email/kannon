@@ -24,11 +24,13 @@ func Run(ctx context.Context) {
 	dbURL := viper.GetString("database_url")
 	natsURL := viper.GetString("nats_url")
 
-	logrus.Info("🚀 Starting dispatcher")
+	log := logrus.WithField("component", "dispatcher")
+
+	log.Info("🚀 Starting dispatcher")
 
 	db, q, err := sqlc.Conn(ctx, dbURL)
 	if err != nil {
-		logrus.Fatalf("cannot connect to database: %v", err)
+		log.Fatalf("cannot connect to database: %v", err)
 	}
 	defer db.Close()
 
@@ -46,6 +48,7 @@ func Run(ctx context.Context) {
 		mb:  mb,
 		pub: nc,
 		js:  js,
+		log: log,
 	}
 
 	var wg sync.WaitGroup

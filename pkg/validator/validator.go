@@ -17,23 +17,29 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func NewValidator(pm pool.SendingPoolManager, pub publisher.Publisher) *Validator {
+func NewValidator(pm pool.SendingPoolManager, pub publisher.Publisher, log *logrus.Entry) *Validator {
+	if log == nil {
+		log = logrus.WithField("component", "validator")
+	}
 	return &Validator{
 		pm:  pm,
 		pub: pub,
+		log: log,
 	}
 }
 
 type Validator struct {
 	pm  pool.SendingPoolManager
 	pub publisher.Publisher
+	log *logrus.Entry
 }
 
 func Run(ctx context.Context) error {
 	dbURL := viper.GetString("database_url")
 	natsURL := viper.GetString("nats_url")
+	l := logrus.WithField("component", "validator")
 
-	logrus.Info("🚀 Starting dispatcher")
+	l.Info("🚀 Starting validator")
 
 	db, q, err := sqlc.Conn(ctx, dbURL)
 	if err != nil {
@@ -49,6 +55,7 @@ func Run(ctx context.Context) error {
 	v := Validator{
 		pm:  pm,
 		pub: nc,
+		log: l,
 	}
 
 	return runner.Run(ctx, v.Cycle, runner.WaitLoop(1*time.Second))
@@ -62,11 +69,11 @@ func (d *Validator) Cycle(pctx context.Context) error {
 		return fmt.Errorf("cannot prepare emails for send: %v", err)
 	}
 
-	logrus.Debugf("[validator] preparing %d emails", len(emails))
+	d.log.Debugf("[validator] preparing %d emails", len(emails))
 
 	for _, pool := range emails {
 		if err := d.handlePool(ctx, pool); err != nil {
-			logrus.Errorf("error handling pool email: %#v", pool)
+			d.log.Errorf("error handling pool email: %#v", pool)
 		}
 	}
 	return nil

@@ -22,6 +22,7 @@ type disp struct {
 	mb  mailbuilder.MailBulder
 	pub publisher.Publisher
 	js  nats.JetStreamContext
+	log *logrus.Entry
 }
 
 func (d disp) DispatchCycle(pctx context.Context) error {
@@ -32,29 +33,29 @@ func (d disp) DispatchCycle(pctx context.Context) error {
 		return fmt.Errorf("cannot prepare emails for send: %v", err)
 	}
 
-	logrus.Debugf("[dispatcher] seding %d emails", len(emails))
+	d.log.Debugf("[dispatcher] seding %d emails", len(emails))
 
 	for _, email := range emails {
 		data, err := d.mb.BuildEmail(ctx, email)
 		if err != nil {
-			logrus.Errorf("Cannot send email %v: %v", email.Email, err)
+			d.log.Errorf("Cannot send email %v: %v", email.Email, err)
 			continue
 		}
 		if err := publisher.SendEmail(d.pub, data); err != nil {
-			logrus.Errorf("Cannot send email %v: %v", email.Email, err)
+			d.log.Errorf("Cannot send email %v: %v", email.Email, err)
 			continue
 		}
-		logrus.Infof("[✅ accepted]: %v %v", data.To, data.EmailId)
+		d.log.Infof("[✅ accepted]: %v %v", utils.ObfuscateEmail(data.To), data.EmailId)
 	}
 
-	logrus.Debugf("[dispatcher] done sending emails")
+	d.log.Debugf("[dispatcher] done sending emails")
 	return nil
 }
 
 func (d disp) handleErrors(ctx context.Context) {
 	sbj := "kannon.stats.error"
 	subName := "dispatcher-error"
-	handleMsg(ctx, d.js, sbj, subName, d.parseErrorsFunc)
+	d.handleMsg(ctx, sbj, subName, d.parseErrorsFunc)
 }
 
 func (d disp) parseErrorsFunc(ctx context.Context, m *statstypes.Stats) error {
@@ -72,7 +73,7 @@ func (d disp) parseErrorsFunc(ctx context.Context, m *statstypes.Stats) error {
 func (d disp) handleDelivereds(ctx context.Context) {
 	sbj := "kannon.stats.delivered"
 	subName := "dispatcher-delivered"
-	handleMsg(ctx, d.js, sbj, subName, d.parsDeliveredFunc)
+	d.handleMsg(ctx, sbj, subName, d.parsDeliveredFunc)
 }
 
 func (d disp) parsDeliveredFunc(ctx context.Context, m *statstypes.Stats) error {
@@ -85,7 +86,7 @@ func (d disp) parsDeliveredFunc(ctx context.Context, m *statstypes.Stats) error 
 func (d disp) handleBounced(ctx context.Context) {
 	sbj := "kannon.stats.bounced"
 	subName := "dispatcher-bounced"
-	handleMsg(ctx, d.js, sbj, subName, d.parsBouncedFunc)
+	d.handleMsg(ctx, sbj, subName, d.parsBouncedFunc)
 }
 
 func (d disp) parsBouncedFunc(ctx context.Context, m *statstypes.Stats) error {
@@ -98,36 +99,36 @@ func (d disp) parsBouncedFunc(ctx context.Context, m *statstypes.Stats) error {
 
 type parseFunc func(ctx context.Context, msg *statstypes.Stats) error
 
-func handleMsg(ctx context.Context, js nats.JetStreamContext, sbj, subName string, parse parseFunc) {
-	con := utils.MustGetPullSubscriber(js, sbj, subName)
+func (d disp) handleMsg(ctx context.Context, sbj, subName string, parse parseFunc) {
+	con := utils.MustGetPullSubscriber(d.js, sbj, subName)
 	for {
 		msgs, err := con.Fetch(10, nats.MaxWait(10*time.Second))
 		if err != nil {
 			if err != nats.ErrTimeout {
-				logrus.Errorf("error fetching messages: %v", err)
+				d.log.Errorf("error fetching messages: %v", err)
 			}
 			continue
 		}
 		for _, msg := range msgs {
 			m := &statstypes.Stats{}
 			if err := proto.Unmarshal(msg.Data, m); err != nil {
-				handleAck(msg, err)
+				d.handleAck(msg, err)
 				continue
 			}
 			err := parse(ctx, m)
-			handleAck(msg, err)
+			d.handleAck(msg, err)
 		}
 	}
 }
 
-func handleAck(msg *nats.Msg, err error) {
+func (d disp) handleAck(msg *nats.Msg, err error) {
 	if err != nil {
 		if err := msg.Nak(); err != nil {
-			logrus.Errorf("Cannot nak msg to nats: %v", err)
+			d.log.Errorf("Cannot nak msg to nats: %v", err)
 		}
 	} else {
 		if err := msg.Ack(); err != nil {
-			logrus.Errorf("Cannot hack msg to nats: %v", err)
+			d.log.Errorf("Cannot hack msg to nats: %v", err)
 		}
 	}
 }

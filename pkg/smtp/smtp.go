@@ -85,7 +85,7 @@ func (s *Session) Data(r io.Reader) error {
 		},
 	}
 
-	logrus.Infof("[🤷 got bounce] %vs - %d - %s", email, code, errMsg)
+	logrus.Infof("[🤷 got bounce] %vs - %d - %s", utils.ObfuscateEmail(email), code, errMsg)
 
 	msg, err := proto.Marshal(m)
 	if err != nil {
