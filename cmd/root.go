@@ -105,7 +105,6 @@ func init() {
 	cobra.OnInitialize(initConfig)
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.kannon.yaml)")
-	rootCmd.PersistentFlags().StringP("author", "a", "YOUR NAME", "author name for copyright attribution")
 	rootCmd.PersistentFlags().Bool("viper", true, "use Viper for configuration")
 	createBoolFlagAndBindToViper("run-sender", false, "run sender")
 	createBoolFlagAndBindToViper("run-dispatcher", false, "run dispatcher")

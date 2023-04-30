@@ -4,7 +4,6 @@
 package main
 
 import (
-	_ "github.com/amacneil/dbmate"
 	_ "github.com/bufbuild/buf/cmd/buf"
 	_ "github.com/kyleconroy/sqlc/cmd/sqlc"
 	_ "github.com/vektra/mockery/v2"
