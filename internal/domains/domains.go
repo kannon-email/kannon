@@ -3,15 +3,10 @@ package domains
 import (
 	"context"
 	"math/rand"
-	"time"
 
 	sqlc "github.com/ludusrusso/kannon/internal/db"
 	"github.com/ludusrusso/kannon/internal/dkim"
 )
-
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
 
 type domainManager struct {
 	q *sqlc.Queries
