@@ -48,7 +48,7 @@ func TestMain(m *testing.M) {
 
 	q = sqlc.New(db)
 	pm := pool.NewSendingPoolManager(q)
-	vt = validator.NewValidator(pm, &mp)
+	vt = validator.NewValidator(pm, &mp, nil)
 
 	ts = mailapi.NewMailerAPIV1(q)
 	adminAPI = adminapi.CreateAdminAPIService(q)
