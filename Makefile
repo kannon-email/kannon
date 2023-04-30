@@ -20,3 +20,6 @@ generate-proto:
 	PATH=$(GOBIN) buf generate
 
 generate: generate-db generate-proto
+
+lint:
+	golangci-lint run --fix
