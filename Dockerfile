@@ -6,6 +6,8 @@ RUN go mod download
 COPY ./pkg ./pkg
 COPY ./cmd ./cmd
 COPY ./internal ./internal
+COPY ./db ./db
+COPY ./stats_db ./stats_db
 COPY ./proto ./proto
 COPY ./kannon.go  ./
 
@@ -16,9 +18,3 @@ FROM scratch as kannon
 COPY --from=builder  /build/kannon /bin/cmd
 USER 1000
 ENTRYPOINT ["/bin/cmd"]
-
-FROM amacneil/dbmate as migrator-db
-COPY ./db /db
-
-FROM amacneil/dbmate as migrator-stats
-COPY ./stats_db /db

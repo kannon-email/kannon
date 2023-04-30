@@ -48,19 +48,3 @@ jobs:
           sha: ${{ steps.get_vars.outputs.sha }}
           ts: ${{ steps.get_vars.outputs.ts }}
           push: true
-      - name: Build Main DB migrations
-        uses: ./.github/actions/build-docker
-        with:
-          docker-target: migrator-db
-          branch: ${{ steps.get_vars.outputs.branch }}
-          sha: ${{ steps.get_vars.outputs.sha }}
-          ts: ${{ steps.get_vars.outputs.ts }}
-          push: true
-      - name: Build Stats DB migrations
-        uses: ./.github/actions/build-docker
-        with:
-          docker-target: migrator-stats
-          branch: ${{ steps.get_vars.outputs.branch }}
-          sha: ${{ steps.get_vars.outputs.sha }}
-          ts: ${{ steps.get_vars.outputs.ts }}
-          push: true
