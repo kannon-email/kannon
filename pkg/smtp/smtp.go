@@ -24,7 +24,9 @@ type Backend struct {
 }
 
 func (bkd *Backend) NewSession(_ *smtp.Conn) (smtp.Session, error) {
-	return &Session{}, nil
+	return &Session{
+		nc: bkd.nc,
+	}, nil
 }
 
 // A Session is returned after EHLO.
