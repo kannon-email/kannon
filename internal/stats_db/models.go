@@ -10,64 +10,6 @@ import (
 	pbtypes "github.com/ludusrusso/kannon/proto/kannon/stats/types"
 )
 
-type Accepted struct {
-	ID        int32
-	Email     string
-	MessageID string
-	Domain    string
-	Timestamp time.Time
-}
-
-type Click struct {
-	ID        int32
-	Email     string
-	MessageID string
-	Domain    string
-	Ip        string
-	Url       string
-	UserAgent string
-	Timestamp time.Time
-}
-
-type HardBounced struct {
-	ID        int32
-	Email     string
-	MessageID string
-	Domain    string
-	ErrCode   int32
-	ErrMsg    string
-	Timestamp time.Time
-}
-
-type Open struct {
-	ID        int32
-	Email     string
-	MessageID string
-	Domain    string
-	Ip        string
-	UserAgent string
-	Timestamp time.Time
-}
-
-type Prepared struct {
-	ID             int32
-	Email          string
-	MessageID      string
-	Domain         string
-	Timestamp      time.Time
-	FirstTimestamp time.Time
-}
-
-type SoftBounce struct {
-	ID        int32
-	Email     string
-	MessageID string
-	Domain    string
-	Code      int32
-	Msg       string
-	Timestamp time.Time
-}
-
 type Stat struct {
 	ID        int32
 	Type      StatsType
