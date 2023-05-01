@@ -31,29 +31,6 @@ func (q *Queries) CountQueryStats(ctx context.Context, arg CountQueryStatsParams
 	return count, err
 }
 
-const insertPrepared = `-- name: InsertPrepared :exec
-INSERT INTO prepared (email, message_id, timestamp, first_timestamp, domain) VALUES ($1, $2, $3, $3, $4)
-	ON CONFLICT (email, message_id, domain) DO UPDATE
-	SET timestamp = $3
-`
-
-type InsertPreparedParams struct {
-	Email     string
-	MessageID string
-	Timestamp time.Time
-	Domain    string
-}
-
-func (q *Queries) InsertPrepared(ctx context.Context, arg InsertPreparedParams) error {
-	_, err := q.exec(ctx, q.insertPreparedStmt, insertPrepared,
-		arg.Email,
-		arg.MessageID,
-		arg.Timestamp,
-		arg.Domain,
-	)
-	return err
-}
-
 const insertStat = `-- name: InsertStat :exec
 INSERT INTO stats (email, message_id, type, timestamp, domain, data) VALUES  ($1, $2, $3, $4, $5, $6)
 `
