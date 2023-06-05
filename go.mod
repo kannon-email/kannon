@@ -16,7 +16,7 @@ require (
 	github.com/nats-io/nats.go v1.25.0
 	github.com/networkteam/obfuscate v0.1.0
 	github.com/ory/dockertest/v3 v3.10.0
-	github.com/sirupsen/logrus v1.9.0
+	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.7.0
 	github.com/spf13/viper v1.15.0
 	github.com/stretchr/testify v1.8.2
