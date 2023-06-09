@@ -20,7 +20,7 @@ require (
 	github.com/spf13/cobra v1.7.0
 	github.com/spf13/viper v1.15.0
 	github.com/stretchr/testify v1.8.2
-	github.com/vektra/mockery/v2 v2.26.1
+	github.com/vektra/mockery/v2 v2.29.0
 	golang.org/x/net v0.9.0
 	google.golang.org/grpc v1.55.0
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.3.0
@@ -38,7 +38,7 @@ require (
 	github.com/bufbuild/protocompile v0.5.1 // indirect
 	github.com/bytecodealliance/wasmtime-go/v8 v8.0.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
-	github.com/chigopher/pathlib v0.13.0 // indirect
+	github.com/chigopher/pathlib v0.15.0 // indirect
 	github.com/containerd/continuity v0.3.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/cubicdaiya/gonp v1.0.4 // indirect
