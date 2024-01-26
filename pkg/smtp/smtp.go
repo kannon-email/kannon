@@ -46,7 +46,7 @@ func (s *Session) Mail(from string, opts *smtp.MailOptions) error {
 	return nil
 }
 
-func (s *Session) Rcpt(to string) error {
+func (s *Session) Rcpt(to string, opts *smtp.RcptOptions) error {
 	s.To = to
 	return nil
 }
@@ -138,7 +138,7 @@ func Run(ctx context.Context) {
 	s.Domain = domain
 	s.ReadTimeout = readTimeout
 	s.WriteTimeout = writeTimeout
-	s.MaxMessageBytes = int(maxPayload)
+	s.MaxMessageBytes = int64(maxPayload)
 	s.MaxRecipients = maxRecipients
 	s.AllowInsecureAuth = true
 

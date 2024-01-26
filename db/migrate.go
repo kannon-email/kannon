@@ -19,7 +19,7 @@ func Migrate(dbURL string) error {
 	}
 	db := dbmate.New(u)
 	db.FS = fs
-	db.MigrationsDir = "migrations"
+	db.MigrationsDir = []string{"migrations"}
 	db.AutoDumpSchema = false
 
 	if _, err = db.Status(false); err != nil {
