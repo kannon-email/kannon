@@ -28,7 +28,7 @@ type disp struct {
 func (d disp) DispatchCycle(pctx context.Context) error {
 	ctx, cancel := context.WithTimeout(pctx, 10*time.Second)
 	defer cancel()
-	emails, err := d.pm.PrepareForSend(ctx, 100)
+	emails, err := d.pm.PrepareForSend(ctx, 20)
 	if err != nil {
 		return fmt.Errorf("cannot prepare emails for send: %v", err)
 	}
