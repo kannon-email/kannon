@@ -374,8 +374,8 @@ github.com/tetratelabs/wazero v1.6.0 h1:z0H1iikCdP8t+q341xqepY4EWvHEw8Es7tlqiVzl
 github.com/tetratelabs/wazero v1.6.0/go.mod h1:0U0G41+ochRKoPKCJlh0jMg1CHkyfK8kDqiirMmKY8A=
 github.com/vbatts/tar-split v0.11.5 h1:3bHCTIheBm1qFTcgh9oPu+nNBtX+XJIupG/vacinCts=
 github.com/vbatts/tar-split v0.11.5/go.mod h1:yZbwRsSeGjusneWgA781EKej9HF8vme8okylkAeNKLk=
-github.com/vektra/mockery/v2 v2.40.1 h1:8D01rBqloDLDHKZGXkyUD9Yj5Z+oDXBqDZ+tRXYM/oA=
-github.com/vektra/mockery/v2 v2.40.1/go.mod h1:dPzGtjT0/Uu4hqpF6QNHwz+GLago7lq1bxdj9wHbGKo=
+github.com/vektra/mockery/v2 v2.40.3 h1:IZ2lydSDFsY0khnEsbSu13VLcqSsa6UYSS/8F+uOJmo=
+github.com/vektra/mockery/v2 v2.40.3/go.mod h1:KYBZF/7sqOa86BaOZPYsoCZWEWLS90a5oBLg2pVudxY=
 github.com/wasilibs/go-pgquery v0.0.0-20231208014744-de63626a1e99 h1:HFee1ByN4FrqNVd53Mo28ccGO+g5gxqUV/gdvKMe4b8=
 github.com/wasilibs/go-pgquery v0.0.0-20231208014744-de63626a1e99/go.mod h1:f2JMhFocVxY3VKMd9ykUxMnX4EVew9WOgjnfaNBB6C8=
 github.com/wasilibs/wazerox v0.0.0-20231208014050-e6b725634531 h1:zVJ4SZgaEE9sEH2L9k1+eAvCNa/WAAnT9UiMa3/tQrI=
