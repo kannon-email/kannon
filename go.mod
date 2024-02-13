@@ -1,6 +1,7 @@
 module github.com/ludusrusso/kannon
 
 go 1.21
+toolchain go1.22.0
 
 require (
 	github.com/amacneil/dbmate/v2 v2.11.0
@@ -20,7 +21,7 @@ require (
 	github.com/spf13/viper v1.18.2
 	github.com/sqlc-dev/sqlc v1.25.0
 	github.com/stretchr/testify v1.8.4
-	github.com/vektra/mockery/v2 v2.40.1
+	github.com/vektra/mockery/v2 v2.41.0
 	golang.org/x/net v0.20.0
 	google.golang.org/grpc v1.61.0
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.3.0
