@@ -1,6 +1,6 @@
 module github.com/ludusrusso/kannon
 
-go 1.21
+go 1.22.1
 
 require (
 	github.com/amacneil/dbmate/v2 v2.11.0
