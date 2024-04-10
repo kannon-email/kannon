@@ -1,25 +1,23 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: mailer
+  name: kannon
   labels:
-    name: mailer
+    name: kannon
 spec:
   selector:
     matchLabels:
-      name: mailer
+      name: kannon
   template:
     metadata:
       labels:
-        name: mailer
+        name: kannon
     spec:
       containers:
-        - name: mailer
-          image: kannon/mailer
+        - name: kannon-cp 
+          image: ghcr.io/kannon-email/kannon/kannon
           imagePullPolicy: Always
-          envFrom:
-            - secretRef:
-                name: db
+          args: ['--run-api', '--run-bounce', '--run-dispatcher', '--run-verifier', '--run-sender', '--run-smtp' ,'--config', '/etc/kannon/config.yaml']
           resources:
             limits:
               memory: '64Mi'
@@ -33,11 +31,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: mailer
+  name: kannon
 spec:
   type: ClusterIP
   selector:
-    name: mailer
+    name: kannon
   ports:
     - port: 50051
       targetPort: grpc

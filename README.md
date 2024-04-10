@@ -18,6 +18,27 @@ Tested on kubernello
 - Enable Templating
 - Enable multiple node sending
 
+## Deplyoment with Kubernetes
+
+You can deploy the project using the kubernetes manifests in the [k8s](./k8s/deployment.yaml) folder.
+
+Example config:
+
+```yaml
+nats_url: nats://nats:4222
+debug: true
+
+database_url: postgres://postgres:password@postgres:5432/kannon?sslmode=disable
+stats_database_url: postgres://postgres:password@postgres:5432/kannon_stats?sslmode=disable
+
+api:
+  port: 50051
+
+sender:
+  hostname: your-hostname
+  max_jobs: 100
+```
+
 ## Server Configuration
 
 The SMTP server need to be configured in order to work properly.
