@@ -67,7 +67,8 @@ CREATE TABLE public.messages (
     sender_email character varying(320) NOT NULL,
     sender_alias character varying(100) NOT NULL,
     template_id character varying(50) NOT NULL,
-    domain character varying(254) NOT NULL
+    domain character varying(254) NOT NULL,
+    attachments jsonb
 );
 
 
@@ -76,7 +77,7 @@ CREATE TABLE public.messages (
 --
 
 CREATE TABLE public.schema_migrations (
-    version character varying(255) NOT NULL
+    version character varying(128) NOT NULL
 );
 
 
@@ -323,4 +324,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20220806075424'),
     ('20220809092503'),
     ('20220830073617'),
-    ('20220904111715');
+    ('20220904111715'),
+    ('20240420090612');

@@ -43,6 +43,7 @@ func (s mailAPIService) SendHTML(ctx context.Context, req *pb.SendHTMLReq) (*pb.
 		TemplateId:    template.TemplateID,
 		ScheduledTime: req.ScheduledTime,
 		Recipients:    req.Recipients,
+		Attachments:   req.Attachments,
 	})
 }
 
@@ -67,7 +68,12 @@ func (s mailAPIService) SendTemplate(ctx context.Context, req *pb.SendTemplateRe
 		scheduled = req.ScheduledTime.AsTime()
 	}
 
-	pool, err := s.sendingPoll.AddRecipientsPool(ctx, template, req.Recipients, sender, scheduled, req.Subject, domain.Domain)
+	attachments := make(sqlc.Attachments)
+	for _, r := range req.Attachments {
+		attachments[r.Filename] = r.Content
+	}
+
+	pool, err := s.sendingPoll.AddRecipientsPool(ctx, template, req.Recipients, sender, scheduled, req.Subject, domain.Domain, attachments)
 
 	if err != nil {
 		logrus.Errorf("cannot create pool %v\n", err)

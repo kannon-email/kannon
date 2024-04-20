@@ -51,8 +51,15 @@ func (m *mailBuilder) BuildEmail(ctx context.Context, email sqlc.SendingPoolEmai
 		Alias: emailData.SenderAlias,
 	}
 
+	logrus.Infof("📧 Building attachmes for %+v\n", emailData.Attachments)
+
+	attachments := make(Attachments)
+	for name, r := range emailData.Attachments {
+		attachments[name] = bytes.NewReader(r)
+	}
+
 	returnPath := buildReturnPath(email.Email, emailData.MessageID)
-	msg, err := m.prepareMessage(ctx, sender, emailData.Subject, email.Email, emailData.Domain, emailData.MessageID, emailData.Html, m.headers, email.Fields)
+	msg, err := m.prepareMessage(ctx, sender, emailData.Subject, email.Email, emailData.Domain, emailData.MessageID, emailData.Html, m.headers, email.Fields, attachments)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +79,7 @@ func (m *mailBuilder) BuildEmail(ctx context.Context, email sqlc.SendingPoolEmai
 	}, nil
 }
 
-func (m *mailBuilder) prepareMessage(ctx context.Context, sender pool.Sender, subject string, to string, domain string, messageID string, html string, baseHeaders headers, fields map[string]string) ([]byte, error) {
+func (m *mailBuilder) prepareMessage(ctx context.Context, sender pool.Sender, subject string, to string, domain string, messageID string, html string, baseHeaders headers, fields map[string]string, attachments Attachments) ([]byte, error) {
 	emailMessageID := buildEmailID(to, messageID)
 	html, err := m.preparedHTML(ctx, html, to, domain, messageID, fields)
 	if err != nil {
@@ -83,7 +90,7 @@ func (m *mailBuilder) prepareMessage(ctx context.Context, sender pool.Sender, su
 		return nil, err
 	}
 	h := buildHeaders(subject, sender, to, messageID, emailMessageID, baseHeaders)
-	return renderMsg(html, h)
+	return renderMsg(html, h, attachments)
 }
 
 func signMessage(domain string, dkimPrivateKey string, msg []byte) ([]byte, error) {
@@ -136,7 +143,7 @@ func (m *mailBuilder) addTrackPixel(ctx context.Context, html string, email stri
 }
 
 // renderMsg render a MsgPayload to an SMTP message
-func renderMsg(html string, headers headers) ([]byte, error) {
+func renderMsg(html string, headers headers, attachments Attachments) ([]byte, error) {
 	msg := mail.NewMessage()
 
 	for key, value := range headers {
@@ -144,6 +151,9 @@ func renderMsg(html string, headers headers) ([]byte, error) {
 	}
 	msg.SetDateHeader("Date", time.Now())
 	msg.SetBody("text/html", html)
+	for name, r := range attachments {
+		msg.AttachReader(name, r)
+	}
 
 	var buff bytes.Buffer
 	if _, err := msg.WriteTo(&buff); err != nil {

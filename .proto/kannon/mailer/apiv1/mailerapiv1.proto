@@ -11,12 +11,18 @@ service Mailer {
   rpc SendTemplate(SendTemplateReq) returns (SendRes) {}
 }
 
+message Attachment {
+  string filename = 1;
+  bytes content = 2;
+}
+
 message SendHTMLReq {
   pkg.kannon.mailer.types.Sender sender = 1;
   string subject = 3;
   string html = 4;
   optional google.protobuf.Timestamp scheduled_time = 5;
   repeated pkg.kannon.mailer.types.Recipient recipients = 6;
+  repeated Attachment attachments = 7;
 }
 
 message SendTemplateReq {
@@ -25,6 +31,7 @@ message SendTemplateReq {
   string template_id = 4;
   optional google.protobuf.Timestamp scheduled_time = 5;
   repeated pkg.kannon.mailer.types.Recipient recipients = 6;
+  repeated Attachment attachments = 7;
 }
 
 message SendRes {
