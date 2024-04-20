@@ -27,8 +27,8 @@ func (q *Queries) CleanPool(ctx context.Context, arg CleanPoolParams) error {
 
 const createMessage = `-- name: CreateMessage :one
 INSERT INTO messages
-    (message_id, subject, sender_email, sender_alias, template_id, domain) VALUES
-    ($1, $2, $3, $4, $5, $6) RETURNING message_id, subject, sender_email, sender_alias, template_id, domain
+    (message_id, subject, sender_email, sender_alias, template_id, domain, attachments) VALUES
+    ($1, $2, $3, $4, $5, $6, $7) RETURNING message_id, subject, sender_email, sender_alias, template_id, domain, attachments
 `
 
 type CreateMessageParams struct {
@@ -38,6 +38,7 @@ type CreateMessageParams struct {
 	SenderAlias string
 	TemplateID  string
 	Domain      string
+	Attachments Attachments
 }
 
 func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (Message, error) {
@@ -48,6 +49,7 @@ func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (M
 		arg.SenderAlias,
 		arg.TemplateID,
 		arg.Domain,
+		arg.Attachments,
 	)
 	var i Message
 	err := row.Scan(
@@ -57,6 +59,7 @@ func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (M
 		&i.SenderAlias,
 		&i.TemplateID,
 		&i.Domain,
+		&i.Attachments,
 	)
 	return i, err
 }
@@ -122,7 +125,8 @@ SELECT
     m.subject,
     m.message_id,
     m.sender_email,
-    m.sender_alias
+    m.sender_alias,
+    m.attachments
 FROM messages as m
     JOIN templates as t ON t.template_id = m.template_id
     JOIN domains as d ON d.domain = m.domain
@@ -138,6 +142,7 @@ type GetSendingDataRow struct {
 	MessageID      string
 	SenderEmail    string
 	SenderAlias    string
+	Attachments    Attachments
 }
 
 func (q *Queries) GetSendingData(ctx context.Context, messageID string) (GetSendingDataRow, error) {
@@ -152,6 +157,7 @@ func (q *Queries) GetSendingData(ctx context.Context, messageID string) (GetSend
 		&i.MessageID,
 		&i.SenderEmail,
 		&i.SenderAlias,
+		&i.Attachments,
 	)
 	return i, err
 }

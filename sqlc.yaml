@@ -17,6 +17,9 @@ packages:
       - column: "sending_pool_emails.status"
         go_type:
           type: "SendingPoolStatus"
+      - column: "messages.attachments"
+        go_type:
+          type: "Attachments"
   - name: "sq"
     path: "internal/stats_db"
     queries: "./internal/stats_db/"

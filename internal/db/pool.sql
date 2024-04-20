@@ -45,8 +45,8 @@ SELECT * FROM sending_pool_emails WHERE message_id = $1 LIMIT $2 OFFSET $3;
 
 -- name: CreateMessage :one
 INSERT INTO messages
-    (message_id, subject, sender_email, sender_alias, template_id, domain) VALUES
-    ($1, $2, $3, $4, $5, $6) RETURNING *;
+    (message_id, subject, sender_email, sender_alias, template_id, domain, attachments) VALUES
+    ($1, $2, $3, $4, $5, $6, $7) RETURNING *;
 
 -- name: CreatePool :exec
 INSERT INTO sending_pool_emails (email, status, scheduled_time, original_scheduled_time, message_id, fields, domain) VALUES 
@@ -61,7 +61,8 @@ SELECT
     m.subject,
     m.message_id,
     m.sender_email,
-    m.sender_alias
+    m.sender_alias,
+    m.attachments
 FROM messages as m
     JOIN templates as t ON t.template_id = m.template_id
     JOIN domains as d ON d.domain = m.domain

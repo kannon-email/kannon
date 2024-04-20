@@ -68,6 +68,7 @@ type Message struct {
 	SenderAlias string
 	TemplateID  string
 	Domain      string
+	Attachments Attachments
 }
 
 type SendingPoolEmail struct {

@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/mail"
 	"os"
+	"strings"
 	"testing"
 
 	schema "github.com/ludusrusso/kannon/db"
@@ -114,4 +115,56 @@ func TestPrepareMail(t *testing.T) {
 	html, _ := io.ReadAll(parsed.Body)
 
 	assert.Equal(t, "test Test", string(html))
+}
+
+func TestPrepareMailWithAttachments(t *testing.T) {
+	d, err := adminAPI.CreateDomain(context.Background(), &adminapiv1.CreateDomainRequest{
+		Domain: "test2.com",
+	})
+	assert.Nil(t, err)
+
+	token := base64.StdEncoding.EncodeToString([]byte(d.Domain + ":" + d.Key))
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Basic "+token))
+
+	res, err := ma.SendHTML(ctx, &mailerapiv1.SendHTMLReq{
+		Sender: &pb.Sender{
+			Email: "test@test.com",
+			Alias: "Test",
+		},
+		Subject:       "Test {{ name }}",
+		Html:          "test {{name }}",
+		ScheduledTime: timestamppb.Now(),
+		Recipients: []*pb.Recipient{
+			{
+				Email: "test@emailtest.com",
+				Fields: map[string]string{
+					"name": "Test",
+				},
+			},
+		},
+		Attachments: []*mailerapiv1.Attachment{
+			{
+				Filename: "test.txt",
+				Content:  []byte("test"),
+			},
+		},
+	})
+	assert.Nil(t, err)
+
+	err = pm.SetScheduled(ctx, res.MessageId, "test@emailtest.com")
+	assert.Nil(t, err)
+
+	emails, err := pm.PrepareForSend(context.Background(), 1)
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(emails))
+
+	m, err := mb.BuildEmail(context.Background(), emails[0])
+	assert.Nil(t, err)
+	parsed, err := mail.ReadMessage(bytes.NewReader(m.Body))
+	assert.Nil(t, err)
+
+	assert.Nil(t, err)
+	assert.Equal(t, "test@emailtest.com", parsed.Header.Get("To"))
+	assert.Equal(t, "Test <test@test.com>", parsed.Header.Get("From"))
+	assert.Equal(t, "multipart/mixed", strings.Split(parsed.Header.Get("Content-Type"), ";")[0])
 }
