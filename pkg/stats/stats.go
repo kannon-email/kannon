@@ -7,7 +7,7 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/spf13/viper"
 
-	sq "github.com/ludusrusso/kannon/internal/stats_db"
+	sq "github.com/ludusrusso/kannon/internal/db"
 	"github.com/ludusrusso/kannon/internal/utils"
 	"github.com/ludusrusso/kannon/proto/kannon/stats/types"
 	"github.com/sirupsen/logrus"

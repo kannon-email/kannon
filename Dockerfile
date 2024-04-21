@@ -7,7 +7,6 @@ COPY ./pkg ./pkg
 COPY ./cmd ./cmd
 COPY ./internal ./internal
 COPY ./db ./db
-COPY ./stats_db ./stats_db
 COPY ./proto ./proto
 COPY ./kannon.go  ./
 

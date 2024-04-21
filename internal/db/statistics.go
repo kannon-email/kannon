@@ -1,4 +1,4 @@
-package sq
+package sqlc
 
 import (
 	types "github.com/ludusrusso/kannon/proto/kannon/stats/types"

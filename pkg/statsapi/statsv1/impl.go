@@ -3,7 +3,7 @@ package statsv1
 import (
 	"context"
 
-	sq "github.com/ludusrusso/kannon/internal/stats_db"
+	sq "github.com/ludusrusso/kannon/internal/db"
 	"github.com/ludusrusso/kannon/proto/kannon/stats/apiv1"
 	"github.com/ludusrusso/kannon/proto/kannon/stats/types"
 	"google.golang.org/protobuf/types/known/timestamppb"

@@ -1,6 +1,6 @@
 GOBIN=$(PWD)/.bin
 
-.PHONY: test generate-db generate-proto dbstats
+.PHONY: test generate-db generate-proto 
 
 test:
 	go test ./...
