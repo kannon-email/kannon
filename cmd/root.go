@@ -149,7 +149,7 @@ func initConfig() {
 	}
 
 	if viper.GetBool("debug") {
-		logrus.Infof("setting deubg mode")
+		logrus.Infof("setting debug mode")
 		logrus.SetLevel(logrus.DebugLevel)
 	}
 }

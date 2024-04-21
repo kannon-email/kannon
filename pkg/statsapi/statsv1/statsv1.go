@@ -2,10 +2,10 @@ package statsv1
 
 import (
 	sq "github.com/ludusrusso/kannon/internal/db"
-	"github.com/ludusrusso/kannon/proto/kannon/stats/apiv1"
+	api "github.com/ludusrusso/kannon/proto/kannon/stats/apiv1/apiv1connect"
 )
 
-func NewStatsAPIService(q *sq.Queries) apiv1.StatsApiV1Server {
+func NewStatsAPIService(q *sq.Queries) api.StatsApiV1Handler {
 	return &a{
 		q: q,
 	}

@@ -7,6 +7,7 @@ import (
 	"os"
 	"testing"
 
+	"connectrpc.com/connect"
 	schema "github.com/ludusrusso/kannon/db"
 	sqlc "github.com/ludusrusso/kannon/internal/db"
 	"github.com/ludusrusso/kannon/internal/tests"
@@ -17,15 +18,17 @@ import (
 	"google.golang.org/grpc/metadata"
 
 	adminv1 "github.com/ludusrusso/kannon/proto/kannon/admin/apiv1"
-	mailerv1 "github.com/ludusrusso/kannon/proto/kannon/mailer/apiv1"
+
+	adminv1cnt "github.com/ludusrusso/kannon/proto/kannon/admin/apiv1/apiv1connect"
+	mailerv1cnt "github.com/ludusrusso/kannon/proto/kannon/mailer/apiv1/apiv1connect"
 
 	_ "github.com/lib/pq"
 )
 
 var db *sql.DB
 var q *sqlc.Queries
-var ts mailerv1.MailerServer
-var adminAPI adminv1.ApiServer
+var ts mailerv1cnt.MailerHandler
+var adminAPI adminv1cnt.ApiHandler
 
 func TestMain(m *testing.M) {
 	var purge tests.PurgeFunc
@@ -52,11 +55,11 @@ func TestMain(m *testing.M) {
 
 func createTestDomain(t *testing.T) *adminv1.Domain {
 	t.Helper()
-	res, err := adminAPI.CreateDomain(context.Background(), &adminv1.CreateDomainRequest{
+	res, err := adminAPI.CreateDomain(context.Background(), connect.NewRequest(&adminv1.CreateDomainRequest{
 		Domain: "test.test.test",
-	})
+	}))
 	assert.Nil(t, err)
-	return res
+	return res.Msg
 }
 
 func cleanDB(t *testing.T) {

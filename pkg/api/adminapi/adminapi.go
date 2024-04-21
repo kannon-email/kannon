@@ -5,10 +5,10 @@ import (
 	"github.com/ludusrusso/kannon/internal/domains"
 	"github.com/ludusrusso/kannon/internal/templates"
 
-	pb "github.com/ludusrusso/kannon/proto/kannon/admin/apiv1"
+	pb "github.com/ludusrusso/kannon/proto/kannon/admin/apiv1/apiv1connect"
 )
 
-func CreateAdminAPIService(q *sqlc.Queries) pb.ApiServer {
+func CreateAdminAPIService(q *sqlc.Queries) pb.ApiHandler {
 	dm := domains.NewDomainManager(q)
 	tm := templates.NewTemplateManager(q)
 	return &adminAPIService{

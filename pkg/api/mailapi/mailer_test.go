@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"connectrpc.com/connect"
 	sqlc "github.com/ludusrusso/kannon/internal/db"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -21,7 +22,7 @@ func TestInsertMail(t *testing.T) {
 
 	schedTime := time.Now().Add(10 * time.Minute).Truncate(1 * time.Second)
 
-	res, err := ts.SendHTML(ctx, &mailerv1.SendHTMLReq{
+	res, err := ts.SendHTML(ctx, connect.NewRequest(&mailerv1.SendHTMLReq{
 		Sender: &types.Sender{
 			Email: "test@test.com",
 			Alias: "Test",
@@ -37,16 +38,16 @@ func TestInsertMail(t *testing.T) {
 		Subject:       "Test",
 		Html:          "Hello {{ name }}",
 		ScheduledTime: timestamppb.New(schedTime),
-	})
+	}))
 
 	assert.Nil(t, err)
-	assert.NotEmpty(t, res.MessageId)
-	assert.NotEmpty(t, res.TemplateId)
-	assert.True(t, strings.HasSuffix(res.MessageId, "@"+d.Domain))
-	assert.True(t, strings.HasSuffix(res.TemplateId, "@"+d.Domain))
+	assert.NotEmpty(t, res.Msg.MessageId)
+	assert.NotEmpty(t, res.Msg.TemplateId)
+	assert.True(t, strings.HasSuffix(res.Msg.MessageId, "@"+d.Domain))
+	assert.True(t, strings.HasSuffix(res.Msg.TemplateId, "@"+d.Domain))
 
 	sp, err := q.GetSendingPoolsEmails(context.Background(), sqlc.GetSendingPoolsEmailsParams{
-		MessageID: res.MessageId,
+		MessageID: res.Msg.MessageId,
 		Limit:     100,
 		Offset:    0,
 	})

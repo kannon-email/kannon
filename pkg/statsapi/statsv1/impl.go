@@ -3,6 +3,7 @@ package statsv1
 import (
 	"context"
 
+	"connectrpc.com/connect"
 	sq "github.com/ludusrusso/kannon/internal/db"
 	"github.com/ludusrusso/kannon/proto/kannon/stats/apiv1"
 	"github.com/ludusrusso/kannon/proto/kannon/stats/types"
@@ -13,22 +14,22 @@ type a struct {
 	q *sq.Queries
 }
 
-func (a *a) GetStats(ctx context.Context, req *apiv1.GetStatsReq) (*apiv1.GetStatsRes, error) {
+func (a *a) GetStats(ctx context.Context, req *connect.Request[apiv1.GetStatsReq]) (*connect.Response[apiv1.GetStatsRes], error) {
 	stats, err := a.q.QueryStats(ctx, sq.QueryStatsParams{
-		Domain: req.Domain,
-		Start:  req.FromDate.AsTime(),
-		Stop:   req.ToDate.AsTime(),
-		Skip:   int32(req.Skip),
-		Take:   int32(req.Take),
+		Domain: req.Msg.Domain,
+		Start:  req.Msg.FromDate.AsTime(),
+		Stop:   req.Msg.ToDate.AsTime(),
+		Skip:   int32(req.Msg.Skip),
+		Take:   int32(req.Msg.Take),
 	})
 	if err != nil {
 		return nil, err
 	}
 
 	total, err := a.q.CountQueryStats(ctx, sq.CountQueryStatsParams{
-		Domain: req.Domain,
-		Start:  req.FromDate.AsTime(),
-		Stop:   req.ToDate.AsTime(),
+		Domain: req.Msg.Domain,
+		Start:  req.Msg.FromDate.AsTime(),
+		Stop:   req.Msg.ToDate.AsTime(),
 	})
 	if err != nil {
 		return nil, err
@@ -39,17 +40,18 @@ func (a *a) GetStats(ctx context.Context, req *apiv1.GetStatsReq) (*apiv1.GetSta
 		pbStats = append(pbStats, s.Pb())
 	}
 
-	return &apiv1.GetStatsRes{
+	res := connect.NewResponse(&apiv1.GetStatsRes{
 		Total: uint32(total),
 		Stats: pbStats,
-	}, nil
+	})
+	return res, nil
 }
 
-func (a *a) GetStatsAggregated(ctx context.Context, req *apiv1.GetStatsAggregatedReq) (*apiv1.GetStatsAggregatedRes, error) {
+func (a *a) GetStatsAggregated(ctx context.Context, req *connect.Request[apiv1.GetStatsAggregatedReq]) (*connect.Response[apiv1.GetStatsAggregatedRes], error) {
 	stats, err := a.q.QueryStatsTimeline(ctx, sq.QueryStatsTimelineParams{
-		Domain: req.Domain,
-		Start:  req.FromDate.AsTime(),
-		Stop:   req.ToDate.AsTime(),
+		Domain: req.Msg.Domain,
+		Start:  req.Msg.FromDate.AsTime(),
+		Stop:   req.Msg.ToDate.AsTime(),
 	})
 	if err != nil {
 		return nil, err
@@ -64,7 +66,9 @@ func (a *a) GetStatsAggregated(ctx context.Context, req *apiv1.GetStatsAggregate
 		})
 	}
 
-	return &apiv1.GetStatsAggregatedRes{
+	res := connect.NewResponse(&apiv1.GetStatsAggregatedRes{
 		Stats: pbStats,
-	}, nil
+	})
+
+	return res, nil
 }

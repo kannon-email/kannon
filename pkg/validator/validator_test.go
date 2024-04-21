@@ -7,6 +7,7 @@ import (
 	"os"
 	"testing"
 
+	"connectrpc.com/connect"
 	schema "github.com/ludusrusso/kannon/db"
 	sqlc "github.com/ludusrusso/kannon/internal/db"
 	"github.com/ludusrusso/kannon/internal/pool"
@@ -19,6 +20,9 @@ import (
 	adminapiv1 "github.com/ludusrusso/kannon/proto/kannon/admin/apiv1"
 	mailerapiv1 "github.com/ludusrusso/kannon/proto/kannon/mailer/apiv1"
 	mailertypes "github.com/ludusrusso/kannon/proto/kannon/mailer/types"
+
+	adminapiv1connect "github.com/ludusrusso/kannon/proto/kannon/admin/apiv1/apiv1connect"
+	mailerapiv1connect "github.com/ludusrusso/kannon/proto/kannon/mailer/apiv1/apiv1connect"
 
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -34,8 +38,8 @@ var q *sqlc.Queries
 var vt *validator.Validator
 var mp mocks.Publisher
 
-var ts mailerapiv1.MailerServer
-var adminAPI adminapiv1.ApiServer
+var ts mailerapiv1connect.MailerHandler
+var adminAPI adminapiv1connect.ApiHandler
 
 func TestMain(m *testing.M) {
 	var purge tests.PurgeFunc
@@ -113,7 +117,7 @@ func sendEmail(t *testing.T, domain *adminapiv1.Domain, email string) {
 	t.Helper()
 
 	ctx := getDomainCtx(domain)
-	_, err := ts.SendHTML(ctx, &mailerapiv1.SendHTMLReq{
+	_, err := ts.SendHTML(ctx, connect.NewRequest(&mailerapiv1.SendHTMLReq{
 		Sender: &mailertypes.Sender{
 			Email: "test@email.com",
 			Alias: "test",
@@ -126,17 +130,17 @@ func sendEmail(t *testing.T, domain *adminapiv1.Domain, email string) {
 				Email: email,
 			},
 		},
-	})
+	}))
 	assert.Nil(t, err)
 }
 
 func createTestDomain(t *testing.T) *adminapiv1.Domain {
 	t.Helper()
-	res, err := adminAPI.CreateDomain(context.Background(), &adminapiv1.CreateDomainRequest{
+	res, err := adminAPI.CreateDomain(context.Background(), connect.NewRequest(&adminapiv1.CreateDomainRequest{
 		Domain: "test.test.test",
-	})
+	}))
 	assert.Nil(t, err)
-	return res
+	return res.Msg
 }
 
 func cleanDB(t *testing.T) {

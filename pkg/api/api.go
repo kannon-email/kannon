@@ -3,19 +3,21 @@ package api
 import (
 	"context"
 	"fmt"
-	"net"
+	"log"
+	"net/http"
 	"sync"
 
 	sqlc "github.com/ludusrusso/kannon/internal/db"
 	"github.com/ludusrusso/kannon/pkg/api/adminapi"
 	"github.com/ludusrusso/kannon/pkg/api/mailapi"
 	"github.com/ludusrusso/kannon/pkg/statsapi/statsv1"
-	adminv1 "github.com/ludusrusso/kannon/proto/kannon/admin/apiv1"
-	mailerv1 "github.com/ludusrusso/kannon/proto/kannon/mailer/apiv1"
-	"github.com/ludusrusso/kannon/proto/kannon/stats/apiv1"
+	adminv1 "github.com/ludusrusso/kannon/proto/kannon/admin/apiv1/apiv1connect"
+	mailerv1 "github.com/ludusrusso/kannon/proto/kannon/mailer/apiv1/apiv1connect"
+	apiv1 "github.com/ludusrusso/kannon/proto/kannon/stats/apiv1/apiv1connect"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
-	"google.golang.org/grpc"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
 )
 
 func Run(ctx context.Context) {
@@ -47,21 +49,26 @@ func Run(ctx context.Context) {
 	wg.Wait()
 }
 
-func startAPIServer(port uint, adminServer adminv1.ApiServer, mailerServer mailerv1.MailerServer, statsServer apiv1.StatsApiV1Server) error {
+func startAPIServer(port uint, adminServer adminv1.ApiHandler, mailerServer mailerv1.MailerHandler, statsServer apiv1.StatsApiV1Handler) error {
 	addr := fmt.Sprintf("0.0.0.0:%d", port)
-	lis, err := net.Listen("tcp", addr)
-	if err != nil {
-		return err
-	}
-	defer lis.Close()
 
-	s := grpc.NewServer()
-	adminv1.RegisterApiServer(s, adminServer)
-	mailerv1.RegisterMailerServer(s, mailerServer)
-	apiv1.RegisterStatsApiV1Server(s, statsServer)
+	mux := http.NewServeMux()
 
-	if err := s.Serve(lis); err != nil {
-		return err
-	}
+	mux.Handle(adminv1.NewApiHandler(adminServer))
+	mux.Handle(mailerv1.NewMailerHandler(mailerServer))
+	mux.Handle(apiv1.NewStatsApiV1Handler(statsServer))
+
+	ctx := context.Background()
+
+	logrus.Infof("🚀 starting Admin API Service on %v\n", addr)
+
+	err := http.ListenAndServe(
+		addr,
+		h2c.NewHandler(mux, &http2.Server{}),
+	)
+	log.Fatalf("listen failed: %v", err)
+
+	<-ctx.Done()
+
 	return nil
 }

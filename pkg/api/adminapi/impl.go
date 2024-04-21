@@ -3,6 +3,7 @@ package adminapi
 import (
 	"context"
 
+	"connectrpc.com/connect"
 	sqlc "github.com/ludusrusso/kannon/internal/db"
 	"github.com/ludusrusso/kannon/internal/domains"
 	"github.com/ludusrusso/kannon/internal/templates"
@@ -15,46 +16,46 @@ type adminAPIService struct {
 	tm templates.Manager
 }
 
-func (s *adminAPIService) GetDomains(ctx context.Context, in *pb.GetDomainsReq) (*pb.GetDomainsResponse, error) {
+func (s *adminAPIService) GetDomains(ctx context.Context, in *connect.Request[pb.GetDomainsReq]) (*connect.Response[pb.GetDomainsResponse], error) {
 	domains, err := s.dm.GetAllDomains(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	res := pb.GetDomainsResponse{}
+	res := &pb.GetDomainsResponse{}
 	for _, domain := range domains {
 		res.Domains = append(res.Domains, dbDomainToProtoDomain(domain))
 	}
-	return &res, nil
+	return connect.NewResponse(res), nil
 }
 
-func (s *adminAPIService) GetDomain(ctx context.Context, in *pb.GetDomainReq) (*pb.GetDomainRes, error) {
-	domain, err := s.dm.FindDomain(ctx, in.Domain)
+func (s *adminAPIService) GetDomain(ctx context.Context, in *connect.Request[pb.GetDomainReq]) (*connect.Response[pb.GetDomainRes], error) {
+	domain, err := s.dm.FindDomain(ctx, in.Msg.Domain)
 	if err != nil {
 		return nil, err
 	}
 
-	return &pb.GetDomainRes{
+	return connect.NewResponse(&pb.GetDomainRes{
 		Domain: dbDomainToProtoDomain(domain),
-	}, nil
+	}), nil
 }
 
-func (s *adminAPIService) CreateDomain(ctx context.Context, in *pb.CreateDomainRequest) (*pb.Domain, error) {
-	domain, err := s.dm.CreateDomain(ctx, in.Domain)
+func (s *adminAPIService) CreateDomain(ctx context.Context, in *connect.Request[pb.CreateDomainRequest]) (*connect.Response[pb.Domain], error) {
+	domain, err := s.dm.CreateDomain(ctx, in.Msg.Domain)
 	if err != nil {
 		return nil, err
 	}
 
-	return dbDomainToProtoDomain(domain), nil
+	return connect.NewResponse(dbDomainToProtoDomain(domain)), nil
 }
 
-func (s *adminAPIService) RegenerateDomainKey(ctx context.Context, in *pb.RegenerateDomainKeyRequest) (*pb.Domain, error) {
-	domain, err := s.dm.RegenerateDomainKey(ctx, in.Domain)
+func (s *adminAPIService) RegenerateDomainKey(ctx context.Context, in *connect.Request[pb.RegenerateDomainKeyRequest]) (*connect.Response[pb.Domain], error) {
+	domain, err := s.dm.RegenerateDomainKey(ctx, in.Msg.Domain)
 	if err != nil {
 		return nil, err
 	}
 
-	return dbDomainToProtoDomain(domain), nil
+	return connect.NewResponse(dbDomainToProtoDomain(domain)), nil
 }
 
 func dbDomainToProtoDomain(in sqlc.Domain) *pb.Domain {
