@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	sqlc "github.com/ludusrusso/kannon/internal/db"
-	sq "github.com/ludusrusso/kannon/internal/stats_db"
 	"github.com/ludusrusso/kannon/pkg/api/adminapi"
 	"github.com/ludusrusso/kannon/pkg/api/mailapi"
 	"github.com/ludusrusso/kannon/pkg/statsapi/statsv1"
@@ -21,7 +20,6 @@ import (
 
 func Run(ctx context.Context) {
 	dbURL := viper.GetString("database_url")
-	sdbURL := viper.GetString("stats_database_url")
 	port := viper.GetUint("api.port")
 
 	logrus.Infof("Starting API Service on port %d", port)
@@ -32,15 +30,9 @@ func Run(ctx context.Context) {
 	}
 	defer db.Close()
 
-	sdb, sq, err := sq.Conn(ctx, sdbURL)
-	if err != nil {
-		logrus.Fatalf("cannot connect to database: %v", err)
-	}
-	defer sdb.Close()
-
 	adminAPIService := adminapi.CreateAdminAPIService(q)
 	mailAPIService := mailapi.NewMailerAPIV1(q)
-	statsAPIService := statsv1.NewStatsAPIService(sq)
+	statsAPIService := statsv1.NewStatsAPIService(q)
 
 	wg := sync.WaitGroup{}
 	wg.Add(1)

@@ -1,7 +1,7 @@
 package statsv1
 
 import (
-	sq "github.com/ludusrusso/kannon/internal/stats_db"
+	sq "github.com/ludusrusso/kannon/internal/db"
 	"github.com/ludusrusso/kannon/proto/kannon/stats/apiv1"
 )
 

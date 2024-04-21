@@ -8,6 +8,8 @@ import (
 	"database/sql/driver"
 	"fmt"
 	"time"
+
+	pbtypes "github.com/ludusrusso/kannon/proto/kannon/stats/types"
 )
 
 type TemplateType string
@@ -82,6 +84,16 @@ type SendingPoolEmail struct {
 	Status                SendingPoolStatus
 	CreatedAt             time.Time
 	Domain                string
+}
+
+type Stat struct {
+	ID        int32
+	Type      StatsType
+	Email     string
+	MessageID string
+	Domain    string
+	Timestamp time.Time
+	Data      *pbtypes.StatsData
 }
 
 type StatsKey struct {

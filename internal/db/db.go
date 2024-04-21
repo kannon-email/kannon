@@ -27,6 +27,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.cleanPoolStmt, err = db.PrepareContext(ctx, cleanPool); err != nil {
 		return nil, fmt.Errorf("error preparing query CleanPool: %w", err)
 	}
+	if q.countQueryStatsStmt, err = db.PrepareContext(ctx, countQueryStats); err != nil {
+		return nil, fmt.Errorf("error preparing query CountQueryStats: %w", err)
+	}
 	if q.countTemplatesStmt, err = db.PrepareContext(ctx, countTemplates); err != nil {
 		return nil, fmt.Errorf("error preparing query CountTemplates: %w", err)
 	}
@@ -84,11 +87,20 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.getValidStatsKeysStmt, err = db.PrepareContext(ctx, getValidStatsKeys); err != nil {
 		return nil, fmt.Errorf("error preparing query GetValidStatsKeys: %w", err)
 	}
+	if q.insertStatStmt, err = db.PrepareContext(ctx, insertStat); err != nil {
+		return nil, fmt.Errorf("error preparing query InsertStat: %w", err)
+	}
 	if q.prepareForSendStmt, err = db.PrepareContext(ctx, prepareForSend); err != nil {
 		return nil, fmt.Errorf("error preparing query PrepareForSend: %w", err)
 	}
 	if q.prepareForValidateStmt, err = db.PrepareContext(ctx, prepareForValidate); err != nil {
 		return nil, fmt.Errorf("error preparing query PrepareForValidate: %w", err)
+	}
+	if q.queryStatsStmt, err = db.PrepareContext(ctx, queryStats); err != nil {
+		return nil, fmt.Errorf("error preparing query QueryStats: %w", err)
+	}
+	if q.queryStatsTimelineStmt, err = db.PrepareContext(ctx, queryStatsTimeline); err != nil {
+		return nil, fmt.Errorf("error preparing query QueryStatsTimeline: %w", err)
 	}
 	if q.reschedulePoolStmt, err = db.PrepareContext(ctx, reschedulePool); err != nil {
 		return nil, fmt.Errorf("error preparing query ReschedulePool: %w", err)
@@ -113,6 +125,11 @@ func (q *Queries) Close() error {
 	if q.cleanPoolStmt != nil {
 		if cerr := q.cleanPoolStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing cleanPoolStmt: %w", cerr)
+		}
+	}
+	if q.countQueryStatsStmt != nil {
+		if cerr := q.countQueryStatsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing countQueryStatsStmt: %w", cerr)
 		}
 	}
 	if q.countTemplatesStmt != nil {
@@ -210,6 +227,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing getValidStatsKeysStmt: %w", cerr)
 		}
 	}
+	if q.insertStatStmt != nil {
+		if cerr := q.insertStatStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing insertStatStmt: %w", cerr)
+		}
+	}
 	if q.prepareForSendStmt != nil {
 		if cerr := q.prepareForSendStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing prepareForSendStmt: %w", cerr)
@@ -218,6 +240,16 @@ func (q *Queries) Close() error {
 	if q.prepareForValidateStmt != nil {
 		if cerr := q.prepareForValidateStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing prepareForValidateStmt: %w", cerr)
+		}
+	}
+	if q.queryStatsStmt != nil {
+		if cerr := q.queryStatsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing queryStatsStmt: %w", cerr)
+		}
+	}
+	if q.queryStatsTimelineStmt != nil {
+		if cerr := q.queryStatsTimelineStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing queryStatsTimelineStmt: %w", cerr)
 		}
 	}
 	if q.reschedulePoolStmt != nil {
@@ -285,6 +317,7 @@ type Queries struct {
 	db                              DBTX
 	tx                              *sql.Tx
 	cleanPoolStmt                   *sql.Stmt
+	countQueryStatsStmt             *sql.Stmt
 	countTemplatesStmt              *sql.Stmt
 	createDomainStmt                *sql.Stmt
 	createMessageStmt               *sql.Stmt
@@ -304,8 +337,11 @@ type Queries struct {
 	getTemplatesStmt                *sql.Stmt
 	getValidPublicStatsKeyByKidStmt *sql.Stmt
 	getValidStatsKeysStmt           *sql.Stmt
+	insertStatStmt                  *sql.Stmt
 	prepareForSendStmt              *sql.Stmt
 	prepareForValidateStmt          *sql.Stmt
+	queryStatsStmt                  *sql.Stmt
+	queryStatsTimelineStmt          *sql.Stmt
 	reschedulePoolStmt              *sql.Stmt
 	setDomainKeyStmt                *sql.Stmt
 	setSendingPoolDeliveredStmt     *sql.Stmt
@@ -318,6 +354,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		db:                              tx,
 		tx:                              tx,
 		cleanPoolStmt:                   q.cleanPoolStmt,
+		countQueryStatsStmt:             q.countQueryStatsStmt,
 		countTemplatesStmt:              q.countTemplatesStmt,
 		createDomainStmt:                q.createDomainStmt,
 		createMessageStmt:               q.createMessageStmt,
@@ -337,8 +374,11 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		getTemplatesStmt:                q.getTemplatesStmt,
 		getValidPublicStatsKeyByKidStmt: q.getValidPublicStatsKeyByKidStmt,
 		getValidStatsKeysStmt:           q.getValidStatsKeysStmt,
+		insertStatStmt:                  q.insertStatStmt,
 		prepareForSendStmt:              q.prepareForSendStmt,
 		prepareForValidateStmt:          q.prepareForValidateStmt,
+		queryStatsStmt:                  q.queryStatsStmt,
+		queryStatsTimelineStmt:          q.queryStatsTimelineStmt,
 		reschedulePoolStmt:              q.reschedulePoolStmt,
 		setDomainKeyStmt:                q.setDomainKeyStmt,
 		setSendingPoolDeliveredStmt:     q.setSendingPoolDeliveredStmt,

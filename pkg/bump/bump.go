@@ -8,7 +8,6 @@ import (
 	"time"
 
 	sqlc "github.com/ludusrusso/kannon/internal/db"
-	sq "github.com/ludusrusso/kannon/internal/stats_db"
 	"github.com/ludusrusso/kannon/internal/statssec"
 	"github.com/ludusrusso/kannon/internal/utils"
 	pb "github.com/ludusrusso/kannon/proto/kannon/stats/types"
@@ -71,7 +70,7 @@ func Run(ctx context.Context) {
 				},
 			},
 			Domain:    domain,
-			Type:      string(sq.StatsTypeOpened),
+			Type:      string(sqlc.StatsTypeOpened),
 			Timestamp: timestamppb.Now(),
 		}
 		msg, err := proto.Marshal(data)
@@ -123,7 +122,7 @@ func Run(ctx context.Context) {
 					},
 				},
 			},
-			Type:      string(sq.StatsTypeClicked),
+			Type:      string(sqlc.StatsTypeClicked),
 			Timestamp: timestamppb.Now(),
 		}
 		msg, err := proto.Marshal(data)

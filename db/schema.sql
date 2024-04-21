@@ -120,6 +120,21 @@ ALTER SEQUENCE public.sending_pool_emails_id_seq OWNED BY public.sending_pool_em
 
 
 --
+-- Name: stats; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.stats (
+    id integer NOT NULL,
+    type character varying NOT NULL,
+    email character varying NOT NULL,
+    message_id character varying NOT NULL,
+    domain character varying NOT NULL,
+    "timestamp" timestamp without time zone DEFAULT now() NOT NULL,
+    data jsonb NOT NULL
+);
+
+
+--
 -- Name: stats_keys; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -267,6 +282,20 @@ CREATE INDEX messages_message_id_idx ON public.messages USING btree (message_id)
 
 
 --
+-- Name: stats_email_message_id_type_timestamp_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX stats_email_message_id_type_timestamp_idx ON public.stats USING btree (email, message_id, domain, type, "timestamp");
+
+
+--
+-- Name: stats_type_message_id_type_timestamp_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX stats_type_message_id_type_timestamp_idx ON public.stats USING btree (message_id, domain, type, "timestamp");
+
+
+--
 -- Name: template_type_domain_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -325,4 +354,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20220809092503'),
     ('20220830073617'),
     ('20220904111715'),
-    ('20240420090612');
+    ('20240420090612'),
+    ('20240421080953');

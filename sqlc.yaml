@@ -20,12 +20,6 @@ packages:
       - column: "messages.attachments"
         go_type:
           type: "Attachments"
-  - name: "sq"
-    path: "internal/stats_db"
-    queries: "./internal/stats_db/"
-    schema: "./stats_db/migrations/"
-    engine: "postgresql"
-    overrides:
       - column: "stats.type"
         go_type:
           type: "StatsType"
@@ -35,8 +29,3 @@ packages:
           type: "StatsData"
           package: pbtypes 
           pointer: true
-    emit_prepared_queries: true
-    emit_interface: false
-    emit_exact_table_names: false
-    emit_empty_slices: false
-    emit_json_tags: false
