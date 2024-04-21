@@ -135,6 +135,26 @@ CREATE TABLE public.stats (
 
 
 --
+-- Name: stats_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.stats_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: stats_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.stats_id_seq OWNED BY public.stats.id;
+
+
+--
 -- Name: stats_keys; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -198,6 +218,13 @@ ALTER TABLE ONLY public.sending_pool_emails ALTER COLUMN id SET DEFAULT nextval(
 
 
 --
+-- Name: stats id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.stats ALTER COLUMN id SET DEFAULT nextval('public.stats_id_seq'::regclass);
+
+
+--
 -- Name: templates id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -250,6 +277,14 @@ ALTER TABLE ONLY public.sending_pool_emails
 
 ALTER TABLE ONLY public.stats_keys
     ADD CONSTRAINT stats_keys_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: stats stats_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.stats
+    ADD CONSTRAINT stats_pkey PRIMARY KEY (id);
 
 
 --

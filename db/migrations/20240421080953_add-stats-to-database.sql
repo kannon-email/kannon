@@ -1,7 +1,7 @@
 -- migrate:up
 
 CREATE TABLE stats (
-    id integer NOT NULL,
+    id SERIAL PRIMARY KEY,
     type VARCHAR NOT NULL,
     email VARCHAR NOT NULL,
     message_id VARCHAR NOT NULL,
