@@ -29,7 +29,6 @@ nats_url: nats://nats:4222
 debug: true
 
 database_url: postgres://postgres:password@postgres:5432/kannon?sslmode=disable
-stats_database_url: postgres://postgres:password@postgres:5432/kannon_stats?sslmode=disable
 
 api:
   port: 50051

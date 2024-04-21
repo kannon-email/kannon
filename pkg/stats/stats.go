@@ -17,7 +17,7 @@ import (
 )
 
 func Run(ctx context.Context) {
-	dbURL := viper.GetString("stats_database_url")
+	dbURL := viper.GetString("database_url")
 	natsURL := viper.GetString("nats_url")
 
 	logrus.Info("🚀 Starting stats")
