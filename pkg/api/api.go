@@ -3,9 +3,11 @@ package api
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
+	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 
 	sqlc "github.com/ludusrusso/kannon/internal/db"
 	"github.com/ludusrusso/kannon/pkg/api/adminapi"
@@ -39,17 +41,26 @@ func Run(ctx context.Context) {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	go func() {
-		err := startAPIServer(port, adminAPIService, mailAPIService, statsAPIService)
-		if err != nil {
-			panic("Cannot run mailer server")
-		}
+		s := <-c
+		logrus.Infof("got signal: %v", s)
+		cancel()
+		wg.Done()
 	}()
+
+	err = startAPIServer(ctx, port, adminAPIService, mailAPIService, statsAPIService)
+	if err != nil {
+		logrus.Fatalf("error starting API server: %v", err)
+	}
 
 	wg.Wait()
 }
 
-func startAPIServer(port uint, adminServer adminv1.ApiHandler, mailerServer mailerv1.MailerHandler, statsServer apiv1.StatsApiV1Handler) error {
+func startAPIServer(ctx context.Context, port uint, adminServer adminv1.ApiHandler, mailerServer mailerv1.MailerHandler, statsServer apiv1.StatsApiV1Handler) error {
 	addr := fmt.Sprintf("0.0.0.0:%d", port)
 
 	mux := http.NewServeMux()
@@ -58,17 +69,23 @@ func startAPIServer(port uint, adminServer adminv1.ApiHandler, mailerServer mail
 	mux.Handle(mailerv1.NewMailerHandler(mailerServer))
 	mux.Handle(apiv1.NewStatsApiV1Handler(statsServer))
 
-	ctx := context.Background()
-
 	logrus.Infof("🚀 starting Admin API Service on %v\n", addr)
 
-	err := http.ListenAndServe(
-		addr,
-		h2c.NewHandler(mux, &http2.Server{}),
-	)
-	log.Fatalf("listen failed: %v", err)
+	errch := make(chan error, 1)
 
-	<-ctx.Done()
+	go func() {
+		errch <- http.ListenAndServe(
+			addr,
+			h2c.NewHandler(mux, &http2.Server{}),
+		)
+		logrus.Infof("Admin API Service stopped\n")
+	}()
 
-	return nil
+	select {
+	case err := <-errch:
+		return err
+	case <-ctx.Done():
+		logrus.Infof("Shutting down Admin API Service")
+		return nil
+	}
 }

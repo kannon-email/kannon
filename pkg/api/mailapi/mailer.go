@@ -13,7 +13,6 @@ import (
 	"github.com/ludusrusso/kannon/internal/pool"
 	"github.com/ludusrusso/kannon/internal/templates"
 	"github.com/ludusrusso/kannon/proto/kannon/mailer/apiv1"
-	pb "github.com/ludusrusso/kannon/proto/kannon/mailer/apiv1"
 	cn "github.com/ludusrusso/kannon/proto/kannon/mailer/apiv1/apiv1connect"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
@@ -40,7 +39,7 @@ func (s mailAPIService) SendHTML(ctx context.Context, req *connect.Request[apiv1
 		return nil, status.Errorf(codes.Internal, "cannot create template %v", err)
 	}
 
-	res := connect.NewRequest(&pb.SendTemplateReq{
+	res := connect.NewRequest(&apiv1.SendTemplateReq{
 		Sender:        req.Msg.Sender,
 		Subject:       req.Msg.Subject,
 		TemplateId:    template.TemplateID,
@@ -85,7 +84,7 @@ func (s mailAPIService) SendTemplate(ctx context.Context, req *connect.Request[a
 		return nil, err
 	}
 
-	res := connect.NewResponse(&pb.SendRes{
+	res := connect.NewResponse(&apiv1.SendRes{
 		MessageId:     pool.MessageID,
 		TemplateId:    template.TemplateID,
 		ScheduledTime: timestamppb.New(scheduled),
