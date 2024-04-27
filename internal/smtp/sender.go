@@ -72,7 +72,7 @@ func (s *sender) Send(from, to string, msg []byte) SenderError {
 	}
 
 	mxs, lerr := lookupMXs(toDomain)
-	if err != nil {
+	if lerr != nil {
 		return lerr
 	}
 
@@ -82,6 +82,7 @@ func (s *sender) Send(from, to string, msg []byte) SenderError {
 		if err == nil {
 			return nil
 		}
+		logrus.Infof("Error delivering to %s: %v", mx, err)
 		if err.IsPermanent() {
 			return err
 		}
