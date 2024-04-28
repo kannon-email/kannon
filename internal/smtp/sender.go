@@ -82,10 +82,11 @@ func (s *sender) Send(from, to string, msg []byte) SenderError {
 		if err == nil {
 			return nil
 		}
-		logrus.Infof("Error delivering to %s: %v", mx, err)
-		if err.IsPermanent() {
+		if err.code > 200 {
+			logrus.WithError(err).Infof("Error sending email to %v, cannot retry other MXs", to)
 			return err
 		}
+
 		lastErr = err
 	}
 	err = fmt.Errorf("all MXs failed, last error: %v", lastErr)

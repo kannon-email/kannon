@@ -91,7 +91,7 @@ func (m *sendingPoolManager) RescheduleEmail(ctx context.Context, messageID stri
 		return err
 	}
 
-	rescheduleDelay := 2 * time.Minute * time.Duration(math.Pow(2, float64(pool.SendAttemptsCnt)))
+	rescheduleDelay := computeRescheduleDelay(int(pool.SendAttemptsCnt))
 
 	return m.db.ReschedulePool(ctx, sqlc.ReschedulePoolParams{
 		Email:         email,
@@ -104,4 +104,12 @@ func NewSendingPoolManager(q *sqlc.Queries) SendingPoolManager {
 	return &sendingPoolManager{
 		db: q,
 	}
+}
+
+func computeRescheduleDelay(attempts int) time.Duration {
+	rescheduleDelay := 2 * time.Minute * time.Duration(math.Pow(2, float64(attempts)))
+	if rescheduleDelay < 5*time.Minute {
+		rescheduleDelay = 5 * time.Minute
+	}
+	return rescheduleDelay
 }
