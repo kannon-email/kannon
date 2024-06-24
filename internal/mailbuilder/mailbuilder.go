@@ -186,7 +186,7 @@ func insertTrackLinkInHTML(html string, link string) string {
 	return strings.Replace(html, "</body>", fmt.Sprintf(`<img src="%s" style="display:none;"/></body>`, link), 1)
 }
 
-var regLink = regexp.MustCompile(`<a\s+(?:[^>]*?\s+)?href=["'](.*?)["']`)
+var regLink = regexp.MustCompile(`<a\s+(?:[^>]*?\s+)?href=["'](.+?)["']`)
 
 func replaceLinks(html string, replace func(link string) (string, error)) (string, error) {
 	matches := regLink.FindAllStringSubmatch(html, -1)

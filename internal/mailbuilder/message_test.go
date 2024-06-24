@@ -82,6 +82,22 @@ func TestInsertTrackLink(t *testing.T) {
 	assert.Equal(t, expectedhtml, res)
 }
 
+func TestEmptyAHrefLink(t *testing.T) {
+	html := `<html>
+<body>
+<a href="" />
+</body></html>`
+
+	expectedhtml := html
+
+	res, err := replaceLinks(html, func(link string) (string, error) {
+		return link + "x", nil
+	})
+
+	assert.Nil(t, err)
+	assert.Equal(t, expectedhtml, res)
+}
+
 func TestReplaceCustomFields(t *testing.T) {
 	str := "Hello {{name}}"
 	fields := map[string]string{
