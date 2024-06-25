@@ -11,6 +11,7 @@ import (
 	"github.com/ludusrusso/kannon/internal/domains"
 	"github.com/ludusrusso/kannon/internal/pool"
 	"github.com/ludusrusso/kannon/internal/templates"
+	"github.com/ludusrusso/kannon/internal/utils"
 	pb "github.com/ludusrusso/kannon/proto/kannon/mailer/apiv1"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
@@ -31,6 +32,8 @@ func (s mailAPIService) SendHTML(ctx context.Context, req *pb.SendHTMLReq) (*pb.
 		return nil, status.Errorf(codes.Unauthenticated, "invalid or wrong auth")
 	}
 
+	req.Html = utils.ReplaceCustomFields(req.Html, req.GlobalFields)
+
 	template, err := s.templates.CreateTransientTemplate(ctx, req.Html, domain.Domain)
 	if err != nil {
 		logrus.Errorf("cannot create template %v\n", err)
@@ -44,6 +47,7 @@ func (s mailAPIService) SendHTML(ctx context.Context, req *pb.SendHTMLReq) (*pb.
 		ScheduledTime: req.ScheduledTime,
 		Recipients:    req.Recipients,
 		Attachments:   req.Attachments,
+		GlobalFields:  nil,
 	})
 }
 
@@ -52,10 +56,17 @@ func (s mailAPIService) SendTemplate(ctx context.Context, req *pb.SendTemplateRe
 	if err != nil {
 		return nil, status.Errorf(codes.Unauthenticated, "invalid or wrong auth")
 	}
+
 	template, err := s.templates.FindTemplate(ctx, domain.Domain, req.TemplateId)
 	if err != nil {
-		logrus.Errorf("cannot create template %v\n", err)
+		logrus.Errorf("cannot find template %v\n", err)
 		return nil, status.Errorf(codes.InvalidArgument, "cannot find template with id: %v", req.TemplateId)
+	}
+
+	template, err = s.createTemplateWithGlobalFieds(ctx, template, req.GlobalFields)
+	if err != nil {
+		logrus.Errorf("cannot create transient template %v\n", err)
+		return nil, status.Errorf(codes.Internal, "cannot create template %v", err)
 	}
 
 	sender := pool.Sender{
@@ -89,6 +100,19 @@ func (s mailAPIService) SendTemplate(ctx context.Context, req *pb.SendTemplateRe
 
 func (s mailAPIService) Close() error {
 	return s.domains.Close()
+}
+
+func (s mailAPIService) createTemplateWithGlobalFieds(ctx context.Context, template sqlc.Template, globalFields map[string]string) (sqlc.Template, error) {
+	if len(globalFields) == 0 {
+		return template, nil
+	}
+
+	newHTML := utils.ReplaceCustomFields(template.Html, globalFields)
+	if newHTML == template.Html {
+		return template, nil
+	}
+
+	return s.templates.CreateTransientTemplate(ctx, newHTML, template.Domain)
 }
 
 func (s mailAPIService) getCallDomainFromContext(ctx context.Context) (sqlc.Domain, error) {
