@@ -23,6 +23,7 @@ message SendHTMLReq {
   optional google.protobuf.Timestamp scheduled_time = 5;
   repeated pkg.kannon.mailer.types.Recipient recipients = 6;
   repeated Attachment attachments = 7;
+  map<string, string> global_fields = 8;
 }
 
 message SendTemplateReq {
@@ -32,6 +33,7 @@ message SendTemplateReq {
   optional google.protobuf.Timestamp scheduled_time = 5;
   repeated pkg.kannon.mailer.types.Recipient recipients = 6;
   repeated Attachment attachments = 7;
+  map<string, string> global_fields = 8;
 }
 
 message SendRes {

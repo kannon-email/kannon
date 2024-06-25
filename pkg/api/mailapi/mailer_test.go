@@ -15,6 +15,8 @@ import (
 )
 
 func TestInsertMail(t *testing.T) {
+	defer cleanDB(t)
+
 	d := createTestDomain(t)
 
 	ctx := getDomainCtx(d)
@@ -57,5 +59,76 @@ func TestInsertMail(t *testing.T) {
 	assert.Equal(t, "Test", sp[0].Fields["name"])
 
 	assert.Equal(t, schedTime.UTC(), sp[0].ScheduledTime.UTC())
-	cleanDB(t)
+}
+
+func TestSendMailWithGlobalFields(t *testing.T) {
+	defer cleanDB(t)
+
+	d := createTestDomain(t)
+
+	ctx := getDomainCtx(d)
+
+	schedTime := time.Now().Add(10 * time.Minute).Truncate(1 * time.Second)
+
+	res, err := ts.SendHTML(ctx, &mailerv1.SendHTMLReq{
+		Sender: &types.Sender{
+			Email: "test@test.com",
+			Alias: "Test",
+		},
+		Subject:       "Test",
+		Html:          "Hello {{ name }}",
+		ScheduledTime: timestamppb.New(schedTime),
+		GlobalFields: map[string]string{
+			"name": "Global",
+		},
+	})
+
+	assert.Nil(t, err)
+	assert.NotEmpty(t, res.MessageId)
+	assert.NotEmpty(t, res.TemplateId)
+
+	template, err := q.GetTemplate(context.Background(), res.TemplateId)
+	assert.NoError(t, err)
+	assert.Equal(t, "Hello Global", template.Html)
+}
+
+func TestSendTemplateWithGlobalFields(t *testing.T) {
+	defer cleanDB(t)
+
+	d := createTestDomain(t)
+
+	ctx := getDomainCtx(d)
+
+	schedTime := time.Now().Add(10 * time.Minute).Truncate(1 * time.Second)
+
+	tmp, err := q.CreateTemplate(context.Background(), sqlc.CreateTemplateParams{
+		Html:       "Hello {{ name }}",
+		TemplateID: "test-template",
+		Title:      "Test",
+		Domain:     d.Domain,
+		Type:       sqlc.TemplateTypeTemplate,
+	})
+	assert.NoError(t, err)
+
+	res, err := ts.SendTemplate(ctx, &mailerv1.SendTemplateReq{
+		Sender: &types.Sender{
+			Email: "test@test.com",
+			Alias: "Test",
+		},
+		Subject:       "Test",
+		TemplateId:    tmp.TemplateID,
+		ScheduledTime: timestamppb.New(schedTime),
+		GlobalFields: map[string]string{
+			"name": "Global",
+		},
+	})
+
+	assert.Nil(t, err)
+	assert.NotEmpty(t, res.MessageId)
+	assert.NotEmpty(t, res.TemplateId)
+
+	template, err := q.GetTemplate(context.Background(), res.TemplateId)
+	assert.NoError(t, err)
+	assert.NotEqual(t, tmp.ID, template.ID)
+	assert.Equal(t, "Hello Global", template.Html)
 }

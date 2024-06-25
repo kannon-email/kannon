@@ -12,6 +12,7 @@ import (
 	"github.com/ludusrusso/kannon/internal/dkim"
 	"github.com/ludusrusso/kannon/internal/pool"
 	"github.com/ludusrusso/kannon/internal/statssec"
+	"github.com/ludusrusso/kannon/internal/utils"
 	pb "github.com/ludusrusso/kannon/proto/kannon/mailer/types"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/mail.v2"
@@ -85,10 +86,8 @@ func (m *mailBuilder) prepareMessage(ctx context.Context, sender pool.Sender, su
 	if err != nil {
 		return nil, err
 	}
-	subject, err = replaceCustomFields(subject, fields)
-	if err != nil {
-		return nil, err
-	}
+	subject = utils.ReplaceCustomFields(subject, fields)
+
 	h := buildHeaders(subject, sender, to, messageID, emailMessageID, baseHeaders)
 	return renderMsg(html, h, attachments)
 }
@@ -105,12 +104,8 @@ func signMessage(domain string, dkimPrivateKey string, msg []byte) ([]byte, erro
 }
 
 func (m *mailBuilder) preparedHTML(ctx context.Context, html string, email string, domain string, messageID string, fields map[string]string) (string, error) {
-	html, err := replaceCustomFields(html, fields)
-	if err != nil {
-		return "", err
-	}
-
-	html, err = m.replaceAllLinks(ctx, html, email, messageID, domain)
+	html = utils.ReplaceCustomFields(html, fields)
+	html, err := m.replaceAllLinks(ctx, html, email, messageID, domain)
 	if err != nil {
 		return "", err
 	}
