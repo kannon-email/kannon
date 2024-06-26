@@ -1,0 +1,10 @@
+nats_url: nats://nats:4222
+debug: false
+database_url: postgresql://postgres:example@db:5432/postgres?sslmode=disable
+
+api:
+  port: 50051
+
+sender:
+  hostname: kannon.ludusrusso.dev
+  max_jobs: 100
