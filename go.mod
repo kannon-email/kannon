@@ -3,7 +3,7 @@ module github.com/ludusrusso/kannon
 go 1.22.1
 
 require (
-	github.com/amacneil/dbmate/v2 v2.17.0
+	github.com/amacneil/dbmate/v2 v2.18.0
 	github.com/bufbuild/buf v1.34.0
 	github.com/emersion/go-msgauth v0.6.8
 	github.com/emersion/go-smtp v0.21.2
@@ -161,8 +161,8 @@ require (
 	golang.org/x/term v0.21.0 // indirect
 	golang.org/x/text v0.16.0 // indirect
 	golang.org/x/tools v0.22.0 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20240624140628-dc46fd24d27d // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240624140628-dc46fd24d27d // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20240701130421-f6361c86f094 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20240701130421-f6361c86f094 // indirect
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
