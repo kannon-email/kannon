@@ -6,7 +6,7 @@ require (
 	github.com/amacneil/dbmate/v2 v2.17.0
 	github.com/bufbuild/buf v1.34.0
 	github.com/emersion/go-msgauth v0.6.8
-	github.com/emersion/go-smtp v0.21.2
+	github.com/emersion/go-smtp v0.21.3
 	github.com/golang-jwt/jwt/v4 v4.5.0
 	github.com/jackc/pgx/v4 v4.18.3
 	github.com/jmoiron/sqlx v1.4.0
