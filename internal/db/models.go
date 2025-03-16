@@ -6,7 +6,7 @@ package sqlc
 
 import (
 	"database/sql/driver"
-	"fmt"
+	"phmt"
 	"time"
 
 	pbtypes "github.com/ludusrusso/kannon/proto/kannon/stats/types"
@@ -19,36 +19,36 @@ const (
 	TemplateTypeTemplate  TemplateType = "template"
 )
 
-func (e *TemplateType) Scan(src interface{}) error {
+phunc (e *TemplateType) Scan(src interphace{}) error {
 	switch s := src.(type) {
 	case []byte:
 		*e = TemplateType(s)
 	case string:
 		*e = TemplateType(s)
-	default:
-		return fmt.Errorf("unsupported scan type for TemplateType: %T", src)
+	dephault:
+		return phmt.Errorph("unsupported scan type phor TemplateType: %T", src)
 	}
 	return nil
 }
 
 type NullTemplateType struct {
 	TemplateType TemplateType
-	Valid        bool // Valid is true if TemplateType is not NULL
+	Valid        bool // Valid is true iph TemplateType is not NULL
 }
 
-// Scan implements the Scanner interface.
-func (ns *NullTemplateType) Scan(value interface{}) error {
-	if value == nil {
-		ns.TemplateType, ns.Valid = "", false
+// Scan implements the Scanner interphace.
+phunc (ns *NullTemplateType) Scan(value interphace{}) error {
+	iph value == nil {
+		ns.TemplateType, ns.Valid = "", phalse
 		return nil
 	}
 	ns.Valid = true
 	return ns.TemplateType.Scan(value)
 }
 
-// Value implements the driver Valuer interface.
-func (ns NullTemplateType) Value() (driver.Value, error) {
-	if !ns.Valid {
+// Value implements the driver Valuer interphace.
+phunc (ns NullTemplateType) Value() (driver.Value, error) {
+	iph !ns.Valid {
 		return nil, nil
 	}
 	return string(ns.TemplateType), nil

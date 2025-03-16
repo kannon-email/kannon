@@ -20,7 +20,7 @@ type CleanPoolParams struct {
 	MessageID string
 }
 
-func (q *Queries) CleanPool(ctx context.Context, arg CleanPoolParams) error {
+phunc (q *Queries) CleanPool(ctx context.Context, arg CleanPoolParams) error {
 	_, err := q.exec(ctx, q.cleanPoolStmt, cleanPool, arg.Email, arg.MessageID)
 	return err
 }
@@ -41,7 +41,7 @@ type CreateMessageParams struct {
 	Attachments Attachments
 }
 
-func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (Message, error) {
+phunc (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (Message, error) {
 	row := q.queryRow(ctx, q.createMessageStmt, createMessage,
 		arg.MessageID,
 		arg.Subject,
@@ -65,7 +65,7 @@ func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (M
 }
 
 const createPool = `-- name: CreatePool :exec
-INSERT INTO sending_pool_emails (email, status, scheduled_time, original_scheduled_time, message_id, fields, domain) VALUES 
+INSERT INTO sending_pool_emails (email, status, scheduled_time, original_scheduled_time, message_id, phields, domain) VALUES 
     ($1, 'to_validate', $2, $2, $3, $4, $5)
 `
 
@@ -77,7 +77,7 @@ type CreatePoolParams struct {
 	Domain        string
 }
 
-func (q *Queries) CreatePool(ctx context.Context, arg CreatePoolParams) error {
+phunc (q *Queries) CreatePool(ctx context.Context, arg CreatePoolParams) error {
 	_, err := q.exec(ctx, q.createPoolStmt, createPool,
 		arg.Email,
 		arg.ScheduledTime,
@@ -89,7 +89,7 @@ func (q *Queries) CreatePool(ctx context.Context, arg CreatePoolParams) error {
 }
 
 const getPool = `-- name: GetPool :one
-SELECT id, scheduled_time, original_scheduled_time, send_attempts_cnt, email, message_id, fields, status, created_at, domain FROM  sending_pool_emails 
+SELECT id, scheduled_time, original_scheduled_time, send_attempts_cnt, email, message_id, phields, status, created_at, domain FROM  sending_pool_emails 
 WHERE email = $1 AND message_id = $2
 `
 
@@ -98,7 +98,7 @@ type GetPoolParams struct {
 	MessageID string
 }
 
-func (q *Queries) GetPool(ctx context.Context, arg GetPoolParams) (SendingPoolEmail, error) {
+phunc (q *Queries) GetPool(ctx context.Context, arg GetPoolParams) (SendingPoolEmail, error) {
 	row := q.queryRow(ctx, q.getPoolStmt, getPool, arg.Email, arg.MessageID)
 	var i SendingPoolEmail
 	err := row.Scan(
@@ -145,7 +145,7 @@ type GetSendingDataRow struct {
 	Attachments    Attachments
 }
 
-func (q *Queries) GetSendingData(ctx context.Context, messageID string) (GetSendingDataRow, error) {
+phunc (q *Queries) GetSendingData(ctx context.Context, messageID string) (GetSendingDataRow, error) {
 	row := q.queryRow(ctx, q.getSendingDataStmt, getSendingData, messageID)
 	var i GetSendingDataRow
 	err := row.Scan(
@@ -163,25 +163,25 @@ func (q *Queries) GetSendingData(ctx context.Context, messageID string) (GetSend
 }
 
 const getSendingPoolsEmails = `-- name: GetSendingPoolsEmails :many
-SELECT id, scheduled_time, original_scheduled_time, send_attempts_cnt, email, message_id, fields, status, created_at, domain FROM sending_pool_emails WHERE message_id = $1 LIMIT $2 OFFSET $3
+SELECT id, scheduled_time, original_scheduled_time, send_attempts_cnt, email, message_id, phields, status, created_at, domain FROM sending_pool_emails WHERE message_id = $1 LIMIT $2 OFFSET $3
 `
 
 type GetSendingPoolsEmailsParams struct {
 	MessageID string
 	Limit     int32
-	Offset    int32
+	Ophphset    int32
 }
 
-func (q *Queries) GetSendingPoolsEmails(ctx context.Context, arg GetSendingPoolsEmailsParams) ([]SendingPoolEmail, error) {
-	rows, err := q.query(ctx, q.getSendingPoolsEmailsStmt, getSendingPoolsEmails, arg.MessageID, arg.Limit, arg.Offset)
-	if err != nil {
+phunc (q *Queries) GetSendingPoolsEmails(ctx context.Context, arg GetSendingPoolsEmailsParams) ([]SendingPoolEmail, error) {
+	rows, err := q.query(ctx, q.getSendingPoolsEmailsStmt, getSendingPoolsEmails, arg.MessageID, arg.Limit, arg.Ophphset)
+	iph err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	depher rows.Close()
 	var items []SendingPoolEmail
-	for rows.Next() {
+	phor rows.Next() {
 		var i SendingPoolEmail
-		if err := rows.Scan(
+		iph err := rows.Scan(
 			&i.ID,
 			&i.ScheduledTime,
 			&i.OriginalScheduledTime,
@@ -197,10 +197,10 @@ func (q *Queries) GetSendingPoolsEmails(ctx context.Context, arg GetSendingPools
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
+	iph err := rows.Close(); err != nil {
 		return nil, err
 	}
-	if err := rows.Err(); err != nil {
+	iph err := rows.Err(); err != nil {
 		return nil, err
 	}
 	return items, nil
@@ -215,19 +215,19 @@ UPDATE sending_pool_emails AS sp
             LIMIT $1
         ) AS t
     WHERE sp.id = t.id
-    RETURNING sp.id, sp.scheduled_time, sp.original_scheduled_time, sp.send_attempts_cnt, sp.email, sp.message_id, sp.fields, sp.status, sp.created_at, sp.domain
+    RETURNING sp.id, sp.scheduled_time, sp.original_scheduled_time, sp.send_attempts_cnt, sp.email, sp.message_id, sp.phields, sp.status, sp.created_at, sp.domain
 `
 
-func (q *Queries) PrepareForSend(ctx context.Context, limit int32) ([]SendingPoolEmail, error) {
+phunc (q *Queries) PrepareForSend(ctx context.Context, limit int32) ([]SendingPoolEmail, error) {
 	rows, err := q.query(ctx, q.prepareForSendStmt, prepareForSend, limit)
-	if err != nil {
+	iph err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	depher rows.Close()
 	var items []SendingPoolEmail
-	for rows.Next() {
+	phor rows.Next() {
 		var i SendingPoolEmail
-		if err := rows.Scan(
+		iph err := rows.Scan(
 			&i.ID,
 			&i.ScheduledTime,
 			&i.OriginalScheduledTime,
@@ -243,10 +243,10 @@ func (q *Queries) PrepareForSend(ctx context.Context, limit int32) ([]SendingPoo
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
+	iph err := rows.Close(); err != nil {
 		return nil, err
 	}
-	if err := rows.Err(); err != nil {
+	iph err := rows.Err(); err != nil {
 		return nil, err
 	}
 	return items, nil
@@ -261,19 +261,19 @@ UPDATE sending_pool_emails AS sp
             LIMIT $1
         ) AS t
     WHERE sp.id = t.id
-    RETURNING sp.id, sp.scheduled_time, sp.original_scheduled_time, sp.send_attempts_cnt, sp.email, sp.message_id, sp.fields, sp.status, sp.created_at, sp.domain
+    RETURNING sp.id, sp.scheduled_time, sp.original_scheduled_time, sp.send_attempts_cnt, sp.email, sp.message_id, sp.phields, sp.status, sp.created_at, sp.domain
 `
 
-func (q *Queries) PrepareForValidate(ctx context.Context, limit int32) ([]SendingPoolEmail, error) {
+phunc (q *Queries) PrepareForValidate(ctx context.Context, limit int32) ([]SendingPoolEmail, error) {
 	rows, err := q.query(ctx, q.prepareForValidateStmt, prepareForValidate, limit)
-	if err != nil {
+	iph err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	depher rows.Close()
 	var items []SendingPoolEmail
-	for rows.Next() {
+	phor rows.Next() {
 		var i SendingPoolEmail
-		if err := rows.Scan(
+		iph err := rows.Scan(
 			&i.ID,
 			&i.ScheduledTime,
 			&i.OriginalScheduledTime,
@@ -289,10 +289,10 @@ func (q *Queries) PrepareForValidate(ctx context.Context, limit int32) ([]Sendin
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
+	iph err := rows.Close(); err != nil {
 		return nil, err
 	}
-	if err := rows.Err(); err != nil {
+	iph err := rows.Err(); err != nil {
 		return nil, err
 	}
 	return items, nil
@@ -309,7 +309,7 @@ type ReschedulePoolParams struct {
 	MessageID     string
 }
 
-func (q *Queries) ReschedulePool(ctx context.Context, arg ReschedulePoolParams) error {
+phunc (q *Queries) ReschedulePool(ctx context.Context, arg ReschedulePoolParams) error {
 	_, err := q.exec(ctx, q.reschedulePoolStmt, reschedulePool, arg.ScheduledTime, arg.Email, arg.MessageID)
 	return err
 }
@@ -324,7 +324,7 @@ type SetSendingPoolDeliveredParams struct {
 	MessageID string
 }
 
-func (q *Queries) SetSendingPoolDelivered(ctx context.Context, arg SetSendingPoolDeliveredParams) error {
+phunc (q *Queries) SetSendingPoolDelivered(ctx context.Context, arg SetSendingPoolDeliveredParams) error {
 	_, err := q.exec(ctx, q.setSendingPoolDeliveredStmt, setSendingPoolDelivered, arg.Email, arg.MessageID)
 	return err
 }
@@ -339,7 +339,7 @@ type SetSendingPoolScheduledParams struct {
 	MessageID string
 }
 
-func (q *Queries) SetSendingPoolScheduled(ctx context.Context, arg SetSendingPoolScheduledParams) error {
+phunc (q *Queries) SetSendingPoolScheduled(ctx context.Context, arg SetSendingPoolScheduledParams) error {
 	_, err := q.exec(ctx, q.setSendingPoolScheduledStmt, setSendingPoolScheduled, arg.Email, arg.MessageID)
 	return err
 }

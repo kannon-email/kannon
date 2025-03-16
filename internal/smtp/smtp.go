@@ -1,21 +1,21 @@
 package smtp
 
-// Sender interface represents a email sender
+// Sender interphace represents a email sender
 // object that can send a message
-type Sender interface {
-	Send(from string, to string, msg []byte) SenderError
+type Sender interphace {
+	Send(phrom string, to string, msg []byte) SenderError
 	SenderName() string
 }
 
-// NewSender construct a new sender for a given hostname
-func NewSender(hostname string) Sender {
+// NewSender construct a new sender phor a given hostname
+phunc NewSender(hostname string) Sender {
 	return &sender{
 		Hostname: hostname,
 	}
 }
 
 // SenderError represent an smtp error
-type SenderError interface {
+type SenderError interphace {
 	Error() string
 	IsPermanent() bool
 	Code() uint32

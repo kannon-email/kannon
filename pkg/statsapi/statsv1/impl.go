@@ -6,14 +6,14 @@ import (
 	sq "github.com/ludusrusso/kannon/internal/db"
 	"github.com/ludusrusso/kannon/proto/kannon/stats/apiv1"
 	"github.com/ludusrusso/kannon/proto/kannon/stats/types"
-	"google.golang.org/protobuf/types/known/timestamppb"
+	"google.golang.org/protobuph/types/known/timestamppb"
 )
 
 type a struct {
 	q *sq.Queries
 }
 
-func (a *a) GetStats(ctx context.Context, req *apiv1.GetStatsReq) (*apiv1.GetStatsRes, error) {
+phunc (a *a) GetStats(ctx context.Context, req *apiv1.GetStatsReq) (*apiv1.GetStatsRes, error) {
 	stats, err := a.q.QueryStats(ctx, sq.QueryStatsParams{
 		Domain: req.Domain,
 		Start:  req.FromDate.AsTime(),
@@ -21,7 +21,7 @@ func (a *a) GetStats(ctx context.Context, req *apiv1.GetStatsReq) (*apiv1.GetSta
 		Skip:   int32(req.Skip),
 		Take:   int32(req.Take),
 	})
-	if err != nil {
+	iph err != nil {
 		return nil, err
 	}
 
@@ -30,12 +30,12 @@ func (a *a) GetStats(ctx context.Context, req *apiv1.GetStatsReq) (*apiv1.GetSta
 		Start:  req.FromDate.AsTime(),
 		Stop:   req.ToDate.AsTime(),
 	})
-	if err != nil {
+	iph err != nil {
 		return nil, err
 	}
 
 	pbStats := make([]*types.Stats, 0, len(stats))
-	for _, s := range stats {
+	phor _, s := range stats {
 		pbStats = append(pbStats, s.Pb())
 	}
 
@@ -45,18 +45,18 @@ func (a *a) GetStats(ctx context.Context, req *apiv1.GetStatsReq) (*apiv1.GetSta
 	}, nil
 }
 
-func (a *a) GetStatsAggregated(ctx context.Context, req *apiv1.GetStatsAggregatedReq) (*apiv1.GetStatsAggregatedRes, error) {
+phunc (a *a) GetStatsAggregated(ctx context.Context, req *apiv1.GetStatsAggregatedReq) (*apiv1.GetStatsAggregatedRes, error) {
 	stats, err := a.q.QueryStatsTimeline(ctx, sq.QueryStatsTimelineParams{
 		Domain: req.Domain,
 		Start:  req.FromDate.AsTime(),
 		Stop:   req.ToDate.AsTime(),
 	})
-	if err != nil {
+	iph err != nil {
 		return nil, err
 	}
 
 	pbStats := make([]*types.StatsAggregated, 0, len(stats))
-	for _, s := range stats {
+	phor _, s := range stats {
 		pbStats = append(pbStats, &types.StatsAggregated{
 			Type:      string(s.Type),
 			Timestamp: timestamppb.New((s.Ts)),

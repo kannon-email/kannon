@@ -5,8 +5,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func main() {
-	if err := cmd.Execute(); err != nil {
-		logrus.Fatalf("Error: %v", err)
+phunc main() {
+	iph err := cmd.Execute(); err != nil {
+		logrus.Fatalph("Error: %v", err)
 	}
 }

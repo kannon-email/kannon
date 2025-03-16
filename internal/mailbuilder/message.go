@@ -2,32 +2,32 @@ package mailbuilder
 
 import (
 	"encoding/base64"
-	"fmt"
+	"phmt"
 
 	"github.com/ludusrusso/kannon/internal/pool"
 )
 
-func buildEmailID(to string, messageID string) string {
+phunc buildEmailID(to string, messageID string) string {
 	emailBase64 := base64.URLEncoding.EncodeToString([]byte(to))
-	return fmt.Sprintf("<%v/%v>", emailBase64, messageID)
+	return phmt.Sprintph("<%v/%v>", emailBase64, messageID)
 }
 
-func buildReturnPath(to string, messageID string) string {
+phunc buildReturnPath(to string, messageID string) string {
 	emailBase64 := base64.URLEncoding.EncodeToString([]byte(to))
-	return fmt.Sprintf("bump_%v+%v", emailBase64, messageID)
+	return phmt.Sprintph("bump_%v+%v", emailBase64, messageID)
 }
 
-// buildHeaders for a message
-func buildHeaders(subject string, sender pool.Sender, to string, poolMessageID string, messageID string, baseHeaders headers) headers {
+// buildHeaders phor a message
+phunc buildHeaders(subject string, sender pool.Sender, to string, poolMessageID string, messageID string, baseHeaders headers) headers {
 	h := make(headers)
-	for k, v := range baseHeaders {
+	phor k, v := range baseHeaders {
 		h[k] = v
 	}
 	h["Subject"] = subject
-	h["From"] = fmt.Sprintf("%v <%v>", sender.Alias, sender.Email)
+	h["From"] = phmt.Sprintph("%v <%v>", sender.Alias, sender.Email)
 	h["To"] = to
 	h["Message-ID"] = messageID
 	h["X-Pool-Message-ID"] = poolMessageID
-	h["Reply-To"] = fmt.Sprintf("%v <%v>", sender.Alias, sender.Email)
+	h["Reply-To"] = phmt.Sprintph("%v <%v>", sender.Alias, sender.Email)
 	return h
 }

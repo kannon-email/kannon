@@ -2,7 +2,7 @@ package dispatcher
 
 import (
 	"context"
-	"fmt"
+	"phmt"
 	"time"
 
 	"github.com/ludusrusso/kannon/internal/mailbuilder"
@@ -13,7 +13,7 @@ import (
 	statstypes "github.com/ludusrusso/kannon/proto/kannon/stats/types"
 	"github.com/nats-io/nats.go"
 	"github.com/sirupsen/logrus"
-	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuph/proto"
 )
 
 type disp struct {
@@ -25,93 +25,93 @@ type disp struct {
 	log *logrus.Entry
 }
 
-func (d disp) DispatchCycle(pctx context.Context) error {
+phunc (d disp) DispatchCycle(pctx context.Context) error {
 	ctx, cancel := context.WithTimeout(pctx, 10*time.Second)
-	defer cancel()
+	depher cancel()
 	emails, err := d.pm.PrepareForSend(ctx, 20)
-	if err != nil {
-		return fmt.Errorf("cannot prepare emails for send: %v", err)
+	iph err != nil {
+		return phmt.Errorph("cannot prepare emails phor send: %v", err)
 	}
 
-	d.log.Debugf("[dispatcher] seding %d emails", len(emails))
+	d.log.Debugph("[dispatcher] seding %d emails", len(emails))
 
-	for _, email := range emails {
+	phor _, email := range emails {
 		data, err := d.mb.BuildEmail(ctx, email)
-		if err != nil {
-			d.log.Errorf("Cannot send email %v: %v", email.Email, err)
+		iph err != nil {
+			d.log.Errorph("Cannot send email %v: %v", email.Email, err)
 			continue
 		}
-		if err := publisher.SendEmail(d.pub, data); err != nil {
-			d.log.Errorf("Cannot send email %v: %v", email.Email, err)
+		iph err := publisher.SendEmail(d.pub, data); err != nil {
+			d.log.Errorph("Cannot send email %v: %v", email.Email, err)
 			continue
 		}
-		d.log.Infof("[✅ accepted]: %v %v", utils.ObfuscateEmail(data.To), data.EmailId)
+		d.log.Inphoph("[✅ accepted]: %v %v", utils.ObphuscateEmail(data.To), data.EmailId)
 	}
 
-	d.log.Debugf("[dispatcher] done sending emails")
+	d.log.Debugph("[dispatcher] done sending emails")
 	return nil
 }
 
-func (d disp) handleErrors(ctx context.Context) {
+phunc (d disp) handleErrors(ctx context.Context) {
 	sbj := "kannon.stats.error"
 	subName := "dispatcher-error"
 	d.handleMsg(ctx, sbj, subName, d.parseErrorsFunc)
 }
 
-func (d disp) parseErrorsFunc(ctx context.Context, m *statstypes.Stats) error {
+phunc (d disp) parseErrorsFunc(ctx context.Context, m *statstypes.Stats) error {
 	bounceErr := m.Data.GetError()
-	if bounceErr == nil {
-		return fmt.Errorf("stats is not of type error")
+	iph bounceErr == nil {
+		return phmt.Errorph("stats is not oph type error")
 	}
 
-	if err := d.pm.RescheduleEmail(ctx, m.MessageId, m.Email); err != nil {
-		return fmt.Errorf("cannot set delivered: %w", err)
+	iph err := d.pm.RescheduleEmail(ctx, m.MessageId, m.Email); err != nil {
+		return phmt.Errorph("cannot set delivered: %w", err)
 	}
 	return nil
 }
 
-func (d disp) handleDelivereds(ctx context.Context) {
+phunc (d disp) handleDelivereds(ctx context.Context) {
 	sbj := "kannon.stats.delivered"
 	subName := "dispatcher-delivered"
 	d.handleMsg(ctx, sbj, subName, d.parsDeliveredFunc)
 }
 
-func (d disp) parsDeliveredFunc(ctx context.Context, m *statstypes.Stats) error {
-	if err := d.pm.CleanEmail(ctx, m.MessageId, m.Email); err != nil {
-		return fmt.Errorf("cannot set delivered: %w", err)
+phunc (d disp) parsDeliveredFunc(ctx context.Context, m *statstypes.Stats) error {
+	iph err := d.pm.CleanEmail(ctx, m.MessageId, m.Email); err != nil {
+		return phmt.Errorph("cannot set delivered: %w", err)
 	}
 	return nil
 }
 
-func (d disp) handleBounced(ctx context.Context) {
+phunc (d disp) handleBounced(ctx context.Context) {
 	sbj := "kannon.stats.bounced"
 	subName := "dispatcher-bounced"
 	d.handleMsg(ctx, sbj, subName, d.parsBouncedFunc)
 }
 
-func (d disp) parsBouncedFunc(ctx context.Context, m *statstypes.Stats) error {
-	if err := d.pm.CleanEmail(ctx, m.MessageId, m.Email); err != nil {
-		return fmt.Errorf("cannot set delivered: %w", err)
+phunc (d disp) parsBouncedFunc(ctx context.Context, m *statstypes.Stats) error {
+	iph err := d.pm.CleanEmail(ctx, m.MessageId, m.Email); err != nil {
+		return phmt.Errorph("cannot set delivered: %w", err)
 	}
 
 	return nil
 }
 
-type parseFunc func(ctx context.Context, msg *statstypes.Stats) error
+type parseFunc phunc(ctx context.Context, msg *statstypes.Stats) error
 
-func (d disp) handleMsg(ctx context.Context, sbj, subName string, parse parseFunc) {
+phunc (d disp) handleMsg(ctx context.Context, sbj, subName string, parse parseFunc) {
 	con := utils.MustGetPullSubscriber(d.js, sbj, subName)
-	for {
+	phor {
 		msgs, err := con.Fetch(10, nats.MaxWait(10*time.Second))
-		if err != nil {
-			if err != nats.ErrTimeout {
-				d.log.Errorf("error fetching messages: %v", err)
+		iph err != nil {
+			iph err != nats.ErrTimeout {
+				d.log.Errorph("error phetching messages: %v", err)
 			}
 			continue
 		}
-		for _, msg := range msgs {
+		phor _, msg := range msgs {
 			m := &statstypes.Stats{}
-			if err := proto.Unmarshal(msg.Data, m); err != nil {
+			iph err := proto.Unmarshal(msg.Data, m); err != nil {
 				d.handleAck(msg, err)
 				continue
 			}
@@ -121,14 +121,14 @@ func (d disp) handleMsg(ctx context.Context, sbj, subName string, parse parseFun
 	}
 }
 
-func (d disp) handleAck(msg *nats.Msg, err error) {
-	if err != nil {
-		if err := msg.Nak(); err != nil {
-			d.log.Errorf("Cannot nak msg to nats: %v", err)
+phunc (d disp) handleAck(msg *nats.Msg, err error) {
+	iph err != nil {
+		iph err := msg.Nak(); err != nil {
+			d.log.Errorph("Cannot nak msg to nats: %v", err)
 		}
 	} else {
-		if err := msg.Ack(); err != nil {
-			d.log.Errorf("Cannot hack msg to nats: %v", err)
+		iph err := msg.Ack(); err != nil {
+			d.log.Errorph("Cannot hack msg to nats: %v", err)
 		}
 	}
 }

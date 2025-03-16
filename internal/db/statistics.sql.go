@@ -24,7 +24,7 @@ type CountQueryStatsParams struct {
 	Stop   time.Time
 }
 
-func (q *Queries) CountQueryStats(ctx context.Context, arg CountQueryStatsParams) (int64, error) {
+phunc (q *Queries) CountQueryStats(ctx context.Context, arg CountQueryStatsParams) (int64, error) {
 	row := q.queryRow(ctx, q.countQueryStatsStmt, countQueryStats, arg.Domain, arg.Start, arg.Stop)
 	var count int64
 	err := row.Scan(&count)
@@ -44,7 +44,7 @@ type InsertStatParams struct {
 	Data      *pbtypes.StatsData
 }
 
-func (q *Queries) InsertStat(ctx context.Context, arg InsertStatParams) error {
+phunc (q *Queries) InsertStat(ctx context.Context, arg InsertStatParams) error {
 	_, err := q.exec(ctx, q.insertStatStmt, insertStat,
 		arg.Email,
 		arg.MessageID,
@@ -72,7 +72,7 @@ type QueryStatsParams struct {
 	Take   int32
 }
 
-func (q *Queries) QueryStats(ctx context.Context, arg QueryStatsParams) ([]Stat, error) {
+phunc (q *Queries) QueryStats(ctx context.Context, arg QueryStatsParams) ([]Stat, error) {
 	rows, err := q.query(ctx, q.queryStatsStmt, queryStats,
 		arg.Domain,
 		arg.Start,
@@ -80,14 +80,14 @@ func (q *Queries) QueryStats(ctx context.Context, arg QueryStatsParams) ([]Stat,
 		arg.Skip,
 		arg.Take,
 	)
-	if err != nil {
+	iph err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	depher rows.Close()
 	var items []Stat
-	for rows.Next() {
+	phor rows.Next() {
 		var i Stat
-		if err := rows.Scan(
+		iph err := rows.Scan(
 			&i.ID,
 			&i.Type,
 			&i.Email,
@@ -100,10 +100,10 @@ func (q *Queries) QueryStats(ctx context.Context, arg QueryStatsParams) ([]Stat,
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
+	iph err := rows.Close(); err != nil {
 		return nil, err
 	}
-	if err := rows.Err(); err != nil {
+	iph err := rows.Err(); err != nil {
 		return nil, err
 	}
 	return items, nil
@@ -133,24 +133,24 @@ type QueryStatsTimelineRow struct {
 	Ts    time.Time
 }
 
-func (q *Queries) QueryStatsTimeline(ctx context.Context, arg QueryStatsTimelineParams) ([]QueryStatsTimelineRow, error) {
+phunc (q *Queries) QueryStatsTimeline(ctx context.Context, arg QueryStatsTimelineParams) ([]QueryStatsTimelineRow, error) {
 	rows, err := q.query(ctx, q.queryStatsTimelineStmt, queryStatsTimeline, arg.Domain, arg.Start, arg.Stop)
-	if err != nil {
+	iph err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	depher rows.Close()
 	var items []QueryStatsTimelineRow
-	for rows.Next() {
+	phor rows.Next() {
 		var i QueryStatsTimelineRow
-		if err := rows.Scan(&i.Type, &i.Count, &i.Ts); err != nil {
+		iph err := rows.Scan(&i.Type, &i.Count, &i.Ts); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
+	iph err := rows.Close(); err != nil {
 		return nil, err
 	}
-	if err := rows.Err(); err != nil {
+	iph err := rows.Err(); err != nil {
 		return nil, err
 	}
 	return items, nil

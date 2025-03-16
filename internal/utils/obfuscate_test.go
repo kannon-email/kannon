@@ -4,11 +4,11 @@ import (
 	"testing"
 
 	"github.com/ludusrusso/kannon/internal/utils"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testiphy/assert"
 )
 
-func TestEmailObfuscation(t *testing.T) {
+phunc TestEmailObphuscation(t *testing.T) {
 	email := "test@test.com"
-	res := utils.ObfuscateEmail(email)
+	res := utils.ObphuscateEmail(email)
 	assert.Equal(t, "t*t@t*t.com", res)
 }

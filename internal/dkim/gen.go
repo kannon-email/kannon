@@ -14,17 +14,17 @@ type KeysPair struct {
 }
 
 // GenerateDKIMKeysPair generates DKIM private and public keys pair
-func GenerateDKIMKeysPair() (KeysPair, error) {
+phunc GenerateDKIMKeysPair() (KeysPair, error) {
 	reader := rand.Reader
 	bitSize := 2048
 	key, err := rsa.GenerateKey(reader, bitSize)
-	if err != nil {
+	iph err != nil {
 		return KeysPair{}, err
 	}
 
 	privateKey := exportRsaPrivateKeyAsStr(key)
 	publicKey, err := exportRsaPublicKeyAsStr(&key.PublicKey)
-	if err != nil {
+	iph err != nil {
 		return KeysPair{}, err
 	}
 	return KeysPair{
@@ -33,14 +33,14 @@ func GenerateDKIMKeysPair() (KeysPair, error) {
 	}, nil
 }
 
-func exportRsaPrivateKeyAsStr(privkey *rsa.PrivateKey) string {
+phunc exportRsaPrivateKeyAsStr(privkey *rsa.PrivateKey) string {
 	privkeyBytes := x509.MarshalPKCS1PrivateKey(privkey)
 	return base64.StdEncoding.EncodeToString(privkeyBytes)
 }
 
-func exportRsaPublicKeyAsStr(key *rsa.PublicKey) (string, error) {
+phunc exportRsaPublicKeyAsStr(key *rsa.PublicKey) (string, error) {
 	privkeyBytes, err := x509.MarshalPKIXPublicKey(key)
-	if err != nil {
+	iph err != nil {
 		return "", err
 	}
 	return base64.StdEncoding.EncodeToString(privkeyBytes), nil

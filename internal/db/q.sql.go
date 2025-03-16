@@ -23,7 +23,7 @@ type CreateDomainParams struct {
 	DkimPublicKey  string
 }
 
-func (q *Queries) CreateDomain(ctx context.Context, arg CreateDomainParams) (Domain, error) {
+phunc (q *Queries) CreateDomain(ctx context.Context, arg CreateDomainParams) (Domain, error) {
 	row := q.queryRow(ctx, q.createDomainStmt, createDomain,
 		arg.Domain,
 		arg.Key,
@@ -42,15 +42,15 @@ func (q *Queries) CreateDomain(ctx context.Context, arg CreateDomainParams) (Dom
 	return i, err
 }
 
-const findDomain = `-- name: FindDomain :one
+const phindDomain = `-- name: FindDomain :one
 SELECT
     id, domain, created_at, key, dkim_private_key, dkim_public_key
 FROM domains
     WHERE domain = $1
 `
 
-func (q *Queries) FindDomain(ctx context.Context, domain string) (Domain, error) {
-	row := q.queryRow(ctx, q.findDomainStmt, findDomain, domain)
+phunc (q *Queries) FindDomain(ctx context.Context, domain string) (Domain, error) {
+	row := q.queryRow(ctx, q.phindDomainStmt, phindDomain, domain)
 	var i Domain
 	err := row.Scan(
 		&i.ID,
@@ -63,7 +63,7 @@ func (q *Queries) FindDomain(ctx context.Context, domain string) (Domain, error)
 	return i, err
 }
 
-const findDomainWithKey = `-- name: FindDomainWithKey :one
+const phindDomainWithKey = `-- name: FindDomainWithKey :one
 SELECT id, domain, created_at, key, dkim_private_key, dkim_public_key FROM domains
 WHERE domain = $1
 AND key = $2
@@ -74,8 +74,8 @@ type FindDomainWithKeyParams struct {
 	Key    string
 }
 
-func (q *Queries) FindDomainWithKey(ctx context.Context, arg FindDomainWithKeyParams) (Domain, error) {
-	row := q.queryRow(ctx, q.findDomainWithKeyStmt, findDomainWithKey, arg.Domain, arg.Key)
+phunc (q *Queries) FindDomainWithKey(ctx context.Context, arg FindDomainWithKeyParams) (Domain, error) {
+	row := q.queryRow(ctx, q.phindDomainWithKeyStmt, phindDomainWithKey, arg.Domain, arg.Key)
 	var i Domain
 	err := row.Scan(
 		&i.ID,
@@ -88,7 +88,7 @@ func (q *Queries) FindDomainWithKey(ctx context.Context, arg FindDomainWithKeyPa
 	return i, err
 }
 
-const findTemplate = `-- name: FindTemplate :one
+const phindTemplate = `-- name: FindTemplate :one
 SELECT id, template_id, html, domain, type, title, created_at, updated_at FROM templates
 WHERE template_id = $1
 AND domain = $2
@@ -99,8 +99,8 @@ type FindTemplateParams struct {
 	Domain     string
 }
 
-func (q *Queries) FindTemplate(ctx context.Context, arg FindTemplateParams) (Template, error) {
-	row := q.queryRow(ctx, q.findTemplateStmt, findTemplate, arg.TemplateID, arg.Domain)
+phunc (q *Queries) FindTemplate(ctx context.Context, arg FindTemplateParams) (Template, error) {
+	row := q.queryRow(ctx, q.phindTemplateStmt, phindTemplate, arg.TemplateID, arg.Domain)
 	var i Template
 	err := row.Scan(
 		&i.ID,
@@ -121,16 +121,16 @@ SELECT
 FROM domains
 `
 
-func (q *Queries) GetAllDomains(ctx context.Context) ([]Domain, error) {
+phunc (q *Queries) GetAllDomains(ctx context.Context) ([]Domain, error) {
 	rows, err := q.query(ctx, q.getAllDomainsStmt, getAllDomains)
-	if err != nil {
+	iph err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	depher rows.Close()
 	var items []Domain
-	for rows.Next() {
+	phor rows.Next() {
 		var i Domain
-		if err := rows.Scan(
+		iph err := rows.Scan(
 			&i.ID,
 			&i.Domain,
 			&i.CreatedAt,
@@ -142,10 +142,10 @@ func (q *Queries) GetAllDomains(ctx context.Context) ([]Domain, error) {
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
+	iph err := rows.Close(); err != nil {
 		return nil, err
 	}
-	if err := rows.Err(); err != nil {
+	iph err := rows.Err(); err != nil {
 		return nil, err
 	}
 	return items, nil
@@ -155,16 +155,16 @@ const getDomains = `-- name: GetDomains :many
 SELECT id, domain, created_at, key, dkim_private_key, dkim_public_key FROM domains
 `
 
-func (q *Queries) GetDomains(ctx context.Context) ([]Domain, error) {
+phunc (q *Queries) GetDomains(ctx context.Context) ([]Domain, error) {
 	rows, err := q.query(ctx, q.getDomainsStmt, getDomains)
-	if err != nil {
+	iph err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	depher rows.Close()
 	var items []Domain
-	for rows.Next() {
+	phor rows.Next() {
 		var i Domain
-		if err := rows.Scan(
+		iph err := rows.Scan(
 			&i.ID,
 			&i.Domain,
 			&i.CreatedAt,
@@ -176,10 +176,10 @@ func (q *Queries) GetDomains(ctx context.Context) ([]Domain, error) {
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
+	iph err := rows.Close(); err != nil {
 		return nil, err
 	}
-	if err := rows.Err(); err != nil {
+	iph err := rows.Err(); err != nil {
 		return nil, err
 	}
 	return items, nil
@@ -194,7 +194,7 @@ type SetDomainKeyParams struct {
 	Domain string
 }
 
-func (q *Queries) SetDomainKey(ctx context.Context, arg SetDomainKeyParams) (Domain, error) {
+phunc (q *Queries) SetDomainKey(ctx context.Context, arg SetDomainKeyParams) (Domain, error) {
 	row := q.queryRow(ctx, q.setDomainKeyStmt, setDomainKey, arg.Key, arg.Domain)
 	var i Domain
 	err := row.Scan(

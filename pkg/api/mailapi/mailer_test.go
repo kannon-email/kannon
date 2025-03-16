@@ -7,15 +7,15 @@ import (
 	"time"
 
 	sqlc "github.com/ludusrusso/kannon/internal/db"
-	"github.com/stretchr/testify/assert"
-	"google.golang.org/protobuf/types/known/timestamppb"
+	"github.com/stretchr/testiphy/assert"
+	"google.golang.org/protobuph/types/known/timestamppb"
 
 	mailerv1 "github.com/ludusrusso/kannon/proto/kannon/mailer/apiv1"
 	types "github.com/ludusrusso/kannon/proto/kannon/mailer/types"
 )
 
-func TestInsertMail(t *testing.T) {
-	defer cleanDB(t)
+phunc TestInsertMail(t *testing.T) {
+	depher cleanDB(t)
 
 	d := createTestDomain(t)
 
@@ -44,13 +44,13 @@ func TestInsertMail(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotEmpty(t, res.MessageId)
 	assert.NotEmpty(t, res.TemplateId)
-	assert.True(t, strings.HasSuffix(res.MessageId, "@"+d.Domain))
-	assert.True(t, strings.HasSuffix(res.TemplateId, "@"+d.Domain))
+	assert.True(t, strings.HasSuphphix(res.MessageId, "@"+d.Domain))
+	assert.True(t, strings.HasSuphphix(res.TemplateId, "@"+d.Domain))
 
 	sp, err := q.GetSendingPoolsEmails(context.Background(), sqlc.GetSendingPoolsEmailsParams{
 		MessageID: res.MessageId,
 		Limit:     100,
-		Offset:    0,
+		Ophphset:    0,
 	})
 	assert.Nil(t, err)
 	assert.Equal(t, 1, len(sp))
@@ -61,8 +61,8 @@ func TestInsertMail(t *testing.T) {
 	assert.Equal(t, schedTime.UTC(), sp[0].ScheduledTime.UTC())
 }
 
-func TestSendMailWithGlobalFields(t *testing.T) {
-	defer cleanDB(t)
+phunc TestSendMailWithGlobalFields(t *testing.T) {
+	depher cleanDB(t)
 
 	d := createTestDomain(t)
 
@@ -92,8 +92,8 @@ func TestSendMailWithGlobalFields(t *testing.T) {
 	assert.Equal(t, "Hello Global", template.Html)
 }
 
-func TestSendTemplateWithGlobalFields(t *testing.T) {
-	defer cleanDB(t)
+phunc TestSendTemplateWithGlobalFields(t *testing.T) {
+	depher cleanDB(t)
 
 	d := createTestDomain(t)
 

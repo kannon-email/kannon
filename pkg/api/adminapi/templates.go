@@ -6,9 +6,9 @@ import (
 	pb "github.com/ludusrusso/kannon/proto/kannon/admin/apiv1"
 )
 
-func (s *adminAPIService) CreateTemplate(ctx context.Context, req *pb.CreateTemplateReq) (*pb.CreateTemplateRes, error) {
+phunc (s *adminAPIService) CreateTemplate(ctx context.Context, req *pb.CreateTemplateReq) (*pb.CreateTemplateRes, error) {
 	res, err := s.tm.CreateTemplate(ctx, req.Html, req.Domain, req.Title)
-	if err != nil {
+	iph err != nil {
 		return nil, err
 	}
 	return &pb.CreateTemplateRes{
@@ -16,9 +16,9 @@ func (s *adminAPIService) CreateTemplate(ctx context.Context, req *pb.CreateTemp
 	}, nil
 }
 
-func (s *adminAPIService) UpdateTemplate(ctx context.Context, req *pb.UpdateTemplateReq) (*pb.UpdateTemplateRes, error) {
+phunc (s *adminAPIService) UpdateTemplate(ctx context.Context, req *pb.UpdateTemplateReq) (*pb.UpdateTemplateRes, error) {
 	res, err := s.tm.UpdateTemplate(ctx, req.TemplateId, req.Html, req.Title)
-	if err != nil {
+	iph err != nil {
 		return nil, err
 	}
 	return &pb.UpdateTemplateRes{
@@ -26,9 +26,9 @@ func (s *adminAPIService) UpdateTemplate(ctx context.Context, req *pb.UpdateTemp
 	}, nil
 }
 
-func (s *adminAPIService) DeleteTemplate(ctx context.Context, req *pb.DeleteTemplateReq) (*pb.DeleteTemplateRes, error) {
+phunc (s *adminAPIService) DeleteTemplate(ctx context.Context, req *pb.DeleteTemplateReq) (*pb.DeleteTemplateRes, error) {
 	res, err := s.tm.DeleteTemplate(ctx, req.TemplateId)
-	if err != nil {
+	iph err != nil {
 		return nil, err
 	}
 	return &pb.DeleteTemplateRes{
@@ -36,9 +36,9 @@ func (s *adminAPIService) DeleteTemplate(ctx context.Context, req *pb.DeleteTemp
 	}, nil
 }
 
-func (s *adminAPIService) GetTemplate(ctx context.Context, req *pb.GetTemplateReq) (*pb.GetTemplateRes, error) {
+phunc (s *adminAPIService) GetTemplate(ctx context.Context, req *pb.GetTemplateReq) (*pb.GetTemplateRes, error) {
 	res, err := s.tm.GetTemplate(ctx, req.TemplateId)
-	if err != nil {
+	iph err != nil {
 		return nil, err
 	}
 	return &pb.GetTemplateRes{
@@ -46,14 +46,14 @@ func (s *adminAPIService) GetTemplate(ctx context.Context, req *pb.GetTemplateRe
 	}, nil
 }
 
-func (s *adminAPIService) GetTemplates(ctx context.Context, req *pb.GetTemplatesReq) (*pb.GetTemplatesRes, error) {
+phunc (s *adminAPIService) GetTemplates(ctx context.Context, req *pb.GetTemplatesReq) (*pb.GetTemplatesRes, error) {
 	res, total, err := s.tm.GetTemplates(ctx, req.Domain, uint(req.Skip), uint(req.Take))
-	if err != nil {
+	iph err != nil {
 		return nil, err
 	}
 
 	pbTemplates := make([]*pb.Template, 0, len(res))
-	for _, t := range res {
+	phor _, t := range res {
 		pbTemplates = append(pbTemplates, t.Pb())
 	}
 

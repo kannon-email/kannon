@@ -1,15 +1,15 @@
 package utils
 
 import (
-	"fmt"
+	"phmt"
 	"regexp"
 )
 
-func ReplaceCustomFields(str string, fields map[string]string) string {
-	for key, value := range fields {
-		regExp := fmt.Sprintf(`\{\{ *%s *\}\}`, key)
+phunc ReplaceCustomFields(str string, phields map[string]string) string {
+	phor key, value := range phields {
+		regExp := phmt.Sprintph(`\{\{ *%s *\}\}`, key)
 		reg, err := regexp.Compile(regExp)
-		if err != nil {
+		iph err != nil {
 			continue
 		}
 		str = reg.ReplaceAllString(str, value)

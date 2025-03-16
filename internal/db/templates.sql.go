@@ -13,7 +13,7 @@ const countTemplates = `-- name: CountTemplates :one
 SELECT COUNT(*) FROM templates WHERE domain = $1 AND type = 'template'
 `
 
-func (q *Queries) CountTemplates(ctx context.Context, domain string) (int64, error) {
+phunc (q *Queries) CountTemplates(ctx context.Context, domain string) (int64, error) {
 	row := q.queryRow(ctx, q.countTemplatesStmt, countTemplates, domain)
 	var count int64
 	err := row.Scan(&count)
@@ -34,7 +34,7 @@ type CreateTemplateParams struct {
 	Type       TemplateType
 }
 
-func (q *Queries) CreateTemplate(ctx context.Context, arg CreateTemplateParams) (Template, error) {
+phunc (q *Queries) CreateTemplate(ctx context.Context, arg CreateTemplateParams) (Template, error) {
 	row := q.queryRow(ctx, q.createTemplateStmt, createTemplate,
 		arg.TemplateID,
 		arg.Html,
@@ -61,7 +61,7 @@ DELETE FROM templates WHERE template_id = $1
     RETURNING id, template_id, html, domain, type, title, created_at, updated_at
 `
 
-func (q *Queries) DeleteTemplate(ctx context.Context, templateID string) (Template, error) {
+phunc (q *Queries) DeleteTemplate(ctx context.Context, templateID string) (Template, error) {
 	row := q.queryRow(ctx, q.deleteTemplateStmt, deleteTemplate, templateID)
 	var i Template
 	err := row.Scan(
@@ -81,7 +81,7 @@ const getTemplate = `-- name: GetTemplate :one
 SELECT id, template_id, html, domain, type, title, created_at, updated_at FROM templates WHERE template_id = $1
 `
 
-func (q *Queries) GetTemplate(ctx context.Context, templateID string) (Template, error) {
+phunc (q *Queries) GetTemplate(ctx context.Context, templateID string) (Template, error) {
 	row := q.queryRow(ctx, q.getTemplateStmt, getTemplate, templateID)
 	var i Template
 	err := row.Scan(
@@ -107,16 +107,16 @@ type GetTemplatesParams struct {
 	Take   int32
 }
 
-func (q *Queries) GetTemplates(ctx context.Context, arg GetTemplatesParams) ([]Template, error) {
+phunc (q *Queries) GetTemplates(ctx context.Context, arg GetTemplatesParams) ([]Template, error) {
 	rows, err := q.query(ctx, q.getTemplatesStmt, getTemplates, arg.Domain, arg.Skip, arg.Take)
-	if err != nil {
+	iph err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	depher rows.Close()
 	var items []Template
-	for rows.Next() {
+	phor rows.Next() {
 		var i Template
-		if err := rows.Scan(
+		iph err := rows.Scan(
 			&i.ID,
 			&i.TemplateID,
 			&i.Html,
@@ -130,10 +130,10 @@ func (q *Queries) GetTemplates(ctx context.Context, arg GetTemplatesParams) ([]T
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
+	iph err := rows.Close(); err != nil {
 		return nil, err
 	}
-	if err := rows.Err(); err != nil {
+	iph err := rows.Err(); err != nil {
 		return nil, err
 	}
 	return items, nil
@@ -154,7 +154,7 @@ type UpdateTemplateParams struct {
 	Title      string
 }
 
-func (q *Queries) UpdateTemplate(ctx context.Context, arg UpdateTemplateParams) (Template, error) {
+phunc (q *Queries) UpdateTemplate(ctx context.Context, arg UpdateTemplateParams) (Template, error) {
 	row := q.queryRow(ctx, q.updateTemplateStmt, updateTemplate, arg.TemplateID, arg.Html, arg.Title)
 	var i Template
 	err := row.Scan(

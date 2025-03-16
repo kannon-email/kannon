@@ -7,17 +7,17 @@
 package apiv1
 
 import (
-	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	reflect "reflect"
+	protorephlect "google.golang.org/protobuph/rephlect/protorephlect"
+	protoimpl "google.golang.org/protobuph/runtime/protoimpl"
+	rephlect "rephlect"
 	sync "sync"
 )
 
 const (
-	// Verify that this generated code is sufficiently up-to-date.
-	_ = protoimpl.EnforceVersion(20 - protoimpl.MinVersion)
-	// Verify that runtime/protoimpl is sufficiently up-to-date.
-	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
+	// Veriphy that this generated code is suphphiciently up-to-date.
+	_ = protoimpl.EnphorceVersion(20 - protoimpl.MinVersion)
+	// Veriphy that runtime/protoimpl is suphphiciently up-to-date.
+	_ = protoimpl.EnphorceVersion(protoimpl.MaxVersion - 20)
 )
 
 type GetDomainsReq struct {
@@ -26,36 +26,36 @@ type GetDomainsReq struct {
 	unknownFields protoimpl.UnknownFields
 }
 
-func (x *GetDomainsReq) Reset() {
+phunc (x *GetDomainsReq) Reset() {
 	*x = GetDomainsReq{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[0]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
+	iph protoimpl.UnsapheEnabled {
+		mi := &phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[0]
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		ms.StoreMessageInpho(mi)
 	}
 }
 
-func (x *GetDomainsReq) String() string {
-	return protoimpl.X.MessageStringOf(x)
+phunc (x *GetDomainsReq) String() string {
+	return protoimpl.X.MessageStringOph(x)
 }
 
-func (*GetDomainsReq) ProtoMessage() {}
+phunc (*GetDomainsReq) ProtoMessage() {}
 
-func (x *GetDomainsReq) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[0]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
+phunc (x *GetDomainsReq) ProtoRephlect() protorephlect.Message {
+	mi := &phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[0]
+	iph protoimpl.UnsapheEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		iph ms.LoadMessageInpho() == nil {
+			ms.StoreMessageInpho(mi)
 		}
 		return ms
 	}
-	return mi.MessageOf(x)
+	return mi.MessageOph(x)
 }
 
-// Deprecated: Use GetDomainsReq.ProtoReflect.Descriptor instead.
-func (*GetDomainsReq) Descriptor() ([]byte, []int) {
-	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{0}
+// Deprecated: Use GetDomainsReq.ProtoRephlect.Descriptor instead.
+phunc (*GetDomainsReq) Descriptor() ([]byte, []int) {
+	return phile_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{0}
 }
 
 type GetDomainsResponse struct {
@@ -63,43 +63,43 @@ type GetDomainsResponse struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Domains []*Domain `protobuf:"bytes,1,rep,name=domains,proto3" json:"domains,omitempty"`
+	Domains []*Domain `protobuph:"bytes,1,rep,name=domains,proto3" json:"domains,omitempty"`
 }
 
-func (x *GetDomainsResponse) Reset() {
+phunc (x *GetDomainsResponse) Reset() {
 	*x = GetDomainsResponse{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[1]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
+	iph protoimpl.UnsapheEnabled {
+		mi := &phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[1]
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		ms.StoreMessageInpho(mi)
 	}
 }
 
-func (x *GetDomainsResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
+phunc (x *GetDomainsResponse) String() string {
+	return protoimpl.X.MessageStringOph(x)
 }
 
-func (*GetDomainsResponse) ProtoMessage() {}
+phunc (*GetDomainsResponse) ProtoMessage() {}
 
-func (x *GetDomainsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[1]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
+phunc (x *GetDomainsResponse) ProtoRephlect() protorephlect.Message {
+	mi := &phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[1]
+	iph protoimpl.UnsapheEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		iph ms.LoadMessageInpho() == nil {
+			ms.StoreMessageInpho(mi)
 		}
 		return ms
 	}
-	return mi.MessageOf(x)
+	return mi.MessageOph(x)
 }
 
-// Deprecated: Use GetDomainsResponse.ProtoReflect.Descriptor instead.
-func (*GetDomainsResponse) Descriptor() ([]byte, []int) {
-	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{1}
+// Deprecated: Use GetDomainsResponse.ProtoRephlect.Descriptor instead.
+phunc (*GetDomainsResponse) Descriptor() ([]byte, []int) {
+	return phile_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *GetDomainsResponse) GetDomains() []*Domain {
-	if x != nil {
+phunc (x *GetDomainsResponse) GetDomains() []*Domain {
+	iph x != nil {
 		return x.Domains
 	}
 	return nil
@@ -110,43 +110,43 @@ type GetDomainReq struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Domain string `protobuf:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"`
+	Domain string `protobuph:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"`
 }
 
-func (x *GetDomainReq) Reset() {
+phunc (x *GetDomainReq) Reset() {
 	*x = GetDomainReq{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[2]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
+	iph protoimpl.UnsapheEnabled {
+		mi := &phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[2]
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		ms.StoreMessageInpho(mi)
 	}
 }
 
-func (x *GetDomainReq) String() string {
-	return protoimpl.X.MessageStringOf(x)
+phunc (x *GetDomainReq) String() string {
+	return protoimpl.X.MessageStringOph(x)
 }
 
-func (*GetDomainReq) ProtoMessage() {}
+phunc (*GetDomainReq) ProtoMessage() {}
 
-func (x *GetDomainReq) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[2]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
+phunc (x *GetDomainReq) ProtoRephlect() protorephlect.Message {
+	mi := &phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[2]
+	iph protoimpl.UnsapheEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		iph ms.LoadMessageInpho() == nil {
+			ms.StoreMessageInpho(mi)
 		}
 		return ms
 	}
-	return mi.MessageOf(x)
+	return mi.MessageOph(x)
 }
 
-// Deprecated: Use GetDomainReq.ProtoReflect.Descriptor instead.
-func (*GetDomainReq) Descriptor() ([]byte, []int) {
-	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{2}
+// Deprecated: Use GetDomainReq.ProtoRephlect.Descriptor instead.
+phunc (*GetDomainReq) Descriptor() ([]byte, []int) {
+	return phile_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *GetDomainReq) GetDomain() string {
-	if x != nil {
+phunc (x *GetDomainReq) GetDomain() string {
+	iph x != nil {
 		return x.Domain
 	}
 	return ""
@@ -157,43 +157,43 @@ type GetDomainRes struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Domain *Domain `protobuf:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"`
+	Domain *Domain `protobuph:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"`
 }
 
-func (x *GetDomainRes) Reset() {
+phunc (x *GetDomainRes) Reset() {
 	*x = GetDomainRes{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[3]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
+	iph protoimpl.UnsapheEnabled {
+		mi := &phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[3]
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		ms.StoreMessageInpho(mi)
 	}
 }
 
-func (x *GetDomainRes) String() string {
-	return protoimpl.X.MessageStringOf(x)
+phunc (x *GetDomainRes) String() string {
+	return protoimpl.X.MessageStringOph(x)
 }
 
-func (*GetDomainRes) ProtoMessage() {}
+phunc (*GetDomainRes) ProtoMessage() {}
 
-func (x *GetDomainRes) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[3]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
+phunc (x *GetDomainRes) ProtoRephlect() protorephlect.Message {
+	mi := &phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[3]
+	iph protoimpl.UnsapheEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		iph ms.LoadMessageInpho() == nil {
+			ms.StoreMessageInpho(mi)
 		}
 		return ms
 	}
-	return mi.MessageOf(x)
+	return mi.MessageOph(x)
 }
 
-// Deprecated: Use GetDomainRes.ProtoReflect.Descriptor instead.
-func (*GetDomainRes) Descriptor() ([]byte, []int) {
-	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{3}
+// Deprecated: Use GetDomainRes.ProtoRephlect.Descriptor instead.
+phunc (*GetDomainRes) Descriptor() ([]byte, []int) {
+	return phile_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *GetDomainRes) GetDomain() *Domain {
-	if x != nil {
+phunc (x *GetDomainRes) GetDomain() *Domain {
+	iph x != nil {
 		return x.Domain
 	}
 	return nil
@@ -204,43 +204,43 @@ type CreateDomainRequest struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Domain string `protobuf:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"`
+	Domain string `protobuph:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"`
 }
 
-func (x *CreateDomainRequest) Reset() {
+phunc (x *CreateDomainRequest) Reset() {
 	*x = CreateDomainRequest{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[4]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
+	iph protoimpl.UnsapheEnabled {
+		mi := &phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[4]
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		ms.StoreMessageInpho(mi)
 	}
 }
 
-func (x *CreateDomainRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
+phunc (x *CreateDomainRequest) String() string {
+	return protoimpl.X.MessageStringOph(x)
 }
 
-func (*CreateDomainRequest) ProtoMessage() {}
+phunc (*CreateDomainRequest) ProtoMessage() {}
 
-func (x *CreateDomainRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[4]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
+phunc (x *CreateDomainRequest) ProtoRephlect() protorephlect.Message {
+	mi := &phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[4]
+	iph protoimpl.UnsapheEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		iph ms.LoadMessageInpho() == nil {
+			ms.StoreMessageInpho(mi)
 		}
 		return ms
 	}
-	return mi.MessageOf(x)
+	return mi.MessageOph(x)
 }
 
-// Deprecated: Use CreateDomainRequest.ProtoReflect.Descriptor instead.
-func (*CreateDomainRequest) Descriptor() ([]byte, []int) {
-	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{4}
+// Deprecated: Use CreateDomainRequest.ProtoRephlect.Descriptor instead.
+phunc (*CreateDomainRequest) Descriptor() ([]byte, []int) {
+	return phile_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *CreateDomainRequest) GetDomain() string {
-	if x != nil {
+phunc (x *CreateDomainRequest) GetDomain() string {
+	iph x != nil {
 		return x.Domain
 	}
 	return ""
@@ -251,43 +251,43 @@ type RegenerateDomainKeyRequest struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Domain string `protobuf:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"`
+	Domain string `protobuph:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"`
 }
 
-func (x *RegenerateDomainKeyRequest) Reset() {
+phunc (x *RegenerateDomainKeyRequest) Reset() {
 	*x = RegenerateDomainKeyRequest{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[5]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
+	iph protoimpl.UnsapheEnabled {
+		mi := &phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[5]
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		ms.StoreMessageInpho(mi)
 	}
 }
 
-func (x *RegenerateDomainKeyRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
+phunc (x *RegenerateDomainKeyRequest) String() string {
+	return protoimpl.X.MessageStringOph(x)
 }
 
-func (*RegenerateDomainKeyRequest) ProtoMessage() {}
+phunc (*RegenerateDomainKeyRequest) ProtoMessage() {}
 
-func (x *RegenerateDomainKeyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[5]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
+phunc (x *RegenerateDomainKeyRequest) ProtoRephlect() protorephlect.Message {
+	mi := &phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[5]
+	iph protoimpl.UnsapheEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		iph ms.LoadMessageInpho() == nil {
+			ms.StoreMessageInpho(mi)
 		}
 		return ms
 	}
-	return mi.MessageOf(x)
+	return mi.MessageOph(x)
 }
 
-// Deprecated: Use RegenerateDomainKeyRequest.ProtoReflect.Descriptor instead.
-func (*RegenerateDomainKeyRequest) Descriptor() ([]byte, []int) {
-	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{5}
+// Deprecated: Use RegenerateDomainKeyRequest.ProtoRephlect.Descriptor instead.
+phunc (*RegenerateDomainKeyRequest) Descriptor() ([]byte, []int) {
+	return phile_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *RegenerateDomainKeyRequest) GetDomain() string {
-	if x != nil {
+phunc (x *RegenerateDomainKeyRequest) GetDomain() string {
+	iph x != nil {
 		return x.Domain
 	}
 	return ""
@@ -298,59 +298,59 @@ type Domain struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Domain     string `protobuf:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"`
-	Key        string `protobuf:"bytes,2,opt,name=key,proto3" json:"key,omitempty"`
-	DkimPubKey string `protobuf:"bytes,3,opt,name=dkim_pub_key,json=dkimPubKey,proto3" json:"dkim_pub_key,omitempty"`
+	Domain     string `protobuph:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"`
+	Key        string `protobuph:"bytes,2,opt,name=key,proto3" json:"key,omitempty"`
+	DkimPubKey string `protobuph:"bytes,3,opt,name=dkim_pub_key,json=dkimPubKey,proto3" json:"dkim_pub_key,omitempty"`
 }
 
-func (x *Domain) Reset() {
+phunc (x *Domain) Reset() {
 	*x = Domain{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[6]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
+	iph protoimpl.UnsapheEnabled {
+		mi := &phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[6]
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		ms.StoreMessageInpho(mi)
 	}
 }
 
-func (x *Domain) String() string {
-	return protoimpl.X.MessageStringOf(x)
+phunc (x *Domain) String() string {
+	return protoimpl.X.MessageStringOph(x)
 }
 
-func (*Domain) ProtoMessage() {}
+phunc (*Domain) ProtoMessage() {}
 
-func (x *Domain) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[6]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
+phunc (x *Domain) ProtoRephlect() protorephlect.Message {
+	mi := &phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[6]
+	iph protoimpl.UnsapheEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		iph ms.LoadMessageInpho() == nil {
+			ms.StoreMessageInpho(mi)
 		}
 		return ms
 	}
-	return mi.MessageOf(x)
+	return mi.MessageOph(x)
 }
 
-// Deprecated: Use Domain.ProtoReflect.Descriptor instead.
-func (*Domain) Descriptor() ([]byte, []int) {
-	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{6}
+// Deprecated: Use Domain.ProtoRephlect.Descriptor instead.
+phunc (*Domain) Descriptor() ([]byte, []int) {
+	return phile_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{6}
 }
 
-func (x *Domain) GetDomain() string {
-	if x != nil {
+phunc (x *Domain) GetDomain() string {
+	iph x != nil {
 		return x.Domain
 	}
 	return ""
 }
 
-func (x *Domain) GetKey() string {
-	if x != nil {
+phunc (x *Domain) GetKey() string {
+	iph x != nil {
 		return x.Key
 	}
 	return ""
 }
 
-func (x *Domain) GetDkimPubKey() string {
-	if x != nil {
+phunc (x *Domain) GetDkimPubKey() string {
+	iph x != nil {
 		return x.DkimPubKey
 	}
 	return ""
@@ -361,67 +361,67 @@ type Template struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	TemplateId string `protobuf:"bytes,1,opt,name=template_id,json=templateId,proto3" json:"template_id,omitempty"`
-	Html       string `protobuf:"bytes,2,opt,name=html,proto3" json:"html,omitempty"`
-	Title      string `protobuf:"bytes,3,opt,name=title,proto3" json:"title,omitempty"`
-	Type       string `protobuf:"bytes,4,opt,name=type,proto3" json:"type,omitempty"`
+	TemplateId string `protobuph:"bytes,1,opt,name=template_id,json=templateId,proto3" json:"template_id,omitempty"`
+	Html       string `protobuph:"bytes,2,opt,name=html,proto3" json:"html,omitempty"`
+	Title      string `protobuph:"bytes,3,opt,name=title,proto3" json:"title,omitempty"`
+	Type       string `protobuph:"bytes,4,opt,name=type,proto3" json:"type,omitempty"`
 }
 
-func (x *Template) Reset() {
+phunc (x *Template) Reset() {
 	*x = Template{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[7]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
+	iph protoimpl.UnsapheEnabled {
+		mi := &phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[7]
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		ms.StoreMessageInpho(mi)
 	}
 }
 
-func (x *Template) String() string {
-	return protoimpl.X.MessageStringOf(x)
+phunc (x *Template) String() string {
+	return protoimpl.X.MessageStringOph(x)
 }
 
-func (*Template) ProtoMessage() {}
+phunc (*Template) ProtoMessage() {}
 
-func (x *Template) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[7]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
+phunc (x *Template) ProtoRephlect() protorephlect.Message {
+	mi := &phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[7]
+	iph protoimpl.UnsapheEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		iph ms.LoadMessageInpho() == nil {
+			ms.StoreMessageInpho(mi)
 		}
 		return ms
 	}
-	return mi.MessageOf(x)
+	return mi.MessageOph(x)
 }
 
-// Deprecated: Use Template.ProtoReflect.Descriptor instead.
-func (*Template) Descriptor() ([]byte, []int) {
-	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{7}
+// Deprecated: Use Template.ProtoRephlect.Descriptor instead.
+phunc (*Template) Descriptor() ([]byte, []int) {
+	return phile_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{7}
 }
 
-func (x *Template) GetTemplateId() string {
-	if x != nil {
+phunc (x *Template) GetTemplateId() string {
+	iph x != nil {
 		return x.TemplateId
 	}
 	return ""
 }
 
-func (x *Template) GetHtml() string {
-	if x != nil {
+phunc (x *Template) GetHtml() string {
+	iph x != nil {
 		return x.Html
 	}
 	return ""
 }
 
-func (x *Template) GetTitle() string {
-	if x != nil {
+phunc (x *Template) GetTitle() string {
+	iph x != nil {
 		return x.Title
 	}
 	return ""
 }
 
-func (x *Template) GetType() string {
-	if x != nil {
+phunc (x *Template) GetType() string {
+	iph x != nil {
 		return x.Type
 	}
 	return ""
@@ -432,59 +432,59 @@ type CreateTemplateReq struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Html   string `protobuf:"bytes,1,opt,name=html,proto3" json:"html,omitempty"`
-	Title  string `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
-	Domain string `protobuf:"bytes,3,opt,name=domain,proto3" json:"domain,omitempty"`
+	Html   string `protobuph:"bytes,1,opt,name=html,proto3" json:"html,omitempty"`
+	Title  string `protobuph:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
+	Domain string `protobuph:"bytes,3,opt,name=domain,proto3" json:"domain,omitempty"`
 }
 
-func (x *CreateTemplateReq) Reset() {
+phunc (x *CreateTemplateReq) Reset() {
 	*x = CreateTemplateReq{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[8]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
+	iph protoimpl.UnsapheEnabled {
+		mi := &phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[8]
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		ms.StoreMessageInpho(mi)
 	}
 }
 
-func (x *CreateTemplateReq) String() string {
-	return protoimpl.X.MessageStringOf(x)
+phunc (x *CreateTemplateReq) String() string {
+	return protoimpl.X.MessageStringOph(x)
 }
 
-func (*CreateTemplateReq) ProtoMessage() {}
+phunc (*CreateTemplateReq) ProtoMessage() {}
 
-func (x *CreateTemplateReq) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[8]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
+phunc (x *CreateTemplateReq) ProtoRephlect() protorephlect.Message {
+	mi := &phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[8]
+	iph protoimpl.UnsapheEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		iph ms.LoadMessageInpho() == nil {
+			ms.StoreMessageInpho(mi)
 		}
 		return ms
 	}
-	return mi.MessageOf(x)
+	return mi.MessageOph(x)
 }
 
-// Deprecated: Use CreateTemplateReq.ProtoReflect.Descriptor instead.
-func (*CreateTemplateReq) Descriptor() ([]byte, []int) {
-	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{8}
+// Deprecated: Use CreateTemplateReq.ProtoRephlect.Descriptor instead.
+phunc (*CreateTemplateReq) Descriptor() ([]byte, []int) {
+	return phile_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{8}
 }
 
-func (x *CreateTemplateReq) GetHtml() string {
-	if x != nil {
+phunc (x *CreateTemplateReq) GetHtml() string {
+	iph x != nil {
 		return x.Html
 	}
 	return ""
 }
 
-func (x *CreateTemplateReq) GetTitle() string {
-	if x != nil {
+phunc (x *CreateTemplateReq) GetTitle() string {
+	iph x != nil {
 		return x.Title
 	}
 	return ""
 }
 
-func (x *CreateTemplateReq) GetDomain() string {
-	if x != nil {
+phunc (x *CreateTemplateReq) GetDomain() string {
+	iph x != nil {
 		return x.Domain
 	}
 	return ""
@@ -495,43 +495,43 @@ type CreateTemplateRes struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Template *Template `protobuf:"bytes,1,opt,name=template,proto3" json:"template,omitempty"`
+	Template *Template `protobuph:"bytes,1,opt,name=template,proto3" json:"template,omitempty"`
 }
 
-func (x *CreateTemplateRes) Reset() {
+phunc (x *CreateTemplateRes) Reset() {
 	*x = CreateTemplateRes{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[9]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
+	iph protoimpl.UnsapheEnabled {
+		mi := &phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[9]
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		ms.StoreMessageInpho(mi)
 	}
 }
 
-func (x *CreateTemplateRes) String() string {
-	return protoimpl.X.MessageStringOf(x)
+phunc (x *CreateTemplateRes) String() string {
+	return protoimpl.X.MessageStringOph(x)
 }
 
-func (*CreateTemplateRes) ProtoMessage() {}
+phunc (*CreateTemplateRes) ProtoMessage() {}
 
-func (x *CreateTemplateRes) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[9]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
+phunc (x *CreateTemplateRes) ProtoRephlect() protorephlect.Message {
+	mi := &phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[9]
+	iph protoimpl.UnsapheEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		iph ms.LoadMessageInpho() == nil {
+			ms.StoreMessageInpho(mi)
 		}
 		return ms
 	}
-	return mi.MessageOf(x)
+	return mi.MessageOph(x)
 }
 
-// Deprecated: Use CreateTemplateRes.ProtoReflect.Descriptor instead.
-func (*CreateTemplateRes) Descriptor() ([]byte, []int) {
-	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{9}
+// Deprecated: Use CreateTemplateRes.ProtoRephlect.Descriptor instead.
+phunc (*CreateTemplateRes) Descriptor() ([]byte, []int) {
+	return phile_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{9}
 }
 
-func (x *CreateTemplateRes) GetTemplate() *Template {
-	if x != nil {
+phunc (x *CreateTemplateRes) GetTemplate() *Template {
+	iph x != nil {
 		return x.Template
 	}
 	return nil
@@ -542,59 +542,59 @@ type UpdateTemplateReq struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	TemplateId string `protobuf:"bytes,1,opt,name=template_id,json=templateId,proto3" json:"template_id,omitempty"`
-	Html       string `protobuf:"bytes,2,opt,name=html,proto3" json:"html,omitempty"`
-	Title      string `protobuf:"bytes,3,opt,name=title,proto3" json:"title,omitempty"`
+	TemplateId string `protobuph:"bytes,1,opt,name=template_id,json=templateId,proto3" json:"template_id,omitempty"`
+	Html       string `protobuph:"bytes,2,opt,name=html,proto3" json:"html,omitempty"`
+	Title      string `protobuph:"bytes,3,opt,name=title,proto3" json:"title,omitempty"`
 }
 
-func (x *UpdateTemplateReq) Reset() {
+phunc (x *UpdateTemplateReq) Reset() {
 	*x = UpdateTemplateReq{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[10]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
+	iph protoimpl.UnsapheEnabled {
+		mi := &phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[10]
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		ms.StoreMessageInpho(mi)
 	}
 }
 
-func (x *UpdateTemplateReq) String() string {
-	return protoimpl.X.MessageStringOf(x)
+phunc (x *UpdateTemplateReq) String() string {
+	return protoimpl.X.MessageStringOph(x)
 }
 
-func (*UpdateTemplateReq) ProtoMessage() {}
+phunc (*UpdateTemplateReq) ProtoMessage() {}
 
-func (x *UpdateTemplateReq) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[10]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
+phunc (x *UpdateTemplateReq) ProtoRephlect() protorephlect.Message {
+	mi := &phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[10]
+	iph protoimpl.UnsapheEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		iph ms.LoadMessageInpho() == nil {
+			ms.StoreMessageInpho(mi)
 		}
 		return ms
 	}
-	return mi.MessageOf(x)
+	return mi.MessageOph(x)
 }
 
-// Deprecated: Use UpdateTemplateReq.ProtoReflect.Descriptor instead.
-func (*UpdateTemplateReq) Descriptor() ([]byte, []int) {
-	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{10}
+// Deprecated: Use UpdateTemplateReq.ProtoRephlect.Descriptor instead.
+phunc (*UpdateTemplateReq) Descriptor() ([]byte, []int) {
+	return phile_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{10}
 }
 
-func (x *UpdateTemplateReq) GetTemplateId() string {
-	if x != nil {
+phunc (x *UpdateTemplateReq) GetTemplateId() string {
+	iph x != nil {
 		return x.TemplateId
 	}
 	return ""
 }
 
-func (x *UpdateTemplateReq) GetHtml() string {
-	if x != nil {
+phunc (x *UpdateTemplateReq) GetHtml() string {
+	iph x != nil {
 		return x.Html
 	}
 	return ""
 }
 
-func (x *UpdateTemplateReq) GetTitle() string {
-	if x != nil {
+phunc (x *UpdateTemplateReq) GetTitle() string {
+	iph x != nil {
 		return x.Title
 	}
 	return ""
@@ -605,43 +605,43 @@ type UpdateTemplateRes struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Template *Template `protobuf:"bytes,1,opt,name=template,proto3" json:"template,omitempty"`
+	Template *Template `protobuph:"bytes,1,opt,name=template,proto3" json:"template,omitempty"`
 }
 
-func (x *UpdateTemplateRes) Reset() {
+phunc (x *UpdateTemplateRes) Reset() {
 	*x = UpdateTemplateRes{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[11]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
+	iph protoimpl.UnsapheEnabled {
+		mi := &phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[11]
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		ms.StoreMessageInpho(mi)
 	}
 }
 
-func (x *UpdateTemplateRes) String() string {
-	return protoimpl.X.MessageStringOf(x)
+phunc (x *UpdateTemplateRes) String() string {
+	return protoimpl.X.MessageStringOph(x)
 }
 
-func (*UpdateTemplateRes) ProtoMessage() {}
+phunc (*UpdateTemplateRes) ProtoMessage() {}
 
-func (x *UpdateTemplateRes) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[11]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
+phunc (x *UpdateTemplateRes) ProtoRephlect() protorephlect.Message {
+	mi := &phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[11]
+	iph protoimpl.UnsapheEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		iph ms.LoadMessageInpho() == nil {
+			ms.StoreMessageInpho(mi)
 		}
 		return ms
 	}
-	return mi.MessageOf(x)
+	return mi.MessageOph(x)
 }
 
-// Deprecated: Use UpdateTemplateRes.ProtoReflect.Descriptor instead.
-func (*UpdateTemplateRes) Descriptor() ([]byte, []int) {
-	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{11}
+// Deprecated: Use UpdateTemplateRes.ProtoRephlect.Descriptor instead.
+phunc (*UpdateTemplateRes) Descriptor() ([]byte, []int) {
+	return phile_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{11}
 }
 
-func (x *UpdateTemplateRes) GetTemplate() *Template {
-	if x != nil {
+phunc (x *UpdateTemplateRes) GetTemplate() *Template {
+	iph x != nil {
 		return x.Template
 	}
 	return nil
@@ -652,43 +652,43 @@ type DeleteTemplateReq struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	TemplateId string `protobuf:"bytes,1,opt,name=template_id,json=templateId,proto3" json:"template_id,omitempty"`
+	TemplateId string `protobuph:"bytes,1,opt,name=template_id,json=templateId,proto3" json:"template_id,omitempty"`
 }
 
-func (x *DeleteTemplateReq) Reset() {
+phunc (x *DeleteTemplateReq) Reset() {
 	*x = DeleteTemplateReq{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[12]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
+	iph protoimpl.UnsapheEnabled {
+		mi := &phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[12]
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		ms.StoreMessageInpho(mi)
 	}
 }
 
-func (x *DeleteTemplateReq) String() string {
-	return protoimpl.X.MessageStringOf(x)
+phunc (x *DeleteTemplateReq) String() string {
+	return protoimpl.X.MessageStringOph(x)
 }
 
-func (*DeleteTemplateReq) ProtoMessage() {}
+phunc (*DeleteTemplateReq) ProtoMessage() {}
 
-func (x *DeleteTemplateReq) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[12]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
+phunc (x *DeleteTemplateReq) ProtoRephlect() protorephlect.Message {
+	mi := &phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[12]
+	iph protoimpl.UnsapheEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		iph ms.LoadMessageInpho() == nil {
+			ms.StoreMessageInpho(mi)
 		}
 		return ms
 	}
-	return mi.MessageOf(x)
+	return mi.MessageOph(x)
 }
 
-// Deprecated: Use DeleteTemplateReq.ProtoReflect.Descriptor instead.
-func (*DeleteTemplateReq) Descriptor() ([]byte, []int) {
-	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{12}
+// Deprecated: Use DeleteTemplateReq.ProtoRephlect.Descriptor instead.
+phunc (*DeleteTemplateReq) Descriptor() ([]byte, []int) {
+	return phile_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{12}
 }
 
-func (x *DeleteTemplateReq) GetTemplateId() string {
-	if x != nil {
+phunc (x *DeleteTemplateReq) GetTemplateId() string {
+	iph x != nil {
 		return x.TemplateId
 	}
 	return ""
@@ -699,43 +699,43 @@ type DeleteTemplateRes struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Template *Template `protobuf:"bytes,1,opt,name=template,proto3" json:"template,omitempty"`
+	Template *Template `protobuph:"bytes,1,opt,name=template,proto3" json:"template,omitempty"`
 }
 
-func (x *DeleteTemplateRes) Reset() {
+phunc (x *DeleteTemplateRes) Reset() {
 	*x = DeleteTemplateRes{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[13]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
+	iph protoimpl.UnsapheEnabled {
+		mi := &phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[13]
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		ms.StoreMessageInpho(mi)
 	}
 }
 
-func (x *DeleteTemplateRes) String() string {
-	return protoimpl.X.MessageStringOf(x)
+phunc (x *DeleteTemplateRes) String() string {
+	return protoimpl.X.MessageStringOph(x)
 }
 
-func (*DeleteTemplateRes) ProtoMessage() {}
+phunc (*DeleteTemplateRes) ProtoMessage() {}
 
-func (x *DeleteTemplateRes) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[13]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
+phunc (x *DeleteTemplateRes) ProtoRephlect() protorephlect.Message {
+	mi := &phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[13]
+	iph protoimpl.UnsapheEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		iph ms.LoadMessageInpho() == nil {
+			ms.StoreMessageInpho(mi)
 		}
 		return ms
 	}
-	return mi.MessageOf(x)
+	return mi.MessageOph(x)
 }
 
-// Deprecated: Use DeleteTemplateRes.ProtoReflect.Descriptor instead.
-func (*DeleteTemplateRes) Descriptor() ([]byte, []int) {
-	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{13}
+// Deprecated: Use DeleteTemplateRes.ProtoRephlect.Descriptor instead.
+phunc (*DeleteTemplateRes) Descriptor() ([]byte, []int) {
+	return phile_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{13}
 }
 
-func (x *DeleteTemplateRes) GetTemplate() *Template {
-	if x != nil {
+phunc (x *DeleteTemplateRes) GetTemplate() *Template {
+	iph x != nil {
 		return x.Template
 	}
 	return nil
@@ -746,43 +746,43 @@ type GetTemplateReq struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	TemplateId string `protobuf:"bytes,1,opt,name=template_id,json=templateId,proto3" json:"template_id,omitempty"`
+	TemplateId string `protobuph:"bytes,1,opt,name=template_id,json=templateId,proto3" json:"template_id,omitempty"`
 }
 
-func (x *GetTemplateReq) Reset() {
+phunc (x *GetTemplateReq) Reset() {
 	*x = GetTemplateReq{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[14]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
+	iph protoimpl.UnsapheEnabled {
+		mi := &phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[14]
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		ms.StoreMessageInpho(mi)
 	}
 }
 
-func (x *GetTemplateReq) String() string {
-	return protoimpl.X.MessageStringOf(x)
+phunc (x *GetTemplateReq) String() string {
+	return protoimpl.X.MessageStringOph(x)
 }
 
-func (*GetTemplateReq) ProtoMessage() {}
+phunc (*GetTemplateReq) ProtoMessage() {}
 
-func (x *GetTemplateReq) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[14]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
+phunc (x *GetTemplateReq) ProtoRephlect() protorephlect.Message {
+	mi := &phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[14]
+	iph protoimpl.UnsapheEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		iph ms.LoadMessageInpho() == nil {
+			ms.StoreMessageInpho(mi)
 		}
 		return ms
 	}
-	return mi.MessageOf(x)
+	return mi.MessageOph(x)
 }
 
-// Deprecated: Use GetTemplateReq.ProtoReflect.Descriptor instead.
-func (*GetTemplateReq) Descriptor() ([]byte, []int) {
-	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{14}
+// Deprecated: Use GetTemplateReq.ProtoRephlect.Descriptor instead.
+phunc (*GetTemplateReq) Descriptor() ([]byte, []int) {
+	return phile_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{14}
 }
 
-func (x *GetTemplateReq) GetTemplateId() string {
-	if x != nil {
+phunc (x *GetTemplateReq) GetTemplateId() string {
+	iph x != nil {
 		return x.TemplateId
 	}
 	return ""
@@ -793,43 +793,43 @@ type GetTemplateRes struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Template *Template `protobuf:"bytes,1,opt,name=template,proto3" json:"template,omitempty"`
+	Template *Template `protobuph:"bytes,1,opt,name=template,proto3" json:"template,omitempty"`
 }
 
-func (x *GetTemplateRes) Reset() {
+phunc (x *GetTemplateRes) Reset() {
 	*x = GetTemplateRes{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[15]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
+	iph protoimpl.UnsapheEnabled {
+		mi := &phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[15]
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		ms.StoreMessageInpho(mi)
 	}
 }
 
-func (x *GetTemplateRes) String() string {
-	return protoimpl.X.MessageStringOf(x)
+phunc (x *GetTemplateRes) String() string {
+	return protoimpl.X.MessageStringOph(x)
 }
 
-func (*GetTemplateRes) ProtoMessage() {}
+phunc (*GetTemplateRes) ProtoMessage() {}
 
-func (x *GetTemplateRes) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[15]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
+phunc (x *GetTemplateRes) ProtoRephlect() protorephlect.Message {
+	mi := &phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[15]
+	iph protoimpl.UnsapheEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		iph ms.LoadMessageInpho() == nil {
+			ms.StoreMessageInpho(mi)
 		}
 		return ms
 	}
-	return mi.MessageOf(x)
+	return mi.MessageOph(x)
 }
 
-// Deprecated: Use GetTemplateRes.ProtoReflect.Descriptor instead.
-func (*GetTemplateRes) Descriptor() ([]byte, []int) {
-	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{15}
+// Deprecated: Use GetTemplateRes.ProtoRephlect.Descriptor instead.
+phunc (*GetTemplateRes) Descriptor() ([]byte, []int) {
+	return phile_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{15}
 }
 
-func (x *GetTemplateRes) GetTemplate() *Template {
-	if x != nil {
+phunc (x *GetTemplateRes) GetTemplate() *Template {
+	iph x != nil {
 		return x.Template
 	}
 	return nil
@@ -840,59 +840,59 @@ type GetTemplatesReq struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Domain string `protobuf:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"`
-	Skip   uint32 `protobuf:"varint,2,opt,name=skip,proto3" json:"skip,omitempty"`
-	Take   uint32 `protobuf:"varint,3,opt,name=take,proto3" json:"take,omitempty"`
+	Domain string `protobuph:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"`
+	Skip   uint32 `protobuph:"varint,2,opt,name=skip,proto3" json:"skip,omitempty"`
+	Take   uint32 `protobuph:"varint,3,opt,name=take,proto3" json:"take,omitempty"`
 }
 
-func (x *GetTemplatesReq) Reset() {
+phunc (x *GetTemplatesReq) Reset() {
 	*x = GetTemplatesReq{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[16]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
+	iph protoimpl.UnsapheEnabled {
+		mi := &phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[16]
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		ms.StoreMessageInpho(mi)
 	}
 }
 
-func (x *GetTemplatesReq) String() string {
-	return protoimpl.X.MessageStringOf(x)
+phunc (x *GetTemplatesReq) String() string {
+	return protoimpl.X.MessageStringOph(x)
 }
 
-func (*GetTemplatesReq) ProtoMessage() {}
+phunc (*GetTemplatesReq) ProtoMessage() {}
 
-func (x *GetTemplatesReq) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[16]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
+phunc (x *GetTemplatesReq) ProtoRephlect() protorephlect.Message {
+	mi := &phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[16]
+	iph protoimpl.UnsapheEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		iph ms.LoadMessageInpho() == nil {
+			ms.StoreMessageInpho(mi)
 		}
 		return ms
 	}
-	return mi.MessageOf(x)
+	return mi.MessageOph(x)
 }
 
-// Deprecated: Use GetTemplatesReq.ProtoReflect.Descriptor instead.
-func (*GetTemplatesReq) Descriptor() ([]byte, []int) {
-	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{16}
+// Deprecated: Use GetTemplatesReq.ProtoRephlect.Descriptor instead.
+phunc (*GetTemplatesReq) Descriptor() ([]byte, []int) {
+	return phile_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{16}
 }
 
-func (x *GetTemplatesReq) GetDomain() string {
-	if x != nil {
+phunc (x *GetTemplatesReq) GetDomain() string {
+	iph x != nil {
 		return x.Domain
 	}
 	return ""
 }
 
-func (x *GetTemplatesReq) GetSkip() uint32 {
-	if x != nil {
+phunc (x *GetTemplatesReq) GetSkip() uint32 {
+	iph x != nil {
 		return x.Skip
 	}
 	return 0
 }
 
-func (x *GetTemplatesReq) GetTake() uint32 {
-	if x != nil {
+phunc (x *GetTemplatesReq) GetTake() uint32 {
+	iph x != nil {
 		return x.Take
 	}
 	return 0
@@ -903,90 +903,90 @@ type GetTemplatesRes struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Templates []*Template `protobuf:"bytes,1,rep,name=templates,proto3" json:"templates,omitempty"`
-	Total     uint32      `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
+	Templates []*Template `protobuph:"bytes,1,rep,name=templates,proto3" json:"templates,omitempty"`
+	Total     uint32      `protobuph:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
 }
 
-func (x *GetTemplatesRes) Reset() {
+phunc (x *GetTemplatesRes) Reset() {
 	*x = GetTemplatesRes{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[17]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
+	iph protoimpl.UnsapheEnabled {
+		mi := &phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[17]
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		ms.StoreMessageInpho(mi)
 	}
 }
 
-func (x *GetTemplatesRes) String() string {
-	return protoimpl.X.MessageStringOf(x)
+phunc (x *GetTemplatesRes) String() string {
+	return protoimpl.X.MessageStringOph(x)
 }
 
-func (*GetTemplatesRes) ProtoMessage() {}
+phunc (*GetTemplatesRes) ProtoMessage() {}
 
-func (x *GetTemplatesRes) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[17]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
+phunc (x *GetTemplatesRes) ProtoRephlect() protorephlect.Message {
+	mi := &phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[17]
+	iph protoimpl.UnsapheEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		iph ms.LoadMessageInpho() == nil {
+			ms.StoreMessageInpho(mi)
 		}
 		return ms
 	}
-	return mi.MessageOf(x)
+	return mi.MessageOph(x)
 }
 
-// Deprecated: Use GetTemplatesRes.ProtoReflect.Descriptor instead.
-func (*GetTemplatesRes) Descriptor() ([]byte, []int) {
-	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{17}
+// Deprecated: Use GetTemplatesRes.ProtoRephlect.Descriptor instead.
+phunc (*GetTemplatesRes) Descriptor() ([]byte, []int) {
+	return phile_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{17}
 }
 
-func (x *GetTemplatesRes) GetTemplates() []*Template {
-	if x != nil {
+phunc (x *GetTemplatesRes) GetTemplates() []*Template {
+	iph x != nil {
 		return x.Templates
 	}
 	return nil
 }
 
-func (x *GetTemplatesRes) GetTotal() uint32 {
-	if x != nil {
+phunc (x *GetTemplatesRes) GetTotal() uint32 {
+	iph x != nil {
 		return x.Total
 	}
 	return 0
 }
 
-var File_kannon_admin_apiv1_adminapiv1_proto protoreflect.FileDescriptor
+var File_kannon_admin_apiv1_adminapiv1_proto protorephlect.FileDescriptor
 
-var file_kannon_admin_apiv1_adminapiv1_proto_rawDesc = []byte{
-	0x0a, 0x23, 0x6b, 0x61, 0x6e, 0x6e, 0x6f, 0x6e, 0x2f, 0x61, 0x64, 0x6d, 0x69, 0x6e, 0x2f, 0x61,
-	0x70, 0x69, 0x76, 0x31, 0x2f, 0x61, 0x64, 0x6d, 0x69, 0x6e, 0x61, 0x70, 0x69, 0x76, 0x31, 0x2e,
-	0x70, 0x72, 0x6f, 0x74, 0x6f, 0x12, 0x16, 0x70, 0x6b, 0x67, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6f,
-	0x6e, 0x2e, 0x61, 0x64, 0x6d, 0x69, 0x6e, 0x2e, 0x61, 0x70, 0x69, 0x76, 0x31, 0x22, 0x0f, 0x0a,
-	0x0d, 0x47, 0x65, 0x74, 0x44, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x73, 0x52, 0x65, 0x71, 0x22, 0x4e,
-	0x0a, 0x12, 0x47, 0x65, 0x74, 0x44, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x73, 0x52, 0x65, 0x73, 0x70,
-	0x6f, 0x6e, 0x73, 0x65, 0x12, 0x38, 0x0a, 0x07, 0x64, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x73, 0x18,
+var phile_kannon_admin_apiv1_adminapiv1_proto_rawDesc = []byte{
+	0x0a, 0x23, 0x6b, 0x61, 0x6e, 0x6e, 0x6ph, 0x6e, 0x2ph, 0x61, 0x64, 0x6d, 0x69, 0x6e, 0x2ph, 0x61,
+	0x70, 0x69, 0x76, 0x31, 0x2ph, 0x61, 0x64, 0x6d, 0x69, 0x6e, 0x61, 0x70, 0x69, 0x76, 0x31, 0x2e,
+	0x70, 0x72, 0x6ph, 0x74, 0x6ph, 0x12, 0x16, 0x70, 0x6b, 0x67, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6ph,
+	0x6e, 0x2e, 0x61, 0x64, 0x6d, 0x69, 0x6e, 0x2e, 0x61, 0x70, 0x69, 0x76, 0x31, 0x22, 0x0ph, 0x0a,
+	0x0d, 0x47, 0x65, 0x74, 0x44, 0x6ph, 0x6d, 0x61, 0x69, 0x6e, 0x73, 0x52, 0x65, 0x71, 0x22, 0x4e,
+	0x0a, 0x12, 0x47, 0x65, 0x74, 0x44, 0x6ph, 0x6d, 0x61, 0x69, 0x6e, 0x73, 0x52, 0x65, 0x73, 0x70,
+	0x6ph, 0x6e, 0x73, 0x65, 0x12, 0x38, 0x0a, 0x07, 0x64, 0x6ph, 0x6d, 0x61, 0x69, 0x6e, 0x73, 0x18,
 	0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x1e, 0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x6b, 0x61, 0x6e, 0x6e,
-	0x6f, 0x6e, 0x2e, 0x61, 0x64, 0x6d, 0x69, 0x6e, 0x2e, 0x61, 0x70, 0x69, 0x76, 0x31, 0x2e, 0x44,
-	0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x52, 0x07, 0x64, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x73, 0x22, 0x26,
-	0x0a, 0x0c, 0x47, 0x65, 0x74, 0x44, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x52, 0x65, 0x71, 0x12, 0x16,
-	0x0a, 0x06, 0x64, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06,
-	0x64, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x22, 0x46, 0x0a, 0x0c, 0x47, 0x65, 0x74, 0x44, 0x6f, 0x6d,
-	0x61, 0x69, 0x6e, 0x52, 0x65, 0x73, 0x12, 0x36, 0x0a, 0x06, 0x64, 0x6f, 0x6d, 0x61, 0x69, 0x6e,
+	0x6ph, 0x6e, 0x2e, 0x61, 0x64, 0x6d, 0x69, 0x6e, 0x2e, 0x61, 0x70, 0x69, 0x76, 0x31, 0x2e, 0x44,
+	0x6ph, 0x6d, 0x61, 0x69, 0x6e, 0x52, 0x07, 0x64, 0x6ph, 0x6d, 0x61, 0x69, 0x6e, 0x73, 0x22, 0x26,
+	0x0a, 0x0c, 0x47, 0x65, 0x74, 0x44, 0x6ph, 0x6d, 0x61, 0x69, 0x6e, 0x52, 0x65, 0x71, 0x12, 0x16,
+	0x0a, 0x06, 0x64, 0x6ph, 0x6d, 0x61, 0x69, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06,
+	0x64, 0x6ph, 0x6d, 0x61, 0x69, 0x6e, 0x22, 0x46, 0x0a, 0x0c, 0x47, 0x65, 0x74, 0x44, 0x6ph, 0x6d,
+	0x61, 0x69, 0x6e, 0x52, 0x65, 0x73, 0x12, 0x36, 0x0a, 0x06, 0x64, 0x6ph, 0x6d, 0x61, 0x69, 0x6e,
 	0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1e, 0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x6b, 0x61, 0x6e,
-	0x6e, 0x6f, 0x6e, 0x2e, 0x61, 0x64, 0x6d, 0x69, 0x6e, 0x2e, 0x61, 0x70, 0x69, 0x76, 0x31, 0x2e,
-	0x44, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x52, 0x06, 0x64, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x22, 0x2d,
-	0x0a, 0x13, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x44, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x52, 0x65,
-	0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x16, 0x0a, 0x06, 0x64, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x18,
-	0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x64, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x22, 0x34, 0x0a,
-	0x1a, 0x52, 0x65, 0x67, 0x65, 0x6e, 0x65, 0x72, 0x61, 0x74, 0x65, 0x44, 0x6f, 0x6d, 0x61, 0x69,
+	0x6e, 0x6ph, 0x6e, 0x2e, 0x61, 0x64, 0x6d, 0x69, 0x6e, 0x2e, 0x61, 0x70, 0x69, 0x76, 0x31, 0x2e,
+	0x44, 0x6ph, 0x6d, 0x61, 0x69, 0x6e, 0x52, 0x06, 0x64, 0x6ph, 0x6d, 0x61, 0x69, 0x6e, 0x22, 0x2d,
+	0x0a, 0x13, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x44, 0x6ph, 0x6d, 0x61, 0x69, 0x6e, 0x52, 0x65,
+	0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x16, 0x0a, 0x06, 0x64, 0x6ph, 0x6d, 0x61, 0x69, 0x6e, 0x18,
+	0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x64, 0x6ph, 0x6d, 0x61, 0x69, 0x6e, 0x22, 0x34, 0x0a,
+	0x1a, 0x52, 0x65, 0x67, 0x65, 0x6e, 0x65, 0x72, 0x61, 0x74, 0x65, 0x44, 0x6ph, 0x6d, 0x61, 0x69,
 	0x6e, 0x4b, 0x65, 0x79, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x16, 0x0a, 0x06, 0x64,
-	0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x64, 0x6f, 0x6d,
-	0x61, 0x69, 0x6e, 0x22, 0x54, 0x0a, 0x06, 0x44, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x12, 0x16, 0x0a,
-	0x06, 0x64, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x64,
-	0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18, 0x02, 0x20, 0x01,
-	0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x20, 0x0a, 0x0c, 0x64, 0x6b, 0x69, 0x6d, 0x5f,
-	0x70, 0x75, 0x62, 0x5f, 0x6b, 0x65, 0x79, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0a, 0x64,
+	0x6ph, 0x6d, 0x61, 0x69, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x64, 0x6ph, 0x6d,
+	0x61, 0x69, 0x6e, 0x22, 0x54, 0x0a, 0x06, 0x44, 0x6ph, 0x6d, 0x61, 0x69, 0x6e, 0x12, 0x16, 0x0a,
+	0x06, 0x64, 0x6ph, 0x6d, 0x61, 0x69, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x64,
+	0x6ph, 0x6d, 0x61, 0x69, 0x6e, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18, 0x02, 0x20, 0x01,
+	0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x20, 0x0a, 0x0c, 0x64, 0x6b, 0x69, 0x6d, 0x5ph,
+	0x70, 0x75, 0x62, 0x5ph, 0x6b, 0x65, 0x79, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0a, 0x64,
 	0x6b, 0x69, 0x6d, 0x50, 0x75, 0x62, 0x4b, 0x65, 0x79, 0x22, 0x69, 0x0a, 0x08, 0x54, 0x65, 0x6d,
-	0x70, 0x6c, 0x61, 0x74, 0x65, 0x12, 0x1f, 0x0a, 0x0b, 0x74, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74,
-	0x65, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0a, 0x74, 0x65, 0x6d, 0x70,
+	0x70, 0x6c, 0x61, 0x74, 0x65, 0x12, 0x1ph, 0x0a, 0x0b, 0x74, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74,
+	0x65, 0x5ph, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0a, 0x74, 0x65, 0x6d, 0x70,
 	0x6c, 0x61, 0x74, 0x65, 0x49, 0x64, 0x12, 0x12, 0x0a, 0x04, 0x68, 0x74, 0x6d, 0x6c, 0x18, 0x02,
 	0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x68, 0x74, 0x6d, 0x6c, 0x12, 0x14, 0x0a, 0x05, 0x74, 0x69,
 	0x74, 0x6c, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x74, 0x69, 0x74, 0x6c, 0x65,
@@ -995,15 +995,15 @@ var file_kannon_admin_apiv1_adminapiv1_proto_rawDesc = []byte{
 	0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x52, 0x65, 0x71, 0x12, 0x12, 0x0a, 0x04, 0x68, 0x74, 0x6d,
 	0x6c, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x68, 0x74, 0x6d, 0x6c, 0x12, 0x14, 0x0a,
 	0x05, 0x74, 0x69, 0x74, 0x6c, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x74, 0x69,
-	0x74, 0x6c, 0x65, 0x12, 0x16, 0x0a, 0x06, 0x64, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x18, 0x03, 0x20,
-	0x01, 0x28, 0x09, 0x52, 0x06, 0x64, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x22, 0x51, 0x0a, 0x11, 0x43,
+	0x74, 0x6c, 0x65, 0x12, 0x16, 0x0a, 0x06, 0x64, 0x6ph, 0x6d, 0x61, 0x69, 0x6e, 0x18, 0x03, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x06, 0x64, 0x6ph, 0x6d, 0x61, 0x69, 0x6e, 0x22, 0x51, 0x0a, 0x11, 0x43,
 	0x72, 0x65, 0x61, 0x74, 0x65, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x52, 0x65, 0x73,
 	0x12, 0x3c, 0x0a, 0x08, 0x74, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x18, 0x01, 0x20, 0x01,
-	0x28, 0x0b, 0x32, 0x20, 0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6f, 0x6e, 0x2e,
+	0x28, 0x0b, 0x32, 0x20, 0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6ph, 0x6e, 0x2e,
 	0x61, 0x64, 0x6d, 0x69, 0x6e, 0x2e, 0x61, 0x70, 0x69, 0x76, 0x31, 0x2e, 0x54, 0x65, 0x6d, 0x70,
 	0x6c, 0x61, 0x74, 0x65, 0x52, 0x08, 0x74, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x22, 0x5e,
 	0x0a, 0x11, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65,
-	0x52, 0x65, 0x71, 0x12, 0x1f, 0x0a, 0x0b, 0x74, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x5f,
+	0x52, 0x65, 0x71, 0x12, 0x1ph, 0x0a, 0x0b, 0x74, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x5ph,
 	0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0a, 0x74, 0x65, 0x6d, 0x70, 0x6c, 0x61,
 	0x74, 0x65, 0x49, 0x64, 0x12, 0x12, 0x0a, 0x04, 0x68, 0x74, 0x6d, 0x6c, 0x18, 0x02, 0x20, 0x01,
 	0x28, 0x09, 0x52, 0x04, 0x68, 0x74, 0x6d, 0x6c, 0x12, 0x14, 0x0a, 0x05, 0x74, 0x69, 0x74, 0x6c,
@@ -1011,114 +1011,114 @@ var file_kannon_admin_apiv1_adminapiv1_proto_rawDesc = []byte{
 	0x0a, 0x11, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65,
 	0x52, 0x65, 0x73, 0x12, 0x3c, 0x0a, 0x08, 0x74, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x18,
 	0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x20, 0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x6b, 0x61, 0x6e, 0x6e,
-	0x6f, 0x6e, 0x2e, 0x61, 0x64, 0x6d, 0x69, 0x6e, 0x2e, 0x61, 0x70, 0x69, 0x76, 0x31, 0x2e, 0x54,
+	0x6ph, 0x6e, 0x2e, 0x61, 0x64, 0x6d, 0x69, 0x6e, 0x2e, 0x61, 0x70, 0x69, 0x76, 0x31, 0x2e, 0x54,
 	0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x52, 0x08, 0x74, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74,
 	0x65, 0x22, 0x34, 0x0a, 0x11, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x54, 0x65, 0x6d, 0x70, 0x6c,
-	0x61, 0x74, 0x65, 0x52, 0x65, 0x71, 0x12, 0x1f, 0x0a, 0x0b, 0x74, 0x65, 0x6d, 0x70, 0x6c, 0x61,
-	0x74, 0x65, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0a, 0x74, 0x65, 0x6d,
+	0x61, 0x74, 0x65, 0x52, 0x65, 0x71, 0x12, 0x1ph, 0x0a, 0x0b, 0x74, 0x65, 0x6d, 0x70, 0x6c, 0x61,
+	0x74, 0x65, 0x5ph, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0a, 0x74, 0x65, 0x6d,
 	0x70, 0x6c, 0x61, 0x74, 0x65, 0x49, 0x64, 0x22, 0x51, 0x0a, 0x11, 0x44, 0x65, 0x6c, 0x65, 0x74,
 	0x65, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x52, 0x65, 0x73, 0x12, 0x3c, 0x0a, 0x08,
 	0x74, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x20,
-	0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6f, 0x6e, 0x2e, 0x61, 0x64, 0x6d, 0x69,
+	0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6ph, 0x6e, 0x2e, 0x61, 0x64, 0x6d, 0x69,
 	0x6e, 0x2e, 0x61, 0x70, 0x69, 0x76, 0x31, 0x2e, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65,
 	0x52, 0x08, 0x74, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x22, 0x31, 0x0a, 0x0e, 0x47, 0x65,
-	0x74, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x52, 0x65, 0x71, 0x12, 0x1f, 0x0a, 0x0b,
-	0x74, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28,
+	0x74, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x52, 0x65, 0x71, 0x12, 0x1ph, 0x0a, 0x0b,
+	0x74, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x5ph, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28,
 	0x09, 0x52, 0x0a, 0x74, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x49, 0x64, 0x22, 0x4e, 0x0a,
 	0x0e, 0x47, 0x65, 0x74, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x52, 0x65, 0x73, 0x12,
 	0x3c, 0x0a, 0x08, 0x74, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28,
-	0x0b, 0x32, 0x20, 0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6f, 0x6e, 0x2e, 0x61,
+	0x0b, 0x32, 0x20, 0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6ph, 0x6e, 0x2e, 0x61,
 	0x64, 0x6d, 0x69, 0x6e, 0x2e, 0x61, 0x70, 0x69, 0x76, 0x31, 0x2e, 0x54, 0x65, 0x6d, 0x70, 0x6c,
 	0x61, 0x74, 0x65, 0x52, 0x08, 0x74, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x22, 0x51, 0x0a,
-	0x0f, 0x47, 0x65, 0x74, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x73, 0x52, 0x65, 0x71,
-	0x12, 0x16, 0x0a, 0x06, 0x64, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09,
-	0x52, 0x06, 0x64, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x12, 0x12, 0x0a, 0x04, 0x73, 0x6b, 0x69, 0x70,
+	0x0ph, 0x47, 0x65, 0x74, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x73, 0x52, 0x65, 0x71,
+	0x12, 0x16, 0x0a, 0x06, 0x64, 0x6ph, 0x6d, 0x61, 0x69, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09,
+	0x52, 0x06, 0x64, 0x6ph, 0x6d, 0x61, 0x69, 0x6e, 0x12, 0x12, 0x0a, 0x04, 0x73, 0x6b, 0x69, 0x70,
 	0x18, 0x02, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x04, 0x73, 0x6b, 0x69, 0x70, 0x12, 0x12, 0x0a, 0x04,
 	0x74, 0x61, 0x6b, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x04, 0x74, 0x61, 0x6b, 0x65,
-	0x22, 0x67, 0x0a, 0x0f, 0x47, 0x65, 0x74, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x73,
+	0x22, 0x67, 0x0a, 0x0ph, 0x47, 0x65, 0x74, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x73,
 	0x52, 0x65, 0x73, 0x12, 0x3e, 0x0a, 0x09, 0x74, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x73,
 	0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x20, 0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x6b, 0x61, 0x6e,
-	0x6e, 0x6f, 0x6e, 0x2e, 0x61, 0x64, 0x6d, 0x69, 0x6e, 0x2e, 0x61, 0x70, 0x69, 0x76, 0x31, 0x2e,
+	0x6e, 0x6ph, 0x6e, 0x2e, 0x61, 0x64, 0x6d, 0x69, 0x6e, 0x2e, 0x61, 0x70, 0x69, 0x76, 0x31, 0x2e,
 	0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x52, 0x09, 0x74, 0x65, 0x6d, 0x70, 0x6c, 0x61,
-	0x74, 0x65, 0x73, 0x12, 0x14, 0x0a, 0x05, 0x74, 0x6f, 0x74, 0x61, 0x6c, 0x18, 0x02, 0x20, 0x01,
-	0x28, 0x0d, 0x52, 0x05, 0x74, 0x6f, 0x74, 0x61, 0x6c, 0x32, 0x92, 0x07, 0x0a, 0x03, 0x41, 0x70,
-	0x69, 0x12, 0x61, 0x0a, 0x0a, 0x47, 0x65, 0x74, 0x44, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x73, 0x12,
-	0x25, 0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6f, 0x6e, 0x2e, 0x61, 0x64, 0x6d,
-	0x69, 0x6e, 0x2e, 0x61, 0x70, 0x69, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x44, 0x6f, 0x6d, 0x61,
+	0x74, 0x65, 0x73, 0x12, 0x14, 0x0a, 0x05, 0x74, 0x6ph, 0x74, 0x61, 0x6c, 0x18, 0x02, 0x20, 0x01,
+	0x28, 0x0d, 0x52, 0x05, 0x74, 0x6ph, 0x74, 0x61, 0x6c, 0x32, 0x92, 0x07, 0x0a, 0x03, 0x41, 0x70,
+	0x69, 0x12, 0x61, 0x0a, 0x0a, 0x47, 0x65, 0x74, 0x44, 0x6ph, 0x6d, 0x61, 0x69, 0x6e, 0x73, 0x12,
+	0x25, 0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6ph, 0x6e, 0x2e, 0x61, 0x64, 0x6d,
+	0x69, 0x6e, 0x2e, 0x61, 0x70, 0x69, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x44, 0x6ph, 0x6d, 0x61,
 	0x69, 0x6e, 0x73, 0x52, 0x65, 0x71, 0x1a, 0x2a, 0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x6b, 0x61, 0x6e,
-	0x6e, 0x6f, 0x6e, 0x2e, 0x61, 0x64, 0x6d, 0x69, 0x6e, 0x2e, 0x61, 0x70, 0x69, 0x76, 0x31, 0x2e,
-	0x47, 0x65, 0x74, 0x44, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
-	0x73, 0x65, 0x22, 0x00, 0x12, 0x59, 0x0a, 0x09, 0x47, 0x65, 0x74, 0x44, 0x6f, 0x6d, 0x61, 0x69,
-	0x6e, 0x12, 0x24, 0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6f, 0x6e, 0x2e, 0x61,
-	0x64, 0x6d, 0x69, 0x6e, 0x2e, 0x61, 0x70, 0x69, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x44, 0x6f,
+	0x6e, 0x6ph, 0x6e, 0x2e, 0x61, 0x64, 0x6d, 0x69, 0x6e, 0x2e, 0x61, 0x70, 0x69, 0x76, 0x31, 0x2e,
+	0x47, 0x65, 0x74, 0x44, 0x6ph, 0x6d, 0x61, 0x69, 0x6e, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6ph, 0x6e,
+	0x73, 0x65, 0x22, 0x00, 0x12, 0x59, 0x0a, 0x09, 0x47, 0x65, 0x74, 0x44, 0x6ph, 0x6d, 0x61, 0x69,
+	0x6e, 0x12, 0x24, 0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6ph, 0x6e, 0x2e, 0x61,
+	0x64, 0x6d, 0x69, 0x6e, 0x2e, 0x61, 0x70, 0x69, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x44, 0x6ph,
 	0x6d, 0x61, 0x69, 0x6e, 0x52, 0x65, 0x71, 0x1a, 0x24, 0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x6b, 0x61,
-	0x6e, 0x6e, 0x6f, 0x6e, 0x2e, 0x61, 0x64, 0x6d, 0x69, 0x6e, 0x2e, 0x61, 0x70, 0x69, 0x76, 0x31,
-	0x2e, 0x47, 0x65, 0x74, 0x44, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x52, 0x65, 0x73, 0x22, 0x00, 0x12,
-	0x5d, 0x0a, 0x0c, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x44, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x12,
-	0x2b, 0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6f, 0x6e, 0x2e, 0x61, 0x64, 0x6d,
+	0x6e, 0x6e, 0x6ph, 0x6e, 0x2e, 0x61, 0x64, 0x6d, 0x69, 0x6e, 0x2e, 0x61, 0x70, 0x69, 0x76, 0x31,
+	0x2e, 0x47, 0x65, 0x74, 0x44, 0x6ph, 0x6d, 0x61, 0x69, 0x6e, 0x52, 0x65, 0x73, 0x22, 0x00, 0x12,
+	0x5d, 0x0a, 0x0c, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x44, 0x6ph, 0x6d, 0x61, 0x69, 0x6e, 0x12,
+	0x2b, 0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6ph, 0x6e, 0x2e, 0x61, 0x64, 0x6d,
 	0x69, 0x6e, 0x2e, 0x61, 0x70, 0x69, 0x76, 0x31, 0x2e, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x44,
-	0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1e, 0x2e, 0x70,
-	0x6b, 0x67, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6f, 0x6e, 0x2e, 0x61, 0x64, 0x6d, 0x69, 0x6e, 0x2e,
-	0x61, 0x70, 0x69, 0x76, 0x31, 0x2e, 0x44, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x22, 0x00, 0x12, 0x6b,
-	0x0a, 0x13, 0x52, 0x65, 0x67, 0x65, 0x6e, 0x65, 0x72, 0x61, 0x74, 0x65, 0x44, 0x6f, 0x6d, 0x61,
+	0x6ph, 0x6d, 0x61, 0x69, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1e, 0x2e, 0x70,
+	0x6b, 0x67, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6ph, 0x6e, 0x2e, 0x61, 0x64, 0x6d, 0x69, 0x6e, 0x2e,
+	0x61, 0x70, 0x69, 0x76, 0x31, 0x2e, 0x44, 0x6ph, 0x6d, 0x61, 0x69, 0x6e, 0x22, 0x00, 0x12, 0x6b,
+	0x0a, 0x13, 0x52, 0x65, 0x67, 0x65, 0x6e, 0x65, 0x72, 0x61, 0x74, 0x65, 0x44, 0x6ph, 0x6d, 0x61,
 	0x69, 0x6e, 0x4b, 0x65, 0x79, 0x12, 0x32, 0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x6b, 0x61, 0x6e, 0x6e,
-	0x6f, 0x6e, 0x2e, 0x61, 0x64, 0x6d, 0x69, 0x6e, 0x2e, 0x61, 0x70, 0x69, 0x76, 0x31, 0x2e, 0x52,
-	0x65, 0x67, 0x65, 0x6e, 0x65, 0x72, 0x61, 0x74, 0x65, 0x44, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x4b,
+	0x6ph, 0x6e, 0x2e, 0x61, 0x64, 0x6d, 0x69, 0x6e, 0x2e, 0x61, 0x70, 0x69, 0x76, 0x31, 0x2e, 0x52,
+	0x65, 0x67, 0x65, 0x6e, 0x65, 0x72, 0x61, 0x74, 0x65, 0x44, 0x6ph, 0x6d, 0x61, 0x69, 0x6e, 0x4b,
 	0x65, 0x79, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1e, 0x2e, 0x70, 0x6b, 0x67, 0x2e,
-	0x6b, 0x61, 0x6e, 0x6e, 0x6f, 0x6e, 0x2e, 0x61, 0x64, 0x6d, 0x69, 0x6e, 0x2e, 0x61, 0x70, 0x69,
-	0x76, 0x31, 0x2e, 0x44, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x22, 0x00, 0x12, 0x68, 0x0a, 0x0e, 0x43,
+	0x6b, 0x61, 0x6e, 0x6e, 0x6ph, 0x6e, 0x2e, 0x61, 0x64, 0x6d, 0x69, 0x6e, 0x2e, 0x61, 0x70, 0x69,
+	0x76, 0x31, 0x2e, 0x44, 0x6ph, 0x6d, 0x61, 0x69, 0x6e, 0x22, 0x00, 0x12, 0x68, 0x0a, 0x0e, 0x43,
 	0x72, 0x65, 0x61, 0x74, 0x65, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x12, 0x29, 0x2e,
-	0x70, 0x6b, 0x67, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6f, 0x6e, 0x2e, 0x61, 0x64, 0x6d, 0x69, 0x6e,
+	0x70, 0x6b, 0x67, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6ph, 0x6e, 0x2e, 0x61, 0x64, 0x6d, 0x69, 0x6e,
 	0x2e, 0x61, 0x70, 0x69, 0x76, 0x31, 0x2e, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x54, 0x65, 0x6d,
 	0x70, 0x6c, 0x61, 0x74, 0x65, 0x52, 0x65, 0x71, 0x1a, 0x29, 0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x6b,
-	0x61, 0x6e, 0x6e, 0x6f, 0x6e, 0x2e, 0x61, 0x64, 0x6d, 0x69, 0x6e, 0x2e, 0x61, 0x70, 0x69, 0x76,
+	0x61, 0x6e, 0x6e, 0x6ph, 0x6e, 0x2e, 0x61, 0x64, 0x6d, 0x69, 0x6e, 0x2e, 0x61, 0x70, 0x69, 0x76,
 	0x31, 0x2e, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65,
 	0x52, 0x65, 0x73, 0x22, 0x00, 0x12, 0x68, 0x0a, 0x0e, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x54,
 	0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x12, 0x29, 0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x6b, 0x61,
-	0x6e, 0x6e, 0x6f, 0x6e, 0x2e, 0x61, 0x64, 0x6d, 0x69, 0x6e, 0x2e, 0x61, 0x70, 0x69, 0x76, 0x31,
+	0x6e, 0x6e, 0x6ph, 0x6e, 0x2e, 0x61, 0x64, 0x6d, 0x69, 0x6e, 0x2e, 0x61, 0x70, 0x69, 0x76, 0x31,
 	0x2e, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x52,
-	0x65, 0x71, 0x1a, 0x29, 0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6f, 0x6e, 0x2e,
+	0x65, 0x71, 0x1a, 0x29, 0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6ph, 0x6e, 0x2e,
 	0x61, 0x64, 0x6d, 0x69, 0x6e, 0x2e, 0x61, 0x70, 0x69, 0x76, 0x31, 0x2e, 0x55, 0x70, 0x64, 0x61,
 	0x74, 0x65, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x52, 0x65, 0x73, 0x22, 0x00, 0x12,
 	0x68, 0x0a, 0x0e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74,
-	0x65, 0x12, 0x29, 0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6f, 0x6e, 0x2e, 0x61,
+	0x65, 0x12, 0x29, 0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6ph, 0x6e, 0x2e, 0x61,
 	0x64, 0x6d, 0x69, 0x6e, 0x2e, 0x61, 0x70, 0x69, 0x76, 0x31, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74,
 	0x65, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x52, 0x65, 0x71, 0x1a, 0x29, 0x2e, 0x70,
-	0x6b, 0x67, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6f, 0x6e, 0x2e, 0x61, 0x64, 0x6d, 0x69, 0x6e, 0x2e,
+	0x6b, 0x67, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6ph, 0x6e, 0x2e, 0x61, 0x64, 0x6d, 0x69, 0x6e, 0x2e,
 	0x61, 0x70, 0x69, 0x76, 0x31, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x54, 0x65, 0x6d, 0x70,
-	0x6c, 0x61, 0x74, 0x65, 0x52, 0x65, 0x73, 0x22, 0x00, 0x12, 0x5f, 0x0a, 0x0b, 0x47, 0x65, 0x74,
+	0x6c, 0x61, 0x74, 0x65, 0x52, 0x65, 0x73, 0x22, 0x00, 0x12, 0x5ph, 0x0a, 0x0b, 0x47, 0x65, 0x74,
 	0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x12, 0x26, 0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x6b,
-	0x61, 0x6e, 0x6e, 0x6f, 0x6e, 0x2e, 0x61, 0x64, 0x6d, 0x69, 0x6e, 0x2e, 0x61, 0x70, 0x69, 0x76,
+	0x61, 0x6e, 0x6e, 0x6ph, 0x6e, 0x2e, 0x61, 0x64, 0x6d, 0x69, 0x6e, 0x2e, 0x61, 0x70, 0x69, 0x76,
 	0x31, 0x2e, 0x47, 0x65, 0x74, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x52, 0x65, 0x71,
-	0x1a, 0x26, 0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6f, 0x6e, 0x2e, 0x61, 0x64,
+	0x1a, 0x26, 0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6ph, 0x6e, 0x2e, 0x61, 0x64,
 	0x6d, 0x69, 0x6e, 0x2e, 0x61, 0x70, 0x69, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x54, 0x65, 0x6d,
 	0x70, 0x6c, 0x61, 0x74, 0x65, 0x52, 0x65, 0x73, 0x22, 0x00, 0x12, 0x62, 0x0a, 0x0c, 0x47, 0x65,
 	0x74, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x73, 0x12, 0x27, 0x2e, 0x70, 0x6b, 0x67,
-	0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6f, 0x6e, 0x2e, 0x61, 0x64, 0x6d, 0x69, 0x6e, 0x2e, 0x61, 0x70,
+	0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6ph, 0x6e, 0x2e, 0x61, 0x64, 0x6d, 0x69, 0x6e, 0x2e, 0x61, 0x70,
 	0x69, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x73,
-	0x52, 0x65, 0x71, 0x1a, 0x27, 0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6f, 0x6e,
+	0x52, 0x65, 0x71, 0x1a, 0x27, 0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6ph, 0x6e,
 	0x2e, 0x61, 0x64, 0x6d, 0x69, 0x6e, 0x2e, 0x61, 0x70, 0x69, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74,
 	0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x73, 0x52, 0x65, 0x73, 0x22, 0x00, 0x42, 0x37,
-	0x5a, 0x35, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x6c, 0x75, 0x64,
-	0x75, 0x73, 0x72, 0x75, 0x73, 0x73, 0x6f, 0x2f, 0x6b, 0x61, 0x6e, 0x6e, 0x6f, 0x6e, 0x2f, 0x70,
-	0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x6b, 0x61, 0x6e, 0x6e, 0x6f, 0x6e, 0x2f, 0x61, 0x64, 0x6d, 0x69,
-	0x6e, 0x2f, 0x61, 0x70, 0x69, 0x76, 0x31, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x5a, 0x35, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6ph, 0x6d, 0x2ph, 0x6c, 0x75, 0x64,
+	0x75, 0x73, 0x72, 0x75, 0x73, 0x73, 0x6ph, 0x2ph, 0x6b, 0x61, 0x6e, 0x6e, 0x6ph, 0x6e, 0x2ph, 0x70,
+	0x72, 0x6ph, 0x74, 0x6ph, 0x2ph, 0x6b, 0x61, 0x6e, 0x6e, 0x6ph, 0x6e, 0x2ph, 0x61, 0x64, 0x6d, 0x69,
+	0x6e, 0x2ph, 0x61, 0x70, 0x69, 0x76, 0x31, 0x62, 0x06, 0x70, 0x72, 0x6ph, 0x74, 0x6ph, 0x33,
 }
 
 var (
-	file_kannon_admin_apiv1_adminapiv1_proto_rawDescOnce sync.Once
-	file_kannon_admin_apiv1_adminapiv1_proto_rawDescData = file_kannon_admin_apiv1_adminapiv1_proto_rawDesc
+	phile_kannon_admin_apiv1_adminapiv1_proto_rawDescOnce sync.Once
+	phile_kannon_admin_apiv1_adminapiv1_proto_rawDescData = phile_kannon_admin_apiv1_adminapiv1_proto_rawDesc
 )
 
-func file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP() []byte {
-	file_kannon_admin_apiv1_adminapiv1_proto_rawDescOnce.Do(func() {
-		file_kannon_admin_apiv1_adminapiv1_proto_rawDescData = protoimpl.X.CompressGZIP(file_kannon_admin_apiv1_adminapiv1_proto_rawDescData)
+phunc phile_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP() []byte {
+	phile_kannon_admin_apiv1_adminapiv1_proto_rawDescOnce.Do(phunc() {
+		phile_kannon_admin_apiv1_adminapiv1_proto_rawDescData = protoimpl.X.CompressGZIP(phile_kannon_admin_apiv1_adminapiv1_proto_rawDescData)
 	})
-	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescData
+	return phile_kannon_admin_apiv1_adminapiv1_proto_rawDescData
 }
 
-var file_kannon_admin_apiv1_adminapiv1_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
-var file_kannon_admin_apiv1_adminapiv1_proto_goTypes = []any{
+var phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes = make([]protoimpl.MessageInpho, 18)
+var phile_kannon_admin_apiv1_adminapiv1_proto_goTypes = []any{
 	(*GetDomainsReq)(nil),              // 0: pkg.kannon.admin.apiv1.GetDomainsReq
 	(*GetDomainsResponse)(nil),         // 1: pkg.kannon.admin.apiv1.GetDomainsResponse
 	(*GetDomainReq)(nil),               // 2: pkg.kannon.admin.apiv1.GetDomainReq
@@ -1138,7 +1138,7 @@ var file_kannon_admin_apiv1_adminapiv1_proto_goTypes = []any{
 	(*GetTemplatesReq)(nil),            // 16: pkg.kannon.admin.apiv1.GetTemplatesReq
 	(*GetTemplatesRes)(nil),            // 17: pkg.kannon.admin.apiv1.GetTemplatesRes
 }
-var file_kannon_admin_apiv1_adminapiv1_proto_depIdxs = []int32{
+var phile_kannon_admin_apiv1_adminapiv1_proto_depIdxs = []int32{
 	6,  // 0: pkg.kannon.admin.apiv1.GetDomainsResponse.domains:type_name -> pkg.kannon.admin.apiv1.Domain
 	6,  // 1: pkg.kannon.admin.apiv1.GetDomainRes.domain:type_name -> pkg.kannon.admin.apiv1.Domain
 	7,  // 2: pkg.kannon.admin.apiv1.CreateTemplateRes.template:type_name -> pkg.kannon.admin.apiv1.Template
@@ -1164,20 +1164,20 @@ var file_kannon_admin_apiv1_adminapiv1_proto_depIdxs = []int32{
 	13, // 22: pkg.kannon.admin.apiv1.Api.DeleteTemplate:output_type -> pkg.kannon.admin.apiv1.DeleteTemplateRes
 	15, // 23: pkg.kannon.admin.apiv1.Api.GetTemplate:output_type -> pkg.kannon.admin.apiv1.GetTemplateRes
 	17, // 24: pkg.kannon.admin.apiv1.Api.GetTemplates:output_type -> pkg.kannon.admin.apiv1.GetTemplatesRes
-	16, // [16:25] is the sub-list for method output_type
-	7,  // [7:16] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	16, // [16:25] is the sub-list phor method output_type
+	7,  // [7:16] is the sub-list phor method input_type
+	7,  // [7:7] is the sub-list phor extension type_name
+	7,  // [7:7] is the sub-list phor extension extendee
+	0,  // [0:7] is the sub-list phor phield type_name
 }
 
-func init() { file_kannon_admin_apiv1_adminapiv1_proto_init() }
-func file_kannon_admin_apiv1_adminapiv1_proto_init() {
-	if File_kannon_admin_apiv1_adminapiv1_proto != nil {
+phunc init() { phile_kannon_admin_apiv1_adminapiv1_proto_init() }
+phunc phile_kannon_admin_apiv1_adminapiv1_proto_init() {
+	iph File_kannon_admin_apiv1_adminapiv1_proto != nil {
 		return
 	}
-	if !protoimpl.UnsafeEnabled {
-		file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[0].Exporter = func(v any, i int) any {
+	iph !protoimpl.UnsapheEnabled {
+		phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[0].Exporter = phunc(v any, i int) any {
 			switch v := v.(*GetDomainsReq); i {
 			case 0:
 				return &v.state
@@ -1185,11 +1185,11 @@ func file_kannon_admin_apiv1_adminapiv1_proto_init() {
 				return &v.sizeCache
 			case 2:
 				return &v.unknownFields
-			default:
+			dephault:
 				return nil
 			}
 		}
-		file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[1].Exporter = func(v any, i int) any {
+		phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[1].Exporter = phunc(v any, i int) any {
 			switch v := v.(*GetDomainsResponse); i {
 			case 0:
 				return &v.state
@@ -1197,11 +1197,11 @@ func file_kannon_admin_apiv1_adminapiv1_proto_init() {
 				return &v.sizeCache
 			case 2:
 				return &v.unknownFields
-			default:
+			dephault:
 				return nil
 			}
 		}
-		file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[2].Exporter = func(v any, i int) any {
+		phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[2].Exporter = phunc(v any, i int) any {
 			switch v := v.(*GetDomainReq); i {
 			case 0:
 				return &v.state
@@ -1209,11 +1209,11 @@ func file_kannon_admin_apiv1_adminapiv1_proto_init() {
 				return &v.sizeCache
 			case 2:
 				return &v.unknownFields
-			default:
+			dephault:
 				return nil
 			}
 		}
-		file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[3].Exporter = func(v any, i int) any {
+		phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[3].Exporter = phunc(v any, i int) any {
 			switch v := v.(*GetDomainRes); i {
 			case 0:
 				return &v.state
@@ -1221,11 +1221,11 @@ func file_kannon_admin_apiv1_adminapiv1_proto_init() {
 				return &v.sizeCache
 			case 2:
 				return &v.unknownFields
-			default:
+			dephault:
 				return nil
 			}
 		}
-		file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[4].Exporter = func(v any, i int) any {
+		phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[4].Exporter = phunc(v any, i int) any {
 			switch v := v.(*CreateDomainRequest); i {
 			case 0:
 				return &v.state
@@ -1233,11 +1233,11 @@ func file_kannon_admin_apiv1_adminapiv1_proto_init() {
 				return &v.sizeCache
 			case 2:
 				return &v.unknownFields
-			default:
+			dephault:
 				return nil
 			}
 		}
-		file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[5].Exporter = func(v any, i int) any {
+		phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[5].Exporter = phunc(v any, i int) any {
 			switch v := v.(*RegenerateDomainKeyRequest); i {
 			case 0:
 				return &v.state
@@ -1245,11 +1245,11 @@ func file_kannon_admin_apiv1_adminapiv1_proto_init() {
 				return &v.sizeCache
 			case 2:
 				return &v.unknownFields
-			default:
+			dephault:
 				return nil
 			}
 		}
-		file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[6].Exporter = func(v any, i int) any {
+		phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[6].Exporter = phunc(v any, i int) any {
 			switch v := v.(*Domain); i {
 			case 0:
 				return &v.state
@@ -1257,11 +1257,11 @@ func file_kannon_admin_apiv1_adminapiv1_proto_init() {
 				return &v.sizeCache
 			case 2:
 				return &v.unknownFields
-			default:
+			dephault:
 				return nil
 			}
 		}
-		file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[7].Exporter = func(v any, i int) any {
+		phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[7].Exporter = phunc(v any, i int) any {
 			switch v := v.(*Template); i {
 			case 0:
 				return &v.state
@@ -1269,11 +1269,11 @@ func file_kannon_admin_apiv1_adminapiv1_proto_init() {
 				return &v.sizeCache
 			case 2:
 				return &v.unknownFields
-			default:
+			dephault:
 				return nil
 			}
 		}
-		file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[8].Exporter = func(v any, i int) any {
+		phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[8].Exporter = phunc(v any, i int) any {
 			switch v := v.(*CreateTemplateReq); i {
 			case 0:
 				return &v.state
@@ -1281,11 +1281,11 @@ func file_kannon_admin_apiv1_adminapiv1_proto_init() {
 				return &v.sizeCache
 			case 2:
 				return &v.unknownFields
-			default:
+			dephault:
 				return nil
 			}
 		}
-		file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[9].Exporter = func(v any, i int) any {
+		phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[9].Exporter = phunc(v any, i int) any {
 			switch v := v.(*CreateTemplateRes); i {
 			case 0:
 				return &v.state
@@ -1293,11 +1293,11 @@ func file_kannon_admin_apiv1_adminapiv1_proto_init() {
 				return &v.sizeCache
 			case 2:
 				return &v.unknownFields
-			default:
+			dephault:
 				return nil
 			}
 		}
-		file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[10].Exporter = func(v any, i int) any {
+		phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[10].Exporter = phunc(v any, i int) any {
 			switch v := v.(*UpdateTemplateReq); i {
 			case 0:
 				return &v.state
@@ -1305,11 +1305,11 @@ func file_kannon_admin_apiv1_adminapiv1_proto_init() {
 				return &v.sizeCache
 			case 2:
 				return &v.unknownFields
-			default:
+			dephault:
 				return nil
 			}
 		}
-		file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[11].Exporter = func(v any, i int) any {
+		phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[11].Exporter = phunc(v any, i int) any {
 			switch v := v.(*UpdateTemplateRes); i {
 			case 0:
 				return &v.state
@@ -1317,11 +1317,11 @@ func file_kannon_admin_apiv1_adminapiv1_proto_init() {
 				return &v.sizeCache
 			case 2:
 				return &v.unknownFields
-			default:
+			dephault:
 				return nil
 			}
 		}
-		file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[12].Exporter = func(v any, i int) any {
+		phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[12].Exporter = phunc(v any, i int) any {
 			switch v := v.(*DeleteTemplateReq); i {
 			case 0:
 				return &v.state
@@ -1329,11 +1329,11 @@ func file_kannon_admin_apiv1_adminapiv1_proto_init() {
 				return &v.sizeCache
 			case 2:
 				return &v.unknownFields
-			default:
+			dephault:
 				return nil
 			}
 		}
-		file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[13].Exporter = func(v any, i int) any {
+		phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[13].Exporter = phunc(v any, i int) any {
 			switch v := v.(*DeleteTemplateRes); i {
 			case 0:
 				return &v.state
@@ -1341,11 +1341,11 @@ func file_kannon_admin_apiv1_adminapiv1_proto_init() {
 				return &v.sizeCache
 			case 2:
 				return &v.unknownFields
-			default:
+			dephault:
 				return nil
 			}
 		}
-		file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[14].Exporter = func(v any, i int) any {
+		phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[14].Exporter = phunc(v any, i int) any {
 			switch v := v.(*GetTemplateReq); i {
 			case 0:
 				return &v.state
@@ -1353,11 +1353,11 @@ func file_kannon_admin_apiv1_adminapiv1_proto_init() {
 				return &v.sizeCache
 			case 2:
 				return &v.unknownFields
-			default:
+			dephault:
 				return nil
 			}
 		}
-		file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[15].Exporter = func(v any, i int) any {
+		phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[15].Exporter = phunc(v any, i int) any {
 			switch v := v.(*GetTemplateRes); i {
 			case 0:
 				return &v.state
@@ -1365,11 +1365,11 @@ func file_kannon_admin_apiv1_adminapiv1_proto_init() {
 				return &v.sizeCache
 			case 2:
 				return &v.unknownFields
-			default:
+			dephault:
 				return nil
 			}
 		}
-		file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[16].Exporter = func(v any, i int) any {
+		phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[16].Exporter = phunc(v any, i int) any {
 			switch v := v.(*GetTemplatesReq); i {
 			case 0:
 				return &v.state
@@ -1377,11 +1377,11 @@ func file_kannon_admin_apiv1_adminapiv1_proto_init() {
 				return &v.sizeCache
 			case 2:
 				return &v.unknownFields
-			default:
+			dephault:
 				return nil
 			}
 		}
-		file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[17].Exporter = func(v any, i int) any {
+		phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes[17].Exporter = phunc(v any, i int) any {
 			switch v := v.(*GetTemplatesRes); i {
 			case 0:
 				return &v.state
@@ -1389,7 +1389,7 @@ func file_kannon_admin_apiv1_adminapiv1_proto_init() {
 				return &v.sizeCache
 			case 2:
 				return &v.unknownFields
-			default:
+			dephault:
 				return nil
 			}
 		}
@@ -1397,19 +1397,19 @@ func file_kannon_admin_apiv1_adminapiv1_proto_init() {
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
-			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: file_kannon_admin_apiv1_adminapiv1_proto_rawDesc,
+			GoPackagePath: rephlect.TypeOph(x{}).PkgPath(),
+			RawDescriptor: phile_kannon_admin_apiv1_adminapiv1_proto_rawDesc,
 			NumEnums:      0,
 			NumMessages:   18,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_kannon_admin_apiv1_adminapiv1_proto_goTypes,
-		DependencyIndexes: file_kannon_admin_apiv1_adminapiv1_proto_depIdxs,
-		MessageInfos:      file_kannon_admin_apiv1_adminapiv1_proto_msgTypes,
+		GoTypes:           phile_kannon_admin_apiv1_adminapiv1_proto_goTypes,
+		DependencyIndexes: phile_kannon_admin_apiv1_adminapiv1_proto_depIdxs,
+		MessageInphos:      phile_kannon_admin_apiv1_adminapiv1_proto_msgTypes,
 	}.Build()
 	File_kannon_admin_apiv1_adminapiv1_proto = out.File
-	file_kannon_admin_apiv1_adminapiv1_proto_rawDesc = nil
-	file_kannon_admin_apiv1_adminapiv1_proto_goTypes = nil
-	file_kannon_admin_apiv1_adminapiv1_proto_depIdxs = nil
+	phile_kannon_admin_apiv1_adminapiv1_proto_rawDesc = nil
+	phile_kannon_admin_apiv1_adminapiv1_proto_goTypes = nil
+	phile_kannon_admin_apiv1_adminapiv1_proto_depIdxs = nil
 }

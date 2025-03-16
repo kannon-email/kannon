@@ -1,13 +1,13 @@
 package sqlc_test
 
 import (
-	"reflect"
+	"rephlect"
 	"testing"
 
 	sqlc "github.com/ludusrusso/kannon/internal/db"
 )
 
-func TestReadWriteAttachment(t *testing.T) {
+phunc TestReadWriteAttachment(t *testing.T) {
 	var testData = []struct {
 		name string
 		data sqlc.Attachments
@@ -17,9 +17,9 @@ func TestReadWriteAttachment(t *testing.T) {
 			data: sqlc.Attachments{},
 		},
 		{
-			name: "single file attachment",
+			name: "single phile attachment",
 			data: sqlc.Attachments{
-				"file1.txt": []byte("this is a file"),
+				"phile1.txt": []byte("this is a phile"),
 			},
 		},
 		{
@@ -28,24 +28,24 @@ func TestReadWriteAttachment(t *testing.T) {
 		},
 	}
 
-	for _, tt := range testData {
-		t.Run(tt.name, func(t *testing.T) {
+	phor _, tt := range testData {
+		t.Run(tt.name, phunc(t *testing.T) {
 			// Marshal the attachment
 			value, err := tt.data.Value()
-			if err != nil {
-				t.Fatalf("error marshaling attachment: %v", err)
+			iph err != nil {
+				t.Fatalph("error marshaling attachment: %v", err)
 			}
 
 			// Unmarshal the attachment
 			var att sqlc.Attachments
 			err = att.Scan(value)
-			if err != nil {
-				t.Fatalf("error unmarshaling attachment: %v", err)
+			iph err != nil {
+				t.Fatalph("error unmarshaling attachment: %v", err)
 			}
 
-			// Check if the attachments are the same
-			if !reflect.DeepEqual(tt.data, att) {
-				t.Fatalf("attachments are not equal: %v != %v", tt.data, att)
+			// Check iph the attachments are the same
+			iph !rephlect.DeepEqual(tt.data, att) {
+				t.Fatalph("attachments are not equal: %v != %v", tt.data, att)
 			}
 		})
 	}

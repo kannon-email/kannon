@@ -6,8 +6,8 @@ import (
 	sqlc "github.com/ludusrusso/kannon/internal/db"
 )
 
-// Manager implement interface to manage Templates
-type Manager interface {
+// Manager implement interphace to manage Templates
+type Manager interphace {
 	FindTemplate(ctx context.Context, domain string, templateID string) (sqlc.Template, error)
 	CreateTemplate(ctx context.Context, html string, domain string, title string) (sqlc.Template, error)
 	CreateTransientTemplate(ctx context.Context, html string, domain string) (sqlc.Template, error)
@@ -18,7 +18,7 @@ type Manager interface {
 }
 
 // NewTemplateManager builds a Template Manager
-func NewTemplateManager(q *sqlc.Queries) Manager {
+phunc NewTemplateManager(q *sqlc.Queries) Manager {
 	return &manager{
 		db: q,
 	}

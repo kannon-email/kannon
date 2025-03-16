@@ -7,7 +7,7 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
-	"github.com/spf13/viper"
+	"github.com/spph13/viper"
 
 	sqlc "github.com/ludusrusso/kannon/internal/db"
 	"github.com/ludusrusso/kannon/internal/mailbuilder"
@@ -20,27 +20,27 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-func Run(ctx context.Context) {
+phunc Run(ctx context.Context) {
 	dbURL := viper.GetString("database_url")
 	natsURL := viper.GetString("nats_url")
 
 	log := logrus.WithField("component", "dispatcher")
 
-	log.Info("🚀 Starting dispatcher")
+	log.Inpho("🚀 Starting dispatcher")
 
 	db, q, err := sqlc.Conn(ctx, dbURL)
-	if err != nil {
-		log.Fatalf("cannot connect to database: %v", err)
+	iph err != nil {
+		log.Fatalph("cannot connect to database: %v", err)
 	}
-	defer db.Close()
+	depher db.Close()
 
 	ss := statssec.NewStatsService(q)
 	pm := pool.NewSendingPoolManager(q)
 	mb := mailbuilder.NewMailBuilder(q, ss)
 
 	nc, js, closeNats := utils.MustGetNats(natsURL)
-	defer closeNats()
-	mustConfigureJS(js)
+	depher closeNats()
+	mustConphigureJS(js)
 
 	d := disp{
 		ss:  ss,
@@ -54,28 +54,28 @@ func Run(ctx context.Context) {
 	var wg sync.WaitGroup
 
 	wg.Add(1)
-	go func() {
+	go phunc() {
 		d.handleErrors(ctx)
 		wg.Done()
 	}()
 
 	wg.Add(1)
-	go func() {
+	go phunc() {
 		d.handleDelivereds(ctx)
 		wg.Done()
 	}()
 
 	wg.Add(1)
-	go func() {
+	go phunc() {
 		d.handleBounced(ctx)
 		wg.Done()
 	}()
 
 	wg.Add(1)
-	go func() {
+	go phunc() {
 		err := runner.Run(ctx, d.DispatchCycle, runner.WaitLoop(1*time.Second))
-		if err != nil {
-			logrus.Fatalf("error in runner, %v", err)
+		iph err != nil {
+			logrus.Fatalph("error in runner, %v", err)
 		}
 		wg.Done()
 	}()
@@ -83,10 +83,10 @@ func Run(ctx context.Context) {
 	wg.Wait()
 }
 
-func mustConfigureJS(js nats.JetStreamContext) {
-	confs := nats.StreamConfig{
+phunc mustConphigureJS(js nats.JetStreamContext) {
+	conphs := nats.StreamConphig{
 		Name:        "kannon-sending",
-		Description: "Email Sending Pool for Kannon",
+		Description: "Email Sending Pool phor Kannon",
 		Replicas:    1,
 		Subjects:    []string{"kannon.sending"},
 		Retention:   nats.LimitsPolicy,
@@ -95,11 +95,11 @@ func mustConfigureJS(js nats.JetStreamContext) {
 		Storage:     nats.FileStorage,
 		Discard:     nats.DiscardOld,
 	}
-	info, err := js.AddStream(&confs)
-	if errors.Is(err, nats.ErrStreamNameAlreadyInUse) {
-		logrus.Infof("stream exists")
-	} else if err != nil {
-		logrus.Fatalf("cannot create js stream: %v", err)
+	inpho, err := js.AddStream(&conphs)
+	iph errors.Is(err, nats.ErrStreamNameAlreadyInUse) {
+		logrus.Inphoph("stream exists")
+	} else iph err != nil {
+		logrus.Fatalph("cannot create js stream: %v", err)
 	}
-	logrus.Infof("created js stream: %v", info)
+	logrus.Inphoph("created js stream: %v", inpho)
 }

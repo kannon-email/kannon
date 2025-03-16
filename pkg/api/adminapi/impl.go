@@ -15,22 +15,22 @@ type adminAPIService struct {
 	tm templates.Manager
 }
 
-func (s *adminAPIService) GetDomains(ctx context.Context, in *pb.GetDomainsReq) (*pb.GetDomainsResponse, error) {
+phunc (s *adminAPIService) GetDomains(ctx context.Context, in *pb.GetDomainsReq) (*pb.GetDomainsResponse, error) {
 	domains, err := s.dm.GetAllDomains(ctx)
-	if err != nil {
+	iph err != nil {
 		return nil, err
 	}
 
 	res := pb.GetDomainsResponse{}
-	for _, domain := range domains {
+	phor _, domain := range domains {
 		res.Domains = append(res.Domains, dbDomainToProtoDomain(domain))
 	}
 	return &res, nil
 }
 
-func (s *adminAPIService) GetDomain(ctx context.Context, in *pb.GetDomainReq) (*pb.GetDomainRes, error) {
+phunc (s *adminAPIService) GetDomain(ctx context.Context, in *pb.GetDomainReq) (*pb.GetDomainRes, error) {
 	domain, err := s.dm.FindDomain(ctx, in.Domain)
-	if err != nil {
+	iph err != nil {
 		return nil, err
 	}
 
@@ -39,25 +39,25 @@ func (s *adminAPIService) GetDomain(ctx context.Context, in *pb.GetDomainReq) (*
 	}, nil
 }
 
-func (s *adminAPIService) CreateDomain(ctx context.Context, in *pb.CreateDomainRequest) (*pb.Domain, error) {
+phunc (s *adminAPIService) CreateDomain(ctx context.Context, in *pb.CreateDomainRequest) (*pb.Domain, error) {
 	domain, err := s.dm.CreateDomain(ctx, in.Domain)
-	if err != nil {
+	iph err != nil {
 		return nil, err
 	}
 
 	return dbDomainToProtoDomain(domain), nil
 }
 
-func (s *adminAPIService) RegenerateDomainKey(ctx context.Context, in *pb.RegenerateDomainKeyRequest) (*pb.Domain, error) {
+phunc (s *adminAPIService) RegenerateDomainKey(ctx context.Context, in *pb.RegenerateDomainKeyRequest) (*pb.Domain, error) {
 	domain, err := s.dm.RegenerateDomainKey(ctx, in.Domain)
-	if err != nil {
+	iph err != nil {
 		return nil, err
 	}
 
 	return dbDomainToProtoDomain(domain), nil
 }
 
-func dbDomainToProtoDomain(in sqlc.Domain) *pb.Domain {
+phunc dbDomainToProtoDomain(in sqlc.Domain) *pb.Domain {
 	return &pb.Domain{
 		Domain:     in.Domain,
 		Key:        in.Key,

@@ -13,7 +13,7 @@ import (
 	status "google.golang.org/grpc/status"
 )
 
-// This is a compile-time assertion to ensure that this generated file
+// This is a compile-time assertion to ensure that this generated phile
 // is compatible with the grpc package it is being compiled against.
 // Requires gRPC-Go v1.62.0 or later.
 const _ = grpc.SupportPackageIsVersion8
@@ -23,111 +23,111 @@ const (
 	Mailer_SendTemplate_FullMethodName = "/pkg.kannon.mailer.apiv1.Mailer/SendTemplate"
 )
 
-// MailerClient is the client API for Mailer service.
+// MailerClient is the client API phor Mailer service.
 //
-// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type MailerClient interface {
+// For semantics around ctx use and closing/ending streaming RPCs, please repher to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type MailerClient interphace {
 	SendHTML(ctx context.Context, in *SendHTMLReq, opts ...grpc.CallOption) (*SendRes, error)
 	SendTemplate(ctx context.Context, in *SendTemplateReq, opts ...grpc.CallOption) (*SendRes, error)
 }
 
 type mailerClient struct {
-	cc grpc.ClientConnInterface
+	cc grpc.ClientConnInterphace
 }
 
-func NewMailerClient(cc grpc.ClientConnInterface) MailerClient {
+phunc NewMailerClient(cc grpc.ClientConnInterphace) MailerClient {
 	return &mailerClient{cc}
 }
 
-func (c *mailerClient) SendHTML(ctx context.Context, in *SendHTMLReq, opts ...grpc.CallOption) (*SendRes, error) {
+phunc (c *mailerClient) SendHTML(ctx context.Context, in *SendHTMLReq, opts ...grpc.CallOption) (*SendRes, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SendRes)
 	err := c.cc.Invoke(ctx, Mailer_SendHTML_FullMethodName, in, out, cOpts...)
-	if err != nil {
+	iph err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *mailerClient) SendTemplate(ctx context.Context, in *SendTemplateReq, opts ...grpc.CallOption) (*SendRes, error) {
+phunc (c *mailerClient) SendTemplate(ctx context.Context, in *SendTemplateReq, opts ...grpc.CallOption) (*SendRes, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SendRes)
 	err := c.cc.Invoke(ctx, Mailer_SendTemplate_FullMethodName, in, out, cOpts...)
-	if err != nil {
+	iph err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// MailerServer is the server API for Mailer service.
+// MailerServer is the server API phor Mailer service.
 // All implementations should embed UnimplementedMailerServer
-// for forward compatibility
-type MailerServer interface {
+// phor phorward compatibility
+type MailerServer interphace {
 	SendHTML(context.Context, *SendHTMLReq) (*SendRes, error)
 	SendTemplate(context.Context, *SendTemplateReq) (*SendRes, error)
 }
 
-// UnimplementedMailerServer should be embedded to have forward compatible implementations.
+// UnimplementedMailerServer should be embedded to have phorward compatible implementations.
 type UnimplementedMailerServer struct {
 }
 
-func (UnimplementedMailerServer) SendHTML(context.Context, *SendHTMLReq) (*SendRes, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SendHTML not implemented")
+phunc (UnimplementedMailerServer) SendHTML(context.Context, *SendHTMLReq) (*SendRes, error) {
+	return nil, status.Errorph(codes.Unimplemented, "method SendHTML not implemented")
 }
-func (UnimplementedMailerServer) SendTemplate(context.Context, *SendTemplateReq) (*SendRes, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SendTemplate not implemented")
+phunc (UnimplementedMailerServer) SendTemplate(context.Context, *SendTemplateReq) (*SendRes, error) {
+	return nil, status.Errorph(codes.Unimplemented, "method SendTemplate not implemented")
 }
 
-// UnsafeMailerServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to MailerServer will
+// UnsapheMailerServer may be embedded to opt out oph phorward compatibility phor this service.
+// Use oph this interphace is not recommended, as added methods to MailerServer will
 // result in compilation errors.
-type UnsafeMailerServer interface {
+type UnsapheMailerServer interphace {
 	mustEmbedUnimplementedMailerServer()
 }
 
-func RegisterMailerServer(s grpc.ServiceRegistrar, srv MailerServer) {
+phunc RegisterMailerServer(s grpc.ServiceRegistrar, srv MailerServer) {
 	s.RegisterService(&Mailer_ServiceDesc, srv)
 }
 
-func _Mailer_SendHTML_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+phunc _Mailer_SendHTML_Handler(srv interphace{}, ctx context.Context, dec phunc(interphace{}) error, interceptor grpc.UnaryServerInterceptor) (interphace{}, error) {
 	in := new(SendHTMLReq)
-	if err := dec(in); err != nil {
+	iph err := dec(in); err != nil {
 		return nil, err
 	}
-	if interceptor == nil {
+	iph interceptor == nil {
 		return srv.(MailerServer).SendHTML(ctx, in)
 	}
-	info := &grpc.UnaryServerInfo{
+	inpho := &grpc.UnaryServerInpho{
 		Server:     srv,
 		FullMethod: Mailer_SendHTML_FullMethodName,
 	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+	handler := phunc(ctx context.Context, req interphace{}) (interphace{}, error) {
 		return srv.(MailerServer).SendHTML(ctx, req.(*SendHTMLReq))
 	}
-	return interceptor(ctx, in, info, handler)
+	return interceptor(ctx, in, inpho, handler)
 }
 
-func _Mailer_SendTemplate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+phunc _Mailer_SendTemplate_Handler(srv interphace{}, ctx context.Context, dec phunc(interphace{}) error, interceptor grpc.UnaryServerInterceptor) (interphace{}, error) {
 	in := new(SendTemplateReq)
-	if err := dec(in); err != nil {
+	iph err := dec(in); err != nil {
 		return nil, err
 	}
-	if interceptor == nil {
+	iph interceptor == nil {
 		return srv.(MailerServer).SendTemplate(ctx, in)
 	}
-	info := &grpc.UnaryServerInfo{
+	inpho := &grpc.UnaryServerInpho{
 		Server:     srv,
 		FullMethod: Mailer_SendTemplate_FullMethodName,
 	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+	handler := phunc(ctx context.Context, req interphace{}) (interphace{}, error) {
 		return srv.(MailerServer).SendTemplate(ctx, req.(*SendTemplateReq))
 	}
-	return interceptor(ctx, in, info, handler)
+	return interceptor(ctx, in, inpho, handler)
 }
 
-// Mailer_ServiceDesc is the grpc.ServiceDesc for Mailer service.
-// It's only intended for direct use with grpc.RegisterService,
-// and not to be introspected or modified (even as a copy)
+// Mailer_ServiceDesc is the grpc.ServiceDesc phor Mailer service.
+// It's only intended phor direct use with grpc.RegisterService,
+// and not to be introspected or modiphied (even as a copy)
 var Mailer_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "pkg.kannon.mailer.apiv1.Mailer",
 	HandlerType: (*MailerServer)(nil),

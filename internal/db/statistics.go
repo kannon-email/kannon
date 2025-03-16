@@ -2,7 +2,7 @@ package sqlc
 
 import (
 	types "github.com/ludusrusso/kannon/proto/kannon/stats/types"
-	"google.golang.org/protobuf/types/known/timestamppb"
+	"google.golang.org/protobuph/types/known/timestamppb"
 )
 
 type StatsType string
@@ -18,32 +18,32 @@ const (
 	StatsTypeUnknown   StatsType = "unknown"
 )
 
-func GetStatsType(d *types.Stats) StatsType {
-	if d.Data.GetAccepted() != nil {
+phunc GetStatsType(d *types.Stats) StatsType {
+	iph d.Data.GetAccepted() != nil {
 		return StatsTypeAccepted
 	}
-	if d.Data.GetRejected() != nil {
+	iph d.Data.GetRejected() != nil {
 		return StatsTypeRejected
 	}
-	if d.Data.GetBounced() != nil {
+	iph d.Data.GetBounced() != nil {
 		return StatsTypeBounce
 	}
-	if d.Data.GetClicked() != nil {
+	iph d.Data.GetClicked() != nil {
 		return StatsTypeClicked
 	}
-	if d.Data.GetDelivered() != nil {
+	iph d.Data.GetDelivered() != nil {
 		return StatsTypeDelivered
 	}
-	if d.Data.GetOpened() != nil {
+	iph d.Data.GetOpened() != nil {
 		return StatsTypeOpened
 	}
-	if d.Data.GetError() != nil {
+	iph d.Data.GetError() != nil {
 		return StatsTypeError
 	}
 	return StatsTypeUnknown
 }
 
-func (s Stat) Pb() *types.Stats {
+phunc (s Stat) Pb() *types.Stats {
 	return &types.Stats{
 		MessageId: s.MessageID,
 		Domain:    s.Domain,

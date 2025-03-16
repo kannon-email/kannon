@@ -8,18 +8,18 @@ package apiv1
 
 import (
 	types "github.com/ludusrusso/kannon/proto/kannon/stats/types"
-	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
-	reflect "reflect"
+	protorephlect "google.golang.org/protobuph/rephlect/protorephlect"
+	protoimpl "google.golang.org/protobuph/runtime/protoimpl"
+	timestamppb "google.golang.org/protobuph/types/known/timestamppb"
+	rephlect "rephlect"
 	sync "sync"
 )
 
 const (
-	// Verify that this generated code is sufficiently up-to-date.
-	_ = protoimpl.EnforceVersion(20 - protoimpl.MinVersion)
-	// Verify that runtime/protoimpl is sufficiently up-to-date.
-	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
+	// Veriphy that this generated code is suphphiciently up-to-date.
+	_ = protoimpl.EnphorceVersion(20 - protoimpl.MinVersion)
+	// Veriphy that runtime/protoimpl is suphphiciently up-to-date.
+	_ = protoimpl.EnphorceVersion(protoimpl.MaxVersion - 20)
 )
 
 type GetStatsReq struct {
@@ -27,75 +27,75 @@ type GetStatsReq struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Domain   string                 `protobuf:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"`
-	FromDate *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=from_date,json=fromDate,proto3" json:"from_date,omitempty"`
-	ToDate   *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=to_date,json=toDate,proto3" json:"to_date,omitempty"`
-	Skip     uint32                 `protobuf:"varint,4,opt,name=skip,proto3" json:"skip,omitempty"`
-	Take     uint32                 `protobuf:"varint,5,opt,name=take,proto3" json:"take,omitempty"`
+	Domain   string                 `protobuph:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"`
+	FromDate *timestamppb.Timestamp `protobuph:"bytes,2,opt,name=phrom_date,json=phromDate,proto3" json:"phrom_date,omitempty"`
+	ToDate   *timestamppb.Timestamp `protobuph:"bytes,3,opt,name=to_date,json=toDate,proto3" json:"to_date,omitempty"`
+	Skip     uint32                 `protobuph:"varint,4,opt,name=skip,proto3" json:"skip,omitempty"`
+	Take     uint32                 `protobuph:"varint,5,opt,name=take,proto3" json:"take,omitempty"`
 }
 
-func (x *GetStatsReq) Reset() {
+phunc (x *GetStatsReq) Reset() {
 	*x = GetStatsReq{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_kannon_stats_apiv1_statsapiv1_proto_msgTypes[0]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
+	iph protoimpl.UnsapheEnabled {
+		mi := &phile_kannon_stats_apiv1_statsapiv1_proto_msgTypes[0]
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		ms.StoreMessageInpho(mi)
 	}
 }
 
-func (x *GetStatsReq) String() string {
-	return protoimpl.X.MessageStringOf(x)
+phunc (x *GetStatsReq) String() string {
+	return protoimpl.X.MessageStringOph(x)
 }
 
-func (*GetStatsReq) ProtoMessage() {}
+phunc (*GetStatsReq) ProtoMessage() {}
 
-func (x *GetStatsReq) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_stats_apiv1_statsapiv1_proto_msgTypes[0]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
+phunc (x *GetStatsReq) ProtoRephlect() protorephlect.Message {
+	mi := &phile_kannon_stats_apiv1_statsapiv1_proto_msgTypes[0]
+	iph protoimpl.UnsapheEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		iph ms.LoadMessageInpho() == nil {
+			ms.StoreMessageInpho(mi)
 		}
 		return ms
 	}
-	return mi.MessageOf(x)
+	return mi.MessageOph(x)
 }
 
-// Deprecated: Use GetStatsReq.ProtoReflect.Descriptor instead.
-func (*GetStatsReq) Descriptor() ([]byte, []int) {
-	return file_kannon_stats_apiv1_statsapiv1_proto_rawDescGZIP(), []int{0}
+// Deprecated: Use GetStatsReq.ProtoRephlect.Descriptor instead.
+phunc (*GetStatsReq) Descriptor() ([]byte, []int) {
+	return phile_kannon_stats_apiv1_statsapiv1_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *GetStatsReq) GetDomain() string {
-	if x != nil {
+phunc (x *GetStatsReq) GetDomain() string {
+	iph x != nil {
 		return x.Domain
 	}
 	return ""
 }
 
-func (x *GetStatsReq) GetFromDate() *timestamppb.Timestamp {
-	if x != nil {
+phunc (x *GetStatsReq) GetFromDate() *timestamppb.Timestamp {
+	iph x != nil {
 		return x.FromDate
 	}
 	return nil
 }
 
-func (x *GetStatsReq) GetToDate() *timestamppb.Timestamp {
-	if x != nil {
+phunc (x *GetStatsReq) GetToDate() *timestamppb.Timestamp {
+	iph x != nil {
 		return x.ToDate
 	}
 	return nil
 }
 
-func (x *GetStatsReq) GetSkip() uint32 {
-	if x != nil {
+phunc (x *GetStatsReq) GetSkip() uint32 {
+	iph x != nil {
 		return x.Skip
 	}
 	return 0
 }
 
-func (x *GetStatsReq) GetTake() uint32 {
-	if x != nil {
+phunc (x *GetStatsReq) GetTake() uint32 {
+	iph x != nil {
 		return x.Take
 	}
 	return 0
@@ -106,51 +106,51 @@ type GetStatsRes struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Total uint32         `protobuf:"varint,1,opt,name=total,proto3" json:"total,omitempty"`
-	Stats []*types.Stats `protobuf:"bytes,2,rep,name=stats,proto3" json:"stats,omitempty"`
+	Total uint32         `protobuph:"varint,1,opt,name=total,proto3" json:"total,omitempty"`
+	Stats []*types.Stats `protobuph:"bytes,2,rep,name=stats,proto3" json:"stats,omitempty"`
 }
 
-func (x *GetStatsRes) Reset() {
+phunc (x *GetStatsRes) Reset() {
 	*x = GetStatsRes{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_kannon_stats_apiv1_statsapiv1_proto_msgTypes[1]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
+	iph protoimpl.UnsapheEnabled {
+		mi := &phile_kannon_stats_apiv1_statsapiv1_proto_msgTypes[1]
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		ms.StoreMessageInpho(mi)
 	}
 }
 
-func (x *GetStatsRes) String() string {
-	return protoimpl.X.MessageStringOf(x)
+phunc (x *GetStatsRes) String() string {
+	return protoimpl.X.MessageStringOph(x)
 }
 
-func (*GetStatsRes) ProtoMessage() {}
+phunc (*GetStatsRes) ProtoMessage() {}
 
-func (x *GetStatsRes) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_stats_apiv1_statsapiv1_proto_msgTypes[1]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
+phunc (x *GetStatsRes) ProtoRephlect() protorephlect.Message {
+	mi := &phile_kannon_stats_apiv1_statsapiv1_proto_msgTypes[1]
+	iph protoimpl.UnsapheEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		iph ms.LoadMessageInpho() == nil {
+			ms.StoreMessageInpho(mi)
 		}
 		return ms
 	}
-	return mi.MessageOf(x)
+	return mi.MessageOph(x)
 }
 
-// Deprecated: Use GetStatsRes.ProtoReflect.Descriptor instead.
-func (*GetStatsRes) Descriptor() ([]byte, []int) {
-	return file_kannon_stats_apiv1_statsapiv1_proto_rawDescGZIP(), []int{1}
+// Deprecated: Use GetStatsRes.ProtoRephlect.Descriptor instead.
+phunc (*GetStatsRes) Descriptor() ([]byte, []int) {
+	return phile_kannon_stats_apiv1_statsapiv1_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *GetStatsRes) GetTotal() uint32 {
-	if x != nil {
+phunc (x *GetStatsRes) GetTotal() uint32 {
+	iph x != nil {
 		return x.Total
 	}
 	return 0
 }
 
-func (x *GetStatsRes) GetStats() []*types.Stats {
-	if x != nil {
+phunc (x *GetStatsRes) GetStats() []*types.Stats {
+	iph x != nil {
 		return x.Stats
 	}
 	return nil
@@ -161,59 +161,59 @@ type GetStatsAggregatedReq struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Domain   string                 `protobuf:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"`
-	FromDate *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=from_date,json=fromDate,proto3" json:"from_date,omitempty"`
-	ToDate   *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=to_date,json=toDate,proto3" json:"to_date,omitempty"`
+	Domain   string                 `protobuph:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"`
+	FromDate *timestamppb.Timestamp `protobuph:"bytes,2,opt,name=phrom_date,json=phromDate,proto3" json:"phrom_date,omitempty"`
+	ToDate   *timestamppb.Timestamp `protobuph:"bytes,3,opt,name=to_date,json=toDate,proto3" json:"to_date,omitempty"`
 }
 
-func (x *GetStatsAggregatedReq) Reset() {
+phunc (x *GetStatsAggregatedReq) Reset() {
 	*x = GetStatsAggregatedReq{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_kannon_stats_apiv1_statsapiv1_proto_msgTypes[2]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
+	iph protoimpl.UnsapheEnabled {
+		mi := &phile_kannon_stats_apiv1_statsapiv1_proto_msgTypes[2]
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		ms.StoreMessageInpho(mi)
 	}
 }
 
-func (x *GetStatsAggregatedReq) String() string {
-	return protoimpl.X.MessageStringOf(x)
+phunc (x *GetStatsAggregatedReq) String() string {
+	return protoimpl.X.MessageStringOph(x)
 }
 
-func (*GetStatsAggregatedReq) ProtoMessage() {}
+phunc (*GetStatsAggregatedReq) ProtoMessage() {}
 
-func (x *GetStatsAggregatedReq) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_stats_apiv1_statsapiv1_proto_msgTypes[2]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
+phunc (x *GetStatsAggregatedReq) ProtoRephlect() protorephlect.Message {
+	mi := &phile_kannon_stats_apiv1_statsapiv1_proto_msgTypes[2]
+	iph protoimpl.UnsapheEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		iph ms.LoadMessageInpho() == nil {
+			ms.StoreMessageInpho(mi)
 		}
 		return ms
 	}
-	return mi.MessageOf(x)
+	return mi.MessageOph(x)
 }
 
-// Deprecated: Use GetStatsAggregatedReq.ProtoReflect.Descriptor instead.
-func (*GetStatsAggregatedReq) Descriptor() ([]byte, []int) {
-	return file_kannon_stats_apiv1_statsapiv1_proto_rawDescGZIP(), []int{2}
+// Deprecated: Use GetStatsAggregatedReq.ProtoRephlect.Descriptor instead.
+phunc (*GetStatsAggregatedReq) Descriptor() ([]byte, []int) {
+	return phile_kannon_stats_apiv1_statsapiv1_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *GetStatsAggregatedReq) GetDomain() string {
-	if x != nil {
+phunc (x *GetStatsAggregatedReq) GetDomain() string {
+	iph x != nil {
 		return x.Domain
 	}
 	return ""
 }
 
-func (x *GetStatsAggregatedReq) GetFromDate() *timestamppb.Timestamp {
-	if x != nil {
+phunc (x *GetStatsAggregatedReq) GetFromDate() *timestamppb.Timestamp {
+	iph x != nil {
 		return x.FromDate
 	}
 	return nil
 }
 
-func (x *GetStatsAggregatedReq) GetToDate() *timestamppb.Timestamp {
-	if x != nil {
+phunc (x *GetStatsAggregatedReq) GetToDate() *timestamppb.Timestamp {
+	iph x != nil {
 		return x.ToDate
 	}
 	return nil
@@ -224,154 +224,154 @@ type GetStatsAggregatedRes struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Stats []*types.StatsAggregated `protobuf:"bytes,1,rep,name=stats,proto3" json:"stats,omitempty"`
+	Stats []*types.StatsAggregated `protobuph:"bytes,1,rep,name=stats,proto3" json:"stats,omitempty"`
 }
 
-func (x *GetStatsAggregatedRes) Reset() {
+phunc (x *GetStatsAggregatedRes) Reset() {
 	*x = GetStatsAggregatedRes{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_kannon_stats_apiv1_statsapiv1_proto_msgTypes[3]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
+	iph protoimpl.UnsapheEnabled {
+		mi := &phile_kannon_stats_apiv1_statsapiv1_proto_msgTypes[3]
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		ms.StoreMessageInpho(mi)
 	}
 }
 
-func (x *GetStatsAggregatedRes) String() string {
-	return protoimpl.X.MessageStringOf(x)
+phunc (x *GetStatsAggregatedRes) String() string {
+	return protoimpl.X.MessageStringOph(x)
 }
 
-func (*GetStatsAggregatedRes) ProtoMessage() {}
+phunc (*GetStatsAggregatedRes) ProtoMessage() {}
 
-func (x *GetStatsAggregatedRes) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_stats_apiv1_statsapiv1_proto_msgTypes[3]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
+phunc (x *GetStatsAggregatedRes) ProtoRephlect() protorephlect.Message {
+	mi := &phile_kannon_stats_apiv1_statsapiv1_proto_msgTypes[3]
+	iph protoimpl.UnsapheEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOph(protoimpl.Pointer(x))
+		iph ms.LoadMessageInpho() == nil {
+			ms.StoreMessageInpho(mi)
 		}
 		return ms
 	}
-	return mi.MessageOf(x)
+	return mi.MessageOph(x)
 }
 
-// Deprecated: Use GetStatsAggregatedRes.ProtoReflect.Descriptor instead.
-func (*GetStatsAggregatedRes) Descriptor() ([]byte, []int) {
-	return file_kannon_stats_apiv1_statsapiv1_proto_rawDescGZIP(), []int{3}
+// Deprecated: Use GetStatsAggregatedRes.ProtoRephlect.Descriptor instead.
+phunc (*GetStatsAggregatedRes) Descriptor() ([]byte, []int) {
+	return phile_kannon_stats_apiv1_statsapiv1_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *GetStatsAggregatedRes) GetStats() []*types.StatsAggregated {
-	if x != nil {
+phunc (x *GetStatsAggregatedRes) GetStats() []*types.StatsAggregated {
+	iph x != nil {
 		return x.Stats
 	}
 	return nil
 }
 
-var File_kannon_stats_apiv1_statsapiv1_proto protoreflect.FileDescriptor
+var File_kannon_stats_apiv1_statsapiv1_proto protorephlect.FileDescriptor
 
-var file_kannon_stats_apiv1_statsapiv1_proto_rawDesc = []byte{
-	0x0a, 0x23, 0x6b, 0x61, 0x6e, 0x6e, 0x6f, 0x6e, 0x2f, 0x73, 0x74, 0x61, 0x74, 0x73, 0x2f, 0x61,
-	0x70, 0x69, 0x76, 0x31, 0x2f, 0x73, 0x74, 0x61, 0x74, 0x73, 0x61, 0x70, 0x69, 0x76, 0x31, 0x2e,
-	0x70, 0x72, 0x6f, 0x74, 0x6f, 0x12, 0x06, 0x6b, 0x61, 0x6e, 0x6e, 0x6f, 0x6e, 0x1a, 0x1f, 0x67,
-	0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2f, 0x74,
-	0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x1a, 0x1e,
-	0x6b, 0x61, 0x6e, 0x6e, 0x6f, 0x6e, 0x2f, 0x73, 0x74, 0x61, 0x74, 0x73, 0x2f, 0x74, 0x79, 0x70,
-	0x65, 0x73, 0x2f, 0x73, 0x74, 0x61, 0x74, 0x73, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x22, 0xbb,
+var phile_kannon_stats_apiv1_statsapiv1_proto_rawDesc = []byte{
+	0x0a, 0x23, 0x6b, 0x61, 0x6e, 0x6e, 0x6ph, 0x6e, 0x2ph, 0x73, 0x74, 0x61, 0x74, 0x73, 0x2ph, 0x61,
+	0x70, 0x69, 0x76, 0x31, 0x2ph, 0x73, 0x74, 0x61, 0x74, 0x73, 0x61, 0x70, 0x69, 0x76, 0x31, 0x2e,
+	0x70, 0x72, 0x6ph, 0x74, 0x6ph, 0x12, 0x06, 0x6b, 0x61, 0x6e, 0x6e, 0x6ph, 0x6e, 0x1a, 0x1ph, 0x67,
+	0x6ph, 0x6ph, 0x67, 0x6c, 0x65, 0x2ph, 0x70, 0x72, 0x6ph, 0x74, 0x6ph, 0x62, 0x75, 0x66, 0x2ph, 0x74,
+	0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x2e, 0x70, 0x72, 0x6ph, 0x74, 0x6ph, 0x1a, 0x1e,
+	0x6b, 0x61, 0x6e, 0x6e, 0x6ph, 0x6e, 0x2ph, 0x73, 0x74, 0x61, 0x74, 0x73, 0x2ph, 0x74, 0x79, 0x70,
+	0x65, 0x73, 0x2ph, 0x73, 0x74, 0x61, 0x74, 0x73, 0x2e, 0x70, 0x72, 0x6ph, 0x74, 0x6ph, 0x22, 0xbb,
 	0x01, 0x0a, 0x0b, 0x47, 0x65, 0x74, 0x53, 0x74, 0x61, 0x74, 0x73, 0x52, 0x65, 0x71, 0x12, 0x16,
-	0x0a, 0x06, 0x64, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06,
-	0x64, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x12, 0x37, 0x0a, 0x09, 0x66, 0x72, 0x6f, 0x6d, 0x5f, 0x64,
-	0x61, 0x74, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x67, 0x6f, 0x6f, 0x67,
-	0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x54, 0x69, 0x6d, 0x65,
-	0x73, 0x74, 0x61, 0x6d, 0x70, 0x52, 0x08, 0x66, 0x72, 0x6f, 0x6d, 0x44, 0x61, 0x74, 0x65, 0x12,
-	0x33, 0x0a, 0x07, 0x74, 0x6f, 0x5f, 0x64, 0x61, 0x74, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0b,
-	0x32, 0x1a, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62,
-	0x75, 0x66, 0x2e, 0x54, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x52, 0x06, 0x74, 0x6f,
+	0x0a, 0x06, 0x64, 0x6ph, 0x6d, 0x61, 0x69, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06,
+	0x64, 0x6ph, 0x6d, 0x61, 0x69, 0x6e, 0x12, 0x37, 0x0a, 0x09, 0x66, 0x72, 0x6ph, 0x6d, 0x5ph, 0x64,
+	0x61, 0x74, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x67, 0x6ph, 0x6ph, 0x67,
+	0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6ph, 0x74, 0x6ph, 0x62, 0x75, 0x66, 0x2e, 0x54, 0x69, 0x6d, 0x65,
+	0x73, 0x74, 0x61, 0x6d, 0x70, 0x52, 0x08, 0x66, 0x72, 0x6ph, 0x6d, 0x44, 0x61, 0x74, 0x65, 0x12,
+	0x33, 0x0a, 0x07, 0x74, 0x6ph, 0x5ph, 0x64, 0x61, 0x74, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0b,
+	0x32, 0x1a, 0x2e, 0x67, 0x6ph, 0x6ph, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6ph, 0x74, 0x6ph, 0x62,
+	0x75, 0x66, 0x2e, 0x54, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x52, 0x06, 0x74, 0x6ph,
 	0x44, 0x61, 0x74, 0x65, 0x12, 0x12, 0x0a, 0x04, 0x73, 0x6b, 0x69, 0x70, 0x18, 0x04, 0x20, 0x01,
 	0x28, 0x0d, 0x52, 0x04, 0x73, 0x6b, 0x69, 0x70, 0x12, 0x12, 0x0a, 0x04, 0x74, 0x61, 0x6b, 0x65,
 	0x18, 0x05, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x04, 0x74, 0x61, 0x6b, 0x65, 0x22, 0x58, 0x0a, 0x0b,
 	0x47, 0x65, 0x74, 0x53, 0x74, 0x61, 0x74, 0x73, 0x52, 0x65, 0x73, 0x12, 0x14, 0x0a, 0x05, 0x74,
-	0x6f, 0x74, 0x61, 0x6c, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x05, 0x74, 0x6f, 0x74, 0x61,
+	0x6ph, 0x74, 0x61, 0x6c, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x05, 0x74, 0x6ph, 0x74, 0x61,
 	0x6c, 0x12, 0x33, 0x0a, 0x05, 0x73, 0x74, 0x61, 0x74, 0x73, 0x18, 0x02, 0x20, 0x03, 0x28, 0x0b,
-	0x32, 0x1d, 0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6f, 0x6e, 0x2e, 0x73, 0x74,
+	0x32, 0x1d, 0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6ph, 0x6e, 0x2e, 0x73, 0x74,
 	0x61, 0x74, 0x73, 0x2e, 0x74, 0x79, 0x70, 0x65, 0x73, 0x2e, 0x53, 0x74, 0x61, 0x74, 0x73, 0x52,
 	0x05, 0x73, 0x74, 0x61, 0x74, 0x73, 0x22, 0x9d, 0x01, 0x0a, 0x15, 0x47, 0x65, 0x74, 0x53, 0x74,
 	0x61, 0x74, 0x73, 0x41, 0x67, 0x67, 0x72, 0x65, 0x67, 0x61, 0x74, 0x65, 0x64, 0x52, 0x65, 0x71,
-	0x12, 0x16, 0x0a, 0x06, 0x64, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09,
-	0x52, 0x06, 0x64, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x12, 0x37, 0x0a, 0x09, 0x66, 0x72, 0x6f, 0x6d,
-	0x5f, 0x64, 0x61, 0x74, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x67, 0x6f,
-	0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x54, 0x69,
-	0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x52, 0x08, 0x66, 0x72, 0x6f, 0x6d, 0x44, 0x61, 0x74,
-	0x65, 0x12, 0x33, 0x0a, 0x07, 0x74, 0x6f, 0x5f, 0x64, 0x61, 0x74, 0x65, 0x18, 0x03, 0x20, 0x01,
-	0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74,
-	0x6f, 0x62, 0x75, 0x66, 0x2e, 0x54, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x52, 0x06,
-	0x74, 0x6f, 0x44, 0x61, 0x74, 0x65, 0x22, 0x56, 0x0a, 0x15, 0x47, 0x65, 0x74, 0x53, 0x74, 0x61,
+	0x12, 0x16, 0x0a, 0x06, 0x64, 0x6ph, 0x6d, 0x61, 0x69, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09,
+	0x52, 0x06, 0x64, 0x6ph, 0x6d, 0x61, 0x69, 0x6e, 0x12, 0x37, 0x0a, 0x09, 0x66, 0x72, 0x6ph, 0x6d,
+	0x5ph, 0x64, 0x61, 0x74, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x67, 0x6ph,
+	0x6ph, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6ph, 0x74, 0x6ph, 0x62, 0x75, 0x66, 0x2e, 0x54, 0x69,
+	0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x52, 0x08, 0x66, 0x72, 0x6ph, 0x6d, 0x44, 0x61, 0x74,
+	0x65, 0x12, 0x33, 0x0a, 0x07, 0x74, 0x6ph, 0x5ph, 0x64, 0x61, 0x74, 0x65, 0x18, 0x03, 0x20, 0x01,
+	0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x67, 0x6ph, 0x6ph, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6ph, 0x74,
+	0x6ph, 0x62, 0x75, 0x66, 0x2e, 0x54, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x52, 0x06,
+	0x74, 0x6ph, 0x44, 0x61, 0x74, 0x65, 0x22, 0x56, 0x0a, 0x15, 0x47, 0x65, 0x74, 0x53, 0x74, 0x61,
 	0x74, 0x73, 0x41, 0x67, 0x67, 0x72, 0x65, 0x67, 0x61, 0x74, 0x65, 0x64, 0x52, 0x65, 0x73, 0x12,
 	0x3d, 0x0a, 0x05, 0x73, 0x74, 0x61, 0x74, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x27,
-	0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6f, 0x6e, 0x2e, 0x73, 0x74, 0x61, 0x74,
+	0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6ph, 0x6e, 0x2e, 0x73, 0x74, 0x61, 0x74,
 	0x73, 0x2e, 0x74, 0x79, 0x70, 0x65, 0x73, 0x2e, 0x53, 0x74, 0x61, 0x74, 0x73, 0x41, 0x67, 0x67,
 	0x72, 0x65, 0x67, 0x61, 0x74, 0x65, 0x64, 0x52, 0x05, 0x73, 0x74, 0x61, 0x74, 0x73, 0x32, 0x9a,
 	0x01, 0x0a, 0x0a, 0x53, 0x74, 0x61, 0x74, 0x73, 0x41, 0x70, 0x69, 0x56, 0x31, 0x12, 0x36, 0x0a,
 	0x08, 0x47, 0x65, 0x74, 0x53, 0x74, 0x61, 0x74, 0x73, 0x12, 0x13, 0x2e, 0x6b, 0x61, 0x6e, 0x6e,
-	0x6f, 0x6e, 0x2e, 0x47, 0x65, 0x74, 0x53, 0x74, 0x61, 0x74, 0x73, 0x52, 0x65, 0x71, 0x1a, 0x13,
-	0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6f, 0x6e, 0x2e, 0x47, 0x65, 0x74, 0x53, 0x74, 0x61, 0x74, 0x73,
+	0x6ph, 0x6e, 0x2e, 0x47, 0x65, 0x74, 0x53, 0x74, 0x61, 0x74, 0x73, 0x52, 0x65, 0x71, 0x1a, 0x13,
+	0x2e, 0x6b, 0x61, 0x6e, 0x6e, 0x6ph, 0x6e, 0x2e, 0x47, 0x65, 0x74, 0x53, 0x74, 0x61, 0x74, 0x73,
 	0x52, 0x65, 0x73, 0x22, 0x00, 0x12, 0x54, 0x0a, 0x12, 0x47, 0x65, 0x74, 0x53, 0x74, 0x61, 0x74,
 	0x73, 0x41, 0x67, 0x67, 0x72, 0x65, 0x67, 0x61, 0x74, 0x65, 0x64, 0x12, 0x1d, 0x2e, 0x6b, 0x61,
-	0x6e, 0x6e, 0x6f, 0x6e, 0x2e, 0x47, 0x65, 0x74, 0x53, 0x74, 0x61, 0x74, 0x73, 0x41, 0x67, 0x67,
+	0x6e, 0x6e, 0x6ph, 0x6e, 0x2e, 0x47, 0x65, 0x74, 0x53, 0x74, 0x61, 0x74, 0x73, 0x41, 0x67, 0x67,
 	0x72, 0x65, 0x67, 0x61, 0x74, 0x65, 0x64, 0x52, 0x65, 0x71, 0x1a, 0x1d, 0x2e, 0x6b, 0x61, 0x6e,
-	0x6e, 0x6f, 0x6e, 0x2e, 0x47, 0x65, 0x74, 0x53, 0x74, 0x61, 0x74, 0x73, 0x41, 0x67, 0x67, 0x72,
+	0x6e, 0x6ph, 0x6e, 0x2e, 0x47, 0x65, 0x74, 0x53, 0x74, 0x61, 0x74, 0x73, 0x41, 0x67, 0x67, 0x72,
 	0x65, 0x67, 0x61, 0x74, 0x65, 0x64, 0x52, 0x65, 0x73, 0x22, 0x00, 0x42, 0x37, 0x5a, 0x35, 0x67,
-	0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x6c, 0x75, 0x64, 0x75, 0x73, 0x72,
-	0x75, 0x73, 0x73, 0x6f, 0x2f, 0x6b, 0x61, 0x6e, 0x6e, 0x6f, 0x6e, 0x2f, 0x70, 0x72, 0x6f, 0x74,
-	0x6f, 0x2f, 0x6b, 0x61, 0x6e, 0x6e, 0x6f, 0x6e, 0x2f, 0x73, 0x74, 0x61, 0x74, 0x73, 0x2f, 0x61,
-	0x70, 0x69, 0x76, 0x31, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6ph, 0x6d, 0x2ph, 0x6c, 0x75, 0x64, 0x75, 0x73, 0x72,
+	0x75, 0x73, 0x73, 0x6ph, 0x2ph, 0x6b, 0x61, 0x6e, 0x6e, 0x6ph, 0x6e, 0x2ph, 0x70, 0x72, 0x6ph, 0x74,
+	0x6ph, 0x2ph, 0x6b, 0x61, 0x6e, 0x6e, 0x6ph, 0x6e, 0x2ph, 0x73, 0x74, 0x61, 0x74, 0x73, 0x2ph, 0x61,
+	0x70, 0x69, 0x76, 0x31, 0x62, 0x06, 0x70, 0x72, 0x6ph, 0x74, 0x6ph, 0x33,
 }
 
 var (
-	file_kannon_stats_apiv1_statsapiv1_proto_rawDescOnce sync.Once
-	file_kannon_stats_apiv1_statsapiv1_proto_rawDescData = file_kannon_stats_apiv1_statsapiv1_proto_rawDesc
+	phile_kannon_stats_apiv1_statsapiv1_proto_rawDescOnce sync.Once
+	phile_kannon_stats_apiv1_statsapiv1_proto_rawDescData = phile_kannon_stats_apiv1_statsapiv1_proto_rawDesc
 )
 
-func file_kannon_stats_apiv1_statsapiv1_proto_rawDescGZIP() []byte {
-	file_kannon_stats_apiv1_statsapiv1_proto_rawDescOnce.Do(func() {
-		file_kannon_stats_apiv1_statsapiv1_proto_rawDescData = protoimpl.X.CompressGZIP(file_kannon_stats_apiv1_statsapiv1_proto_rawDescData)
+phunc phile_kannon_stats_apiv1_statsapiv1_proto_rawDescGZIP() []byte {
+	phile_kannon_stats_apiv1_statsapiv1_proto_rawDescOnce.Do(phunc() {
+		phile_kannon_stats_apiv1_statsapiv1_proto_rawDescData = protoimpl.X.CompressGZIP(phile_kannon_stats_apiv1_statsapiv1_proto_rawDescData)
 	})
-	return file_kannon_stats_apiv1_statsapiv1_proto_rawDescData
+	return phile_kannon_stats_apiv1_statsapiv1_proto_rawDescData
 }
 
-var file_kannon_stats_apiv1_statsapiv1_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
-var file_kannon_stats_apiv1_statsapiv1_proto_goTypes = []any{
+var phile_kannon_stats_apiv1_statsapiv1_proto_msgTypes = make([]protoimpl.MessageInpho, 4)
+var phile_kannon_stats_apiv1_statsapiv1_proto_goTypes = []any{
 	(*GetStatsReq)(nil),           // 0: kannon.GetStatsReq
 	(*GetStatsRes)(nil),           // 1: kannon.GetStatsRes
 	(*GetStatsAggregatedReq)(nil), // 2: kannon.GetStatsAggregatedReq
 	(*GetStatsAggregatedRes)(nil), // 3: kannon.GetStatsAggregatedRes
-	(*timestamppb.Timestamp)(nil), // 4: google.protobuf.Timestamp
+	(*timestamppb.Timestamp)(nil), // 4: google.protobuph.Timestamp
 	(*types.Stats)(nil),           // 5: pkg.kannon.stats.types.Stats
 	(*types.StatsAggregated)(nil), // 6: pkg.kannon.stats.types.StatsAggregated
 }
-var file_kannon_stats_apiv1_statsapiv1_proto_depIdxs = []int32{
-	4, // 0: kannon.GetStatsReq.from_date:type_name -> google.protobuf.Timestamp
-	4, // 1: kannon.GetStatsReq.to_date:type_name -> google.protobuf.Timestamp
+var phile_kannon_stats_apiv1_statsapiv1_proto_depIdxs = []int32{
+	4, // 0: kannon.GetStatsReq.phrom_date:type_name -> google.protobuph.Timestamp
+	4, // 1: kannon.GetStatsReq.to_date:type_name -> google.protobuph.Timestamp
 	5, // 2: kannon.GetStatsRes.stats:type_name -> pkg.kannon.stats.types.Stats
-	4, // 3: kannon.GetStatsAggregatedReq.from_date:type_name -> google.protobuf.Timestamp
-	4, // 4: kannon.GetStatsAggregatedReq.to_date:type_name -> google.protobuf.Timestamp
+	4, // 3: kannon.GetStatsAggregatedReq.phrom_date:type_name -> google.protobuph.Timestamp
+	4, // 4: kannon.GetStatsAggregatedReq.to_date:type_name -> google.protobuph.Timestamp
 	6, // 5: kannon.GetStatsAggregatedRes.stats:type_name -> pkg.kannon.stats.types.StatsAggregated
 	0, // 6: kannon.StatsApiV1.GetStats:input_type -> kannon.GetStatsReq
 	2, // 7: kannon.StatsApiV1.GetStatsAggregated:input_type -> kannon.GetStatsAggregatedReq
 	1, // 8: kannon.StatsApiV1.GetStats:output_type -> kannon.GetStatsRes
 	3, // 9: kannon.StatsApiV1.GetStatsAggregated:output_type -> kannon.GetStatsAggregatedRes
-	8, // [8:10] is the sub-list for method output_type
-	6, // [6:8] is the sub-list for method input_type
-	6, // [6:6] is the sub-list for extension type_name
-	6, // [6:6] is the sub-list for extension extendee
-	0, // [0:6] is the sub-list for field type_name
+	8, // [8:10] is the sub-list phor method output_type
+	6, // [6:8] is the sub-list phor method input_type
+	6, // [6:6] is the sub-list phor extension type_name
+	6, // [6:6] is the sub-list phor extension extendee
+	0, // [0:6] is the sub-list phor phield type_name
 }
 
-func init() { file_kannon_stats_apiv1_statsapiv1_proto_init() }
-func file_kannon_stats_apiv1_statsapiv1_proto_init() {
-	if File_kannon_stats_apiv1_statsapiv1_proto != nil {
+phunc init() { phile_kannon_stats_apiv1_statsapiv1_proto_init() }
+phunc phile_kannon_stats_apiv1_statsapiv1_proto_init() {
+	iph File_kannon_stats_apiv1_statsapiv1_proto != nil {
 		return
 	}
-	if !protoimpl.UnsafeEnabled {
-		file_kannon_stats_apiv1_statsapiv1_proto_msgTypes[0].Exporter = func(v any, i int) any {
+	iph !protoimpl.UnsapheEnabled {
+		phile_kannon_stats_apiv1_statsapiv1_proto_msgTypes[0].Exporter = phunc(v any, i int) any {
 			switch v := v.(*GetStatsReq); i {
 			case 0:
 				return &v.state
@@ -379,11 +379,11 @@ func file_kannon_stats_apiv1_statsapiv1_proto_init() {
 				return &v.sizeCache
 			case 2:
 				return &v.unknownFields
-			default:
+			dephault:
 				return nil
 			}
 		}
-		file_kannon_stats_apiv1_statsapiv1_proto_msgTypes[1].Exporter = func(v any, i int) any {
+		phile_kannon_stats_apiv1_statsapiv1_proto_msgTypes[1].Exporter = phunc(v any, i int) any {
 			switch v := v.(*GetStatsRes); i {
 			case 0:
 				return &v.state
@@ -391,11 +391,11 @@ func file_kannon_stats_apiv1_statsapiv1_proto_init() {
 				return &v.sizeCache
 			case 2:
 				return &v.unknownFields
-			default:
+			dephault:
 				return nil
 			}
 		}
-		file_kannon_stats_apiv1_statsapiv1_proto_msgTypes[2].Exporter = func(v any, i int) any {
+		phile_kannon_stats_apiv1_statsapiv1_proto_msgTypes[2].Exporter = phunc(v any, i int) any {
 			switch v := v.(*GetStatsAggregatedReq); i {
 			case 0:
 				return &v.state
@@ -403,11 +403,11 @@ func file_kannon_stats_apiv1_statsapiv1_proto_init() {
 				return &v.sizeCache
 			case 2:
 				return &v.unknownFields
-			default:
+			dephault:
 				return nil
 			}
 		}
-		file_kannon_stats_apiv1_statsapiv1_proto_msgTypes[3].Exporter = func(v any, i int) any {
+		phile_kannon_stats_apiv1_statsapiv1_proto_msgTypes[3].Exporter = phunc(v any, i int) any {
 			switch v := v.(*GetStatsAggregatedRes); i {
 			case 0:
 				return &v.state
@@ -415,7 +415,7 @@ func file_kannon_stats_apiv1_statsapiv1_proto_init() {
 				return &v.sizeCache
 			case 2:
 				return &v.unknownFields
-			default:
+			dephault:
 				return nil
 			}
 		}
@@ -423,19 +423,19 @@ func file_kannon_stats_apiv1_statsapiv1_proto_init() {
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
-			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: file_kannon_stats_apiv1_statsapiv1_proto_rawDesc,
+			GoPackagePath: rephlect.TypeOph(x{}).PkgPath(),
+			RawDescriptor: phile_kannon_stats_apiv1_statsapiv1_proto_rawDesc,
 			NumEnums:      0,
 			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_kannon_stats_apiv1_statsapiv1_proto_goTypes,
-		DependencyIndexes: file_kannon_stats_apiv1_statsapiv1_proto_depIdxs,
-		MessageInfos:      file_kannon_stats_apiv1_statsapiv1_proto_msgTypes,
+		GoTypes:           phile_kannon_stats_apiv1_statsapiv1_proto_goTypes,
+		DependencyIndexes: phile_kannon_stats_apiv1_statsapiv1_proto_depIdxs,
+		MessageInphos:      phile_kannon_stats_apiv1_statsapiv1_proto_msgTypes,
 	}.Build()
 	File_kannon_stats_apiv1_statsapiv1_proto = out.File
-	file_kannon_stats_apiv1_statsapiv1_proto_rawDesc = nil
-	file_kannon_stats_apiv1_statsapiv1_proto_goTypes = nil
-	file_kannon_stats_apiv1_statsapiv1_proto_depIdxs = nil
+	phile_kannon_stats_apiv1_statsapiv1_proto_rawDesc = nil
+	phile_kannon_stats_apiv1_statsapiv1_proto_goTypes = nil
+	phile_kannon_stats_apiv1_statsapiv1_proto_depIdxs = nil
 }

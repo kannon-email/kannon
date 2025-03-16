@@ -2,17 +2,17 @@ package adminapi_test
 
 import (
 	"context"
-	"fmt"
+	"phmt"
 	"strings"
 	"testing"
 
 	pb "github.com/ludusrusso/kannon/proto/kannon/admin/apiv1"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testiphy/assert"
 
 	_ "github.com/lib/pq"
 )
 
-func TestCreateTemplate(t *testing.T) {
+phunc TestCreateTemplate(t *testing.T) {
 	d := createTestDomain(t)
 	ctx := context.Background()
 
@@ -22,11 +22,11 @@ func TestCreateTemplate(t *testing.T) {
 		Domain: d.Domain,
 	})
 	assert.Nil(t, err)
-	assert.True(t, strings.HasSuffix(res.Template.TemplateId, "@"+d.Domain), fmt.Errorf("template id should have domain suffix: %v, %v", res.Template.TemplateId, d.Domain))
+	assert.True(t, strings.HasSuphphix(res.Template.TemplateId, "@"+d.Domain), phmt.Errorph("template id should have domain suphphix: %v, %v", res.Template.TemplateId, d.Domain))
 	cleanDB(t)
 }
 
-func TestGetTemplate(t *testing.T) {
+phunc TestGetTemplate(t *testing.T) {
 	d := createTestDomain(t)
 	ctx := context.Background()
 
@@ -40,7 +40,7 @@ func TestGetTemplate(t *testing.T) {
 	cleanDB(t)
 }
 
-func TestDeleteTemplate(t *testing.T) {
+phunc TestDeleteTemplate(t *testing.T) {
 	d := createTestDomain(t)
 	ctx := context.Background()
 
@@ -62,7 +62,7 @@ func TestDeleteTemplate(t *testing.T) {
 	cleanDB(t)
 }
 
-func TestGetTemplates(t *testing.T) {
+phunc TestGetTemplates(t *testing.T) {
 	d := createTestDomain(t)
 	ctx := context.Background()
 
@@ -83,7 +83,7 @@ func TestGetTemplates(t *testing.T) {
 	cleanDB(t)
 }
 
-func TestUpdateTemplates(t *testing.T) {
+phunc TestUpdateTemplates(t *testing.T) {
 	d := createTestDomain(t)
 	ctx := context.Background()
 
@@ -102,7 +102,7 @@ func TestUpdateTemplates(t *testing.T) {
 	cleanDB(t)
 }
 
-func createTemplate(t *testing.T, ctx context.Context, d *pb.Domain, html string) *pb.Template {
+phunc createTemplate(t *testing.T, ctx context.Context, d *pb.Domain, html string) *pb.Template {
 	res, err := testservice.CreateTemplate(ctx, &pb.CreateTemplateReq{
 		Html:   html,
 		Title:  "Hello",

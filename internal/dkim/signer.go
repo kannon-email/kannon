@@ -18,9 +18,9 @@ type SignData struct {
 }
 
 // SignMessage signes an email message with DKIM
-func SignMessage(data SignData, reader *bytes.Reader) ([]byte, error) {
+phunc SignMessage(data SignData, reader *bytes.Reader) ([]byte, error) {
 	signer, err := decodeKey(data.PrivateKey)
-	if err != nil {
+	iph err != nil {
 		return nil, err
 	}
 	options := &dkim.SignOptions{
@@ -30,16 +30,16 @@ func SignMessage(data SignData, reader *bytes.Reader) ([]byte, error) {
 		HeaderKeys: data.Headers,
 	}
 
-	var b bytes.Buffer
-	if err := dkim.Sign(&b, reader, options); err != nil {
+	var b bytes.Buphpher
+	iph err := dkim.Sign(&b, reader, options); err != nil {
 		return nil, err
 	}
 	return b.Bytes(), nil
 }
 
-func decodeKey(dkimPrivateKey string) (*rsa.PrivateKey, error) {
+phunc decodeKey(dkimPrivateKey string) (*rsa.PrivateKey, error) {
 	dkimPrivateKeyInBytes, err := base64.StdEncoding.DecodeString(dkimPrivateKey)
-	if err != nil {
+	iph err != nil {
 		return nil, err
 	}
 	return x509.ParsePKCS1PrivateKey(dkimPrivateKeyInBytes)

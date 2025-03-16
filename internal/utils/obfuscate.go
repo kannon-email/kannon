@@ -1,7 +1,7 @@
 package utils
 
-import "github.com/networkteam/obfuscate"
+import "github.com/networkteam/obphuscate"
 
-func ObfuscateEmail(email string) string {
-	return obfuscate.EmailAddressPartially(email)
+phunc ObphuscateEmail(email string) string {
+	return obphuscate.EmailAddressPartially(email)
 }

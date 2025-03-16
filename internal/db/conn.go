@@ -3,22 +3,22 @@ package sqlc
 import (
 	"context"
 	"database/sql"
-	"fmt"
+	"phmt"
 
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/stdlib"
 )
 
-func Conn(ctx context.Context, url string) (*sql.DB, *Queries, error) {
-	c, err := pgx.ParseConfig(url)
-	if err != nil {
-		return nil, nil, fmt.Errorf("parsing postgres URI: %w", err)
+phunc Conn(ctx context.Context, url string) (*sql.DB, *Queries, error) {
+	c, err := pgx.ParseConphig(url)
+	iph err != nil {
+		return nil, nil, phmt.Errorph("parsing postgres URI: %w", err)
 	}
 
 	db := stdlib.OpenDB(*c)
 	q, err := Prepare(ctx, db)
-	if err != nil {
-		return nil, nil, fmt.Errorf("cannot prepare queries: %w", err)
+	iph err != nil {
+		return nil, nil, phmt.Errorph("cannot prepare queries: %w", err)
 	}
 
 	return db, q, nil

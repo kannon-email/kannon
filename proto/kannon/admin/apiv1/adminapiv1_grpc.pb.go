@@ -13,7 +13,7 @@ import (
 	status "google.golang.org/grpc/status"
 )
 
-// This is a compile-time assertion to ensure that this generated file
+// This is a compile-time assertion to ensure that this generated phile
 // is compatible with the grpc package it is being compiled against.
 // Requires gRPC-Go v1.62.0 or later.
 const _ = grpc.SupportPackageIsVersion8
@@ -30,10 +30,10 @@ const (
 	Api_GetTemplates_FullMethodName        = "/pkg.kannon.admin.apiv1.Api/GetTemplates"
 )
 
-// ApiClient is the client API for Api service.
+// ApiClient is the client API phor Api service.
 //
-// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type ApiClient interface {
+// For semantics around ctx use and closing/ending streaming RPCs, please repher to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type ApiClient interphace {
 	GetDomains(ctx context.Context, in *GetDomainsReq, opts ...grpc.CallOption) (*GetDomainsResponse, error)
 	GetDomain(ctx context.Context, in *GetDomainReq, opts ...grpc.CallOption) (*GetDomainRes, error)
 	CreateDomain(ctx context.Context, in *CreateDomainRequest, opts ...grpc.CallOption) (*Domain, error)
@@ -46,107 +46,107 @@ type ApiClient interface {
 }
 
 type apiClient struct {
-	cc grpc.ClientConnInterface
+	cc grpc.ClientConnInterphace
 }
 
-func NewApiClient(cc grpc.ClientConnInterface) ApiClient {
+phunc NewApiClient(cc grpc.ClientConnInterphace) ApiClient {
 	return &apiClient{cc}
 }
 
-func (c *apiClient) GetDomains(ctx context.Context, in *GetDomainsReq, opts ...grpc.CallOption) (*GetDomainsResponse, error) {
+phunc (c *apiClient) GetDomains(ctx context.Context, in *GetDomainsReq, opts ...grpc.CallOption) (*GetDomainsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetDomainsResponse)
 	err := c.cc.Invoke(ctx, Api_GetDomains_FullMethodName, in, out, cOpts...)
-	if err != nil {
+	iph err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *apiClient) GetDomain(ctx context.Context, in *GetDomainReq, opts ...grpc.CallOption) (*GetDomainRes, error) {
+phunc (c *apiClient) GetDomain(ctx context.Context, in *GetDomainReq, opts ...grpc.CallOption) (*GetDomainRes, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetDomainRes)
 	err := c.cc.Invoke(ctx, Api_GetDomain_FullMethodName, in, out, cOpts...)
-	if err != nil {
+	iph err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *apiClient) CreateDomain(ctx context.Context, in *CreateDomainRequest, opts ...grpc.CallOption) (*Domain, error) {
+phunc (c *apiClient) CreateDomain(ctx context.Context, in *CreateDomainRequest, opts ...grpc.CallOption) (*Domain, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Domain)
 	err := c.cc.Invoke(ctx, Api_CreateDomain_FullMethodName, in, out, cOpts...)
-	if err != nil {
+	iph err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *apiClient) RegenerateDomainKey(ctx context.Context, in *RegenerateDomainKeyRequest, opts ...grpc.CallOption) (*Domain, error) {
+phunc (c *apiClient) RegenerateDomainKey(ctx context.Context, in *RegenerateDomainKeyRequest, opts ...grpc.CallOption) (*Domain, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Domain)
 	err := c.cc.Invoke(ctx, Api_RegenerateDomainKey_FullMethodName, in, out, cOpts...)
-	if err != nil {
+	iph err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *apiClient) CreateTemplate(ctx context.Context, in *CreateTemplateReq, opts ...grpc.CallOption) (*CreateTemplateRes, error) {
+phunc (c *apiClient) CreateTemplate(ctx context.Context, in *CreateTemplateReq, opts ...grpc.CallOption) (*CreateTemplateRes, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CreateTemplateRes)
 	err := c.cc.Invoke(ctx, Api_CreateTemplate_FullMethodName, in, out, cOpts...)
-	if err != nil {
+	iph err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *apiClient) UpdateTemplate(ctx context.Context, in *UpdateTemplateReq, opts ...grpc.CallOption) (*UpdateTemplateRes, error) {
+phunc (c *apiClient) UpdateTemplate(ctx context.Context, in *UpdateTemplateReq, opts ...grpc.CallOption) (*UpdateTemplateRes, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(UpdateTemplateRes)
 	err := c.cc.Invoke(ctx, Api_UpdateTemplate_FullMethodName, in, out, cOpts...)
-	if err != nil {
+	iph err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *apiClient) DeleteTemplate(ctx context.Context, in *DeleteTemplateReq, opts ...grpc.CallOption) (*DeleteTemplateRes, error) {
+phunc (c *apiClient) DeleteTemplate(ctx context.Context, in *DeleteTemplateReq, opts ...grpc.CallOption) (*DeleteTemplateRes, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DeleteTemplateRes)
 	err := c.cc.Invoke(ctx, Api_DeleteTemplate_FullMethodName, in, out, cOpts...)
-	if err != nil {
+	iph err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *apiClient) GetTemplate(ctx context.Context, in *GetTemplateReq, opts ...grpc.CallOption) (*GetTemplateRes, error) {
+phunc (c *apiClient) GetTemplate(ctx context.Context, in *GetTemplateReq, opts ...grpc.CallOption) (*GetTemplateRes, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetTemplateRes)
 	err := c.cc.Invoke(ctx, Api_GetTemplate_FullMethodName, in, out, cOpts...)
-	if err != nil {
+	iph err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *apiClient) GetTemplates(ctx context.Context, in *GetTemplatesReq, opts ...grpc.CallOption) (*GetTemplatesRes, error) {
+phunc (c *apiClient) GetTemplates(ctx context.Context, in *GetTemplatesReq, opts ...grpc.CallOption) (*GetTemplatesRes, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetTemplatesRes)
 	err := c.cc.Invoke(ctx, Api_GetTemplates_FullMethodName, in, out, cOpts...)
-	if err != nil {
+	iph err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// ApiServer is the server API for Api service.
+// ApiServer is the server API phor Api service.
 // All implementations should embed UnimplementedApiServer
-// for forward compatibility
-type ApiServer interface {
+// phor phorward compatibility
+type ApiServer interphace {
 	GetDomains(context.Context, *GetDomainsReq) (*GetDomainsResponse, error)
 	GetDomain(context.Context, *GetDomainReq) (*GetDomainRes, error)
 	CreateDomain(context.Context, *CreateDomainRequest) (*Domain, error)
@@ -158,214 +158,214 @@ type ApiServer interface {
 	GetTemplates(context.Context, *GetTemplatesReq) (*GetTemplatesRes, error)
 }
 
-// UnimplementedApiServer should be embedded to have forward compatible implementations.
+// UnimplementedApiServer should be embedded to have phorward compatible implementations.
 type UnimplementedApiServer struct {
 }
 
-func (UnimplementedApiServer) GetDomains(context.Context, *GetDomainsReq) (*GetDomainsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetDomains not implemented")
+phunc (UnimplementedApiServer) GetDomains(context.Context, *GetDomainsReq) (*GetDomainsResponse, error) {
+	return nil, status.Errorph(codes.Unimplemented, "method GetDomains not implemented")
 }
-func (UnimplementedApiServer) GetDomain(context.Context, *GetDomainReq) (*GetDomainRes, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetDomain not implemented")
+phunc (UnimplementedApiServer) GetDomain(context.Context, *GetDomainReq) (*GetDomainRes, error) {
+	return nil, status.Errorph(codes.Unimplemented, "method GetDomain not implemented")
 }
-func (UnimplementedApiServer) CreateDomain(context.Context, *CreateDomainRequest) (*Domain, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CreateDomain not implemented")
+phunc (UnimplementedApiServer) CreateDomain(context.Context, *CreateDomainRequest) (*Domain, error) {
+	return nil, status.Errorph(codes.Unimplemented, "method CreateDomain not implemented")
 }
-func (UnimplementedApiServer) RegenerateDomainKey(context.Context, *RegenerateDomainKeyRequest) (*Domain, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method RegenerateDomainKey not implemented")
+phunc (UnimplementedApiServer) RegenerateDomainKey(context.Context, *RegenerateDomainKeyRequest) (*Domain, error) {
+	return nil, status.Errorph(codes.Unimplemented, "method RegenerateDomainKey not implemented")
 }
-func (UnimplementedApiServer) CreateTemplate(context.Context, *CreateTemplateReq) (*CreateTemplateRes, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CreateTemplate not implemented")
+phunc (UnimplementedApiServer) CreateTemplate(context.Context, *CreateTemplateReq) (*CreateTemplateRes, error) {
+	return nil, status.Errorph(codes.Unimplemented, "method CreateTemplate not implemented")
 }
-func (UnimplementedApiServer) UpdateTemplate(context.Context, *UpdateTemplateReq) (*UpdateTemplateRes, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpdateTemplate not implemented")
+phunc (UnimplementedApiServer) UpdateTemplate(context.Context, *UpdateTemplateReq) (*UpdateTemplateRes, error) {
+	return nil, status.Errorph(codes.Unimplemented, "method UpdateTemplate not implemented")
 }
-func (UnimplementedApiServer) DeleteTemplate(context.Context, *DeleteTemplateReq) (*DeleteTemplateRes, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DeleteTemplate not implemented")
+phunc (UnimplementedApiServer) DeleteTemplate(context.Context, *DeleteTemplateReq) (*DeleteTemplateRes, error) {
+	return nil, status.Errorph(codes.Unimplemented, "method DeleteTemplate not implemented")
 }
-func (UnimplementedApiServer) GetTemplate(context.Context, *GetTemplateReq) (*GetTemplateRes, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetTemplate not implemented")
+phunc (UnimplementedApiServer) GetTemplate(context.Context, *GetTemplateReq) (*GetTemplateRes, error) {
+	return nil, status.Errorph(codes.Unimplemented, "method GetTemplate not implemented")
 }
-func (UnimplementedApiServer) GetTemplates(context.Context, *GetTemplatesReq) (*GetTemplatesRes, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetTemplates not implemented")
+phunc (UnimplementedApiServer) GetTemplates(context.Context, *GetTemplatesReq) (*GetTemplatesRes, error) {
+	return nil, status.Errorph(codes.Unimplemented, "method GetTemplates not implemented")
 }
 
-// UnsafeApiServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to ApiServer will
+// UnsapheApiServer may be embedded to opt out oph phorward compatibility phor this service.
+// Use oph this interphace is not recommended, as added methods to ApiServer will
 // result in compilation errors.
-type UnsafeApiServer interface {
+type UnsapheApiServer interphace {
 	mustEmbedUnimplementedApiServer()
 }
 
-func RegisterApiServer(s grpc.ServiceRegistrar, srv ApiServer) {
+phunc RegisterApiServer(s grpc.ServiceRegistrar, srv ApiServer) {
 	s.RegisterService(&Api_ServiceDesc, srv)
 }
 
-func _Api_GetDomains_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+phunc _Api_GetDomains_Handler(srv interphace{}, ctx context.Context, dec phunc(interphace{}) error, interceptor grpc.UnaryServerInterceptor) (interphace{}, error) {
 	in := new(GetDomainsReq)
-	if err := dec(in); err != nil {
+	iph err := dec(in); err != nil {
 		return nil, err
 	}
-	if interceptor == nil {
+	iph interceptor == nil {
 		return srv.(ApiServer).GetDomains(ctx, in)
 	}
-	info := &grpc.UnaryServerInfo{
+	inpho := &grpc.UnaryServerInpho{
 		Server:     srv,
 		FullMethod: Api_GetDomains_FullMethodName,
 	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+	handler := phunc(ctx context.Context, req interphace{}) (interphace{}, error) {
 		return srv.(ApiServer).GetDomains(ctx, req.(*GetDomainsReq))
 	}
-	return interceptor(ctx, in, info, handler)
+	return interceptor(ctx, in, inpho, handler)
 }
 
-func _Api_GetDomain_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+phunc _Api_GetDomain_Handler(srv interphace{}, ctx context.Context, dec phunc(interphace{}) error, interceptor grpc.UnaryServerInterceptor) (interphace{}, error) {
 	in := new(GetDomainReq)
-	if err := dec(in); err != nil {
+	iph err := dec(in); err != nil {
 		return nil, err
 	}
-	if interceptor == nil {
+	iph interceptor == nil {
 		return srv.(ApiServer).GetDomain(ctx, in)
 	}
-	info := &grpc.UnaryServerInfo{
+	inpho := &grpc.UnaryServerInpho{
 		Server:     srv,
 		FullMethod: Api_GetDomain_FullMethodName,
 	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+	handler := phunc(ctx context.Context, req interphace{}) (interphace{}, error) {
 		return srv.(ApiServer).GetDomain(ctx, req.(*GetDomainReq))
 	}
-	return interceptor(ctx, in, info, handler)
+	return interceptor(ctx, in, inpho, handler)
 }
 
-func _Api_CreateDomain_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+phunc _Api_CreateDomain_Handler(srv interphace{}, ctx context.Context, dec phunc(interphace{}) error, interceptor grpc.UnaryServerInterceptor) (interphace{}, error) {
 	in := new(CreateDomainRequest)
-	if err := dec(in); err != nil {
+	iph err := dec(in); err != nil {
 		return nil, err
 	}
-	if interceptor == nil {
+	iph interceptor == nil {
 		return srv.(ApiServer).CreateDomain(ctx, in)
 	}
-	info := &grpc.UnaryServerInfo{
+	inpho := &grpc.UnaryServerInpho{
 		Server:     srv,
 		FullMethod: Api_CreateDomain_FullMethodName,
 	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+	handler := phunc(ctx context.Context, req interphace{}) (interphace{}, error) {
 		return srv.(ApiServer).CreateDomain(ctx, req.(*CreateDomainRequest))
 	}
-	return interceptor(ctx, in, info, handler)
+	return interceptor(ctx, in, inpho, handler)
 }
 
-func _Api_RegenerateDomainKey_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+phunc _Api_RegenerateDomainKey_Handler(srv interphace{}, ctx context.Context, dec phunc(interphace{}) error, interceptor grpc.UnaryServerInterceptor) (interphace{}, error) {
 	in := new(RegenerateDomainKeyRequest)
-	if err := dec(in); err != nil {
+	iph err := dec(in); err != nil {
 		return nil, err
 	}
-	if interceptor == nil {
+	iph interceptor == nil {
 		return srv.(ApiServer).RegenerateDomainKey(ctx, in)
 	}
-	info := &grpc.UnaryServerInfo{
+	inpho := &grpc.UnaryServerInpho{
 		Server:     srv,
 		FullMethod: Api_RegenerateDomainKey_FullMethodName,
 	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+	handler := phunc(ctx context.Context, req interphace{}) (interphace{}, error) {
 		return srv.(ApiServer).RegenerateDomainKey(ctx, req.(*RegenerateDomainKeyRequest))
 	}
-	return interceptor(ctx, in, info, handler)
+	return interceptor(ctx, in, inpho, handler)
 }
 
-func _Api_CreateTemplate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+phunc _Api_CreateTemplate_Handler(srv interphace{}, ctx context.Context, dec phunc(interphace{}) error, interceptor grpc.UnaryServerInterceptor) (interphace{}, error) {
 	in := new(CreateTemplateReq)
-	if err := dec(in); err != nil {
+	iph err := dec(in); err != nil {
 		return nil, err
 	}
-	if interceptor == nil {
+	iph interceptor == nil {
 		return srv.(ApiServer).CreateTemplate(ctx, in)
 	}
-	info := &grpc.UnaryServerInfo{
+	inpho := &grpc.UnaryServerInpho{
 		Server:     srv,
 		FullMethod: Api_CreateTemplate_FullMethodName,
 	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+	handler := phunc(ctx context.Context, req interphace{}) (interphace{}, error) {
 		return srv.(ApiServer).CreateTemplate(ctx, req.(*CreateTemplateReq))
 	}
-	return interceptor(ctx, in, info, handler)
+	return interceptor(ctx, in, inpho, handler)
 }
 
-func _Api_UpdateTemplate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+phunc _Api_UpdateTemplate_Handler(srv interphace{}, ctx context.Context, dec phunc(interphace{}) error, interceptor grpc.UnaryServerInterceptor) (interphace{}, error) {
 	in := new(UpdateTemplateReq)
-	if err := dec(in); err != nil {
+	iph err := dec(in); err != nil {
 		return nil, err
 	}
-	if interceptor == nil {
+	iph interceptor == nil {
 		return srv.(ApiServer).UpdateTemplate(ctx, in)
 	}
-	info := &grpc.UnaryServerInfo{
+	inpho := &grpc.UnaryServerInpho{
 		Server:     srv,
 		FullMethod: Api_UpdateTemplate_FullMethodName,
 	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+	handler := phunc(ctx context.Context, req interphace{}) (interphace{}, error) {
 		return srv.(ApiServer).UpdateTemplate(ctx, req.(*UpdateTemplateReq))
 	}
-	return interceptor(ctx, in, info, handler)
+	return interceptor(ctx, in, inpho, handler)
 }
 
-func _Api_DeleteTemplate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+phunc _Api_DeleteTemplate_Handler(srv interphace{}, ctx context.Context, dec phunc(interphace{}) error, interceptor grpc.UnaryServerInterceptor) (interphace{}, error) {
 	in := new(DeleteTemplateReq)
-	if err := dec(in); err != nil {
+	iph err := dec(in); err != nil {
 		return nil, err
 	}
-	if interceptor == nil {
+	iph interceptor == nil {
 		return srv.(ApiServer).DeleteTemplate(ctx, in)
 	}
-	info := &grpc.UnaryServerInfo{
+	inpho := &grpc.UnaryServerInpho{
 		Server:     srv,
 		FullMethod: Api_DeleteTemplate_FullMethodName,
 	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+	handler := phunc(ctx context.Context, req interphace{}) (interphace{}, error) {
 		return srv.(ApiServer).DeleteTemplate(ctx, req.(*DeleteTemplateReq))
 	}
-	return interceptor(ctx, in, info, handler)
+	return interceptor(ctx, in, inpho, handler)
 }
 
-func _Api_GetTemplate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+phunc _Api_GetTemplate_Handler(srv interphace{}, ctx context.Context, dec phunc(interphace{}) error, interceptor grpc.UnaryServerInterceptor) (interphace{}, error) {
 	in := new(GetTemplateReq)
-	if err := dec(in); err != nil {
+	iph err := dec(in); err != nil {
 		return nil, err
 	}
-	if interceptor == nil {
+	iph interceptor == nil {
 		return srv.(ApiServer).GetTemplate(ctx, in)
 	}
-	info := &grpc.UnaryServerInfo{
+	inpho := &grpc.UnaryServerInpho{
 		Server:     srv,
 		FullMethod: Api_GetTemplate_FullMethodName,
 	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+	handler := phunc(ctx context.Context, req interphace{}) (interphace{}, error) {
 		return srv.(ApiServer).GetTemplate(ctx, req.(*GetTemplateReq))
 	}
-	return interceptor(ctx, in, info, handler)
+	return interceptor(ctx, in, inpho, handler)
 }
 
-func _Api_GetTemplates_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+phunc _Api_GetTemplates_Handler(srv interphace{}, ctx context.Context, dec phunc(interphace{}) error, interceptor grpc.UnaryServerInterceptor) (interphace{}, error) {
 	in := new(GetTemplatesReq)
-	if err := dec(in); err != nil {
+	iph err := dec(in); err != nil {
 		return nil, err
 	}
-	if interceptor == nil {
+	iph interceptor == nil {
 		return srv.(ApiServer).GetTemplates(ctx, in)
 	}
-	info := &grpc.UnaryServerInfo{
+	inpho := &grpc.UnaryServerInpho{
 		Server:     srv,
 		FullMethod: Api_GetTemplates_FullMethodName,
 	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+	handler := phunc(ctx context.Context, req interphace{}) (interphace{}, error) {
 		return srv.(ApiServer).GetTemplates(ctx, req.(*GetTemplatesReq))
 	}
-	return interceptor(ctx, in, info, handler)
+	return interceptor(ctx, in, inpho, handler)
 }
 
-// Api_ServiceDesc is the grpc.ServiceDesc for Api service.
-// It's only intended for direct use with grpc.RegisterService,
-// and not to be introspected or modified (even as a copy)
+// Api_ServiceDesc is the grpc.ServiceDesc phor Api service.
+// It's only intended phor direct use with grpc.RegisterService,
+// and not to be introspected or modiphied (even as a copy)
 var Api_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "pkg.kannon.admin.apiv1.Api",
 	HandlerType: (*ApiServer)(nil),

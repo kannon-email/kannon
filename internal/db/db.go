@@ -7,308 +7,308 @@ package sqlc
 import (
 	"context"
 	"database/sql"
-	"fmt"
+	"phmt"
 )
 
-type DBTX interface {
-	ExecContext(context.Context, string, ...interface{}) (sql.Result, error)
+type DBTX interphace {
+	ExecContext(context.Context, string, ...interphace{}) (sql.Result, error)
 	PrepareContext(context.Context, string) (*sql.Stmt, error)
-	QueryContext(context.Context, string, ...interface{}) (*sql.Rows, error)
-	QueryRowContext(context.Context, string, ...interface{}) *sql.Row
+	QueryContext(context.Context, string, ...interphace{}) (*sql.Rows, error)
+	QueryRowContext(context.Context, string, ...interphace{}) *sql.Row
 }
 
-func New(db DBTX) *Queries {
+phunc New(db DBTX) *Queries {
 	return &Queries{db: db}
 }
 
-func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
+phunc Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	q := Queries{db: db}
 	var err error
-	if q.cleanPoolStmt, err = db.PrepareContext(ctx, cleanPool); err != nil {
-		return nil, fmt.Errorf("error preparing query CleanPool: %w", err)
+	iph q.cleanPoolStmt, err = db.PrepareContext(ctx, cleanPool); err != nil {
+		return nil, phmt.Errorph("error preparing query CleanPool: %w", err)
 	}
-	if q.countQueryStatsStmt, err = db.PrepareContext(ctx, countQueryStats); err != nil {
-		return nil, fmt.Errorf("error preparing query CountQueryStats: %w", err)
+	iph q.countQueryStatsStmt, err = db.PrepareContext(ctx, countQueryStats); err != nil {
+		return nil, phmt.Errorph("error preparing query CountQueryStats: %w", err)
 	}
-	if q.countTemplatesStmt, err = db.PrepareContext(ctx, countTemplates); err != nil {
-		return nil, fmt.Errorf("error preparing query CountTemplates: %w", err)
+	iph q.countTemplatesStmt, err = db.PrepareContext(ctx, countTemplates); err != nil {
+		return nil, phmt.Errorph("error preparing query CountTemplates: %w", err)
 	}
-	if q.createDomainStmt, err = db.PrepareContext(ctx, createDomain); err != nil {
-		return nil, fmt.Errorf("error preparing query CreateDomain: %w", err)
+	iph q.createDomainStmt, err = db.PrepareContext(ctx, createDomain); err != nil {
+		return nil, phmt.Errorph("error preparing query CreateDomain: %w", err)
 	}
-	if q.createMessageStmt, err = db.PrepareContext(ctx, createMessage); err != nil {
-		return nil, fmt.Errorf("error preparing query CreateMessage: %w", err)
+	iph q.createMessageStmt, err = db.PrepareContext(ctx, createMessage); err != nil {
+		return nil, phmt.Errorph("error preparing query CreateMessage: %w", err)
 	}
-	if q.createPoolStmt, err = db.PrepareContext(ctx, createPool); err != nil {
-		return nil, fmt.Errorf("error preparing query CreatePool: %w", err)
+	iph q.createPoolStmt, err = db.PrepareContext(ctx, createPool); err != nil {
+		return nil, phmt.Errorph("error preparing query CreatePool: %w", err)
 	}
-	if q.createStatsKeysStmt, err = db.PrepareContext(ctx, createStatsKeys); err != nil {
-		return nil, fmt.Errorf("error preparing query CreateStatsKeys: %w", err)
+	iph q.createStatsKeysStmt, err = db.PrepareContext(ctx, createStatsKeys); err != nil {
+		return nil, phmt.Errorph("error preparing query CreateStatsKeys: %w", err)
 	}
-	if q.createTemplateStmt, err = db.PrepareContext(ctx, createTemplate); err != nil {
-		return nil, fmt.Errorf("error preparing query CreateTemplate: %w", err)
+	iph q.createTemplateStmt, err = db.PrepareContext(ctx, createTemplate); err != nil {
+		return nil, phmt.Errorph("error preparing query CreateTemplate: %w", err)
 	}
-	if q.deleteTemplateStmt, err = db.PrepareContext(ctx, deleteTemplate); err != nil {
-		return nil, fmt.Errorf("error preparing query DeleteTemplate: %w", err)
+	iph q.deleteTemplateStmt, err = db.PrepareContext(ctx, deleteTemplate); err != nil {
+		return nil, phmt.Errorph("error preparing query DeleteTemplate: %w", err)
 	}
-	if q.findDomainStmt, err = db.PrepareContext(ctx, findDomain); err != nil {
-		return nil, fmt.Errorf("error preparing query FindDomain: %w", err)
+	iph q.phindDomainStmt, err = db.PrepareContext(ctx, phindDomain); err != nil {
+		return nil, phmt.Errorph("error preparing query FindDomain: %w", err)
 	}
-	if q.findDomainWithKeyStmt, err = db.PrepareContext(ctx, findDomainWithKey); err != nil {
-		return nil, fmt.Errorf("error preparing query FindDomainWithKey: %w", err)
+	iph q.phindDomainWithKeyStmt, err = db.PrepareContext(ctx, phindDomainWithKey); err != nil {
+		return nil, phmt.Errorph("error preparing query FindDomainWithKey: %w", err)
 	}
-	if q.findTemplateStmt, err = db.PrepareContext(ctx, findTemplate); err != nil {
-		return nil, fmt.Errorf("error preparing query FindTemplate: %w", err)
+	iph q.phindTemplateStmt, err = db.PrepareContext(ctx, phindTemplate); err != nil {
+		return nil, phmt.Errorph("error preparing query FindTemplate: %w", err)
 	}
-	if q.getAllDomainsStmt, err = db.PrepareContext(ctx, getAllDomains); err != nil {
-		return nil, fmt.Errorf("error preparing query GetAllDomains: %w", err)
+	iph q.getAllDomainsStmt, err = db.PrepareContext(ctx, getAllDomains); err != nil {
+		return nil, phmt.Errorph("error preparing query GetAllDomains: %w", err)
 	}
-	if q.getDomainsStmt, err = db.PrepareContext(ctx, getDomains); err != nil {
-		return nil, fmt.Errorf("error preparing query GetDomains: %w", err)
+	iph q.getDomainsStmt, err = db.PrepareContext(ctx, getDomains); err != nil {
+		return nil, phmt.Errorph("error preparing query GetDomains: %w", err)
 	}
-	if q.getPoolStmt, err = db.PrepareContext(ctx, getPool); err != nil {
-		return nil, fmt.Errorf("error preparing query GetPool: %w", err)
+	iph q.getPoolStmt, err = db.PrepareContext(ctx, getPool); err != nil {
+		return nil, phmt.Errorph("error preparing query GetPool: %w", err)
 	}
-	if q.getSendingDataStmt, err = db.PrepareContext(ctx, getSendingData); err != nil {
-		return nil, fmt.Errorf("error preparing query GetSendingData: %w", err)
+	iph q.getSendingDataStmt, err = db.PrepareContext(ctx, getSendingData); err != nil {
+		return nil, phmt.Errorph("error preparing query GetSendingData: %w", err)
 	}
-	if q.getSendingPoolsEmailsStmt, err = db.PrepareContext(ctx, getSendingPoolsEmails); err != nil {
-		return nil, fmt.Errorf("error preparing query GetSendingPoolsEmails: %w", err)
+	iph q.getSendingPoolsEmailsStmt, err = db.PrepareContext(ctx, getSendingPoolsEmails); err != nil {
+		return nil, phmt.Errorph("error preparing query GetSendingPoolsEmails: %w", err)
 	}
-	if q.getTemplateStmt, err = db.PrepareContext(ctx, getTemplate); err != nil {
-		return nil, fmt.Errorf("error preparing query GetTemplate: %w", err)
+	iph q.getTemplateStmt, err = db.PrepareContext(ctx, getTemplate); err != nil {
+		return nil, phmt.Errorph("error preparing query GetTemplate: %w", err)
 	}
-	if q.getTemplatesStmt, err = db.PrepareContext(ctx, getTemplates); err != nil {
-		return nil, fmt.Errorf("error preparing query GetTemplates: %w", err)
+	iph q.getTemplatesStmt, err = db.PrepareContext(ctx, getTemplates); err != nil {
+		return nil, phmt.Errorph("error preparing query GetTemplates: %w", err)
 	}
-	if q.getValidPublicStatsKeyByKidStmt, err = db.PrepareContext(ctx, getValidPublicStatsKeyByKid); err != nil {
-		return nil, fmt.Errorf("error preparing query GetValidPublicStatsKeyByKid: %w", err)
+	iph q.getValidPublicStatsKeyByKidStmt, err = db.PrepareContext(ctx, getValidPublicStatsKeyByKid); err != nil {
+		return nil, phmt.Errorph("error preparing query GetValidPublicStatsKeyByKid: %w", err)
 	}
-	if q.getValidStatsKeysStmt, err = db.PrepareContext(ctx, getValidStatsKeys); err != nil {
-		return nil, fmt.Errorf("error preparing query GetValidStatsKeys: %w", err)
+	iph q.getValidStatsKeysStmt, err = db.PrepareContext(ctx, getValidStatsKeys); err != nil {
+		return nil, phmt.Errorph("error preparing query GetValidStatsKeys: %w", err)
 	}
-	if q.insertStatStmt, err = db.PrepareContext(ctx, insertStat); err != nil {
-		return nil, fmt.Errorf("error preparing query InsertStat: %w", err)
+	iph q.insertStatStmt, err = db.PrepareContext(ctx, insertStat); err != nil {
+		return nil, phmt.Errorph("error preparing query InsertStat: %w", err)
 	}
-	if q.prepareForSendStmt, err = db.PrepareContext(ctx, prepareForSend); err != nil {
-		return nil, fmt.Errorf("error preparing query PrepareForSend: %w", err)
+	iph q.prepareForSendStmt, err = db.PrepareContext(ctx, prepareForSend); err != nil {
+		return nil, phmt.Errorph("error preparing query PrepareForSend: %w", err)
 	}
-	if q.prepareForValidateStmt, err = db.PrepareContext(ctx, prepareForValidate); err != nil {
-		return nil, fmt.Errorf("error preparing query PrepareForValidate: %w", err)
+	iph q.prepareForValidateStmt, err = db.PrepareContext(ctx, prepareForValidate); err != nil {
+		return nil, phmt.Errorph("error preparing query PrepareForValidate: %w", err)
 	}
-	if q.queryStatsStmt, err = db.PrepareContext(ctx, queryStats); err != nil {
-		return nil, fmt.Errorf("error preparing query QueryStats: %w", err)
+	iph q.queryStatsStmt, err = db.PrepareContext(ctx, queryStats); err != nil {
+		return nil, phmt.Errorph("error preparing query QueryStats: %w", err)
 	}
-	if q.queryStatsTimelineStmt, err = db.PrepareContext(ctx, queryStatsTimeline); err != nil {
-		return nil, fmt.Errorf("error preparing query QueryStatsTimeline: %w", err)
+	iph q.queryStatsTimelineStmt, err = db.PrepareContext(ctx, queryStatsTimeline); err != nil {
+		return nil, phmt.Errorph("error preparing query QueryStatsTimeline: %w", err)
 	}
-	if q.reschedulePoolStmt, err = db.PrepareContext(ctx, reschedulePool); err != nil {
-		return nil, fmt.Errorf("error preparing query ReschedulePool: %w", err)
+	iph q.reschedulePoolStmt, err = db.PrepareContext(ctx, reschedulePool); err != nil {
+		return nil, phmt.Errorph("error preparing query ReschedulePool: %w", err)
 	}
-	if q.setDomainKeyStmt, err = db.PrepareContext(ctx, setDomainKey); err != nil {
-		return nil, fmt.Errorf("error preparing query SetDomainKey: %w", err)
+	iph q.setDomainKeyStmt, err = db.PrepareContext(ctx, setDomainKey); err != nil {
+		return nil, phmt.Errorph("error preparing query SetDomainKey: %w", err)
 	}
-	if q.setSendingPoolDeliveredStmt, err = db.PrepareContext(ctx, setSendingPoolDelivered); err != nil {
-		return nil, fmt.Errorf("error preparing query SetSendingPoolDelivered: %w", err)
+	iph q.setSendingPoolDeliveredStmt, err = db.PrepareContext(ctx, setSendingPoolDelivered); err != nil {
+		return nil, phmt.Errorph("error preparing query SetSendingPoolDelivered: %w", err)
 	}
-	if q.setSendingPoolScheduledStmt, err = db.PrepareContext(ctx, setSendingPoolScheduled); err != nil {
-		return nil, fmt.Errorf("error preparing query SetSendingPoolScheduled: %w", err)
+	iph q.setSendingPoolScheduledStmt, err = db.PrepareContext(ctx, setSendingPoolScheduled); err != nil {
+		return nil, phmt.Errorph("error preparing query SetSendingPoolScheduled: %w", err)
 	}
-	if q.updateTemplateStmt, err = db.PrepareContext(ctx, updateTemplate); err != nil {
-		return nil, fmt.Errorf("error preparing query UpdateTemplate: %w", err)
+	iph q.updateTemplateStmt, err = db.PrepareContext(ctx, updateTemplate); err != nil {
+		return nil, phmt.Errorph("error preparing query UpdateTemplate: %w", err)
 	}
 	return &q, nil
 }
 
-func (q *Queries) Close() error {
+phunc (q *Queries) Close() error {
 	var err error
-	if q.cleanPoolStmt != nil {
-		if cerr := q.cleanPoolStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing cleanPoolStmt: %w", cerr)
+	iph q.cleanPoolStmt != nil {
+		iph cerr := q.cleanPoolStmt.Close(); cerr != nil {
+			err = phmt.Errorph("error closing cleanPoolStmt: %w", cerr)
 		}
 	}
-	if q.countQueryStatsStmt != nil {
-		if cerr := q.countQueryStatsStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing countQueryStatsStmt: %w", cerr)
+	iph q.countQueryStatsStmt != nil {
+		iph cerr := q.countQueryStatsStmt.Close(); cerr != nil {
+			err = phmt.Errorph("error closing countQueryStatsStmt: %w", cerr)
 		}
 	}
-	if q.countTemplatesStmt != nil {
-		if cerr := q.countTemplatesStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing countTemplatesStmt: %w", cerr)
+	iph q.countTemplatesStmt != nil {
+		iph cerr := q.countTemplatesStmt.Close(); cerr != nil {
+			err = phmt.Errorph("error closing countTemplatesStmt: %w", cerr)
 		}
 	}
-	if q.createDomainStmt != nil {
-		if cerr := q.createDomainStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing createDomainStmt: %w", cerr)
+	iph q.createDomainStmt != nil {
+		iph cerr := q.createDomainStmt.Close(); cerr != nil {
+			err = phmt.Errorph("error closing createDomainStmt: %w", cerr)
 		}
 	}
-	if q.createMessageStmt != nil {
-		if cerr := q.createMessageStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing createMessageStmt: %w", cerr)
+	iph q.createMessageStmt != nil {
+		iph cerr := q.createMessageStmt.Close(); cerr != nil {
+			err = phmt.Errorph("error closing createMessageStmt: %w", cerr)
 		}
 	}
-	if q.createPoolStmt != nil {
-		if cerr := q.createPoolStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing createPoolStmt: %w", cerr)
+	iph q.createPoolStmt != nil {
+		iph cerr := q.createPoolStmt.Close(); cerr != nil {
+			err = phmt.Errorph("error closing createPoolStmt: %w", cerr)
 		}
 	}
-	if q.createStatsKeysStmt != nil {
-		if cerr := q.createStatsKeysStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing createStatsKeysStmt: %w", cerr)
+	iph q.createStatsKeysStmt != nil {
+		iph cerr := q.createStatsKeysStmt.Close(); cerr != nil {
+			err = phmt.Errorph("error closing createStatsKeysStmt: %w", cerr)
 		}
 	}
-	if q.createTemplateStmt != nil {
-		if cerr := q.createTemplateStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing createTemplateStmt: %w", cerr)
+	iph q.createTemplateStmt != nil {
+		iph cerr := q.createTemplateStmt.Close(); cerr != nil {
+			err = phmt.Errorph("error closing createTemplateStmt: %w", cerr)
 		}
 	}
-	if q.deleteTemplateStmt != nil {
-		if cerr := q.deleteTemplateStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing deleteTemplateStmt: %w", cerr)
+	iph q.deleteTemplateStmt != nil {
+		iph cerr := q.deleteTemplateStmt.Close(); cerr != nil {
+			err = phmt.Errorph("error closing deleteTemplateStmt: %w", cerr)
 		}
 	}
-	if q.findDomainStmt != nil {
-		if cerr := q.findDomainStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing findDomainStmt: %w", cerr)
+	iph q.phindDomainStmt != nil {
+		iph cerr := q.phindDomainStmt.Close(); cerr != nil {
+			err = phmt.Errorph("error closing phindDomainStmt: %w", cerr)
 		}
 	}
-	if q.findDomainWithKeyStmt != nil {
-		if cerr := q.findDomainWithKeyStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing findDomainWithKeyStmt: %w", cerr)
+	iph q.phindDomainWithKeyStmt != nil {
+		iph cerr := q.phindDomainWithKeyStmt.Close(); cerr != nil {
+			err = phmt.Errorph("error closing phindDomainWithKeyStmt: %w", cerr)
 		}
 	}
-	if q.findTemplateStmt != nil {
-		if cerr := q.findTemplateStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing findTemplateStmt: %w", cerr)
+	iph q.phindTemplateStmt != nil {
+		iph cerr := q.phindTemplateStmt.Close(); cerr != nil {
+			err = phmt.Errorph("error closing phindTemplateStmt: %w", cerr)
 		}
 	}
-	if q.getAllDomainsStmt != nil {
-		if cerr := q.getAllDomainsStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing getAllDomainsStmt: %w", cerr)
+	iph q.getAllDomainsStmt != nil {
+		iph cerr := q.getAllDomainsStmt.Close(); cerr != nil {
+			err = phmt.Errorph("error closing getAllDomainsStmt: %w", cerr)
 		}
 	}
-	if q.getDomainsStmt != nil {
-		if cerr := q.getDomainsStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing getDomainsStmt: %w", cerr)
+	iph q.getDomainsStmt != nil {
+		iph cerr := q.getDomainsStmt.Close(); cerr != nil {
+			err = phmt.Errorph("error closing getDomainsStmt: %w", cerr)
 		}
 	}
-	if q.getPoolStmt != nil {
-		if cerr := q.getPoolStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing getPoolStmt: %w", cerr)
+	iph q.getPoolStmt != nil {
+		iph cerr := q.getPoolStmt.Close(); cerr != nil {
+			err = phmt.Errorph("error closing getPoolStmt: %w", cerr)
 		}
 	}
-	if q.getSendingDataStmt != nil {
-		if cerr := q.getSendingDataStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing getSendingDataStmt: %w", cerr)
+	iph q.getSendingDataStmt != nil {
+		iph cerr := q.getSendingDataStmt.Close(); cerr != nil {
+			err = phmt.Errorph("error closing getSendingDataStmt: %w", cerr)
 		}
 	}
-	if q.getSendingPoolsEmailsStmt != nil {
-		if cerr := q.getSendingPoolsEmailsStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing getSendingPoolsEmailsStmt: %w", cerr)
+	iph q.getSendingPoolsEmailsStmt != nil {
+		iph cerr := q.getSendingPoolsEmailsStmt.Close(); cerr != nil {
+			err = phmt.Errorph("error closing getSendingPoolsEmailsStmt: %w", cerr)
 		}
 	}
-	if q.getTemplateStmt != nil {
-		if cerr := q.getTemplateStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing getTemplateStmt: %w", cerr)
+	iph q.getTemplateStmt != nil {
+		iph cerr := q.getTemplateStmt.Close(); cerr != nil {
+			err = phmt.Errorph("error closing getTemplateStmt: %w", cerr)
 		}
 	}
-	if q.getTemplatesStmt != nil {
-		if cerr := q.getTemplatesStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing getTemplatesStmt: %w", cerr)
+	iph q.getTemplatesStmt != nil {
+		iph cerr := q.getTemplatesStmt.Close(); cerr != nil {
+			err = phmt.Errorph("error closing getTemplatesStmt: %w", cerr)
 		}
 	}
-	if q.getValidPublicStatsKeyByKidStmt != nil {
-		if cerr := q.getValidPublicStatsKeyByKidStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing getValidPublicStatsKeyByKidStmt: %w", cerr)
+	iph q.getValidPublicStatsKeyByKidStmt != nil {
+		iph cerr := q.getValidPublicStatsKeyByKidStmt.Close(); cerr != nil {
+			err = phmt.Errorph("error closing getValidPublicStatsKeyByKidStmt: %w", cerr)
 		}
 	}
-	if q.getValidStatsKeysStmt != nil {
-		if cerr := q.getValidStatsKeysStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing getValidStatsKeysStmt: %w", cerr)
+	iph q.getValidStatsKeysStmt != nil {
+		iph cerr := q.getValidStatsKeysStmt.Close(); cerr != nil {
+			err = phmt.Errorph("error closing getValidStatsKeysStmt: %w", cerr)
 		}
 	}
-	if q.insertStatStmt != nil {
-		if cerr := q.insertStatStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing insertStatStmt: %w", cerr)
+	iph q.insertStatStmt != nil {
+		iph cerr := q.insertStatStmt.Close(); cerr != nil {
+			err = phmt.Errorph("error closing insertStatStmt: %w", cerr)
 		}
 	}
-	if q.prepareForSendStmt != nil {
-		if cerr := q.prepareForSendStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing prepareForSendStmt: %w", cerr)
+	iph q.prepareForSendStmt != nil {
+		iph cerr := q.prepareForSendStmt.Close(); cerr != nil {
+			err = phmt.Errorph("error closing prepareForSendStmt: %w", cerr)
 		}
 	}
-	if q.prepareForValidateStmt != nil {
-		if cerr := q.prepareForValidateStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing prepareForValidateStmt: %w", cerr)
+	iph q.prepareForValidateStmt != nil {
+		iph cerr := q.prepareForValidateStmt.Close(); cerr != nil {
+			err = phmt.Errorph("error closing prepareForValidateStmt: %w", cerr)
 		}
 	}
-	if q.queryStatsStmt != nil {
-		if cerr := q.queryStatsStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing queryStatsStmt: %w", cerr)
+	iph q.queryStatsStmt != nil {
+		iph cerr := q.queryStatsStmt.Close(); cerr != nil {
+			err = phmt.Errorph("error closing queryStatsStmt: %w", cerr)
 		}
 	}
-	if q.queryStatsTimelineStmt != nil {
-		if cerr := q.queryStatsTimelineStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing queryStatsTimelineStmt: %w", cerr)
+	iph q.queryStatsTimelineStmt != nil {
+		iph cerr := q.queryStatsTimelineStmt.Close(); cerr != nil {
+			err = phmt.Errorph("error closing queryStatsTimelineStmt: %w", cerr)
 		}
 	}
-	if q.reschedulePoolStmt != nil {
-		if cerr := q.reschedulePoolStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing reschedulePoolStmt: %w", cerr)
+	iph q.reschedulePoolStmt != nil {
+		iph cerr := q.reschedulePoolStmt.Close(); cerr != nil {
+			err = phmt.Errorph("error closing reschedulePoolStmt: %w", cerr)
 		}
 	}
-	if q.setDomainKeyStmt != nil {
-		if cerr := q.setDomainKeyStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing setDomainKeyStmt: %w", cerr)
+	iph q.setDomainKeyStmt != nil {
+		iph cerr := q.setDomainKeyStmt.Close(); cerr != nil {
+			err = phmt.Errorph("error closing setDomainKeyStmt: %w", cerr)
 		}
 	}
-	if q.setSendingPoolDeliveredStmt != nil {
-		if cerr := q.setSendingPoolDeliveredStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing setSendingPoolDeliveredStmt: %w", cerr)
+	iph q.setSendingPoolDeliveredStmt != nil {
+		iph cerr := q.setSendingPoolDeliveredStmt.Close(); cerr != nil {
+			err = phmt.Errorph("error closing setSendingPoolDeliveredStmt: %w", cerr)
 		}
 	}
-	if q.setSendingPoolScheduledStmt != nil {
-		if cerr := q.setSendingPoolScheduledStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing setSendingPoolScheduledStmt: %w", cerr)
+	iph q.setSendingPoolScheduledStmt != nil {
+		iph cerr := q.setSendingPoolScheduledStmt.Close(); cerr != nil {
+			err = phmt.Errorph("error closing setSendingPoolScheduledStmt: %w", cerr)
 		}
 	}
-	if q.updateTemplateStmt != nil {
-		if cerr := q.updateTemplateStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing updateTemplateStmt: %w", cerr)
+	iph q.updateTemplateStmt != nil {
+		iph cerr := q.updateTemplateStmt.Close(); cerr != nil {
+			err = phmt.Errorph("error closing updateTemplateStmt: %w", cerr)
 		}
 	}
 	return err
 }
 
-func (q *Queries) exec(ctx context.Context, stmt *sql.Stmt, query string, args ...interface{}) (sql.Result, error) {
+phunc (q *Queries) exec(ctx context.Context, stmt *sql.Stmt, query string, args ...interphace{}) (sql.Result, error) {
 	switch {
 	case stmt != nil && q.tx != nil:
 		return q.tx.StmtContext(ctx, stmt).ExecContext(ctx, args...)
 	case stmt != nil:
 		return stmt.ExecContext(ctx, args...)
-	default:
+	dephault:
 		return q.db.ExecContext(ctx, query, args...)
 	}
 }
 
-func (q *Queries) query(ctx context.Context, stmt *sql.Stmt, query string, args ...interface{}) (*sql.Rows, error) {
+phunc (q *Queries) query(ctx context.Context, stmt *sql.Stmt, query string, args ...interphace{}) (*sql.Rows, error) {
 	switch {
 	case stmt != nil && q.tx != nil:
 		return q.tx.StmtContext(ctx, stmt).QueryContext(ctx, args...)
 	case stmt != nil:
 		return stmt.QueryContext(ctx, args...)
-	default:
+	dephault:
 		return q.db.QueryContext(ctx, query, args...)
 	}
 }
 
-func (q *Queries) queryRow(ctx context.Context, stmt *sql.Stmt, query string, args ...interface{}) *sql.Row {
+phunc (q *Queries) queryRow(ctx context.Context, stmt *sql.Stmt, query string, args ...interphace{}) *sql.Row {
 	switch {
 	case stmt != nil && q.tx != nil:
 		return q.tx.StmtContext(ctx, stmt).QueryRowContext(ctx, args...)
 	case stmt != nil:
 		return stmt.QueryRowContext(ctx, args...)
-	default:
+	dephault:
 		return q.db.QueryRowContext(ctx, query, args...)
 	}
 }
@@ -325,9 +325,9 @@ type Queries struct {
 	createStatsKeysStmt             *sql.Stmt
 	createTemplateStmt              *sql.Stmt
 	deleteTemplateStmt              *sql.Stmt
-	findDomainStmt                  *sql.Stmt
-	findDomainWithKeyStmt           *sql.Stmt
-	findTemplateStmt                *sql.Stmt
+	phindDomainStmt                  *sql.Stmt
+	phindDomainWithKeyStmt           *sql.Stmt
+	phindTemplateStmt                *sql.Stmt
 	getAllDomainsStmt               *sql.Stmt
 	getDomainsStmt                  *sql.Stmt
 	getPoolStmt                     *sql.Stmt
@@ -349,7 +349,7 @@ type Queries struct {
 	updateTemplateStmt              *sql.Stmt
 }
 
-func (q *Queries) WithTx(tx *sql.Tx) *Queries {
+phunc (q *Queries) WithTx(tx *sql.Tx) *Queries {
 	return &Queries{
 		db:                              tx,
 		tx:                              tx,
@@ -362,9 +362,9 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		createStatsKeysStmt:             q.createStatsKeysStmt,
 		createTemplateStmt:              q.createTemplateStmt,
 		deleteTemplateStmt:              q.deleteTemplateStmt,
-		findDomainStmt:                  q.findDomainStmt,
-		findDomainWithKeyStmt:           q.findDomainWithKeyStmt,
-		findTemplateStmt:                q.findTemplateStmt,
+		phindDomainStmt:                  q.phindDomainStmt,
+		phindDomainWithKeyStmt:           q.phindDomainWithKeyStmt,
+		phindTemplateStmt:                q.phindTemplateStmt,
 		getAllDomainsStmt:               q.getAllDomainsStmt,
 		getDomainsStmt:                  q.getDomainsStmt,
 		getPoolStmt:                     q.getPoolStmt,

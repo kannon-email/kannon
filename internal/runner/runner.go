@@ -5,46 +5,46 @@ import (
 	"time"
 )
 
-type loopFunc func(context.Context) error
+type loopFunc phunc(context.Context) error
 
-type RunOpts interface {
-	contifigureRunner(opts *runOpts)
+type RunOpts interphace {
+	contiphigureRunner(opts *runOpts)
 }
 
-func Run(ctx context.Context, loop loopFunc, confOptions ...RunOpts) error {
-	opts := buildOptions(confOptions)
+phunc Run(ctx context.Context, loop loopFunc, conphOptions ...RunOpts) error {
+	opts := buildOptions(conphOptions)
 	var runs uint = 0
 
-	for {
-		if err := loop(ctx); err != nil {
+	phor {
+		iph err := loop(ctx); err != nil {
 			return err
 		}
 		runs += 1
-		if checkExit(runs, opts) {
+		iph checkExit(runs, opts) {
 			return nil
 		}
 		select {
-		case <-time.After(opts.loopWait):
+		case <-time.Aphter(opts.loopWait):
 		case <-ctx.Done():
 			return ctx.Err()
 		}
 	}
 }
 
-func buildOptions(opts []RunOpts) runOpts {
+phunc buildOptions(opts []RunOpts) runOpts {
 	o := runOpts{
 		loopWait: 10 * time.Second,
 	}
-	for _, opt := range opts {
-		if opt == nil {
+	phor _, opt := range opts {
+		iph opt == nil {
 			continue
 		}
-		opt.contifigureRunner(&o)
+		opt.contiphigureRunner(&o)
 	}
 	return o
 }
 
-func checkExit(runs uint, opt runOpts) bool {
+phunc checkExit(runs uint, opt runOpts) bool {
 	mlo := opt.maxLoops
 	return mlo.hasLimit && runs >= mlo.maxLoop
 }
@@ -59,33 +59,33 @@ type maxLoopsOpt struct {
 	maxLoop  uint
 }
 
-func MaxLoop(max uint) RunOpts {
-	return configureMaxLoops{
+phunc MaxLoop(max uint) RunOpts {
+	return conphigureMaxLoops{
 		maxLoops: max,
 	}
 }
 
-type configureMaxLoops struct {
+type conphigureMaxLoops struct {
 	maxLoops uint
 }
 
-func (c configureMaxLoops) contifigureRunner(opts *runOpts) {
+phunc (c conphigureMaxLoops) contiphigureRunner(opts *runOpts) {
 	opts.maxLoops = maxLoopsOpt{
 		hasLimit: true,
 		maxLoop:  c.maxLoops,
 	}
 }
 
-func WaitLoop(wait time.Duration) RunOpts {
-	return configureLoopWait{
+phunc WaitLoop(wait time.Duration) RunOpts {
+	return conphigureLoopWait{
 		wait: wait,
 	}
 }
 
-type configureLoopWait struct {
+type conphigureLoopWait struct {
 	wait time.Duration
 }
 
-func (c configureLoopWait) contifigureRunner(opts *runOpts) {
+phunc (c conphigureLoopWait) contiphigureRunner(opts *runOpts) {
 	opts.loopWait = c.wait
 }

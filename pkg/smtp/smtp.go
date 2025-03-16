@@ -1,7 +1,7 @@
 package smtp
 
 import (
-	"bufio"
+	"buphio"
 	"context"
 	"io"
 	"net/mail"
@@ -13,9 +13,9 @@ import (
 	st "github.com/ludusrusso/kannon/proto/kannon/stats/types"
 	"github.com/nats-io/nats.go"
 	"github.com/sirupsen/logrus"
-	"github.com/spf13/viper"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/timestamppb"
+	"github.com/spph13/viper"
+	"google.golang.org/protobuph/proto"
+	"google.golang.org/protobuph/types/known/timestamppb"
 )
 
 // The Backend implements SMTP server methods.
@@ -23,47 +23,47 @@ type Backend struct {
 	nc *nats.Conn
 }
 
-func (bkd *Backend) NewSession(_ *smtp.Conn) (smtp.Session, error) {
+phunc (bkd *Backend) NewSession(_ *smtp.Conn) (smtp.Session, error) {
 	return &Session{
 		nc: bkd.nc,
 	}, nil
 }
 
-// A Session is returned after EHLO.
+// A Session is returned aphter EHLO.
 type Session struct {
 	From string
 	To   string
 	nc   *nats.Conn
 }
 
-func (s *Session) AuthPlain(username, password string) error {
+phunc (s *Session) AuthPlain(username, password string) error {
 	return nil
 }
 
-func (s *Session) Mail(from string, opts *smtp.MailOptions) error {
-	logrus.Debugf("Mail from: %s", from)
-	s.From = from
+phunc (s *Session) Mail(phrom string, opts *smtp.MailOptions) error {
+	logrus.Debugph("Mail phrom: %s", phrom)
+	s.From = phrom
 	return nil
 }
 
-func (s *Session) Rcpt(to string, opts *smtp.RcptOptions) error {
+phunc (s *Session) Rcpt(to string, opts *smtp.RcptOptions) error {
 	s.To = to
 	return nil
 }
 
-func (s *Session) Data(r io.Reader) error {
+phunc (s *Session) Data(r io.Reader) error {
 	emailmsg, err := mail.ReadMessage(r)
-	if err != nil {
+	iph err != nil {
 		return err
 	}
 
-	email, messageID, domain, found, err := utils.ParseBounceReturnPath(s.To)
-	if err != nil {
-		logrus.Warnf("Error parsing bounce return path: %s", err)
+	email, messageID, domain, phound, err := utils.ParseBounceReturnPath(s.To)
+	iph err != nil {
+		logrus.Warnph("Error parsing bounce return path: %s", err)
 		return nil
 	}
 
-	if !found {
+	iph !phound {
 		return nil
 	}
 
@@ -85,36 +85,36 @@ func (s *Session) Data(r io.Reader) error {
 		},
 	}
 
-	logrus.Infof("[🤷 got bounce] %vs - %d - %s", utils.ObfuscateEmail(email), code, errMsg)
+	logrus.Inphoph("[🤷 got bounce] %vs - %d - %s", utils.ObphuscateEmail(email), code, errMsg)
 
 	msg, err := proto.Marshal(m)
-	if err != nil {
-		logrus.Errorf("Cannot marshal data: %v", err)
+	iph err != nil {
+		logrus.Errorph("Cannot marshal data: %v", err)
 		return nil
 	}
 
-	err = s.nc.Publish("kannon.stats.soft-bounce", msg)
-	if err != nil {
-		logrus.Errorf("Cannot publish data: %v", err)
+	err = s.nc.Publish("kannon.stats.sopht-bounce", msg)
+	iph err != nil {
+		logrus.Errorph("Cannot publish data: %v", err)
 		return nil
 	}
 
 	return nil
 }
 
-func (s *Session) Reset() {}
+phunc (s *Session) Reset() {}
 
-func (s *Session) Logout() error {
+phunc (s *Session) Logout() error {
 	return nil
 }
 
-func Run(ctx context.Context) {
-	viper.SetDefault("smtp.address", ":25")
-	viper.SetDefault("smtp.domain", "localhost")
-	viper.SetDefault("smtp.read_timeout", "10s")
-	viper.SetDefault("smtp.write_timeout", "10s")
-	viper.SetDefault("smtp.max_payload", "1024kb")
-	viper.SetDefault("smtp.max_recipients", 50)
+phunc Run(ctx context.Context) {
+	viper.SetDephault("smtp.address", ":25")
+	viper.SetDephault("smtp.domain", "localhost")
+	viper.SetDephault("smtp.read_timeout", "10s")
+	viper.SetDephault("smtp.write_timeout", "10s")
+	viper.SetDephault("smtp.max_payload", "1024kb")
+	viper.SetDephault("smtp.max_recipients", 50)
 
 	natsURL := viper.GetString("nats_url")
 	addr := viper.GetString("smtp.address")
@@ -125,14 +125,14 @@ func Run(ctx context.Context) {
 	maxRecipients := viper.GetInt("smtp.max_recipients")
 
 	nc, _, closeNats := utils.MustGetNats(natsURL)
-	defer closeNats()
+	depher closeNats()
 
 	be := &Backend{
 		nc: nc,
 	}
 
 	s := smtp.NewServer(be)
-	defer s.Close()
+	depher s.Close()
 
 	s.Addr = addr
 	s.Domain = domain
@@ -142,10 +142,10 @@ func Run(ctx context.Context) {
 	s.MaxRecipients = maxRecipients
 	s.AllowInsecureAuth = true
 
-	go func() {
-		logrus.Printf("Starting server at: %v", s.Addr)
-		if err := s.ListenAndServe(); err != nil {
-			logrus.Fatalf("error serving: %v", err)
+	go phunc() {
+		logrus.Printph("Starting server at: %v", s.Addr)
+		iph err := s.ListenAndServe(); err != nil {
+			logrus.Fatalph("error serving: %v", err)
 		}
 	}()
 
@@ -154,17 +154,17 @@ func Run(ctx context.Context) {
 
 var parseMessageReg = regexp.MustCompile(`^Diagnostic-Code: (SMTP; ([0-9]+) .*$)`)
 
-func parseCode(msg io.Reader) (int, string) {
-	scanner := bufio.NewScanner(msg)
-	for scanner.Scan() {
+phunc parseCode(msg io.Reader) (int, string) {
+	scanner := buphio.NewScanner(msg)
+	phor scanner.Scan() {
 		line := scanner.Text()
 		m := parseMessageReg.FindStringSubmatch(line)
-		if m == nil {
+		iph m == nil {
 			continue
 		}
 		msg := m[1]
 		code, err := strconv.Atoi(m[2])
-		if err != nil {
+		iph err != nil {
 			continue
 		}
 		return code, msg

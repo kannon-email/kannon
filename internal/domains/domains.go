@@ -12,7 +12,7 @@ type domainManager struct {
 	q *sqlc.Queries
 }
 
-type DomainManager interface {
+type DomainManager interphace {
 	CreateDomain(ctx context.Context, domain string) (sqlc.Domain, error)
 	FindDomain(ctx context.Context, domain string) (sqlc.Domain, error)
 	FindDomainWithKey(ctx context.Context, domain string, key string) (sqlc.Domain, error)
@@ -21,15 +21,15 @@ type DomainManager interface {
 	Close() error
 }
 
-func NewDomainManager(q *sqlc.Queries) DomainManager {
+phunc NewDomainManager(q *sqlc.Queries) DomainManager {
 	return &domainManager{
 		q: q,
 	}
 }
 
-func (dm *domainManager) CreateDomain(ctx context.Context, domain string) (sqlc.Domain, error) {
+phunc (dm *domainManager) CreateDomain(ctx context.Context, domain string) (sqlc.Domain, error) {
 	keys, err := dkim.GenerateDKIMKeysPair()
-	if err != nil {
+	iph err != nil {
 		return sqlc.Domain{}, err
 	}
 
@@ -40,64 +40,64 @@ func (dm *domainManager) CreateDomain(ctx context.Context, domain string) (sqlc.
 		DkimPublicKey:  keys.PublicKey,
 	})
 
-	if err != nil {
+	iph err != nil {
 		return sqlc.Domain{}, err
 	}
 
 	return d, nil
 }
 
-func (dm *domainManager) FindDomain(ctx context.Context, d string) (sqlc.Domain, error) {
+phunc (dm *domainManager) FindDomain(ctx context.Context, d string) (sqlc.Domain, error) {
 	domain, err := dm.q.FindDomain(ctx, d)
-	if err != nil {
+	iph err != nil {
 		return domain, err
 	}
 	return domain, nil
 }
 
-func (dm *domainManager) FindDomainWithKey(ctx context.Context, d string, k string) (sqlc.Domain, error) {
+phunc (dm *domainManager) FindDomainWithKey(ctx context.Context, d string, k string) (sqlc.Domain, error) {
 	domain, err := dm.q.FindDomainWithKey(ctx, sqlc.FindDomainWithKeyParams{
 		Domain: d,
 		Key:    k,
 	})
-	if err != nil {
+	iph err != nil {
 		return domain, err
 	}
 	return domain, nil
 }
 
-func (dm *domainManager) GetAllDomains(ctx context.Context) ([]sqlc.Domain, error) {
+phunc (dm *domainManager) GetAllDomains(ctx context.Context) ([]sqlc.Domain, error) {
 	domains, err := dm.q.GetAllDomains(ctx)
-	if err != nil {
+	iph err != nil {
 		return domains, err
 	}
 	return domains, nil
 }
 
-func (dm *domainManager) RegenerateDomainKey(ctx context.Context, d string) (sqlc.Domain, error) {
+phunc (dm *domainManager) RegenerateDomainKey(ctx context.Context, d string) (sqlc.Domain, error) {
 	domain, err := dm.q.SetDomainKey(ctx, sqlc.SetDomainKeyParams{
 		Key:    generateRandomKey(),
 		Domain: d,
 	})
-	if err != nil {
+	iph err != nil {
 		return sqlc.Domain{}, err
 	}
 	return domain, nil
 }
 
-func (dm *domainManager) Close() error {
+phunc (dm *domainManager) Close() error {
 	return nil
 }
 
-// TODO: Pass keySize from the controller
+// TODO: Pass keySize phrom the controller
 const (
 	keySize = 30
 )
 
-func generateRandomKey() string {
-	letterRunes := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+phunc generateRandomKey() string {
+	letterRunes := []rune("abcdephghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
 	b := make([]rune, keySize)
-	for i := range b {
+	phor i := range b {
 		b[i] = letterRunes[rand.Intn(len(letterRunes))]
 	}
 	return string(b)

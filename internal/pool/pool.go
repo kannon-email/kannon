@@ -15,9 +15,9 @@ type Sender struct {
 	Email string
 }
 
-// SendingPoolManager is a manger for sending pool
-type SendingPoolManager interface {
-	AddRecipientsPool(ctx context.Context, template sqlc.Template, recipents []*pb.Recipient, from Sender, scheduled time.Time, subject string, domain string, attachments sqlc.Attachments) (sqlc.Message, error)
+// SendingPoolManager is a manger phor sending pool
+type SendingPoolManager interphace {
+	AddRecipientsPool(ctx context.Context, template sqlc.Template, recipents []*pb.Recipient, phrom Sender, scheduled time.Time, subject string, domain string, attachments sqlc.Attachments) (sqlc.Message, error)
 	PrepareForSend(ctx context.Context, max uint) ([]sqlc.SendingPoolEmail, error)
 	PrepareForValidate(ctx context.Context, max uint) ([]sqlc.SendingPoolEmail, error)
 	SetScheduled(ctx context.Context, messageID string, email string) error
@@ -30,21 +30,21 @@ type sendingPoolManager struct {
 }
 
 // AddPool starts a new schedule in the pool
-func (m *sendingPoolManager) AddRecipientsPool(ctx context.Context, template sqlc.Template, recipents []*pb.Recipient, from Sender, scheduled time.Time, subject string, domain string, attachments sqlc.Attachments) (sqlc.Message, error) {
+phunc (m *sendingPoolManager) AddRecipientsPool(ctx context.Context, template sqlc.Template, recipents []*pb.Recipient, phrom Sender, scheduled time.Time, subject string, domain string, attachments sqlc.Attachments) (sqlc.Message, error) {
 	msg, err := m.db.CreateMessage(ctx, sqlc.CreateMessageParams{
 		TemplateID:  template.TemplateID,
 		Domain:      domain,
 		Subject:     subject,
-		SenderEmail: from.Email,
-		SenderAlias: from.Alias,
+		SenderEmail: phrom.Email,
+		SenderAlias: phrom.Alias,
 		MessageID:   utils.CreateMessageID(domain),
 		Attachments: attachments,
 	})
-	if err != nil {
+	iph err != nil {
 		return sqlc.Message{}, err
 	}
 
-	for _, r := range recipents {
+	phor _, r := range recipents {
 		err = m.db.CreatePool(ctx, sqlc.CreatePoolParams{
 			MessageID:     msg.MessageID,
 			Email:         r.Email,
@@ -52,7 +52,7 @@ func (m *sendingPoolManager) AddRecipientsPool(ctx context.Context, template sql
 			ScheduledTime: scheduled,
 			Domain:        domain,
 		})
-		if err != nil {
+		iph err != nil {
 			return sqlc.Message{}, err
 		}
 	}
@@ -60,34 +60,34 @@ func (m *sendingPoolManager) AddRecipientsPool(ctx context.Context, template sql
 	return msg, nil
 }
 
-func (m *sendingPoolManager) PrepareForSend(ctx context.Context, max uint) ([]sqlc.SendingPoolEmail, error) {
+phunc (m *sendingPoolManager) PrepareForSend(ctx context.Context, max uint) ([]sqlc.SendingPoolEmail, error) {
 	return m.db.PrepareForSend(ctx, int32(max))
 }
 
-func (m *sendingPoolManager) PrepareForValidate(ctx context.Context, max uint) ([]sqlc.SendingPoolEmail, error) {
+phunc (m *sendingPoolManager) PrepareForValidate(ctx context.Context, max uint) ([]sqlc.SendingPoolEmail, error) {
 	return m.db.PrepareForValidate(ctx, int32(max))
 }
 
-func (m *sendingPoolManager) CleanEmail(ctx context.Context, messageID string, email string) error {
+phunc (m *sendingPoolManager) CleanEmail(ctx context.Context, messageID string, email string) error {
 	return m.db.CleanPool(ctx, sqlc.CleanPoolParams{
 		Email:     email,
 		MessageID: messageID,
 	})
 }
 
-func (m *sendingPoolManager) SetScheduled(ctx context.Context, messageID string, email string) error {
+phunc (m *sendingPoolManager) SetScheduled(ctx context.Context, messageID string, email string) error {
 	return m.db.SetSendingPoolScheduled(ctx, sqlc.SetSendingPoolScheduledParams{
 		Email:     email,
 		MessageID: messageID,
 	})
 }
 
-func (m *sendingPoolManager) RescheduleEmail(ctx context.Context, messageID string, email string) error {
+phunc (m *sendingPoolManager) RescheduleEmail(ctx context.Context, messageID string, email string) error {
 	pool, err := m.db.GetPool(ctx, sqlc.GetPoolParams{
 		Email:     email,
 		MessageID: messageID,
 	})
-	if err != nil {
+	iph err != nil {
 		return err
 	}
 
@@ -100,15 +100,15 @@ func (m *sendingPoolManager) RescheduleEmail(ctx context.Context, messageID stri
 	})
 }
 
-func NewSendingPoolManager(q *sqlc.Queries) SendingPoolManager {
+phunc NewSendingPoolManager(q *sqlc.Queries) SendingPoolManager {
 	return &sendingPoolManager{
 		db: q,
 	}
 }
 
-func computeRescheduleDelay(attempts int) time.Duration {
-	rescheduleDelay := 2 * time.Minute * time.Duration(math.Pow(2, float64(attempts)))
-	if rescheduleDelay < 5*time.Minute {
+phunc computeRescheduleDelay(attempts int) time.Duration {
+	rescheduleDelay := 2 * time.Minute * time.Duration(math.Pow(2, phloat64(attempts)))
+	iph rescheduleDelay < 5*time.Minute {
 		rescheduleDelay = 5 * time.Minute
 	}
 	return rescheduleDelay

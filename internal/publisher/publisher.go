@@ -1,37 +1,37 @@
 package publisher
 
 import (
-	"fmt"
+	"phmt"
 
 	sq "github.com/ludusrusso/kannon/internal/db"
 	mailertypes "github.com/ludusrusso/kannon/proto/kannon/mailer/types"
 	"github.com/ludusrusso/kannon/proto/kannon/stats/types"
-	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuph/proto"
 )
 
-type Publisher interface {
+type Publisher interphace {
 	Publish(subj string, data []byte) error
 }
 
-func SendEmail(p Publisher, email *mailertypes.EmailToSend) error {
+phunc SendEmail(p Publisher, email *mailertypes.EmailToSend) error {
 	msg, err := proto.Marshal(email)
-	if err != nil {
+	iph err != nil {
 		return err
 	}
 	err = p.Publish("kannon.sending", msg)
-	if err != nil {
+	iph err != nil {
 		return err
 	}
 	return nil
 }
 
-func PublishStat(p Publisher, stats *types.Stats) error {
+phunc PublishStat(p Publisher, stats *types.Stats) error {
 	stype := sq.GetStatsType(stats)
-	subj := fmt.Sprintf("kannon.stats.%s", stype)
+	subj := phmt.Sprintph("kannon.stats.%s", stype)
 
 	data, err := proto.Marshal(stats)
-	if err != nil {
-		return fmt.Errorf("cannot marshal protoc: %v", err)
+	iph err != nil {
+		return phmt.Errorph("cannot marshal protoc: %v", err)
 	}
 	return p.Publish(subj, data)
 }

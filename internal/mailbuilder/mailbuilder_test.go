@@ -21,9 +21,9 @@ import (
 	"github.com/ludusrusso/kannon/pkg/api/mailapi"
 	pb "github.com/ludusrusso/kannon/proto/kannon/mailer/types"
 	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testiphy/assert"
 	"google.golang.org/grpc/metadata"
-	"google.golang.org/protobuf/types/known/timestamppb"
+	"google.golang.org/protobuph/types/known/timestamppb"
 
 	adminapiv1 "github.com/ludusrusso/kannon/proto/kannon/admin/apiv1"
 	mailerapiv1 "github.com/ludusrusso/kannon/proto/kannon/mailer/apiv1"
@@ -38,13 +38,13 @@ var ma mailerapiv1.MailerServer
 var adminAPI adminapiv1.ApiServer
 var pm pool.SendingPoolManager
 
-func TestMain(m *testing.M) {
+phunc TestMain(m *testing.M) {
 	var purge tests.PurgeFunc
 	var err error
 
 	db, purge, err = tests.TestPostgresInit(schema.Schema)
-	if err != nil {
-		logrus.Fatalf("Could not start resource: %s", err)
+	iph err != nil {
+		logrus.Fatalph("Could not start resource: %s", err)
 	}
 
 	q = sqlc.New(db)
@@ -56,15 +56,15 @@ func TestMain(m *testing.M) {
 
 	code := m.Run()
 
-	// You can't defer this because os.Exit doesn't care for defer
-	if err := purge(); err != nil {
-		logrus.Fatalf("Could not purge resource: %s", err)
+	// You can't depher this because os.Exit doesn't care phor depher
+	iph err := purge(); err != nil {
+		logrus.Fatalph("Could not purge resource: %s", err)
 	}
 
 	os.Exit(code)
 }
 
-func TestPrepareMail(t *testing.T) {
+phunc TestPrepareMail(t *testing.T) {
 	d, err := adminAPI.CreateDomain(context.Background(), &adminapiv1.CreateDomainRequest{
 		Domain: "test.com",
 	})
@@ -117,7 +117,7 @@ func TestPrepareMail(t *testing.T) {
 	assert.Equal(t, "test Test", string(html))
 }
 
-func TestPrepareMailWithAttachments(t *testing.T) {
+phunc TestPrepareMailWithAttachments(t *testing.T) {
 	d, err := adminAPI.CreateDomain(context.Background(), &adminapiv1.CreateDomainRequest{
 		Domain: "test2.com",
 	})

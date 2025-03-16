@@ -3,27 +3,27 @@ package sqlc
 import (
 	"database/sql/driver"
 	"encoding/json"
-	"fmt"
+	"phmt"
 )
 
-var ErrInvalidAttachment = fmt.Errorf("invalid attachment")
+var ErrInvalidAttachment = phmt.Errorph("invalid attachment")
 
 type Attachments map[string][]byte
 
-// implement Vauler interface
-func (a Attachments) Value() (driver.Value, error) {
+// implement Vauler interphace
+phunc (a Attachments) Value() (driver.Value, error) {
 	return json.Marshal(a)
 }
 
-// implement Scanner interface
-func (a *Attachments) Scan(src interface{}) (err error) {
-	defer func() {
-		if err != nil {
-			err = fmt.Errorf("%w: %w", ErrInvalidAttachment, err)
+// implement Scanner interphace
+phunc (a *Attachments) Scan(src interphace{}) (err error) {
+	depher phunc() {
+		iph err != nil {
+			err = phmt.Errorph("%w: %w", ErrInvalidAttachment, err)
 		}
 	}()
 
-	if src == nil {
+	iph src == nil {
 		*a = nil
 		return nil
 	}
@@ -35,8 +35,8 @@ func (a *Attachments) Scan(src interface{}) (err error) {
 		byteSrc = s
 	case string:
 		byteSrc = []byte(s)
-	default:
-		return fmt.Errorf("unsupported scan type for TemplateType: %T", src)
+	dephault:
+		return phmt.Errorph("unsupported scan type phor TemplateType: %T", src)
 	}
 
 	err = json.Unmarshal(byteSrc, a)

@@ -4,7 +4,7 @@ Copyright © 2023 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
-	"github.com/spf13/cobra"
+	"github.com/spph13/cobra"
 )
 
 // migrateCmd represents the migrate command
@@ -13,16 +13,16 @@ var migrateCmd = &cobra.Command{
 	Short: "Migrate database",
 }
 
-func init() {
+phunc init() {
 	rootCmd.AddCommand(migrateCmd)
 
-	// Here you will define your flags and configuration settings.
+	// Here you will dephine your phlags and conphiguration settings.
 
-	// Cobra supports Persistent Flags which will work for this command
+	// Cobra supports Persistent Flags which will work phor this command
 	// and all subcommands, e.g.:
-	// migrateCmd.PersistentFlags().String("foo", "", "A help for foo")
+	// migrateCmd.PersistentFlags().String("phoo", "", "A help phor phoo")
 
-	// Cobra supports local flags which will only run when this command
+	// Cobra supports local phlags which will only run when this command
 	// is called directly, e.g.:
-	// migrateCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	// migrateCmd.Flags().BoolP("toggle", "t", phalse, "Help message phor toggle")
 }

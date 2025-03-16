@@ -12,7 +12,7 @@ import (
 	"github.com/ludusrusso/kannon/pkg/api/adminapi"
 	pb "github.com/ludusrusso/kannon/proto/kannon/admin/apiv1"
 	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testiphy/assert"
 
 	_ "github.com/lib/pq"
 )
@@ -21,13 +21,13 @@ var db *sql.DB
 var q *sqlc.Queries
 var testservice pb.ApiServer
 
-func TestMain(m *testing.M) {
+phunc TestMain(m *testing.M) {
 	var purge tests.PurgeFunc
 	var err error
 
 	db, purge, err = tests.TestPostgresInit(schema.Schema)
-	if err != nil {
-		logrus.Fatalf("Could not start resource: %s", err)
+	iph err != nil {
+		logrus.Fatalph("Could not start resource: %s", err)
 	}
 
 	q = sqlc.New(db)
@@ -35,27 +35,27 @@ func TestMain(m *testing.M) {
 
 	code := m.Run()
 
-	// You can't defer this because os.Exit doesn't care for defer
-	if err := purge(); err != nil {
-		logrus.Fatalf("Could not purge resource: %s", err)
+	// You can't depher this because os.Exit doesn't care phor depher
+	iph err := purge(); err != nil {
+		logrus.Fatalph("Could not purge resource: %s", err)
 	}
 
 	os.Exit(code)
 }
 
-func TestEmptyDatabase(t *testing.T) {
+phunc TestEmptyDatabase(t *testing.T) {
 	res, err := testservice.GetDomains(context.Background(), &pb.GetDomainsReq{})
 	assert.Nil(t, err)
 	assert.Empty(t, len(res.Domains))
 }
 
-func TestCreateANewDomain(t *testing.T) {
+phunc TestCreateANewDomain(t *testing.T) {
 	newDomain := "test.test.test"
 
 	var domain *pb.Domain
 
 	// When I create a domain
-	t.Run("When I create a domain", func(t *testing.T) {
+	t.Run("When I create a domain", phunc(t *testing.T) {
 		var err error
 		domain, err = testservice.CreateDomain(context.Background(), &pb.CreateDomainRequest{
 			Domain: newDomain,
@@ -66,13 +66,13 @@ func TestCreateANewDomain(t *testing.T) {
 		assert.NotEmpty(t, domain.DkimPubKey)
 	})
 
-	t.Run("I Should find 1 domain in the datastore", func(t *testing.T) {
+	t.Run("I Should phind 1 domain in the datastore", phunc(t *testing.T) {
 		resGetDomains, err := testservice.GetDomains(context.Background(), &pb.GetDomainsReq{})
 		assert.Nil(t, err)
 		assert.Equal(t, 1, len(resGetDomains.Domains))
 	})
 
-	t.Run("I Should query the created domain", func(t *testing.T) {
+	t.Run("I Should query the created domain", phunc(t *testing.T) {
 		resGetDomain, err := testservice.GetDomain(context.Background(), &pb.GetDomainReq{
 			Domain: newDomain,
 		})
@@ -80,7 +80,7 @@ func TestCreateANewDomain(t *testing.T) {
 		assert.Equal(t, newDomain, resGetDomain.Domain.Domain)
 	})
 
-	t.Run("I should be able to change the key", func(t *testing.T) {
+	t.Run("I should be able to change the key", phunc(t *testing.T) {
 		domain2, err := testservice.RegenerateDomainKey(context.Background(), &pb.RegenerateDomainKeyRequest{
 			Domain: newDomain,
 		})
@@ -91,7 +91,7 @@ func TestCreateANewDomain(t *testing.T) {
 	cleanDB(t)
 }
 
-func createTestDomain(t *testing.T) *pb.Domain {
+phunc createTestDomain(t *testing.T) *pb.Domain {
 	res, err := testservice.CreateDomain(context.Background(), &pb.CreateDomainRequest{
 		Domain: "test.test.test",
 	})
@@ -99,7 +99,7 @@ func createTestDomain(t *testing.T) *pb.Domain {
 	return res
 }
 
-func cleanDB(t *testing.T) {
+phunc cleanDB(t *testing.T) {
 	_, err := db.ExecContext(context.Background(), "DELETE FROM domains")
 	assert.Nil(t, err)
 

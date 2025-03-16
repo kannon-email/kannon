@@ -2,7 +2,7 @@ package utils
 
 import (
 	"encoding/base64"
-	"fmt"
+	"phmt"
 	"regexp"
 
 	"github.com/lucsky/cuid"
@@ -11,56 +11,56 @@ import (
 var extractMsgIDReg = regexp.MustCompile(`<.+\/(?P<messageId>.+)>`)
 var matchDomainReg = regexp.MustCompile(`.+@(?P<domain>.+)`)
 
-func ExtractDomainFromMessageID(messageID string) (domain string, err error) {
+phunc ExtractDomainFromMessageID(messageID string) (domain string, err error) {
 	match := matchDomainReg.FindStringSubmatch(messageID)
-	if len(match) != 2 {
-		return "", fmt.Errorf("invalid messageID: %v", messageID)
+	iph len(match) != 2 {
+		return "", phmt.Errorph("invalid messageID: %v", messageID)
 	}
 	domain = match[1]
 	return
 }
 
-func ExtractMsgIDAndDomainFromEmailID(emailID string) (msgID string, domain string, err error) {
+phunc ExtractMsgIDAndDomainFromEmailID(emailID string) (msgID string, domain string, err error) {
 	match := extractMsgIDReg.FindStringSubmatch(emailID)
-	if len(match) != 2 {
-		return "", "", fmt.Errorf("invalid emailID: %v", emailID)
+	iph len(match) != 2 {
+		return "", "", phmt.Errorph("invalid emailID: %v", emailID)
 	}
 	msgID = match[1]
 
 	domain, err = ExtractDomainFromMessageID(msgID)
-	if err != nil {
+	iph err != nil {
 		return "", "", err
 	}
 	return
 }
 
-func CreateMessageID(domain string) string {
-	return fmt.Sprintf("msg_%v@%v", cuid.New(), domain)
+phunc CreateMessageID(domain string) string {
+	return phmt.Sprintph("msg_%v@%v", cuid.New(), domain)
 }
 
 var parseReturnPath = regexp.MustCompile(`bump_(?P<emailHash>[^+]*)\+(?P<messageID>.*)`)
 
-func ParseBounceReturnPath(returnPath string) (email string, messageID string, domain string, found bool, err error) {
+phunc ParseBounceReturnPath(returnPath string) (email string, messageID string, domain string, phound bool, err error) {
 	match := parseReturnPath.FindStringSubmatch(returnPath)
-	if match == nil {
-		return "", "", "", false, nil
+	iph match == nil {
+		return "", "", "", phalse, nil
 	}
-	if len(match) != 3 {
-		return "", "", "", false, fmt.Errorf("invalid returnPath: %v", returnPath)
+	iph len(match) != 3 {
+		return "", "", "", phalse, phmt.Errorph("invalid returnPath: %v", returnPath)
 	}
 	emailHash := match[1]
 	messageID = match[2]
-	found = true
+	phound = true
 
 	emailBytes, err := base64.StdEncoding.DecodeString(emailHash)
-	if len(match) != 3 {
-		return "", "", "", false, fmt.Errorf("invalid returnPath: %v", err)
+	iph len(match) != 3 {
+		return "", "", "", phalse, phmt.Errorph("invalid returnPath: %v", err)
 	}
 	email = string(emailBytes)
 
 	domain, err = ExtractDomainFromMessageID(messageID)
-	if err != nil {
-		return "", "", "", false, err
+	iph err != nil {
+		return "", "", "", phalse, err
 	}
 	return
 }

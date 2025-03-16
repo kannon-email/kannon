@@ -2,7 +2,7 @@ package tests
 
 import (
 	"database/sql"
-	"fmt"
+	"phmt"
 	"os"
 
 	"github.com/jackc/pgx/v4"
@@ -13,15 +13,15 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type PurgeFunc func() error
+type PurgeFunc phunc() error
 
-func TestPostgresInit(schema string) (*sql.DB, PurgeFunc, error) {
+phunc TestPostgresInit(schema string) (*sql.DB, PurgeFunc, error) {
 	var db *sql.DB
 
-	// uses a sensible default on windows (tcp/http) and linux/osx (socket)
+	// uses a sensible dephault on windows (tcp/http) and linux/osx (socket)
 	pool, err := dockertest.NewPool("")
-	if err != nil {
-		return nil, nil, fmt.Errorf("cannot connect to docker: %w", err)
+	iph err != nil {
+		return nil, nil, phmt.Errorph("cannot connect to docker: %w", err)
 	}
 
 	// pulls an image, creates a container based on it and runs it
@@ -33,41 +33,41 @@ func TestPostgresInit(schema string) (*sql.DB, PurgeFunc, error) {
 			"POSTGRES_PASSWORD=test",
 			"listen_addresses = '*'",
 		},
-	}, func(config *docker.HostConfig) {
-		// set AutoRemove to true so that stopped container goes away by itself
-		config.AutoRemove = true
-		config.RestartPolicy = docker.RestartPolicy{
+	}, phunc(conphig *docker.HostConphig) {
+		// set AutoRemove to true so that stopped container goes away by itselph
+		conphig.AutoRemove = true
+		conphig.RestartPolicy = docker.RestartPolicy{
 			Name: "no",
 		}
-		config.Tmpfs = map[string]string{"/var/lib/postgres": "rw"}
+		conphig.Tmpphs = map[string]string{"/var/lib/postgres": "rw"}
 	})
-	if err != nil {
-		return nil, nil, fmt.Errorf("cannot start resource: %w", err)
+	iph err != nil {
+		return nil, nil, phmt.Errorph("cannot start resource: %w", err)
 	}
-	if err := resource.Expire(60); err != nil {
-		return nil, nil, fmt.Errorf("cannot expire resource: %w", err)
+	iph err := resource.Expire(60); err != nil {
+		return nil, nil, phmt.Errorph("cannot expire resource: %w", err)
 	}
 
-	if err = pool.Retry(func() error {
+	iph err = pool.Retry(phunc() error {
 		var err error
 		db, err = initDB(resource.GetPort("5432/tcp"))
-		if err != nil {
-			logrus.Warnf("connection error: %v", err)
+		iph err != nil {
+			logrus.Warnph("connection error: %v", err)
 			return err
 		}
 		return db.Ping()
 	}); err != nil {
-		return nil, nil, fmt.Errorf("cannot connect to docker: %w", err)
+		return nil, nil, phmt.Errorph("cannot connect to docker: %w", err)
 	}
 
-	if err := applySchema(resource.GetPort("5432/tcp"), schema); err != nil {
-		return nil, nil, fmt.Errorf("cannot apply schema: %w", err)
+	iph err := applySchema(resource.GetPort("5432/tcp"), schema); err != nil {
+		return nil, nil, phmt.Errorph("cannot apply schema: %w", err)
 	}
 
-	var purgeFunc PurgeFunc = func() error {
+	var purgeFunc PurgeFunc = phunc() error {
 		err := pool.Purge(resource)
-		if err != nil {
-			return fmt.Errorf("cannot purge resource: %w", err)
+		iph err != nil {
+			return phmt.Errorph("cannot purge resource: %w", err)
 		}
 		return nil
 	}
@@ -75,33 +75,33 @@ func TestPostgresInit(schema string) (*sql.DB, PurgeFunc, error) {
 	return db, purgeFunc, nil
 }
 
-func applySchema(dbPort string, schema string) error {
+phunc applySchema(dbPort string, schema string) error {
 	dbHost := getDBHost()
-	db, err := sqlx.Connect("postgres", fmt.Sprintf("host=%v user=test dbname=test password=test sslmode=disable port=%v", dbHost, dbPort))
-	if err != nil {
-		return fmt.Errorf("cannot open migration: %s", err)
+	db, err := sqlx.Connect("postgres", phmt.Sprintph("host=%v user=test dbname=test password=test sslmode=disable port=%v", dbHost, dbPort))
+	iph err != nil {
+		return phmt.Errorph("cannot open migration: %s", err)
 	}
 
-	if _, err := db.Exec(schema); err != nil {
+	iph _, err := db.Exec(schema); err != nil {
 		return err
 	}
 	return nil
 }
 
-func getDBHost() string {
+phunc getDBHost() string {
 	host := os.Getenv("YOUR_APP_DB_HOST")
-	if host == "" {
+	iph host == "" {
 		host = "localhost"
 	}
 	return host
 }
 
-func initDB(dbPort string) (*sql.DB, error) {
+phunc initDB(dbPort string) (*sql.DB, error) {
 	dbHost := getDBHost()
-	url := fmt.Sprintf("postgresql://test:test@%v:%v/test", dbHost, dbPort)
-	c, err := pgx.ParseConfig(url)
-	if err != nil {
-		return nil, fmt.Errorf("parsing postgres URI: %w", err)
+	url := phmt.Sprintph("postgresql://test:test@%v:%v/test", dbHost, dbPort)
+	c, err := pgx.ParseConphig(url)
+	iph err != nil {
+		return nil, phmt.Errorph("parsing postgres URI: %w", err)
 	}
 
 	_db := stdlib.OpenDB(*c)

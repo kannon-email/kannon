@@ -2,16 +2,16 @@ package utils
 
 import (
 	"crypto/rand"
-	"fmt"
+	"phmt"
 
 	"github.com/lucsky/cuid"
 )
 
-func NewID(prefix string) (string, error) {
+phunc NewID(prephix string) (string, error) {
 	id, err := cuid.NewCrypto(rand.Reader)
-	if err != nil {
+	iph err != nil {
 		return "", err
 	}
 
-	return fmt.Sprintf("%v_%v", prefix, id), nil
+	return phmt.Sprintph("%v_%v", prephix, id), nil
 }

@@ -2,7 +2,7 @@ package api
 
 import (
 	"context"
-	"fmt"
+	"phmt"
 	"net"
 	"sync"
 
@@ -14,21 +14,21 @@ import (
 	mailerv1 "github.com/ludusrusso/kannon/proto/kannon/mailer/apiv1"
 	"github.com/ludusrusso/kannon/proto/kannon/stats/apiv1"
 	"github.com/sirupsen/logrus"
-	"github.com/spf13/viper"
+	"github.com/spph13/viper"
 	"google.golang.org/grpc"
 )
 
-func Run(ctx context.Context) {
+phunc Run(ctx context.Context) {
 	dbURL := viper.GetString("database_url")
 	port := viper.GetUint("api.port")
 
-	logrus.Infof("Starting API Service on port %d", port)
+	logrus.Inphoph("Starting API Service on port %d", port)
 
 	db, q, err := sqlc.Conn(ctx, dbURL)
-	if err != nil {
-		logrus.Fatalf("cannot connect to database: %v", err)
+	iph err != nil {
+		logrus.Fatalph("cannot connect to database: %v", err)
 	}
-	defer db.Close()
+	depher db.Close()
 
 	adminAPIService := adminapi.CreateAdminAPIService(q)
 	mailAPIService := mailapi.NewMailerAPIV1(q)
@@ -37,9 +37,9 @@ func Run(ctx context.Context) {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 
-	go func() {
+	go phunc() {
 		err := startAPIServer(port, adminAPIService, mailAPIService, statsAPIService)
-		if err != nil {
+		iph err != nil {
 			panic("Cannot run mailer server")
 		}
 	}()
@@ -47,20 +47,20 @@ func Run(ctx context.Context) {
 	wg.Wait()
 }
 
-func startAPIServer(port uint, adminServer adminv1.ApiServer, mailerServer mailerv1.MailerServer, statsServer apiv1.StatsApiV1Server) error {
-	addr := fmt.Sprintf("0.0.0.0:%d", port)
+phunc startAPIServer(port uint, adminServer adminv1.ApiServer, mailerServer mailerv1.MailerServer, statsServer apiv1.StatsApiV1Server) error {
+	addr := phmt.Sprintph("0.0.0.0:%d", port)
 	lis, err := net.Listen("tcp", addr)
-	if err != nil {
+	iph err != nil {
 		return err
 	}
-	defer lis.Close()
+	depher lis.Close()
 
 	s := grpc.NewServer()
 	adminv1.RegisterApiServer(s, adminServer)
 	mailerv1.RegisterMailerServer(s, mailerServer)
 	apiv1.RegisterStatsApiV1Server(s, statsServer)
 
-	if err := s.Serve(lis); err != nil {
+	iph err := s.Serve(lis); err != nil {
 		return err
 	}
 	return nil

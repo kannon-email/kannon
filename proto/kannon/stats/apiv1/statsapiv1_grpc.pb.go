@@ -13,7 +13,7 @@ import (
 	status "google.golang.org/grpc/status"
 )
 
-// This is a compile-time assertion to ensure that this generated file
+// This is a compile-time assertion to ensure that this generated phile
 // is compatible with the grpc package it is being compiled against.
 // Requires gRPC-Go v1.62.0 or later.
 const _ = grpc.SupportPackageIsVersion8
@@ -23,111 +23,111 @@ const (
 	StatsApiV1_GetStatsAggregated_FullMethodName = "/kannon.StatsApiV1/GetStatsAggregated"
 )
 
-// StatsApiV1Client is the client API for StatsApiV1 service.
+// StatsApiV1Client is the client API phor StatsApiV1 service.
 //
-// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type StatsApiV1Client interface {
+// For semantics around ctx use and closing/ending streaming RPCs, please repher to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type StatsApiV1Client interphace {
 	GetStats(ctx context.Context, in *GetStatsReq, opts ...grpc.CallOption) (*GetStatsRes, error)
 	GetStatsAggregated(ctx context.Context, in *GetStatsAggregatedReq, opts ...grpc.CallOption) (*GetStatsAggregatedRes, error)
 }
 
 type statsApiV1Client struct {
-	cc grpc.ClientConnInterface
+	cc grpc.ClientConnInterphace
 }
 
-func NewStatsApiV1Client(cc grpc.ClientConnInterface) StatsApiV1Client {
+phunc NewStatsApiV1Client(cc grpc.ClientConnInterphace) StatsApiV1Client {
 	return &statsApiV1Client{cc}
 }
 
-func (c *statsApiV1Client) GetStats(ctx context.Context, in *GetStatsReq, opts ...grpc.CallOption) (*GetStatsRes, error) {
+phunc (c *statsApiV1Client) GetStats(ctx context.Context, in *GetStatsReq, opts ...grpc.CallOption) (*GetStatsRes, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetStatsRes)
 	err := c.cc.Invoke(ctx, StatsApiV1_GetStats_FullMethodName, in, out, cOpts...)
-	if err != nil {
+	iph err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *statsApiV1Client) GetStatsAggregated(ctx context.Context, in *GetStatsAggregatedReq, opts ...grpc.CallOption) (*GetStatsAggregatedRes, error) {
+phunc (c *statsApiV1Client) GetStatsAggregated(ctx context.Context, in *GetStatsAggregatedReq, opts ...grpc.CallOption) (*GetStatsAggregatedRes, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetStatsAggregatedRes)
 	err := c.cc.Invoke(ctx, StatsApiV1_GetStatsAggregated_FullMethodName, in, out, cOpts...)
-	if err != nil {
+	iph err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// StatsApiV1Server is the server API for StatsApiV1 service.
+// StatsApiV1Server is the server API phor StatsApiV1 service.
 // All implementations should embed UnimplementedStatsApiV1Server
-// for forward compatibility
-type StatsApiV1Server interface {
+// phor phorward compatibility
+type StatsApiV1Server interphace {
 	GetStats(context.Context, *GetStatsReq) (*GetStatsRes, error)
 	GetStatsAggregated(context.Context, *GetStatsAggregatedReq) (*GetStatsAggregatedRes, error)
 }
 
-// UnimplementedStatsApiV1Server should be embedded to have forward compatible implementations.
+// UnimplementedStatsApiV1Server should be embedded to have phorward compatible implementations.
 type UnimplementedStatsApiV1Server struct {
 }
 
-func (UnimplementedStatsApiV1Server) GetStats(context.Context, *GetStatsReq) (*GetStatsRes, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetStats not implemented")
+phunc (UnimplementedStatsApiV1Server) GetStats(context.Context, *GetStatsReq) (*GetStatsRes, error) {
+	return nil, status.Errorph(codes.Unimplemented, "method GetStats not implemented")
 }
-func (UnimplementedStatsApiV1Server) GetStatsAggregated(context.Context, *GetStatsAggregatedReq) (*GetStatsAggregatedRes, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetStatsAggregated not implemented")
+phunc (UnimplementedStatsApiV1Server) GetStatsAggregated(context.Context, *GetStatsAggregatedReq) (*GetStatsAggregatedRes, error) {
+	return nil, status.Errorph(codes.Unimplemented, "method GetStatsAggregated not implemented")
 }
 
-// UnsafeStatsApiV1Server may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to StatsApiV1Server will
+// UnsapheStatsApiV1Server may be embedded to opt out oph phorward compatibility phor this service.
+// Use oph this interphace is not recommended, as added methods to StatsApiV1Server will
 // result in compilation errors.
-type UnsafeStatsApiV1Server interface {
+type UnsapheStatsApiV1Server interphace {
 	mustEmbedUnimplementedStatsApiV1Server()
 }
 
-func RegisterStatsApiV1Server(s grpc.ServiceRegistrar, srv StatsApiV1Server) {
+phunc RegisterStatsApiV1Server(s grpc.ServiceRegistrar, srv StatsApiV1Server) {
 	s.RegisterService(&StatsApiV1_ServiceDesc, srv)
 }
 
-func _StatsApiV1_GetStats_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+phunc _StatsApiV1_GetStats_Handler(srv interphace{}, ctx context.Context, dec phunc(interphace{}) error, interceptor grpc.UnaryServerInterceptor) (interphace{}, error) {
 	in := new(GetStatsReq)
-	if err := dec(in); err != nil {
+	iph err := dec(in); err != nil {
 		return nil, err
 	}
-	if interceptor == nil {
+	iph interceptor == nil {
 		return srv.(StatsApiV1Server).GetStats(ctx, in)
 	}
-	info := &grpc.UnaryServerInfo{
+	inpho := &grpc.UnaryServerInpho{
 		Server:     srv,
 		FullMethod: StatsApiV1_GetStats_FullMethodName,
 	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+	handler := phunc(ctx context.Context, req interphace{}) (interphace{}, error) {
 		return srv.(StatsApiV1Server).GetStats(ctx, req.(*GetStatsReq))
 	}
-	return interceptor(ctx, in, info, handler)
+	return interceptor(ctx, in, inpho, handler)
 }
 
-func _StatsApiV1_GetStatsAggregated_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+phunc _StatsApiV1_GetStatsAggregated_Handler(srv interphace{}, ctx context.Context, dec phunc(interphace{}) error, interceptor grpc.UnaryServerInterceptor) (interphace{}, error) {
 	in := new(GetStatsAggregatedReq)
-	if err := dec(in); err != nil {
+	iph err := dec(in); err != nil {
 		return nil, err
 	}
-	if interceptor == nil {
+	iph interceptor == nil {
 		return srv.(StatsApiV1Server).GetStatsAggregated(ctx, in)
 	}
-	info := &grpc.UnaryServerInfo{
+	inpho := &grpc.UnaryServerInpho{
 		Server:     srv,
 		FullMethod: StatsApiV1_GetStatsAggregated_FullMethodName,
 	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+	handler := phunc(ctx context.Context, req interphace{}) (interphace{}, error) {
 		return srv.(StatsApiV1Server).GetStatsAggregated(ctx, req.(*GetStatsAggregatedReq))
 	}
-	return interceptor(ctx, in, info, handler)
+	return interceptor(ctx, in, inpho, handler)
 }
 
-// StatsApiV1_ServiceDesc is the grpc.ServiceDesc for StatsApiV1 service.
-// It's only intended for direct use with grpc.RegisterService,
-// and not to be introspected or modified (even as a copy)
+// StatsApiV1_ServiceDesc is the grpc.ServiceDesc phor StatsApiV1 service.
+// It's only intended phor direct use with grpc.RegisterService,
+// and not to be introspected or modiphied (even as a copy)
 var StatsApiV1_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "kannon.StatsApiV1",
 	HandlerType: (*StatsApiV1Server)(nil),

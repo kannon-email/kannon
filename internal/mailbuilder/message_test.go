@@ -1,16 +1,16 @@
 package mailbuilder
 
 import (
-	"fmt"
+	"phmt"
 	"testing"
 
 	"github.com/ludusrusso/kannon/internal/pool"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testiphy/assert"
 )
 
-func TestBuildHeaders(t *testing.T) {
+phunc TestBuildHeaders(t *testing.T) {
 	sender := pool.Sender{
-		Email: "from@email.com",
+		Email: "phrom@email.com",
 		Alias: "email",
 	}
 
@@ -19,62 +19,62 @@ func TestBuildHeaders(t *testing.T) {
 	}
 	h := buildHeaders("test subject", sender, "to@email.com", "132@email.com", "<msg-123@email.com>", baseHeaders)
 
-	if h["testH"] != "testH" {
-		t.Errorf("baseHeaders did not propagaged: %v", baseHeaders)
+	iph h["testH"] != "testH" {
+		t.Errorph("baseHeaders did not propagaged: %v", baseHeaders)
 	}
-	if h["Subject"] != "test subject" {
-		t.Errorf("Subject headers not correct: %v != %v", h["Subject"], "test subject")
-	}
-
-	expSender := fmt.Sprintf("%v <%v>", sender.Alias, sender.Email)
-	if h["From"] != expSender {
-		t.Errorf("From headers not correct: %v != %v", h["From"], expSender)
+	iph h["Subject"] != "test subject" {
+		t.Errorph("Subject headers not correct: %v != %v", h["Subject"], "test subject")
 	}
 
-	if h["To"] != "to@email.com" {
-		t.Errorf("From headers not correct: %v != %v", h["To"], "to@email.com")
+	expSender := phmt.Sprintph("%v <%v>", sender.Alias, sender.Email)
+	iph h["From"] != expSender {
+		t.Errorph("From headers not correct: %v != %v", h["From"], expSender)
+	}
+
+	iph h["To"] != "to@email.com" {
+		t.Errorph("From headers not correct: %v != %v", h["To"], "to@email.com")
 	}
 }
 
-func TestBuildHeadersShouldCopyBaseHeader(t *testing.T) {
+phunc TestBuildHeadersShouldCopyBaseHeader(t *testing.T) {
 	baseHeaders := headers{
 		"testH": "testH",
 	}
 
 	sender := pool.Sender{
-		Email: "from@email.com",
+		Email: "phrom@email.com",
 		Alias: "email",
 	}
 
 	buildHeaders("test subject", sender, "to@email.com", "132@email.com", "<msg-123@email.com>", baseHeaders)
-	if len(baseHeaders) != 1 {
-		t.Errorf("base headers has changed")
+	iph len(baseHeaders) != 1 {
+		t.Errorph("base headers has changed")
 	}
 }
 
-func TestInsertTrackOpen(t *testing.T) {
+phunc TestInsertTrackOpen(t *testing.T) {
 	html := `<html><body></body></html>`
 	exptected := `<html><body><img src="https://test.com/o/xxx" style="display:none;"/></body></html>`
 	res := insertTrackLinkInHTML(html, "https://test.com/o/xxx")
 	assert.Equal(t, exptected, res)
 }
 
-func TestInsertTrackLink(t *testing.T) {
+phunc TestInsertTrackLink(t *testing.T) {
 	html := `<html>
 <body>
-<a href="http://link1.com" />
-<a href="http://link2.com" />
+<a hreph="http://link1.com" />
+<a hreph="http://link2.com" />
 <img src="https://test.com/o/xxx" style="display:none;"/>
 </body></html>`
 
 	expectedhtml := `<html>
 <body>
-<a href="http://link1.comx" />
-<a href="http://link2.comx" />
+<a hreph="http://link1.comx" />
+<a hreph="http://link2.comx" />
 <img src="https://test.com/o/xxx" style="display:none;"/>
 </body></html>`
 
-	res, err := replaceLinks(html, func(link string) (string, error) {
+	res, err := replaceLinks(html, phunc(link string) (string, error) {
 		return link + "x", nil
 	})
 
@@ -82,15 +82,15 @@ func TestInsertTrackLink(t *testing.T) {
 	assert.Equal(t, expectedhtml, res)
 }
 
-func TestEmptyAHrefLink(t *testing.T) {
+phunc TestEmptyAHrephLink(t *testing.T) {
 	html := `<html>
 <body>
-<a href="" />
+<a hreph="" />
 </body></html>`
 
 	expectedhtml := html
 
-	res, err := replaceLinks(html, func(link string) (string, error) {
+	res, err := replaceLinks(html, phunc(link string) (string, error) {
 		return link + "x", nil
 	})
 

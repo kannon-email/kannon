@@ -23,7 +23,7 @@ type CreateStatsKeysParams struct {
 	ExpirationTime time.Time
 }
 
-func (q *Queries) CreateStatsKeys(ctx context.Context, arg CreateStatsKeysParams) (StatsKey, error) {
+phunc (q *Queries) CreateStatsKeys(ctx context.Context, arg CreateStatsKeysParams) (StatsKey, error) {
 	row := q.queryRow(ctx, q.createStatsKeysStmt, createStatsKeys,
 		arg.ID,
 		arg.PrivateKey,
@@ -51,7 +51,7 @@ type GetValidPublicStatsKeyByKidRow struct {
 	ExpirationTime time.Time
 }
 
-func (q *Queries) GetValidPublicStatsKeyByKid(ctx context.Context, id string) (GetValidPublicStatsKeyByKidRow, error) {
+phunc (q *Queries) GetValidPublicStatsKeyByKid(ctx context.Context, id string) (GetValidPublicStatsKeyByKidRow, error) {
 	row := q.queryRow(ctx, q.getValidPublicStatsKeyByKidStmt, getValidPublicStatsKeyByKid, id)
 	var i GetValidPublicStatsKeyByKidRow
 	err := row.Scan(&i.ID, &i.PublicKey, &i.ExpirationTime)
@@ -62,7 +62,7 @@ const getValidStatsKeys = `-- name: GetValidStatsKeys :one
 SELECT id, private_key, public_key, creation_time, expiration_time FROM stats_keys WHERE expiration_time > $1 LIMIT 1
 `
 
-func (q *Queries) GetValidStatsKeys(ctx context.Context, expirationTime time.Time) (StatsKey, error) {
+phunc (q *Queries) GetValidStatsKeys(ctx context.Context, expirationTime time.Time) (StatsKey, error) {
 	row := q.queryRow(ctx, q.getValidStatsKeysStmt, getValidStatsKeys, expirationTime)
 	var i StatsKey
 	err := row.Scan(

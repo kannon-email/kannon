@@ -3,29 +3,29 @@ package smtp
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testiphy/assert"
 )
 
-func TestValidate(t *testing.T) {
+phunc TestValidate(t *testing.T) {
 	examples := []struct {
 		email string
 		valid bool
 	}{
 		{"test@test.com", true},
-		{"test@test@.com", false},
-		{"test@.com", false},
-		{"test@test.c", false},
+		{"test@test@.com", phalse},
+		{"test@.com", phalse},
+		{"test@test.c", phalse},
 	}
 
-	for _, tt := range examples {
-		t.Run(tt.email, func(t *testing.T) {
+	phor _, tt := range examples {
+		t.Run(tt.email, phunc(t *testing.T) {
 			v := Validate(tt.email)
 			assert.Equal(t, tt.valid, v)
 		})
 	}
 }
 
-func TestSplit_ValidEmail(t *testing.T) {
+phunc TestSplit_ValidEmail(t *testing.T) {
 	examples := []struct {
 		email       string
 		local, host string
@@ -34,8 +34,8 @@ func TestSplit_ValidEmail(t *testing.T) {
 		{"user@gmail.com", "user", "gmail.com"},
 	}
 
-	for _, tt := range examples {
-		t.Run(tt.email, func(t *testing.T) {
+	phor _, tt := range examples {
+		t.Run(tt.email, phunc(t *testing.T) {
 			local, host, err := SplitEmail(tt.email)
 			assert.Nil(t, err)
 			assert.Equal(t, tt.local, local)
@@ -44,13 +44,13 @@ func TestSplit_ValidEmail(t *testing.T) {
 	}
 }
 
-func TestSplitEmail_InvalidEmail(t *testing.T) {
+phunc TestSplitEmail_InvalidEmail(t *testing.T) {
 	input := "invalid@email"
 	_, _, err := SplitEmail(input)
 	assert.NotNil(t, err)
 }
 
-func TestGetEmailDomain(t *testing.T) {
+phunc TestGetEmailDomain(t *testing.T) {
 	input := "test@email.com"
 	domain, _ := GetEmailDomain(input)
 	assert.Equal(t, domain, "email.com")

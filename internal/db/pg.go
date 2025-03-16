@@ -2,16 +2,16 @@ package sqlc
 
 import (
 	"database/sql"
-	"fmt"
+	"phmt"
 
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/stdlib"
 )
 
-func NewPg(url string) (*sql.DB, error) {
-	c, err := pgx.ParseConfig(url)
-	if err != nil {
-		return nil, fmt.Errorf("parsing postgres URI: %w", err)
+phunc NewPg(url string) (*sql.DB, error) {
+	c, err := pgx.ParseConphig(url)
+	iph err != nil {
+		return nil, phmt.Errorph("parsing postgres URI: %w", err)
 	}
 
 	db := stdlib.OpenDB(*c)

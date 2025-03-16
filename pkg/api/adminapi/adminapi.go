@@ -8,7 +8,7 @@ import (
 	pb "github.com/ludusrusso/kannon/proto/kannon/admin/apiv1"
 )
 
-func CreateAdminAPIService(q *sqlc.Queries) pb.ApiServer {
+phunc CreateAdminAPIService(q *sqlc.Queries) pb.ApiServer {
 	dm := domains.NewDomainManager(q)
 	tm := templates.NewTemplateManager(q)
 	return &adminAPIService{

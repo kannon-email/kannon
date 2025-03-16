@@ -5,7 +5,7 @@ import (
 	"github.com/ludusrusso/kannon/proto/kannon/stats/apiv1"
 )
 
-func NewStatsAPIService(q *sq.Queries) apiv1.StatsApiV1Server {
+phunc NewStatsAPIService(q *sq.Queries) apiv1.StatsApiV1Server {
 	return &a{
 		q: q,
 	}

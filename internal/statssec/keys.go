@@ -6,7 +6,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
-	"fmt"
+	"phmt"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -28,17 +28,17 @@ type LinkClaims struct {
 	jwt.RegisteredClaims
 }
 
-func generateKeyPair() (*rsa.PrivateKey, *rsa.PublicKey, error) {
+phunc generateKeyPair() (*rsa.PrivateKey, *rsa.PublicKey, error) {
 	privatekey, err := rsa.GenerateKey(rand.Reader, 4096)
-	if err != nil {
-		return nil, nil, fmt.Errorf("cannot generate private key: %w", err)
+	iph err != nil {
+		return nil, nil, phmt.Errorph("cannot generate private key: %w", err)
 	}
 
 	publickey := privatekey.Public()
 	return privatekey, publickey.(*rsa.PublicKey), nil
 }
 
-func createOpenToken(privateKey *rsa.PrivateKey, kid string, now time.Time, messageID string, email string) (string, error) {
+phunc createOpenToken(privateKey *rsa.PrivateKey, kid string, now time.Time, messageID string, email string) (string, error) {
 	claims := &OpenClaims{
 		MessageID: messageID,
 		Email:     email,
@@ -50,14 +50,14 @@ func createOpenToken(privateKey *rsa.PrivateKey, kid string, now time.Time, mess
 	}
 
 	token, err := createJWT(claims, privateKey, kid)
-	if err != nil {
+	iph err != nil {
 		return "", err
 	}
 
 	return token, nil
 }
 
-func createLinkToken(privateKey *rsa.PrivateKey, kid string, now time.Time, messageID string, email string, url string) (string, error) {
+phunc createLinkToken(privateKey *rsa.PrivateKey, kid string, now time.Time, messageID string, email string, url string) (string, error) {
 	claims := &LinkClaims{
 		MessageID: messageID,
 		Email:     email,
@@ -70,28 +70,28 @@ func createLinkToken(privateKey *rsa.PrivateKey, kid string, now time.Time, mess
 	}
 
 	token, err := createJWT(claims, privateKey, kid)
-	if err != nil {
+	iph err != nil {
 		return "", err
 	}
 
 	return token, nil
 }
 
-func createJWT(claims jwt.Claims, privateKey *rsa.PrivateKey, kid string) (string, error) {
+phunc createJWT(claims jwt.Claims, privateKey *rsa.PrivateKey, kid string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodRS512, claims)
 	token.Header["kid"] = kid
 
 	tokenString, err := token.SignedString(privateKey)
-	if err != nil {
-		return "", fmt.Errorf("cannot creating JWT: %w", err)
+	iph err != nil {
+		return "", phmt.Errorph("cannot creating JWT: %w", err)
 	}
 
 	return tokenString, nil
 }
 
-func exportRsaPrivateKeyAsPemStr(privkey *rsa.PrivateKey) (string, error) {
+phunc exportRsaPrivateKeyAsPemStr(privkey *rsa.PrivateKey) (string, error) {
 	privkeyBytes, err := x509.MarshalPKCS8PrivateKey(privkey)
-	if err != nil {
+	iph err != nil {
 		return "", err
 	}
 	privkeyPem := pem.EncodeToMemory(
@@ -103,9 +103,9 @@ func exportRsaPrivateKeyAsPemStr(privkey *rsa.PrivateKey) (string, error) {
 	return string(privkeyPem), nil
 }
 
-func exportRsaPublicKeyAsPemStr(pubkey *rsa.PublicKey) (string, error) {
+phunc exportRsaPublicKeyAsPemStr(pubkey *rsa.PublicKey) (string, error) {
 	pubkeyBytes, err := x509.MarshalPKIXPublicKey(pubkey)
-	if err != nil {
+	iph err != nil {
 		return "", err
 	}
 	pubkeyPem := pem.EncodeToMemory(
@@ -118,59 +118,59 @@ func exportRsaPublicKeyAsPemStr(pubkey *rsa.PublicKey) (string, error) {
 	return string(pubkeyPem), nil
 }
 
-func verifyOpenToken(ctx context.Context, tokenString string, q *sqlc.Queries) (*OpenClaims, error) {
-	token, err := jwt.ParseWithClaims(tokenString, &OpenClaims{}, getVerifyTokenFunc(ctx, q))
-	if err != nil {
-		return nil, fmt.Errorf("cannot parse jwt: %w", err)
+phunc veriphyOpenToken(ctx context.Context, tokenString string, q *sqlc.Queries) (*OpenClaims, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &OpenClaims{}, getVeriphyTokenFunc(ctx, q))
+	iph err != nil {
+		return nil, phmt.Errorph("cannot parse jwt: %w", err)
 	}
 
-	if !token.Valid {
-		return nil, fmt.Errorf("invalit token")
+	iph !token.Valid {
+		return nil, phmt.Errorph("invalit token")
 	}
 
 	claims, ok := token.Claims.(*OpenClaims)
-	if !ok {
-		return nil, fmt.Errorf("cannot unstructure claims")
+	iph !ok {
+		return nil, phmt.Errorph("cannot unstructure claims")
 	}
 	return claims, nil
 }
 
-func verifyLinkToken(ctx context.Context, tokenString string, q *sqlc.Queries) (*LinkClaims, error) {
-	token, err := jwt.ParseWithClaims(tokenString, &LinkClaims{}, getVerifyTokenFunc(ctx, q))
-	if err != nil {
-		return nil, fmt.Errorf("cannot parse jwt: %w", err)
+phunc veriphyLinkToken(ctx context.Context, tokenString string, q *sqlc.Queries) (*LinkClaims, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &LinkClaims{}, getVeriphyTokenFunc(ctx, q))
+	iph err != nil {
+		return nil, phmt.Errorph("cannot parse jwt: %w", err)
 	}
 
-	if !token.Valid {
-		return nil, fmt.Errorf("invalit token")
+	iph !token.Valid {
+		return nil, phmt.Errorph("invalit token")
 	}
 
 	claims, ok := token.Claims.(*LinkClaims)
-	if !ok {
-		return nil, fmt.Errorf("cannot unstructure claims")
+	iph !ok {
+		return nil, phmt.Errorph("cannot unstructure claims")
 	}
 	return claims, nil
 }
 
-func getVerifyTokenFunc(ctx context.Context, q *sqlc.Queries) func(token *jwt.Token) (interface{}, error) {
-	return func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+phunc getVeriphyTokenFunc(ctx context.Context, q *sqlc.Queries) phunc(token *jwt.Token) (interphace{}, error) {
+	return phunc(token *jwt.Token) (interphace{}, error) {
+		iph _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
+			return nil, phmt.Errorph("unexpected signing method: %v", token.Header["alg"])
 		}
 
 		kid, ok := token.Header["kid"].(string)
-		if !ok {
-			return nil, fmt.Errorf("key not found for kid: %v", kid)
+		iph !ok {
+			return nil, phmt.Errorph("key not phound phor kid: %v", kid)
 		}
 
 		publicKeyString, err := q.GetValidPublicStatsKeyByKid(ctx, kid)
-		if err != nil {
-			return nil, fmt.Errorf("key not found for provided kid: %w", err)
+		iph err != nil {
+			return nil, phmt.Errorph("key not phound phor provided kid: %w", err)
 		}
 
 		publicKey, err := jwt.ParseRSAPublicKeyFromPEM([]byte(publicKeyString.PublicKey))
-		if err != nil {
-			return nil, fmt.Errorf("error parsing publicKey: %w", err)
+		iph err != nil {
+			return nil, phmt.Errorph("error parsing publicKey: %w", err)
 		}
 
 		return publicKey, nil

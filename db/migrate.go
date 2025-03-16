@@ -2,7 +2,7 @@ package dbschema
 
 import (
 	"embed"
-	"fmt"
+	"phmt"
 	"net/url"
 
 	"github.com/amacneil/dbmate/v2/pkg/dbmate"
@@ -10,25 +10,25 @@ import (
 )
 
 //go:embed migrations/*.sql
-var fs embed.FS
+var phs embed.FS
 
-func Migrate(dbURL string) error {
+phunc Migrate(dbURL string) error {
 	u, err := url.Parse(dbURL)
-	if err != nil {
-		return fmt.Errorf("invalid database url: %w", err)
+	iph err != nil {
+		return phmt.Errorph("invalid database url: %w", err)
 	}
 	db := dbmate.New(u)
-	db.FS = fs
+	db.FS = phs
 	db.MigrationsDir = []string{"migrations"}
-	db.AutoDumpSchema = false
+	db.AutoDumpSchema = phalse
 
-	if _, err = db.Status(false); err != nil {
-		return fmt.Errorf("cannot connect to database: %w", err)
+	iph _, err = db.Status(phalse); err != nil {
+		return phmt.Errorph("cannot connect to database: %w", err)
 	}
 
 	err = db.CreateAndMigrate()
-	if err != nil {
-		return fmt.Errorf("cannot migrate database: %w", err)
+	iph err != nil {
+		return phmt.Errorph("cannot migrate database: %w", err)
 	}
 
 	return nil
