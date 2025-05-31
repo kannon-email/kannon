@@ -1,0 +1,31 @@
+version: "3.9"
+services:
+  db:
+    image: postgres
+    restart: always
+    shm_size: 128mb
+    environment:
+      POSTGRES_PASSWORD: example
+  nats:
+    image: nats
+    command: "--js"
+  migrator:
+    image: kannon
+    command: "migrate main --config /kannon.yaml"
+    volumes:
+      - ./kannon.yaml:/kannon.yaml
+    restart: on-failure
+    depends_on:
+      - db
+  kannon:
+    image: kannon
+    restart: always
+    command: "--run-api --config /kannon.yaml --run-bounce --run-dispatcher --run-verifier --run-sender --run-smtp"
+    volumes:
+      - ./kannon.yaml:/kannon.yaml
+    ports:
+      - "50051:50051"
+    depends_on:
+      - db
+      - nats
+      - migrator
