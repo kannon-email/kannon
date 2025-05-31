@@ -3,9 +3,19 @@ updates:
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
-      interval: "daily"
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+    groups:
+      go-dependencies:
+        patterns: ["*"]
 
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly" 
+    open-pull-requests-limit: 2
+    versioning-strategy: increase
+    groups:
+      docker-updates:
+        patterns: ["*"]
