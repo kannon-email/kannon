@@ -17,4 +17,3 @@ jobs:
         with:
           version: v2.1.6
           args: --timeout 5m
-          skip-pkg-cache: true
