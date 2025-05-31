@@ -61,7 +61,7 @@ func Run(ctx context.Context) {
 
 	wg.Add(1)
 	go func() {
-		d.handleDelivereds(ctx)
+		d.handleDelivers(ctx)
 		wg.Done()
 	}()
 

@@ -70,7 +70,7 @@ func (d disp) parseErrorsFunc(ctx context.Context, m *statstypes.Stats) error {
 	return nil
 }
 
-func (d disp) handleDelivereds(ctx context.Context) {
+func (d disp) handleDelivers(ctx context.Context) {
 	sbj := "kannon.stats.delivered"
 	subName := "dispatcher-delivered"
 	d.handleMsg(ctx, sbj, subName, d.parsDeliveredFunc)
