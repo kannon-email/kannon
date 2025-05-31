@@ -1,4 +1,4 @@
-version: '3.9'
+version: "3.9"
 services:
   db:
     image: postgres
@@ -17,14 +17,14 @@ services:
     restart: on-failure
     depends_on:
       - db
-  kannon: 
+  kannon:
     image: kannon
     restart: always
     command: "--run-api --config /kannon.yaml --run-bounce --run-dispatcher --run-verifier --run-sender --run-smtp"
     volumes:
       - ./kannon.yaml:/kannon.yaml
     ports:
-      - "8080:8080"
+      - "50051:50051"
     depends_on:
       - db
       - nats
