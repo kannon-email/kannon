@@ -1,41 +1,51 @@
-linters-settings:
-  dupl:
-    threshold: 100
-  goconst:
-    min-len: 2
-    min-occurrences: 2
+version: "2"
 linters:
-  disable-all: true
+  default: none
   enable:
     - bodyclose
-    - depguard
     - dogsled
     - dupl
     - errcheck
     - goconst
     - gocritic
-    - gofmt
     - goprintffuncname
-    - gosimple
     - govet
     - ineffassign
     - misspell
     - nolintlint
     - staticcheck
-    - stylecheck
-    - typecheck
     - unconvert
     - unparam
     - unused
     - whitespace
-
-issues:
-  exclude:
-    - Using the variable on range scope .* in function literal
-
-service:
-  golangci-lint-version: 1.57.2
-
-run:
-  skip-files:
-    - "zz_.*\\.go$"
+  settings:
+    dupl:
+      threshold: 100
+    goconst:
+      min-len: 2
+      min-occurrences: 2
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - path: (.+)\.go$
+        text: Using the variable on range scope .* in function literal
+    paths:
+      - zz_.*\.go$
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - gofmt
+  exclusions:
+    generated: lax
+    paths:
+      - zz_.*\.go$
+      - third_party$
+      - builtin$
+      - examples$

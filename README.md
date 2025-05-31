@@ -53,7 +53,7 @@ All components can be enabled/disabled via CLI flags or config.
 
 ### Prerequisites
 
-- Go 1.22+
+- Go 1.24+
 - Docker (optional, for containerized deployment)
 - PostgreSQL database
 
