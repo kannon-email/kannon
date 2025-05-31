@@ -2,92 +2,149 @@
 
 [![CI](https://github.com/gyozatech/kannon/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/gyozatech/kannon/actions/workflows/ci.yaml)
 
-![alt text](assets/kannonlogo.png?raw=true)
+![Kannon Logo](assets/kannonlogo.png?raw=true)
 
-A Cloud Native SMTP mail sender
+A **Cloud Native SMTP mail sender** for Kubernetes and modern infrastructure.
 
-> Due to limitations of AWS, GCP etc. on port 25 this project will not work on cloud providers that block port 25.
+> [!NOTE]
+> Due to limitations of AWS, GCP, etc. on port 25, this project will not work on cloud providers that block port 25.
 
-Tested on kubernello
+---
 
-## TODO
+## Table of Contents
 
-- Add GUI and User in React
-- Manage Statistics
-- Manage Templates
-- Enable Templating
-- Enable multiple node sending
+- [Features](#features)
+- [Architecture](#architecture)
+- [Quickstart](#quickstart)
+- [Kubernetes Deployment](#kubernetes-deployment)
+- [Configuration](#configuration)
+- [Database Schema](#database-schema)
+- [API Overview](#api-overview)
+- [Domain & DNS Setup](#domain--dns-setup)
+- [Sending Mail](#sending-mail)
+- [Contributing](#contributing)
+- [License](#license)
 
-## Deplyoment with Kubernetes
+---
 
-You can deploy the project using the kubernetes manifests in the [k8s](./k8s/deployment.yaml) folder.
+## Features
 
-Example config:
+- Cloud-native, scalable SMTP mail sending
+- gRPC API for sending HTML and templated emails
+- DKIM and SPF support for deliverability
+- Multi-node sending (planned)
+- Template management (planned)
+- Statistics and analytics (planned)
+- Kubernetes-ready deployment
+- Postgres-backed persistence
+
+## Architecture
+
+Kannon is composed of several microservices and workers:
+
+- **API**: gRPC server for mail and domain management
+- **SMTP**: Handles SMTP protocol and relays mail
+- **Sender/Dispatcher**: Queues and sends emails
+- **Verifier/Bounce/Stats**: (Optional) for validation, bounce handling, and analytics
+
+All components can be enabled/disabled via CLI flags or config.
+
+## Quickstart
+
+### Prerequisites
+
+- Go 1.22+
+- Docker (optional, for containerized deployment)
+- PostgreSQL database
+
+### Local Run (for development)
+
+```sh
+git clone https://github.com/kannon-email/kannon.git
+cd kannon
+go build -o kannon .
+./kannon --run-api --run-smtp --run-sender --run-dispatcher --config ./config.yaml
+```
+
+### Docker
+
+```sh
+docker pull ghcr.io/kannon-email/kannon/kannon:latest
+docker run --env-file .env ghcr.io/kannon-email/kannon/kannon:latest --run-api --run-smtp --run-sender --run-dispatcher --config /etc/kannon/config.yaml
+```
+
+## Kubernetes Deployment
+
+You can deploy Kannon using the manifests in the [`k8s/`](./k8s/deployment.yaml) folder.
+
+Example config (YAML):
 
 ```yaml
 nats_url: nats://nats:4222
 debug: true
-
 database_url: postgres://postgres:password@postgres:5432/kannon?sslmode=disable
-
 api:
   port: 50051
-
 sender:
   hostname: your-hostname
   max_jobs: 100
 ```
 
-## Server Configuration
+## Configuration
 
-The SMTP server need to be configured in order to work properly.
+Kannon can be configured via YAML file, environment variables, or CLI flags. Key options:
 
-1. Choose a SENDER_NAME setting an env variable in [./k8s/sender.yaml](./k8s/sender.yaml). In my example, this is `mailer.gyozatech.space`. This should be a subdomain in your posses (you need to set some DNS records).
-2. Set a reverse DNS record FROM your server IP -> TO SERVER_NAME
-3. Set a A record FROM your SENDER_NAME domaint -> TO your server IP
-4. Set a TXT record from your SENDER_NAME -> `v=spf1 ip4:<YOUR SENDER IP> -all`
+- `database_url`: PostgreSQL connection string
+- `nats_url`: NATS server for internal messaging (if used)
+- `debug`: Enable debug logging
+- `sender.hostname`: Hostname for outgoing mail
+- `api.port`: gRPC API port
+- `run-*`: Enable/disable components (api, smtp, sender, dispatcher, verifier, bounce, stats)
 
-## Create a New Sender Domain
+See [`cmd/root.go`](./cmd/root.go) for all flags and options.
 
-Using `api` service and [api.proto](./proto/api.proto) you can create a New Domain in the system.
-A domain should be a subdomain of the main domain you want to send the emails.
-E.g., if you want to send email form `ludovico@test.space` you can choose a subdomain of `test.space`, e.g. `mail.test.space`.
+## Database Schema
 
-Create the domain using the `createDomain` method
+Kannon requires a PostgreSQL database. The main tables are:
 
-```
-# Request
-{
-  "domain": "sending.gyozatech.space"
-}
+- `domains`: Registered sender domains, DKIM keys
+- `messages`: Outgoing messages
+- `sending_pool_emails`: Email queue and status
+- `templates`: Email templates
 
-# Response
-{
-  "domain": "sending.gyozatech.space",
-  "key": "xxxxxxxxxx",
-  "dkimPubKey": "xxxxxxx"
-}
-```
+See [`db/migrations/`](./db/migrations/) for full schema and migrations.
 
-This will generate a domain, with an api access key and a dkimPublicKey.
+## API Overview
 
-DNS record:
+Kannon exposes a gRPC API for sending mail and managing domains. See the proto definitions in [`./proto/kannon/`](./proto/kannon/):
 
-- TXT record for DKIM `smtp._domainkey.<YOUR_DOMAIN>` -> `k=rsa; p=<YOUR DKIM KEY HERE>`
-- TXT record for SPF `<YOUR_DOMAIN>` -> `v=spf1 include:<SENDER_NAME> ~all`
+- **Mailer API**: [`mailerapiv1.proto`](./proto/kannon/mailer/apiv1/mailerapiv1.proto)
+  - `SendHTML`: Send a raw HTML email
+  - `SendTemplate`: Send an email using a stored template
+- **Admin API**: Domain management (see proto files)
 
-When DNS record will be propagated, you are ready to start sending emails.
+Authentication is via Basic Auth using your domain and API key.
+
+## Domain & DNS Setup
+
+To send mail, you must register a sender domain and configure DNS:
+
+1. Register a domain via the API (see Admin API/proto)
+2. Set up DNS records:
+   - **A record**: `<SENDER_NAME>` → your server IP
+   - **Reverse DNS**: your server IP → `<SENDER_NAME>`
+   - **SPF TXT**: `<SENDER_NAME>` → `v=spf1 ip4:<YOUR SENDER IP> -all`
+   - **DKIM TXT**: `smtp._domainkey.<YOUR_DOMAIN>` → `k=rsa; p=<YOUR DKIM KEY HERE>`
 
 ## Sending Mail
 
-You can send emails using the mailer api and the [mailer.proto](./proto/mailer.proto) file.
-You need to authenticate to this api using Basic authentication.
+Authenticate using Basic Auth:
 
-Create token for authentication:
+```
+token = base64(<your domain>:<your domain key>)
+```
 
-`token = base64(<your domain>:<your domain key>)`
-
-Then, in the `SendHTML` endpoint, pass a Metadata with
+Pass this in the `Authorization` metadata for gRPC calls:
 
 ```json
 {
@@ -95,35 +152,32 @@ Then, in the `SendHTML` endpoint, pass a Metadata with
 }
 ```
 
-Example CALL
+Example `SendHTML` request:
 
-```
-# Request
+```json
 {
   "sender": {
-    "email": "no-reply@gyozatech.space",
-    "alias": "Ludovico"
+    "email": "no-reply@yourdomain.com",
+    "alias": "Your Name"
   },
-  "to": [
-    "ludus.russo@gmail.com",
-    "ludovico@ludusrusso.space"
-  ],
+  "recipients": ["user@example.com"],
   "subject": "Test",
-  "html": "<h1>ciao</h1><p>prova</p>"
-}
-
-# Reponse
-
-{
-  "messageID": "message/6ca47968-3b3a-401b-ad05-a816ce19d69c@sending.gyozatech.space",
-  "templateID": "tmp-template/fc0e8313-5800-4e82-91fe-940cfad21d19@sending.gyozatech.space",
-  "scheduled_time": {
-    "seconds": "1609668627",
-    "nanos": 905726068
-  }
+  "html": "<h1>Hello</h1><p>This is a test.</p>"
 }
 ```
 
-You should receive a mail that passes DKIM and SPF check.
+See the [proto file](./proto/kannon/mailer/apiv1/mailerapiv1.proto) for all fields and options.
 
 ![Signed Email](assets/email-sign.png)
+
+## Contributing
+
+We welcome contributions! Please:
+
+- Use [feature request](.github/ISSUE_TEMPLATE/feature_request.md) and [bug report](.github/ISSUE_TEMPLATE/bug_report.md) templates for issues
+- Follow the [pull request template](.github/PULL_REQUEST_TEMPLATE.md)
+- See the [Apache 2.0 License](./LICENSE)
+
+## License
+
+Kannon is licensed under the Apache 2.0 License. See [LICENSE](./LICENSE) for details.
