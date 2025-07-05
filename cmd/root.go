@@ -116,7 +116,7 @@ func init() {
 	createBoolFlagAndBindToViper("run-smtp", false, "run smtp server")
 }
 
-//nolint:unparam -- we need to pass defaultValue to the flag
+//nolint:unparam
 func createBoolFlagAndBindToViper(name string, defaultValue bool, usage string) {
 	rootCmd.PersistentFlags().Bool(name, defaultValue, usage)
 	err := viper.BindPFlag(name, rootCmd.PersistentFlags().Lookup(name))
