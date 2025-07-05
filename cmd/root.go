@@ -17,8 +17,6 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-const envPrefix = "K"
-
 var (
 	cfgFile string
 
