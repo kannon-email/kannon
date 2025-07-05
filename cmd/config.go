@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ludusrusso/kannon/pkg/api"
 	"github.com/ludusrusso/kannon/pkg/sender"
 	"github.com/ludusrusso/kannon/pkg/smtp"
 	"github.com/sirupsen/logrus"
@@ -33,6 +34,12 @@ type Config struct {
 
 type APIConfig struct {
 	Port uint `mapstructure:"port"`
+}
+
+func (c APIConfig) ToAPIConfig() api.Config {
+	return api.Config{
+		Port: c.Port,
+	}
 }
 
 type SenderConfig struct {

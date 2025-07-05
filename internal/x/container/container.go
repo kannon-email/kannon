@@ -6,15 +6,8 @@ import (
 	"sync"
 
 	sqlc "github.com/ludusrusso/kannon/internal/db"
-	"github.com/ludusrusso/kannon/pkg/api/adminapi"
-	"github.com/ludusrusso/kannon/pkg/api/mailapi"
-	"github.com/ludusrusso/kannon/pkg/statsapi/statsv1"
 	"github.com/nats-io/nats.go"
 	"github.com/sirupsen/logrus"
-
-	adminv1 "github.com/ludusrusso/kannon/proto/kannon/admin/apiv1"
-	mailerv1 "github.com/ludusrusso/kannon/proto/kannon/mailer/apiv1"
-	apiv1 "github.com/ludusrusso/kannon/proto/kannon/stats/apiv1"
 )
 
 type Config struct {
@@ -30,30 +23,17 @@ type Container struct {
 	cfg Config
 
 	// singleton instances
-	dbOnce sync.Once
-	db     *sql.DB
+	db   singleton[*sql.DB]
+	nats singleton[*nats.Conn]
 
-	qOnce sync.Once
-	q     *sqlc.Queries
-
-	adminAPIOnce sync.Once
-	adminAPI     adminv1.ApiServer
-
-	mailAPIOnce sync.Once
-	mailAPI     mailerv1.MailerServer
-
-	statsAPIOnce sync.Once
-	statsAPI     apiv1.StatsApiV1Server
-
-	natsOnce sync.Once
-	nats     *nats.Conn
-
-	closers []func()
+	closers []func() error
 }
 
 func (c *Container) Close() {
 	for _, closer := range c.closers {
-		closer()
+		if err := closer(); err != nil {
+			logrus.Errorf("Failed to close: %v", err)
+		}
 	}
 }
 
@@ -64,19 +44,14 @@ func New(ctx context.Context, cfg Config) *Container {
 
 // DB returns a singleton DB connection.
 func (c *Container) DB() *sql.DB {
-	c.dbOnce.Do(func() {
+	return c.db.Get(c.ctx, func(ctx context.Context) *sql.DB {
 		db, _, err := sqlc.Conn(c.ctx, c.cfg.DBUrl)
 		if err != nil {
 			logrus.Fatalf("Failed to connect to database: %v", err)
 		}
-		c.db = db
-		c.closers = append(c.closers, func() {
-			if err := c.db.Close(); err != nil {
-				logrus.Errorf("Failed to close database: %v", err)
-			}
-		})
+		c.closers = append(c.closers, db.Close)
+		return db
 	})
-	return c.db
 }
 
 // Queries returns a singleton Queries instance.
@@ -84,51 +59,41 @@ func (c *Container) Queries() *sqlc.Queries {
 	return sqlc.New(c.DB())
 }
 
-// AdminAPIService returns a singleton AdminAPIService.
-func (c *Container) AdminAPIService() adminv1.ApiServer {
-	c.adminAPIOnce.Do(func() {
-		c.adminAPI = adminapi.CreateAdminAPIService(c.Queries())
-	})
-	return c.adminAPI
-}
-
-// MailAPIService returns a singleton MailerAPIV1.
-func (c *Container) MailAPIService() mailerv1.MailerServer {
-	c.mailAPIOnce.Do(func() {
-		c.mailAPI = mailapi.NewMailerAPIV1(c.Queries())
-	})
-	return c.mailAPI
-}
-
-// StatsAPIService returns a singleton StatsAPIService.
-func (c *Container) StatsAPIService() apiv1.StatsApiV1Server {
-	c.statsAPIOnce.Do(func() {
-		c.statsAPI = statsv1.NewStatsAPIService(c.Queries())
-	})
-	return c.statsAPI
-}
-
 func (c *Container) Nats() *nats.Conn {
-	c.natsOnce.Do(func() {
+	return c.nats.Get(c.ctx, func(ctx context.Context) *nats.Conn {
 		nc, err := nats.Connect(c.cfg.NatsURL)
 		if err != nil {
 			logrus.Fatalf("Failed to connect to NATS: %v", err)
 		}
-		c.nats = nc
 
-		c.closers = append(c.closers, func() {
+		c.closers = append(c.closers, func() error {
 			if err := nc.Drain(); err != nil {
-				logrus.Errorf("Failed to drain NATS: %v", err)
+				return err
 			}
+			nc.Close()
+			return nil
 		})
+		return nc
 	})
-	return c.nats
 }
 
 func (c *Container) NatsJetStream() nats.JetStreamContext {
-	js, err := c.nats.JetStream()
+	nc := c.Nats()
+	js, err := nc.JetStream()
 	if err != nil {
 		logrus.Fatalf("Failed to create NATS JetStream: %v", err)
 	}
 	return js
+}
+
+type singleton[T any] struct {
+	once  sync.Once
+	value T
+}
+
+func (s singleton[T]) Get(ctx context.Context, f func(ctx context.Context) T) T {
+	s.once.Do(func() {
+		s.value = f(ctx)
+	})
+	return s.value
 }

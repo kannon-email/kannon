@@ -10,10 +10,9 @@ import (
 	"github.com/ludusrusso/kannon/internal/pool"
 	"github.com/ludusrusso/kannon/internal/publisher"
 	"github.com/ludusrusso/kannon/internal/runner"
-	"github.com/ludusrusso/kannon/internal/utils"
+	"github.com/ludusrusso/kannon/internal/x/container"
 	"github.com/ludusrusso/kannon/proto/kannon/stats/types"
 	"github.com/sirupsen/logrus"
-	"github.com/spf13/viper"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -34,23 +33,16 @@ type Validator struct {
 	log *logrus.Entry
 }
 
-func Run(ctx context.Context) error {
-	dbURL := viper.GetString("database_url")
-	natsURL := viper.GetString("nats_url")
+func Run(ctx context.Context, cnt *container.Container) error {
 	l := logrus.WithField("component", "validator")
 
 	l.Info("🚀 Starting validator")
 
-	db, q, err := sqlc.Conn(ctx, dbURL)
-	if err != nil {
-		logrus.Fatalf("cannot connect to database: %v", err)
-	}
-	defer db.Close()
+	q := cnt.Queries()
 
 	pm := pool.NewSendingPoolManager(q)
 
-	nc, _, closeNats := utils.MustGetNats(natsURL)
-	defer closeNats()
+	nc := cnt.Nats()
 
 	v := Validator{
 		pm:  pm,

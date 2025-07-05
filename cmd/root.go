@@ -68,7 +68,7 @@ func run(cmd *cobra.Command, args []string) {
 
 	if config.RunVerifier {
 		g.Go(func() error {
-			if err := validator.Run(ctx); err != nil {
+			if err := validator.Run(ctx, cnt); err != nil {
 				logrus.Fatalf("error in verifier: %v", err)
 			}
 			return nil
@@ -91,10 +91,7 @@ func run(cmd *cobra.Command, args []string) {
 
 	if config.RunAPI {
 		g.Go(func() error {
-			api.Run(ctx, api.Config{
-				Port: config.API.Port,
-			}, cnt)
-			return nil
+			return runAPI(ctx, cnt, config)
 		})
 	}
 
@@ -129,6 +126,11 @@ func createBoolFlagAndBindToViper(name string, value bool, usage string) {
 	if err != nil {
 		logrus.Fatalf("cannot set flat '%v': %v", name, err)
 	}
+}
+
+func runAPI(ctx context.Context, cnt *container.Container, config Config) error {
+	cnf := config.API.ToAPIConfig()
+	return api.Run(ctx, cnf, cnt)
 }
 
 func runDispatcher(ctx context.Context, cnt *container.Container, config Config) error {

@@ -28,7 +28,7 @@ func (c Config) GetPort() uint {
 	return c.Port
 }
 
-func Run(ctx context.Context, config Config, cnt *container.Container) {
+func Run(ctx context.Context, config Config, cnt *container.Container) error {
 	port := config.GetPort()
 
 	logrus.Infof("Starting API Service on port %d", port)
@@ -50,6 +50,8 @@ func Run(ctx context.Context, config Config, cnt *container.Container) {
 	}()
 
 	wg.Wait()
+
+	return nil
 }
 
 func startAPIServer(port uint, adminServer adminv1.ApiServer, mailerServer mailerv1.MailerServer, statsServer apiv1.StatsApiV1Server) error {
