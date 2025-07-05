@@ -49,7 +49,7 @@ func (m *sendingPoolManager) AddRecipientsPool(ctx context.Context, template sql
 			MessageID:     msg.MessageID,
 			Email:         r.Email,
 			Fields:        r.Fields,
-			ScheduledTime: scheduled,
+			ScheduledTime: sqlc.PgTimestampFromTime(scheduled),
 			Domain:        domain,
 		})
 		if err != nil {
@@ -93,10 +93,12 @@ func (m *sendingPoolManager) RescheduleEmail(ctx context.Context, messageID stri
 
 	rescheduleDelay := computeRescheduleDelay(int(pool.SendAttemptsCnt))
 
+	scheduledTime := pool.OriginalScheduledTime.Time.Add(rescheduleDelay)
+
 	return m.db.ReschedulePool(ctx, sqlc.ReschedulePoolParams{
 		Email:         email,
 		MessageID:     messageID,
-		ScheduledTime: pool.OriginalScheduledTime.Add(rescheduleDelay),
+		ScheduledTime: sqlc.PgTimestampFromTime(scheduledTime),
 	})
 }
 

@@ -9,6 +9,7 @@ require (
 	github.com/emersion/go-smtp v0.23.0
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/jackc/pgx/v4 v4.18.3
+	github.com/jackc/pgx/v5 v5.7.5
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/lib/pq v1.10.9
 	github.com/lucsky/cuid v1.2.1
@@ -98,7 +99,6 @@ require (
 	github.com/jackc/pgproto3/v2 v2.3.3 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/pgtype v1.14.4 // indirect
-	github.com/jackc/pgx/v5 v5.7.5 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/jdx/go-netrc v1.0.0 // indirect
 	github.com/jinzhu/copier v0.4.0 // indirect

@@ -58,7 +58,7 @@ func TestInsertMail(t *testing.T) {
 	assert.Equal(t, sqlc.SendingPoolStatusToValidate, sp[0].Status)
 	assert.Equal(t, "Test", sp[0].Fields["name"])
 
-	assert.Equal(t, schedTime.UTC(), sp[0].ScheduledTime.UTC())
+	assert.Equal(t, schedTime.UTC(), sp[0].ScheduledTime.Time.UTC())
 }
 
 func TestSendMailWithGlobalFields(t *testing.T) {

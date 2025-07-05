@@ -2,9 +2,9 @@ package container
 
 import (
 	"context"
-	"database/sql"
 	"sync"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	sqlc "github.com/ludusrusso/kannon/internal/db"
 	"github.com/nats-io/nats.go"
 	"github.com/sirupsen/logrus"
@@ -23,10 +23,16 @@ type Container struct {
 	cfg Config
 
 	// singleton instances
-	db   *singleton[*sql.DB]
+	db   *singleton[*pgxpool.Pool]
 	nats *singleton[*nats.Conn]
 
-	closers []func() error
+	closers []CloserFunc
+}
+
+type CloserFunc func() error
+
+func (c *Container) addClosers(closers ...CloserFunc) {
+	c.closers = append(c.closers, closers...)
 }
 
 func (c *Container) Close() {
@@ -39,17 +45,26 @@ func (c *Container) Close() {
 
 // New creates a new Container with the given context and configuration.
 func New(ctx context.Context, cfg Config) *Container {
-	return &Container{ctx: ctx, cfg: cfg}
+	return &Container{
+		ctx:  ctx,
+		cfg:  cfg,
+		db:   &singleton[*pgxpool.Pool]{},
+		nats: &singleton[*nats.Conn]{},
+	}
 }
 
 // DB returns a singleton DB connection.
-func (c *Container) DB() *sql.DB {
-	return c.db.Get(c.ctx, func(ctx context.Context) *sql.DB {
-		db, _, err := sqlc.Conn(c.ctx, c.cfg.DBUrl)
+func (c *Container) DB() *pgxpool.Pool {
+	return c.db.Get(c.ctx, func(ctx context.Context) *pgxpool.Pool {
+		db, err := sqlc.Conn(c.ctx, c.cfg.DBUrl)
 		if err != nil {
 			logrus.Fatalf("Failed to connect to database: %v", err)
 		}
-		c.closers = append(c.closers, db.Close)
+
+		c.addClosers(func() error {
+			db.Close()
+			return nil
+		})
 		return db
 	})
 }
@@ -66,7 +81,7 @@ func (c *Container) Nats() *nats.Conn {
 			logrus.Fatalf("Failed to connect to NATS: %v", err)
 		}
 
-		c.closers = append(c.closers, func() error {
+		c.addClosers(func() error {
 			if err := nc.Drain(); err != nil {
 				return err
 			}

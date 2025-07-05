@@ -3,7 +3,6 @@ package mailbuilder_test
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/base64"
 	"io"
 	"net/mail"
@@ -11,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	schema "github.com/ludusrusso/kannon/db"
 	sqlc "github.com/ludusrusso/kannon/internal/db"
 	"github.com/ludusrusso/kannon/internal/mailbuilder"
@@ -31,7 +31,7 @@ import (
 	_ "github.com/lib/pq"
 )
 
-var db *sql.DB
+var db *pgxpool.Pool
 var q *sqlc.Queries
 var mb mailbuilder.MailBulder
 var ma mailerapiv1.MailerServer

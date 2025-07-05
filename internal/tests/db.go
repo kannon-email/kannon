@@ -1,12 +1,11 @@
 package tests
 
 import (
-	"database/sql"
+	"context"
 	"fmt"
 	"os"
 
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/stdlib"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jmoiron/sqlx"
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
@@ -15,8 +14,8 @@ import (
 
 type PurgeFunc func() error
 
-func TestPostgresInit(schema string) (*sql.DB, PurgeFunc, error) {
-	var db *sql.DB
+func TestPostgresInit(schema string) (*pgxpool.Pool, PurgeFunc, error) {
+	var db *pgxpool.Pool
 
 	// uses a sensible default on windows (tcp/http) and linux/osx (socket)
 	pool, err := dockertest.NewPool("")
@@ -55,7 +54,7 @@ func TestPostgresInit(schema string) (*sql.DB, PurgeFunc, error) {
 			logrus.Warnf("connection error: %v", err)
 			return err
 		}
-		return db.Ping()
+		return db.Ping(context.Background())
 	}); err != nil {
 		return nil, nil, fmt.Errorf("cannot connect to docker: %w", err)
 	}
@@ -96,14 +95,13 @@ func getDBHost() string {
 	return host
 }
 
-func initDB(dbPort string) (*sql.DB, error) {
+func initDB(dbPort string) (*pgxpool.Pool, error) {
 	dbHost := getDBHost()
 	url := fmt.Sprintf("postgresql://test:test@%v:%v/test", dbHost, dbPort)
-	c, err := pgx.ParseConfig(url)
-	if err != nil {
-		return nil, fmt.Errorf("parsing postgres URI: %w", err)
-	}
 
-	_db := stdlib.OpenDB(*c)
-	return _db, nil
+	pool, err := pgxpool.New(context.Background(), url)
+	if err != nil {
+		return nil, fmt.Errorf("cannot create pgx pool: %w", err)
+	}
+	return pool, nil
 }

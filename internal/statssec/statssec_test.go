@@ -2,10 +2,10 @@ package statssec_test
 
 import (
 	"context"
-	"database/sql"
 	"os"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	schema "github.com/ludusrusso/kannon/db"
 	sqlc "github.com/ludusrusso/kannon/internal/db"
 	"github.com/ludusrusso/kannon/internal/statssec"
@@ -16,7 +16,7 @@ import (
 	_ "github.com/lib/pq"
 )
 
-var db *sql.DB
+var db *pgxpool.Pool
 var q *sqlc.Queries
 var s statssec.StatsService
 

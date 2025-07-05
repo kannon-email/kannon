@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	_ "github.com/lib/pq"
 
 	sq "github.com/ludusrusso/kannon/internal/db"
@@ -44,10 +45,13 @@ func handleStats(ctx context.Context, js nats.JetStreamContext, q *sq.Queries) {
 				err := q.InsertStat(ctx, sq.InsertStatParams{
 					Email:     data.Email,
 					MessageID: data.MessageId,
-					Timestamp: data.Timestamp.AsTime(),
-					Domain:    data.Domain,
-					Type:      stype,
-					Data:      data.Data,
+					Timestamp: pgtype.Timestamp{
+						Time:  data.Timestamp.AsTime(),
+						Valid: true,
+					},
+					Domain: data.Domain,
+					Type:   stype,
+					Data:   data.Data,
 				})
 				if err != nil {
 					logrus.Errorf("Cannot insert %v stat: %v", stype, err)

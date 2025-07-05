@@ -88,7 +88,8 @@ func (s *service) getSignKeys(ctx context.Context) (*rsa.PrivateKey, string, err
 func (s *service) getExistingSignKeys(ctx context.Context) (*rsa.PrivateKey, *rsa.PublicKey, string, error) {
 	q := s.q
 
-	keys, err := q.GetValidStatsKeys(ctx, s.now().Add(tokenExpirePeriod))
+	ts := sqlc.PgTimestampFromTime(s.now().Add(tokenExpirePeriod))
+	keys, err := q.GetValidStatsKeys(ctx, ts)
 	if err != nil {
 		return nil, nil, "", err
 	}
@@ -129,11 +130,13 @@ func (s *service) generateNewKeyPairs(ctx context.Context) (*rsa.PrivateKey, *rs
 		return nil, nil, "", err
 	}
 
+	exp := sqlc.PgTimestampFromTime(s.now().Add(2 * tokenExpirePeriod))
+
 	netKeys, err := q.CreateStatsKeys(ctx, sqlc.CreateStatsKeysParams{
 		ID:             id,
 		PrivateKey:     pemPrivate,
 		PublicKey:      pemPublic,
-		ExpirationTime: s.now().Add(2 * tokenExpirePeriod),
+		ExpirationTime: exp,
 	})
 	if err != nil {
 		return nil, nil, "", err
