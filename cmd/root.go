@@ -38,19 +38,16 @@ func Execute() error {
 func run(cmd *cobra.Command, args []string) {
 	ctx := cmd.Context()
 
-	dbUrl := viper.GetString("database_url")
-	natsUrl := viper.GetString("nats_url")
-
-	cnt := container.New(ctx, container.Config{
-		DBUrl:   dbUrl,
-		NatsURL: natsUrl,
-	})
-	defer cnt.Close()
-
 	config, err := readConfig()
 	if err != nil {
 		logrus.Fatalf("error in reading config: %v", err)
 	}
+
+	cnt := container.New(ctx, container.Config{
+		DBUrl:   config.DatabaseURL,
+		NatsURL: config.NatsURL,
+	})
+	defer cnt.Close()
 
 	g, ctx := errgroup.WithContext(ctx)
 

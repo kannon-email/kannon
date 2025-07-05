@@ -1,5 +1,5 @@
 nats_url: nats://nats:4222
-debug: false
+debug: true
 database_url: postgresql://postgres:example@db:5432/postgres?sslmode=disable
 
 api:
@@ -8,3 +8,11 @@ api:
 sender:
   hostname: kannon.ludusrusso.dev
   max_jobs: 100
+
+run-smtp: true
+run-bounce: true
+run-dispatcher: true
+run-verifier: true
+run-sender: true
+run-api: true
+run-stats: true

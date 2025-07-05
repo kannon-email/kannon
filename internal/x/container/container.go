@@ -76,6 +76,7 @@ func (c *Container) Queries() *sqlc.Queries {
 
 func (c *Container) Nats() *nats.Conn {
 	return c.nats.Get(c.ctx, func(ctx context.Context) *nats.Conn {
+		logrus.Debugf("connecting to NATS: %s", c.cfg.NatsURL)
 		nc, err := nats.Connect(c.cfg.NatsURL)
 		if err != nil {
 			logrus.Fatalf("Failed to connect to NATS: %v", err)
