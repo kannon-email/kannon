@@ -49,7 +49,7 @@ func TestCreateOpenToken(t *testing.T) {
 
 	assert.NotEmpty(t, token)
 
-	c, err := s.VertifyOpenToken(context.Background(), token)
+	c, err := s.VerifyOpenToken(context.Background(), token)
 	assert.Nil(t, err)
 
 	assert.Equal(t, "<xxxx/test@test.com>", c.MessageID)
@@ -63,7 +63,7 @@ func TestCreateLinkToken(t *testing.T) {
 
 	assert.NotEmpty(t, token)
 
-	c, err := s.VertifyLinkToken(context.Background(), token)
+	c, err := s.VerifyLinkToken(context.Background(), token)
 	assert.Nil(t, err)
 
 	assert.Equal(t, "<xxxx/test@test.com>", c.MessageID)

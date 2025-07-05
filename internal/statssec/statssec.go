@@ -16,8 +16,8 @@ import (
 type StatsService interface {
 	CreateOpenToken(ctx context.Context, messageID string, email string) (string, error)
 	CreateLinkToken(ctx context.Context, messageID string, email string, url string) (string, error)
-	VertifyOpenToken(ctx context.Context, token string) (*OpenClaims, error)
-	VertifyLinkToken(ctx context.Context, token string) (*LinkClaims, error)
+	VerifyOpenToken(ctx context.Context, token string) (*OpenClaims, error)
+	VerifyLinkToken(ctx context.Context, token string) (*LinkClaims, error)
 }
 
 func NewStatsService(q *sqlc.Queries) StatsService {
@@ -60,11 +60,11 @@ func (s *service) CreateLinkToken(ctx context.Context, messageID string, email s
 	return token, nil
 }
 
-func (s *service) VertifyOpenToken(ctx context.Context, token string) (*OpenClaims, error) {
+func (s *service) VerifyOpenToken(ctx context.Context, token string) (*OpenClaims, error) {
 	return verifyOpenToken(ctx, token, s.q)
 }
 
-func (s *service) VertifyLinkToken(ctx context.Context, token string) (*LinkClaims, error) {
+func (s *service) VerifyLinkToken(ctx context.Context, token string) (*LinkClaims, error) {
 	return verifyLinkToken(ctx, token, s.q)
 }
 

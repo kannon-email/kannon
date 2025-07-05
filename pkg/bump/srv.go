@@ -58,7 +58,7 @@ func (s *srv) handleClick(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	token := strings.Replace(r.URL.Path, "/c/", "", 1)
-	claims, err := s.ss.VertifyLinkToken(ctx, token)
+	claims, err := s.ss.VerifyLinkToken(ctx, token)
 	if err != nil {
 		logrus.Errorf("cannot verify click token: %v", err)
 		http.NotFound(w, r)
@@ -93,7 +93,7 @@ func (s *srv) handleOpen(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	token := strings.Replace(r.URL.Path, "/o/", "", 1)
-	claims, err := s.ss.VertifyOpenToken(ctx, token)
+	claims, err := s.ss.VerifyOpenToken(ctx, token)
 	if err != nil {
 		logrus.Errorf("cannot verify open token: %v", err)
 		http.NotFound(w, r)
