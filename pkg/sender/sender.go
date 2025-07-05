@@ -30,7 +30,7 @@ func (c Config) GetMaxJobs() uint {
 	return c.MaxJobs
 }
 
-func Run(ctx context.Context, config Config) {
+func Run(ctx context.Context, config Config) error {
 	natsURL := viper.GetString("nats_url")
 
 	senderHost := config.Hostname
@@ -50,6 +50,8 @@ func Run(ctx context.Context, config Config) {
 	}()
 
 	<-ctx.Done()
+
+	return nil
 }
 
 func handleSend(sender smtp.Sender, con *nats.Subscription, nc *nats.Conn, maxParallelJobs uint) {

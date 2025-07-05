@@ -20,7 +20,7 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-func Run(ctx context.Context) {
+func Run(ctx context.Context) error {
 	dbURL := viper.GetString("database_url")
 	natsURL := viper.GetString("nats_url")
 
@@ -81,6 +81,8 @@ func Run(ctx context.Context) {
 	}()
 
 	wg.Wait()
+
+	return nil
 }
 
 func mustConfigureJS(js nats.JetStreamContext) {

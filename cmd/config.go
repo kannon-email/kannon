@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ludusrusso/kannon/pkg/sender"
+	"github.com/ludusrusso/kannon/pkg/smtp"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -38,6 +40,13 @@ type SenderConfig struct {
 	MaxJobs  uint   `mapstructure:"max_jobs"`
 }
 
+func (c SenderConfig) ToSenderConfig() sender.Config {
+	return sender.Config{
+		Hostname: c.Hostname,
+		MaxJobs:  c.MaxJobs,
+	}
+}
+
 type SMTPConfig struct {
 	Address         string        `mapstructure:"address"`
 	Domain          string        `mapstructure:"domain"`
@@ -45,6 +54,17 @@ type SMTPConfig struct {
 	WriteTimeout    time.Duration `mapstructure:"write_timeout"`
 	MaxPayloadBytes uint          `mapstructure:"max_payload"`
 	MaxRecipients   uint          `mapstructure:"max_recipients"`
+}
+
+func (c SMTPConfig) ToSMTPConfig() smtp.Config {
+	return smtp.Config{
+		Address:         c.Address,
+		Domain:          c.Domain,
+		ReadTimeout:     c.ReadTimeout,
+		WriteTimeout:    c.WriteTimeout,
+		MaxPayloadBytes: c.MaxPayloadBytes,
+		MaxRecipients:   c.MaxRecipients,
+	}
 }
 
 func prepareConfig() {

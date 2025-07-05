@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"sync"
+	"context"
 
 	"github.com/ludusrusso/kannon/pkg/api"
 	"github.com/ludusrusso/kannon/pkg/bump"
@@ -13,6 +13,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"golang.org/x/sync/errgroup"
 )
 
 const envPrefix = "K"
@@ -34,7 +35,6 @@ func Execute() error {
 }
 
 func run(cmd *cobra.Command, args []string) {
-	var wg sync.WaitGroup
 	ctx := cmd.Context()
 
 	config, err := readConfig()
@@ -42,77 +42,59 @@ func run(cmd *cobra.Command, args []string) {
 		logrus.Fatalf("error in reading config: %v", err)
 	}
 
+	g, ctx := errgroup.WithContext(ctx)
+
 	if config.RunSender {
-		wg.Add(1)
-		go func() {
-			cnf := sender.Config{
-				Hostname: config.Sender.Hostname,
-				MaxJobs:  config.Sender.MaxJobs,
-			}
-			sender.Run(ctx, cnf)
-			wg.Done()
-		}()
+		g.Go(func() error {
+			return runSender(ctx, config)
+		})
 	}
 
 	if config.RunDispatcher {
-		wg.Add(1)
-		go func() {
-			dispatcher.Run(ctx)
-			wg.Done()
-		}()
+		g.Go(func() error {
+			return runDispatcher(ctx, config)
+		})
 	}
 
 	if config.RunVerifier {
-		wg.Add(1)
-		go func() {
+		g.Go(func() error {
 			if err := validator.Run(ctx); err != nil {
 				logrus.Fatalf("error in verifier: %v", err)
 			}
-			wg.Done()
-		}()
+			return nil
+		})
 	}
 
 	if config.RunStats {
-		wg.Add(1)
-		go func() {
+		g.Go(func() error {
 			stats.Run(ctx)
-			wg.Done()
-		}()
+			return nil
+		})
 	}
 
 	if config.RunBounce {
-		wg.Add(1)
-		go func() {
+		g.Go(func() error {
 			bump.Run(ctx)
-			wg.Done()
-		}()
+			return nil
+		})
 	}
 
 	if config.RunAPI {
-		wg.Add(1)
-		go func() {
+		g.Go(func() error {
 			api.Run(ctx)
-			wg.Done()
-		}()
+			return nil
+		})
 	}
 
 	if config.RunSMTP {
-		wg.Add(1)
-		go func() {
-			cnf := smtp.Config{
-				Address:         config.SMTP.Address,
-				Domain:          config.SMTP.Domain,
-				ReadTimeout:     config.SMTP.ReadTimeout,
-				WriteTimeout:    config.SMTP.WriteTimeout,
-				MaxPayloadBytes: config.SMTP.MaxPayloadBytes,
-				MaxRecipients:   config.SMTP.MaxRecipients,
-			}
-			smtp.Run(ctx, cnf)
-			wg.Done()
-		}()
+		g.Go(func() error {
+			return runSMTP(ctx, config)
+		})
 	}
 
-	wg.Wait()
+	if err := g.Wait(); err != nil {
+		logrus.Fatalf("service error: %v", err)
+	}
 }
 
 func init() {
@@ -129,11 +111,24 @@ func init() {
 	createBoolFlagAndBindToViper("run-smtp", false, "run smtp server")
 }
 
-//nolint:unparam
 func createBoolFlagAndBindToViper(name string, value bool, usage string) {
 	rootCmd.PersistentFlags().Bool(name, value, usage)
 	err := viper.BindPFlag(name, rootCmd.PersistentFlags().Lookup(name))
 	if err != nil {
 		logrus.Fatalf("cannot set flat '%v': %v", name, err)
 	}
+}
+
+func runDispatcher(ctx context.Context, config Config) error {
+	return dispatcher.Run(ctx)
+}
+
+func runSender(ctx context.Context, config Config) error {
+	cnf := config.Sender.ToSenderConfig()
+	return sender.Run(ctx, cnf)
+}
+
+func runSMTP(ctx context.Context, config Config) error {
+	cnf := config.SMTP.ToSMTPConfig()
+	return smtp.Run(ctx, cnf)
 }

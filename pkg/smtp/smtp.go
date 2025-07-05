@@ -2,7 +2,6 @@ package smtp
 
 import (
 	"bufio"
-	"context"
 	"io"
 	"net/mail"
 	"regexp"
@@ -13,7 +12,6 @@ import (
 	st "github.com/ludusrusso/kannon/proto/kannon/stats/types"
 	"github.com/nats-io/nats.go"
 	"github.com/sirupsen/logrus"
-	"github.com/spf13/viper"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -106,43 +104,6 @@ func (s *Session) Reset() {}
 
 func (s *Session) Logout() error {
 	return nil
-}
-
-func Run(ctx context.Context, config Config) {
-	natsURL := viper.GetString("nats_url")
-	addr := config.GetAddress()
-	domain := config.GetDomain()
-	readTimeout := config.GetReadTimeout()
-	writeTimeout := config.GetWriteTimeout()
-	maxPayload := config.GetMaxPayload()
-	maxRecipients := config.GetMaxRecipients()
-
-	nc, _, closeNats := utils.MustGetNats(natsURL)
-	defer closeNats()
-
-	be := &Backend{
-		nc: nc,
-	}
-
-	s := smtp.NewServer(be)
-	defer s.Close()
-
-	s.Addr = addr
-	s.Domain = domain
-	s.ReadTimeout = readTimeout
-	s.WriteTimeout = writeTimeout
-	s.MaxMessageBytes = int64(maxPayload)
-	s.MaxRecipients = int(maxRecipients)
-	s.AllowInsecureAuth = true
-
-	go func() {
-		logrus.Printf("Starting server at: %v", s.Addr)
-		if err := s.ListenAndServe(); err != nil {
-			logrus.Fatalf("error serving: %v", err)
-		}
-	}()
-
-	<-ctx.Done()
 }
 
 var parseMessageReg = regexp.MustCompile(`^Diagnostic-Code: (SMTP; ([0-9]+) .*$)`)
