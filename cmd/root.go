@@ -17,8 +17,6 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-const envPrefix = "K"
-
 var (
 	cfgFile string
 
@@ -114,6 +112,7 @@ func init() {
 	createBoolFlagAndBindToViper("run-stats", false, "run stats")
 	createBoolFlagAndBindToViper("run-api", false, "run api")
 	createBoolFlagAndBindToViper("run-smtp", false, "run smtp server")
+
 }
 
 //nolint:unparam

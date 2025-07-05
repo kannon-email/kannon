@@ -87,14 +87,22 @@ func prepareConfig() {
 
 	replacer := strings.NewReplacer(".", "_")
 	viper.SetEnvKeyReplacer(replacer)
+
+	const envPrefix = "K"
 	viper.SetEnvPrefix(envPrefix)
 	viper.AutomaticEnv()
 }
 
 func readConfig() (Config, error) {
+	viper.BindEnv("database_url")
+	viper.BindEnv("nats_url")
+	viper.BindEnv("debug")
+
 	var config Config
 	if err := viper.ReadInConfig(); err != nil {
-		return Config{}, fmt.Errorf("cannot read config file: %v", err)
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			return Config{}, fmt.Errorf("cannot read config file: %v", err)
+		}
 	}
 
 	if err := viper.Unmarshal(&config); err != nil {
