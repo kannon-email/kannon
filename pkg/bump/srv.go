@@ -33,16 +33,23 @@ func NewServer(cnt *container.Container) *srv {
 }
 
 func (s *srv) Run(ctx context.Context) error {
-	http.HandleFunc("/o/", s.handleOpen)
-	http.HandleFunc("/c/", s.handleClick)
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/o/", s.handleOpen)
+	mux.HandleFunc("/c/", s.handleClick)
 
 	logrus.Infof("running bounce on %s", "localhost:8080")
 
-	if err := http.ListenAndServe("0.0.0.0:8080", nil); err != nil {
-		logrus.Fatal(err)
-	}
+	server := &http.Server{Addr: "0.0.0.0:8080", Handler: mux}
 
-	return nil
+	go func() {
+		<-ctx.Done()
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+		defer cancel()
+		server.Shutdown(ctx)
+	}()
+
+	return server.ListenAndServe()
 }
 
 func (s *srv) handleClick(w http.ResponseWriter, r *http.Request) {
@@ -53,14 +60,14 @@ func (s *srv) handleClick(w http.ResponseWriter, r *http.Request) {
 	token := strings.Replace(r.URL.Path, "/c/", "", 1)
 	claims, err := s.ss.VertifyLinkToken(ctx, token)
 	if err != nil {
-		logrus.Errorf("cannot verify open token: %v", err)
+		logrus.Errorf("cannot verify click token: %v", err)
 		http.NotFound(w, r)
 		return
 	}
 
 	domain, err := utils.ExtractDomainFromMessageID(claims.MessageID)
 	if err != nil {
-		logrus.Errorf("cannot verify open token: %v", err)
+		logrus.Errorf("cannot verify click token: %v", err)
 		http.NotFound(w, r)
 		return
 	}

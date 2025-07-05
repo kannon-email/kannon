@@ -2,7 +2,7 @@ package smtp
 
 import (
 	"context"
-	"fmt"
+	"time"
 
 	"github.com/emersion/go-smtp"
 	"github.com/ludusrusso/kannon/internal/x/container"
@@ -17,20 +17,25 @@ func Run(ctx context.Context, cnt *container.Container, config Config) error {
 	defer s.Close()
 
 	logrus.Printf("Starting server at: %v", s.Addr)
-	if err := s.ListenAndServe(); err != nil {
-		return fmt.Errorf("error serving: %v", err)
-	}
 
-	return nil
+	go func() {
+		<-ctx.Done()
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+		defer cancel()
+
+		s.Shutdown(ctx)
+	}()
+
+	return s.ListenAndServe()
 }
 
 func buildServer(config Config, nc *nats.Conn) *smtp.Server {
-	be := &Backend{
+	backend := &Backend{
 		nc: nc,
 	}
 
-	s := smtp.NewServer(be)
-	defer s.Close()
+	s := smtp.NewServer(backend)
 
 	s.Addr = config.GetAddress()
 	s.Domain = config.GetDomain()

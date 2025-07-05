@@ -93,7 +93,7 @@ func prepareConfig() {
 
 func readConfig() (Config, error) {
 	var config Config
-	if err := viper.ReadInConfig(); err == nil {
+	if err := viper.ReadInConfig(); err != nil {
 		return Config{}, fmt.Errorf("cannot read config file: %v", err)
 	}
 

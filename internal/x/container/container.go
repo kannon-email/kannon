@@ -23,8 +23,8 @@ type Container struct {
 	cfg Config
 
 	// singleton instances
-	db   singleton[*sql.DB]
-	nats singleton[*nats.Conn]
+	db   *singleton[*sql.DB]
+	nats *singleton[*nats.Conn]
 
 	closers []func() error
 }
@@ -91,7 +91,7 @@ type singleton[T any] struct {
 	value T
 }
 
-func (s singleton[T]) Get(ctx context.Context, f func(ctx context.Context) T) T {
+func (s *singleton[T]) Get(ctx context.Context, f func(ctx context.Context) T) T {
 	s.once.Do(func() {
 		s.value = f(ctx)
 	})

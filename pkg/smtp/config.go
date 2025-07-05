@@ -29,7 +29,7 @@ func (c Config) GetDomain() string {
 
 // GetReadTimeout returns the SMTP read timeout with default fallback
 func (c Config) GetReadTimeout() time.Duration {
-	if c.ReadTimeout == 0 {
+	if c.ReadTimeout <= 0 {
 		return 10 * time.Second
 	}
 	return c.ReadTimeout
