@@ -115,8 +115,8 @@ func (_c *StatsService_CreateOpenToken_Call) Return(_a0 string, _a1 error) *Stat
 	return _c
 }
 
-// VertifyLinkToken provides a mock function with given fields: ctx, token
-func (_m *StatsService) VertifyLinkToken(ctx context.Context, token string) (*statssec.LinkClaims, error) {
+// VerifyLinkToken provides a mock function with given fields: ctx, token
+func (_m *StatsService) VerifyLinkToken(ctx context.Context, token string) (*statssec.LinkClaims, error) {
 	ret := _m.Called(ctx, token)
 
 	var r0 *statssec.LinkClaims
@@ -138,32 +138,32 @@ func (_m *StatsService) VertifyLinkToken(ctx context.Context, token string) (*st
 	return r0, r1
 }
 
-// StatsService_VertifyLinkToken_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'VertifyLinkToken'
-type StatsService_VertifyLinkToken_Call struct {
+// StatsService_VerifyLinkToken_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'VerifyLinkToken'
+type StatsService_VerifyLinkToken_Call struct {
 	*mock.Call
 }
 
-// VertifyLinkToken is a helper method to define mock.On call
+// VerifyLinkToken is a helper method to define mock.On call
 //   - ctx context.Context
 //   - token string
-func (_e *StatsService_Expecter) VertifyLinkToken(ctx interface{}, token interface{}) *StatsService_VertifyLinkToken_Call {
-	return &StatsService_VertifyLinkToken_Call{Call: _e.mock.On("VertifyLinkToken", ctx, token)}
+func (_e *StatsService_Expecter) VerifyLinkToken(ctx interface{}, token interface{}) *StatsService_VerifyLinkToken_Call {
+	return &StatsService_VerifyLinkToken_Call{Call: _e.mock.On("VerifyLinkToken", ctx, token)}
 }
 
-func (_c *StatsService_VertifyLinkToken_Call) Run(run func(ctx context.Context, token string)) *StatsService_VertifyLinkToken_Call {
+func (_c *StatsService_VerifyLinkToken_Call) Run(run func(ctx context.Context, token string)) *StatsService_VerifyLinkToken_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run(args[0].(context.Context), args[1].(string))
 	})
 	return _c
 }
 
-func (_c *StatsService_VertifyLinkToken_Call) Return(_a0 *statssec.LinkClaims, _a1 error) *StatsService_VertifyLinkToken_Call {
+func (_c *StatsService_VerifyLinkToken_Call) Return(_a0 *statssec.LinkClaims, _a1 error) *StatsService_VerifyLinkToken_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-// VertifyOpenToken provides a mock function with given fields: ctx, token
-func (_m *StatsService) VertifyOpenToken(ctx context.Context, token string) (*statssec.OpenClaims, error) {
+// VerifyOpenToken provides a mock function with given fields: ctx, token
+func (_m *StatsService) VerifyOpenToken(ctx context.Context, token string) (*statssec.OpenClaims, error) {
 	ret := _m.Called(ctx, token)
 
 	var r0 *statssec.OpenClaims
@@ -185,26 +185,26 @@ func (_m *StatsService) VertifyOpenToken(ctx context.Context, token string) (*st
 	return r0, r1
 }
 
-// StatsService_VertifyOpenToken_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'VertifyOpenToken'
-type StatsService_VertifyOpenToken_Call struct {
+// StatsService_VerifyOpenToken_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'VerifyOpenToken'
+type StatsService_VerifyOpenToken_Call struct {
 	*mock.Call
 }
 
-// VertifyOpenToken is a helper method to define mock.On call
+// VerifyOpenToken is a helper method to define mock.On call
 //   - ctx context.Context
 //   - token string
-func (_e *StatsService_Expecter) VertifyOpenToken(ctx interface{}, token interface{}) *StatsService_VertifyOpenToken_Call {
-	return &StatsService_VertifyOpenToken_Call{Call: _e.mock.On("VertifyOpenToken", ctx, token)}
+func (_e *StatsService_Expecter) VerifyOpenToken(ctx interface{}, token interface{}) *StatsService_VerifyOpenToken_Call {
+	return &StatsService_VerifyOpenToken_Call{Call: _e.mock.On("VerifyOpenToken", ctx, token)}
 }
 
-func (_c *StatsService_VertifyOpenToken_Call) Run(run func(ctx context.Context, token string)) *StatsService_VertifyOpenToken_Call {
+func (_c *StatsService_VerifyOpenToken_Call) Run(run func(ctx context.Context, token string)) *StatsService_VerifyOpenToken_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run(args[0].(context.Context), args[1].(string))
 	})
 	return _c
 }
 
-func (_c *StatsService_VertifyOpenToken_Call) Return(_a0 *statssec.OpenClaims, _a1 error) *StatsService_VertifyOpenToken_Call {
+func (_c *StatsService_VerifyOpenToken_Call) Return(_a0 *statssec.OpenClaims, _a1 error) *StatsService_VerifyOpenToken_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }

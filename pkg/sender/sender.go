@@ -11,24 +11,34 @@ import (
 	"github.com/ludusrusso/kannon/internal/publisher"
 	"github.com/ludusrusso/kannon/internal/smtp"
 	"github.com/ludusrusso/kannon/internal/utils"
+	"github.com/ludusrusso/kannon/internal/x/container"
 	"github.com/nats-io/nats.go"
 	"github.com/sirupsen/logrus"
-	"github.com/spf13/viper"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func Run(ctx context.Context) {
-	viper.SetDefault("sender.max_jobs", 10)
+type Config struct {
+	Hostname string
+	MaxJobs  uint
+}
 
-	senderHost := viper.GetString("sender.hostname")
-	natsURL := viper.GetString("nats_url")
-	maxSendingJobs := viper.GetUint("sender.max_jobs")
+func (c Config) GetMaxJobs() uint {
+	if c.MaxJobs == 0 {
+		return 10
+	}
+	return c.MaxJobs
+}
+
+func Run(ctx context.Context, cnt *container.Container, config Config) error {
+	nc := cnt.Nats()
+
+	senderHost := config.Hostname
+	maxSendingJobs := config.GetMaxJobs()
 
 	logrus.Infof("Starting Sender Service with hostname: %v and %d jobs", senderHost, maxSendingJobs)
 
-	nc, js, closeNats := utils.MustGetNats(natsURL)
-	defer closeNats()
+	js := cnt.NatsJetStream()
 	mustConfigureJS(js)
 
 	sender := smtp.NewSender(senderHost)
@@ -39,6 +49,8 @@ func Run(ctx context.Context) {
 	}()
 
 	<-ctx.Done()
+
+	return nil
 }
 
 func handleSend(sender smtp.Sender, con *nats.Subscription, nc *nats.Conn, maxParallelJobs uint) {

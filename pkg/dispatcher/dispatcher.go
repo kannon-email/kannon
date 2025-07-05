@@ -7,39 +7,30 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
-	"github.com/spf13/viper"
 
-	sqlc "github.com/ludusrusso/kannon/internal/db"
 	"github.com/ludusrusso/kannon/internal/mailbuilder"
 	"github.com/ludusrusso/kannon/internal/pool"
 	"github.com/ludusrusso/kannon/internal/runner"
 	"github.com/ludusrusso/kannon/internal/statssec"
-	"github.com/ludusrusso/kannon/internal/utils"
+	"github.com/ludusrusso/kannon/internal/x/container"
 	"github.com/sirupsen/logrus"
 
 	"github.com/nats-io/nats.go"
 )
 
-func Run(ctx context.Context) {
-	dbURL := viper.GetString("database_url")
-	natsURL := viper.GetString("nats_url")
-
+func Run(ctx context.Context, cnt *container.Container) error {
 	log := logrus.WithField("component", "dispatcher")
 
 	log.Info("🚀 Starting dispatcher")
 
-	db, q, err := sqlc.Conn(ctx, dbURL)
-	if err != nil {
-		log.Fatalf("cannot connect to database: %v", err)
-	}
-	defer db.Close()
+	q := cnt.Queries()
 
 	ss := statssec.NewStatsService(q)
 	pm := pool.NewSendingPoolManager(q)
 	mb := mailbuilder.NewMailBuilder(q, ss)
 
-	nc, js, closeNats := utils.MustGetNats(natsURL)
-	defer closeNats()
+	nc := cnt.Nats()
+	js := cnt.NatsJetStream()
 	mustConfigureJS(js)
 
 	d := disp{
@@ -81,6 +72,8 @@ func Run(ctx context.Context) {
 	}()
 
 	wg.Wait()
+
+	return nil
 }
 
 func mustConfigureJS(js nats.JetStreamContext) {

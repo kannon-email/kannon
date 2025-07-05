@@ -4,11 +4,12 @@ import (
 	"context"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	_ "github.com/lib/pq"
-	"github.com/spf13/viper"
 
 	sq "github.com/ludusrusso/kannon/internal/db"
 	"github.com/ludusrusso/kannon/internal/utils"
+	"github.com/ludusrusso/kannon/internal/x/container"
 	"github.com/ludusrusso/kannon/proto/kannon/stats/types"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
@@ -16,20 +17,9 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-func Run(ctx context.Context) {
-	dbURL := viper.GetString("database_url")
-	natsURL := viper.GetString("nats_url")
-
-	logrus.Info("🚀 Starting stats")
-
-	db, q, err := sq.Conn(ctx, dbURL)
-	if err != nil {
-		logrus.Fatalf("cannot connect to database: %v", err)
-	}
-	defer db.Close()
-
-	_, js, closeNats := utils.MustGetNats(natsURL)
-	defer closeNats()
+func Run(ctx context.Context, cnt *container.Container) {
+	q := cnt.Queries()
+	js := cnt.NatsJetStream()
 
 	handleStats(ctx, js, q)
 }
@@ -55,10 +45,13 @@ func handleStats(ctx context.Context, js nats.JetStreamContext, q *sq.Queries) {
 				err := q.InsertStat(ctx, sq.InsertStatParams{
 					Email:     data.Email,
 					MessageID: data.MessageId,
-					Timestamp: data.Timestamp.AsTime(),
-					Domain:    data.Domain,
-					Type:      stype,
-					Data:      data.Data,
+					Timestamp: pgtype.Timestamp{
+						Time:  data.Timestamp.AsTime(),
+						Valid: true,
+					},
+					Domain: data.Domain,
+					Type:   stype,
+					Data:   data.Data,
 				})
 				if err != nil {
 					logrus.Errorf("Cannot insert %v stat: %v", stype, err)

@@ -2,11 +2,11 @@ package validator_test
 
 import (
 	"context"
-	"database/sql"
 	"encoding/base64"
 	"os"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	schema "github.com/ludusrusso/kannon/db"
 	sqlc "github.com/ludusrusso/kannon/internal/db"
 	"github.com/ludusrusso/kannon/internal/pool"
@@ -29,7 +29,7 @@ import (
 	_ "github.com/lib/pq"
 )
 
-var db *sql.DB
+var db *pgxpool.Pool
 var q *sqlc.Queries
 var vt *validator.Validator
 var mp mocks.Publisher
@@ -141,13 +141,13 @@ func createTestDomain(t *testing.T) *adminapiv1.Domain {
 
 func cleanDB(t *testing.T) {
 	t.Helper()
-	_, err := db.ExecContext(context.Background(), "DELETE FROM domains")
+	_, err := db.Exec(context.Background(), "DELETE FROM domains")
 	assert.Nil(t, err)
 
-	_, err = db.ExecContext(context.Background(), "DELETE FROM sending_pool_emails")
+	_, err = db.Exec(context.Background(), "DELETE FROM sending_pool_emails")
 	assert.Nil(t, err)
 
-	_, err = db.ExecContext(context.Background(), "DELETE FROM templates")
+	_, err = db.Exec(context.Background(), "DELETE FROM templates")
 	assert.Nil(t, err)
 }
 

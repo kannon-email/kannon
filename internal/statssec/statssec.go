@@ -16,8 +16,8 @@ import (
 type StatsService interface {
 	CreateOpenToken(ctx context.Context, messageID string, email string) (string, error)
 	CreateLinkToken(ctx context.Context, messageID string, email string, url string) (string, error)
-	VertifyOpenToken(ctx context.Context, token string) (*OpenClaims, error)
-	VertifyLinkToken(ctx context.Context, token string) (*LinkClaims, error)
+	VerifyOpenToken(ctx context.Context, token string) (*OpenClaims, error)
+	VerifyLinkToken(ctx context.Context, token string) (*LinkClaims, error)
 }
 
 func NewStatsService(q *sqlc.Queries) StatsService {
@@ -60,11 +60,11 @@ func (s *service) CreateLinkToken(ctx context.Context, messageID string, email s
 	return token, nil
 }
 
-func (s *service) VertifyOpenToken(ctx context.Context, token string) (*OpenClaims, error) {
+func (s *service) VerifyOpenToken(ctx context.Context, token string) (*OpenClaims, error) {
 	return verifyOpenToken(ctx, token, s.q)
 }
 
-func (s *service) VertifyLinkToken(ctx context.Context, token string) (*LinkClaims, error) {
+func (s *service) VerifyLinkToken(ctx context.Context, token string) (*LinkClaims, error) {
 	return verifyLinkToken(ctx, token, s.q)
 }
 
@@ -88,7 +88,8 @@ func (s *service) getSignKeys(ctx context.Context) (*rsa.PrivateKey, string, err
 func (s *service) getExistingSignKeys(ctx context.Context) (*rsa.PrivateKey, *rsa.PublicKey, string, error) {
 	q := s.q
 
-	keys, err := q.GetValidStatsKeys(ctx, s.now().Add(tokenExpirePeriod))
+	ts := sqlc.PgTimestampFromTime(s.now().Add(tokenExpirePeriod))
+	keys, err := q.GetValidStatsKeys(ctx, ts)
 	if err != nil {
 		return nil, nil, "", err
 	}
@@ -129,11 +130,13 @@ func (s *service) generateNewKeyPairs(ctx context.Context) (*rsa.PrivateKey, *rs
 		return nil, nil, "", err
 	}
 
+	exp := sqlc.PgTimestampFromTime(s.now().Add(2 * tokenExpirePeriod))
+
 	netKeys, err := q.CreateStatsKeys(ctx, sqlc.CreateStatsKeysParams{
 		ID:             id,
 		PrivateKey:     pemPrivate,
 		PublicKey:      pemPublic,
-		ExpirationTime: s.now().Add(2 * tokenExpirePeriod),
+		ExpirationTime: exp,
 	})
 	if err != nil {
 		return nil, nil, "", err

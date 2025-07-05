@@ -2,10 +2,10 @@ package statssec_test
 
 import (
 	"context"
-	"database/sql"
 	"os"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	schema "github.com/ludusrusso/kannon/db"
 	sqlc "github.com/ludusrusso/kannon/internal/db"
 	"github.com/ludusrusso/kannon/internal/statssec"
@@ -16,7 +16,7 @@ import (
 	_ "github.com/lib/pq"
 )
 
-var db *sql.DB
+var db *pgxpool.Pool
 var q *sqlc.Queries
 var s statssec.StatsService
 
@@ -49,7 +49,7 @@ func TestCreateOpenToken(t *testing.T) {
 
 	assert.NotEmpty(t, token)
 
-	c, err := s.VertifyOpenToken(context.Background(), token)
+	c, err := s.VerifyOpenToken(context.Background(), token)
 	assert.Nil(t, err)
 
 	assert.Equal(t, "<xxxx/test@test.com>", c.MessageID)
@@ -63,7 +63,7 @@ func TestCreateLinkToken(t *testing.T) {
 
 	assert.NotEmpty(t, token)
 
-	c, err := s.VertifyLinkToken(context.Background(), token)
+	c, err := s.VerifyLinkToken(context.Background(), token)
 	assert.Nil(t, err)
 
 	assert.Equal(t, "<xxxx/test@test.com>", c.MessageID)

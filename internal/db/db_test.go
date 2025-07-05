@@ -2,10 +2,10 @@ package sqlc
 
 import (
 	"context"
-	"database/sql"
 	"os"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	schema "github.com/ludusrusso/kannon/db"
 	"github.com/ludusrusso/kannon/internal/tests"
 	"github.com/sirupsen/logrus"
@@ -14,7 +14,7 @@ import (
 	_ "github.com/lib/pq"
 )
 
-var db *sql.DB
+var db *pgxpool.Pool
 var q *Queries
 
 func TestMain(m *testing.M) {
@@ -36,12 +36,6 @@ func TestMain(m *testing.M) {
 	}
 
 	os.Exit(code)
-}
-
-func TestPrepareQueries(t *testing.T) {
-	q, err := Prepare(context.Background(), db)
-	assert.Nil(t, err)
-	defer q.Close()
 }
 
 func TestDomains(t *testing.T) {
@@ -74,7 +68,7 @@ func TestDomains(t *testing.T) {
 	assert.Equal(t, d.ID, domain.ID)
 
 	// cleanup
-	_, err = q.db.ExecContext(context.Background(), "TRUNCATE domains")
+	_, err = db.Exec(context.Background(), "TRUNCATE domains")
 	assert.Nil(t, err)
 }
 
@@ -105,8 +99,8 @@ func TestTemplates(t *testing.T) {
 	assert.Equal(t, template, tmp)
 
 	// cleanup
-	_, err = q.db.ExecContext(context.Background(), "TRUNCATE templates")
+	_, err = db.Exec(context.Background(), "TRUNCATE templates")
 	assert.Nil(t, err)
-	_, err = q.db.ExecContext(context.Background(), "TRUNCATE domains")
+	_, err = db.Exec(context.Background(), "TRUNCATE domains")
 	assert.Nil(t, err)
 }

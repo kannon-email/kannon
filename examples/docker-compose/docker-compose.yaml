@@ -1,13 +1,13 @@
 version: "3.9"
 services:
   db:
-    image: postgres
+    image: postgres:17
     restart: always
     shm_size: 128mb
     environment:
       POSTGRES_PASSWORD: example
   nats:
-    image: nats
+    image: nats:2.11.0
     command: "--js"
   migrator:
     image: kannon
@@ -20,7 +20,7 @@ services:
   kannon:
     image: kannon
     restart: always
-    command: "--run-api --config /kannon.yaml --run-bounce --run-dispatcher --run-verifier --run-sender --run-smtp"
+    command: "--config /kannon.yaml"
     volumes:
       - ./kannon.yaml:/kannon.yaml
     ports:

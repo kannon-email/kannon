@@ -2,7 +2,6 @@ package smtp
 
 import (
 	"bufio"
-	"context"
 	"io"
 	"net/mail"
 	"regexp"
@@ -13,7 +12,6 @@ import (
 	st "github.com/ludusrusso/kannon/proto/kannon/stats/types"
 	"github.com/nats-io/nats.go"
 	"github.com/sirupsen/logrus"
-	"github.com/spf13/viper"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -106,50 +104,6 @@ func (s *Session) Reset() {}
 
 func (s *Session) Logout() error {
 	return nil
-}
-
-func Run(ctx context.Context) {
-	viper.SetDefault("smtp.address", ":25")
-	viper.SetDefault("smtp.domain", "localhost")
-	viper.SetDefault("smtp.read_timeout", "10s")
-	viper.SetDefault("smtp.write_timeout", "10s")
-	viper.SetDefault("smtp.max_payload", "1024kb")
-	viper.SetDefault("smtp.max_recipients", 50)
-
-	natsURL := viper.GetString("nats_url")
-	addr := viper.GetString("smtp.address")
-	domain := viper.GetString("smtp.domain")
-	readTimeout := viper.GetDuration("smtp.read_timeout")
-	writeTimeout := viper.GetDuration("smtp.write_timeout")
-	maxPayload := viper.GetSizeInBytes("smtp.max_payload")
-	maxRecipients := viper.GetInt("smtp.max_recipients")
-
-	nc, _, closeNats := utils.MustGetNats(natsURL)
-	defer closeNats()
-
-	be := &Backend{
-		nc: nc,
-	}
-
-	s := smtp.NewServer(be)
-	defer s.Close()
-
-	s.Addr = addr
-	s.Domain = domain
-	s.ReadTimeout = readTimeout
-	s.WriteTimeout = writeTimeout
-	s.MaxMessageBytes = int64(maxPayload)
-	s.MaxRecipients = maxRecipients
-	s.AllowInsecureAuth = true
-
-	go func() {
-		logrus.Printf("Starting server at: %v", s.Addr)
-		if err := s.ListenAndServe(); err != nil {
-			logrus.Fatalf("error serving: %v", err)
-		}
-	}()
-
-	<-ctx.Done()
 }
 
 var parseMessageReg = regexp.MustCompile(`^Diagnostic-Code: (SMTP; ([0-9]+) .*$)`)

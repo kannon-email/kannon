@@ -1,11 +1,9 @@
 package cmd
 
 import (
-	"fmt"
-	"os"
-	"strings"
-	"sync"
+	"context"
 
+	"github.com/ludusrusso/kannon/internal/x/container"
 	"github.com/ludusrusso/kannon/pkg/api"
 	"github.com/ludusrusso/kannon/pkg/bump"
 	"github.com/ludusrusso/kannon/pkg/dispatcher"
@@ -16,6 +14,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"golang.org/x/sync/errgroup"
 )
 
 const envPrefix = "K"
@@ -37,72 +36,74 @@ func Execute() error {
 }
 
 func run(cmd *cobra.Command, args []string) {
-	var wg sync.WaitGroup
 	ctx := cmd.Context()
 
-	if viper.GetBool("run-sender") {
-		wg.Add(1)
-		go func() {
-			sender.Run(cmd.Context())
-			wg.Done()
-		}()
+	config, err := readConfig()
+	if err != nil {
+		logrus.Fatalf("error in reading config: %v", err)
 	}
 
-	if viper.GetBool("run-dispatcher") {
-		wg.Add(1)
-		go func() {
-			dispatcher.Run(ctx)
-			wg.Done()
-		}()
+	cnt := container.New(ctx, container.Config{
+		DBUrl:   config.DatabaseURL,
+		NatsURL: config.NatsURL,
+	})
+	defer cnt.Close()
+
+	g, ctx := errgroup.WithContext(ctx)
+
+	if config.RunSender {
+		g.Go(func() error {
+			return runSender(ctx, cnt, config)
+		})
 	}
 
-	if viper.GetBool("run-verifier") {
-		wg.Add(1)
-		go func() {
-			if err := validator.Run(ctx); err != nil {
+	if config.RunDispatcher {
+		g.Go(func() error {
+			return runDispatcher(ctx, cnt, config)
+		})
+	}
+
+	if config.RunVerifier {
+		g.Go(func() error {
+			if err := validator.Run(ctx, cnt); err != nil {
 				logrus.Fatalf("error in verifier: %v", err)
 			}
-			wg.Done()
-		}()
+			return nil
+		})
 	}
 
-	if viper.GetBool("run-stats") {
-		wg.Add(1)
-		go func() {
-			stats.Run(ctx)
-			wg.Done()
-		}()
+	if config.RunStats {
+		g.Go(func() error {
+			stats.Run(ctx, cnt)
+			return nil
+		})
 	}
 
-	if viper.GetBool("run-bounce") {
-		wg.Add(1)
-		go func() {
-			bump.Run(ctx)
-			wg.Done()
-		}()
+	if config.RunBounce {
+		g.Go(func() error {
+			return bump.Run(ctx, cnt)
+		})
 	}
 
-	if viper.GetBool("run-api") {
-		wg.Add(1)
-		go func() {
-			api.Run(ctx)
-			wg.Done()
-		}()
+	if config.RunAPI {
+		g.Go(func() error {
+			return runAPI(ctx, cnt, config)
+		})
 	}
 
-	if viper.GetBool("run-smtp") {
-		wg.Add(1)
-		go func() {
-			smtp.Run(ctx)
-			wg.Done()
-		}()
+	if config.RunSMTP {
+		g.Go(func() error {
+			return runSMTP(ctx, cnt, config)
+		})
 	}
 
-	wg.Wait()
+	if err := g.Wait(); err != nil {
+		logrus.Fatalf("service error: %v", err)
+	}
 }
 
 func init() {
-	cobra.OnInitialize(initConfig)
+	cobra.OnInitialize(prepareConfig)
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.kannon.yaml)")
 	rootCmd.PersistentFlags().Bool("viper", true, "use Viper for configuration")
@@ -116,40 +117,29 @@ func init() {
 }
 
 //nolint:unparam
-func createBoolFlagAndBindToViper(name string, value bool, usage string) {
-	rootCmd.PersistentFlags().Bool(name, value, usage)
+func createBoolFlagAndBindToViper(name string, defaultValue bool, usage string) {
+	rootCmd.PersistentFlags().Bool(name, defaultValue, usage)
 	err := viper.BindPFlag(name, rootCmd.PersistentFlags().Lookup(name))
 	if err != nil {
 		logrus.Fatalf("cannot set flat '%v': %v", name, err)
 	}
 }
 
-func initConfig() {
-	if cfgFile != "" {
-		// Use config file from the flag.
-		viper.SetConfigFile(cfgFile)
-	} else {
-		// Find home directory.
-		home, err := os.UserHomeDir()
-		cobra.CheckErr(err)
+func runAPI(ctx context.Context, cnt *container.Container, config Config) error {
+	cnf := config.API.ToAPIConfig()
+	return api.Run(ctx, cnf, cnt)
+}
 
-		// Search config in home directory with name ".cobra" (without extension).
-		viper.AddConfigPath(home)
-		viper.SetConfigType("yaml")
-		viper.SetConfigName(".kannon")
-	}
+func runDispatcher(ctx context.Context, cnt *container.Container, _ Config) error {
+	return dispatcher.Run(ctx, cnt)
+}
 
-	replacer := strings.NewReplacer(".", "_")
-	viper.SetEnvKeyReplacer(replacer)
-	viper.SetEnvPrefix(envPrefix)
-	viper.AutomaticEnv()
+func runSender(ctx context.Context, cnt *container.Container, config Config) error {
+	cnf := config.Sender.ToSenderConfig()
+	return sender.Run(ctx, cnt, cnf)
+}
 
-	if err := viper.ReadInConfig(); err == nil {
-		fmt.Println("Using config file:", viper.ConfigFileUsed())
-	}
-
-	if viper.GetBool("debug") {
-		logrus.Infof("setting deubg mode")
-		logrus.SetLevel(logrus.DebugLevel)
-	}
+func runSMTP(ctx context.Context, cnt *container.Container, config Config) error {
+	cnf := config.SMTP.ToSMTPConfig()
+	return smtp.Run(ctx, cnt, cnf)
 }

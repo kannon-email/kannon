@@ -48,7 +48,7 @@ func (s Stat) Pb() *types.Stats {
 		MessageId: s.MessageID,
 		Domain:    s.Domain,
 		Email:     s.Email,
-		Timestamp: timestamppb.New(s.Timestamp),
+		Timestamp: timestamppb.New(s.Timestamp.Time),
 		Type:      string(s.Type),
 		Data:      s.Data,
 	}

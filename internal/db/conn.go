@@ -2,24 +2,16 @@ package sqlc
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/stdlib"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func Conn(ctx context.Context, url string) (*sql.DB, *Queries, error) {
-	c, err := pgx.ParseConfig(url)
+func Conn(ctx context.Context, url string) (*pgxpool.Pool, error) {
+	pool, err := pgxpool.New(ctx, url)
 	if err != nil {
-		return nil, nil, fmt.Errorf("parsing postgres URI: %w", err)
+		return nil, fmt.Errorf("cannot create pgx pool: %w", err)
 	}
 
-	db := stdlib.OpenDB(*c)
-	q, err := Prepare(ctx, db)
-	if err != nil {
-		return nil, nil, fmt.Errorf("cannot prepare queries: %w", err)
-	}
-
-	return db, q, nil
+	return pool, nil
 }
