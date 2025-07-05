@@ -1,9 +1,6 @@
 package cmd
 
 import (
-	"fmt"
-	"os"
-	"strings"
 	"sync"
 
 	"github.com/ludusrusso/kannon/pkg/api"
@@ -40,15 +37,24 @@ func run(cmd *cobra.Command, args []string) {
 	var wg sync.WaitGroup
 	ctx := cmd.Context()
 
-	if viper.GetBool("run-sender") {
+	config, err := readConfig()
+	if err != nil {
+		logrus.Fatalf("error in reading config: %v", err)
+	}
+
+	if config.RunSender {
 		wg.Add(1)
 		go func() {
-			sender.Run(cmd.Context())
+			cnf := sender.Config{
+				Hostname: config.Sender.Hostname,
+				MaxJobs:  config.Sender.MaxJobs,
+			}
+			sender.Run(ctx, cnf)
 			wg.Done()
 		}()
 	}
 
-	if viper.GetBool("run-dispatcher") {
+	if config.RunDispatcher {
 		wg.Add(1)
 		go func() {
 			dispatcher.Run(ctx)
@@ -56,7 +62,7 @@ func run(cmd *cobra.Command, args []string) {
 		}()
 	}
 
-	if viper.GetBool("run-verifier") {
+	if config.RunVerifier {
 		wg.Add(1)
 		go func() {
 			if err := validator.Run(ctx); err != nil {
@@ -66,7 +72,7 @@ func run(cmd *cobra.Command, args []string) {
 		}()
 	}
 
-	if viper.GetBool("run-stats") {
+	if config.RunStats {
 		wg.Add(1)
 		go func() {
 			stats.Run(ctx)
@@ -74,7 +80,7 @@ func run(cmd *cobra.Command, args []string) {
 		}()
 	}
 
-	if viper.GetBool("run-bounce") {
+	if config.RunBounce {
 		wg.Add(1)
 		go func() {
 			bump.Run(ctx)
@@ -82,7 +88,7 @@ func run(cmd *cobra.Command, args []string) {
 		}()
 	}
 
-	if viper.GetBool("run-api") {
+	if config.RunAPI {
 		wg.Add(1)
 		go func() {
 			api.Run(ctx)
@@ -90,10 +96,18 @@ func run(cmd *cobra.Command, args []string) {
 		}()
 	}
 
-	if viper.GetBool("run-smtp") {
+	if config.RunSMTP {
 		wg.Add(1)
 		go func() {
-			smtp.Run(ctx)
+			cnf := smtp.Config{
+				Address:         config.SMTP.Address,
+				Domain:          config.SMTP.Domain,
+				ReadTimeout:     config.SMTP.ReadTimeout,
+				WriteTimeout:    config.SMTP.WriteTimeout,
+				MaxPayloadBytes: config.SMTP.MaxPayloadBytes,
+				MaxRecipients:   config.SMTP.MaxRecipients,
+			}
+			smtp.Run(ctx, cnf)
 			wg.Done()
 		}()
 	}
@@ -102,7 +116,7 @@ func run(cmd *cobra.Command, args []string) {
 }
 
 func init() {
-	cobra.OnInitialize(initConfig)
+	cobra.OnInitialize(prepareConfig)
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.kannon.yaml)")
 	rootCmd.PersistentFlags().Bool("viper", true, "use Viper for configuration")
@@ -121,35 +135,5 @@ func createBoolFlagAndBindToViper(name string, value bool, usage string) {
 	err := viper.BindPFlag(name, rootCmd.PersistentFlags().Lookup(name))
 	if err != nil {
 		logrus.Fatalf("cannot set flat '%v': %v", name, err)
-	}
-}
-
-func initConfig() {
-	if cfgFile != "" {
-		// Use config file from the flag.
-		viper.SetConfigFile(cfgFile)
-	} else {
-		// Find home directory.
-		home, err := os.UserHomeDir()
-		cobra.CheckErr(err)
-
-		// Search config in home directory with name ".cobra" (without extension).
-		viper.AddConfigPath(home)
-		viper.SetConfigType("yaml")
-		viper.SetConfigName(".kannon")
-	}
-
-	replacer := strings.NewReplacer(".", "_")
-	viper.SetEnvKeyReplacer(replacer)
-	viper.SetEnvPrefix(envPrefix)
-	viper.AutomaticEnv()
-
-	if err := viper.ReadInConfig(); err == nil {
-		fmt.Println("Using config file:", viper.ConfigFileUsed())
-	}
-
-	if viper.GetBool("debug") {
-		logrus.Infof("setting deubg mode")
-		logrus.SetLevel(logrus.DebugLevel)
 	}
 }
