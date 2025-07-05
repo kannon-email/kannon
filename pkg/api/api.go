@@ -6,7 +6,7 @@ import (
 	"net"
 	"sync"
 
-	sqlc "github.com/ludusrusso/kannon/internal/db"
+	"github.com/ludusrusso/kannon/internal/x/container"
 	"github.com/ludusrusso/kannon/pkg/api/adminapi"
 	"github.com/ludusrusso/kannon/pkg/api/mailapi"
 	"github.com/ludusrusso/kannon/pkg/statsapi/statsv1"
@@ -14,21 +14,26 @@ import (
 	mailerv1 "github.com/ludusrusso/kannon/proto/kannon/mailer/apiv1"
 	"github.com/ludusrusso/kannon/proto/kannon/stats/apiv1"
 	"github.com/sirupsen/logrus"
-	"github.com/spf13/viper"
 	"google.golang.org/grpc"
 )
 
-func Run(ctx context.Context) {
-	dbURL := viper.GetString("database_url")
-	port := viper.GetUint("api.port")
+type Config struct {
+	Port uint
+}
+
+func (c Config) GetPort() uint {
+	if c.Port == 0 {
+		return 50051
+	}
+	return c.Port
+}
+
+func Run(ctx context.Context, config Config, cnt *container.Container) {
+	port := config.GetPort()
 
 	logrus.Infof("Starting API Service on port %d", port)
 
-	db, q, err := sqlc.Conn(ctx, dbURL)
-	if err != nil {
-		logrus.Fatalf("cannot connect to database: %v", err)
-	}
-	defer db.Close()
+	q := cnt.Queries()
 
 	adminAPIService := adminapi.CreateAdminAPIService(q)
 	mailAPIService := mailapi.NewMailerAPIV1(q)

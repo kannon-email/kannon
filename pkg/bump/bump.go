@@ -10,27 +10,18 @@ import (
 	sqlc "github.com/ludusrusso/kannon/internal/db"
 	"github.com/ludusrusso/kannon/internal/statssec"
 	"github.com/ludusrusso/kannon/internal/utils"
+	"github.com/ludusrusso/kannon/internal/x/container"
 	pb "github.com/ludusrusso/kannon/proto/kannon/stats/types"
 	"github.com/sirupsen/logrus"
-	"github.com/spf13/viper"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var retImage = image.NewGray(image.Rect(0, 0, 0, 0))
 
-func Run(ctx context.Context) {
-	dbURL := viper.GetString("database_url")
-	natsURL := viper.GetString("nats_url")
-
-	db, q, err := sqlc.Conn(ctx, dbURL)
-	if err != nil {
-		logrus.Fatalf("cannot connect to database: %v", err)
-	}
-	defer db.Close()
-
-	nc, _, closeNats := utils.MustGetNats(natsURL)
-	defer closeNats()
+func Run(ctx context.Context, cnt *container.Container) {
+	q := cnt.Queries()
+	nc := cnt.Nats()
 
 	ss := statssec.NewStatsService(q)
 

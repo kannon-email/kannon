@@ -5,17 +5,13 @@ import (
 	"fmt"
 
 	"github.com/emersion/go-smtp"
-	"github.com/ludusrusso/kannon/internal/utils"
+	"github.com/ludusrusso/kannon/internal/x/container"
 	"github.com/nats-io/nats.go"
 	"github.com/sirupsen/logrus"
-	"github.com/spf13/viper"
 )
 
-func Run(ctx context.Context, config Config) error {
-	natsURL := viper.GetString("nats_url")
-
-	nc, _, closeNats := utils.MustGetNats(natsURL)
-	defer closeNats()
+func Run(ctx context.Context, cnt *container.Container, config Config) error {
+	nc := cnt.Nats()
 
 	s := buildServer(config, nc)
 	defer s.Close()

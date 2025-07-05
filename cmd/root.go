@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 
+	"github.com/ludusrusso/kannon/internal/x/container"
 	"github.com/ludusrusso/kannon/pkg/api"
 	"github.com/ludusrusso/kannon/pkg/bump"
 	"github.com/ludusrusso/kannon/pkg/dispatcher"
@@ -37,6 +38,15 @@ func Execute() error {
 func run(cmd *cobra.Command, args []string) {
 	ctx := cmd.Context()
 
+	dbUrl := viper.GetString("database_url")
+	natsUrl := viper.GetString("nats_url")
+
+	cnt := container.New(ctx, container.Config{
+		DBUrl:   dbUrl,
+		NatsURL: natsUrl,
+	})
+	defer cnt.Close()
+
 	config, err := readConfig()
 	if err != nil {
 		logrus.Fatalf("error in reading config: %v", err)
@@ -46,13 +56,13 @@ func run(cmd *cobra.Command, args []string) {
 
 	if config.RunSender {
 		g.Go(func() error {
-			return runSender(ctx, config)
+			return runSender(ctx, cnt, config)
 		})
 	}
 
 	if config.RunDispatcher {
 		g.Go(func() error {
-			return runDispatcher(ctx, config)
+			return runDispatcher(ctx, cnt, config)
 		})
 	}
 
@@ -67,28 +77,30 @@ func run(cmd *cobra.Command, args []string) {
 
 	if config.RunStats {
 		g.Go(func() error {
-			stats.Run(ctx)
+			stats.Run(ctx, cnt)
 			return nil
 		})
 	}
 
 	if config.RunBounce {
 		g.Go(func() error {
-			bump.Run(ctx)
+			bump.Run(ctx, cnt)
 			return nil
 		})
 	}
 
 	if config.RunAPI {
 		g.Go(func() error {
-			api.Run(ctx)
+			api.Run(ctx, api.Config{
+				Port: config.API.Port,
+			}, cnt)
 			return nil
 		})
 	}
 
 	if config.RunSMTP {
 		g.Go(func() error {
-			return runSMTP(ctx, config)
+			return runSMTP(ctx, cnt, config)
 		})
 	}
 
@@ -119,16 +131,16 @@ func createBoolFlagAndBindToViper(name string, value bool, usage string) {
 	}
 }
 
-func runDispatcher(ctx context.Context, config Config) error {
-	return dispatcher.Run(ctx)
+func runDispatcher(ctx context.Context, cnt *container.Container, config Config) error {
+	return dispatcher.Run(ctx, cnt)
 }
 
-func runSender(ctx context.Context, config Config) error {
+func runSender(ctx context.Context, cnt *container.Container, config Config) error {
 	cnf := config.Sender.ToSenderConfig()
-	return sender.Run(ctx, cnf)
+	return sender.Run(ctx, cnt, cnf)
 }
 
-func runSMTP(ctx context.Context, config Config) error {
+func runSMTP(ctx context.Context, cnt *container.Container, config Config) error {
 	cnf := config.SMTP.ToSMTPConfig()
-	return smtp.Run(ctx, cnf)
+	return smtp.Run(ctx, cnt, cnf)
 }
