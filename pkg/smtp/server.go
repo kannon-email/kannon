@@ -24,7 +24,9 @@ func Run(ctx context.Context, cnt *container.Container, config Config) error {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 		defer cancel()
 
-		s.Shutdown(ctx)
+		if err := s.Shutdown(ctx); err != nil {
+			logrus.Errorf("error shutting down server: %v", err)
+		}
 	}()
 
 	return s.ListenAndServe()

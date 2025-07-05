@@ -44,9 +44,11 @@ func (s *srv) Run(ctx context.Context) error {
 
 	go func() {
 		<-ctx.Done()
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		server.Shutdown(ctx)
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			logrus.Errorf("error shutting down server: %v", err)
+		}
 	}()
 
 	return server.ListenAndServe()

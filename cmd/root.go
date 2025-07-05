@@ -84,8 +84,7 @@ func run(cmd *cobra.Command, args []string) {
 
 	if config.RunBounce {
 		g.Go(func() error {
-			bump.Run(ctx, cnt)
-			return nil
+			return bump.Run(ctx, cnt)
 		})
 	}
 
@@ -120,8 +119,9 @@ func init() {
 	createBoolFlagAndBindToViper("run-smtp", false, "run smtp server")
 }
 
-func createBoolFlagAndBindToViper(name string, value bool, usage string) {
-	rootCmd.PersistentFlags().Bool(name, value, usage)
+//nolint:unparam -- we need to pass defaultValue to the flag
+func createBoolFlagAndBindToViper(name string, defaultValue bool, usage string) {
+	rootCmd.PersistentFlags().Bool(name, defaultValue, usage)
 	err := viper.BindPFlag(name, rootCmd.PersistentFlags().Lookup(name))
 	if err != nil {
 		logrus.Fatalf("cannot set flat '%v': %v", name, err)
@@ -133,7 +133,7 @@ func runAPI(ctx context.Context, cnt *container.Container, config Config) error 
 	return api.Run(ctx, cnf, cnt)
 }
 
-func runDispatcher(ctx context.Context, cnt *container.Container, config Config) error {
+func runDispatcher(ctx context.Context, cnt *container.Container, _ Config) error {
 	return dispatcher.Run(ctx, cnt)
 }
 
