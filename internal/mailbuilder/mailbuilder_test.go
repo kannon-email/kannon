@@ -23,7 +23,6 @@ import (
 	pb "github.com/ludusrusso/kannon/proto/kannon/mailer/types"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	adminapiv1 "github.com/ludusrusso/kannon/proto/kannon/admin/apiv1"
@@ -73,10 +72,7 @@ func TestPrepareMail(t *testing.T) {
 	}))
 	assert.Nil(t, err)
 
-	token := base64.StdEncoding.EncodeToString([]byte(d.Msg.Domain + ":" + d.Msg.Key))
-	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Basic "+token))
-
-	res, err := ma.SendHTML(ctx, connect.NewRequest(&mailerapiv1.SendHTMLReq{
+	req := connect.NewRequest(&mailerapiv1.SendHTMLReq{
 		Sender: &pb.Sender{
 			Email: "test@test.com",
 			Alias: "Test",
@@ -92,10 +88,12 @@ func TestPrepareMail(t *testing.T) {
 				},
 			},
 		},
-	}))
-	assert.Nil(t, err)
+	})
+	authRequest(req, d.Msg)
 
-	err = pm.SetScheduled(ctx, res.Msg.MessageId, "test@emailtest.com")
+	res, err := ma.SendHTML(context.Background(), req)
+
+	err = pm.SetScheduled(context.Background(), res.Msg.MessageId, "test@emailtest.com")
 	assert.Nil(t, err)
 
 	emails, err := pm.PrepareForSend(context.Background(), 1)
@@ -120,16 +118,36 @@ func TestPrepareMail(t *testing.T) {
 	assert.Equal(t, "test Test", string(html))
 }
 
+func TestPrepareMailNoAccess(t *testing.T) {
+	req := connect.NewRequest(&mailerapiv1.SendHTMLReq{
+		Sender: &pb.Sender{
+			Email: "test@test.com",
+			Alias: "Test",
+		},
+		Subject:       "Test {{ name }}",
+		Html:          "test {{name }}",
+		ScheduledTime: timestamppb.Now(),
+		Recipients: []*pb.Recipient{
+			{
+				Email: "test@emailtest.com",
+				Fields: map[string]string{
+					"name": "Test",
+				},
+			},
+		},
+	})
+
+	_, err := ma.SendHTML(context.Background(), req)
+	assert.NotNil(t, err)
+}
+
 func TestPrepareMailWithAttachments(t *testing.T) {
 	d, err := adminAPI.CreateDomain(context.Background(), connect.NewRequest(&adminapiv1.CreateDomainRequest{
 		Domain: "test2.com",
 	}))
 	assert.Nil(t, err)
 
-	token := base64.StdEncoding.EncodeToString([]byte(d.Msg.Domain + ":" + d.Msg.Key))
-	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Basic "+token))
-
-	res, err := ma.SendHTML(ctx, connect.NewRequest(&mailerapiv1.SendHTMLReq{
+	req := connect.NewRequest(&mailerapiv1.SendHTMLReq{
 		Sender: &pb.Sender{
 			Email: "test@test.com",
 			Alias: "Test",
@@ -151,10 +169,12 @@ func TestPrepareMailWithAttachments(t *testing.T) {
 				Content:  []byte("test"),
 			},
 		},
-	}))
-	assert.Nil(t, err)
+	})
+	authRequest(req, d.Msg)
 
-	err = pm.SetScheduled(ctx, res.Msg.MessageId, "test@emailtest.com")
+	res, err := ma.SendHTML(context.Background(), req)
+
+	err = pm.SetScheduled(context.Background(), res.Msg.MessageId, "test@emailtest.com")
 	assert.Nil(t, err)
 
 	emails, err := pm.PrepareForSend(context.Background(), 1)
@@ -170,4 +190,9 @@ func TestPrepareMailWithAttachments(t *testing.T) {
 	assert.Equal(t, "test@emailtest.com", parsed.Header.Get("To"))
 	assert.Equal(t, "Test <test@test.com>", parsed.Header.Get("From"))
 	assert.Equal(t, "multipart/mixed", strings.Split(parsed.Header.Get("Content-Type"), ";")[0])
+}
+
+func authRequest[T any](req *connect.Request[T], d *adminapiv1.Domain) {
+	token := base64.StdEncoding.EncodeToString([]byte(d.Domain + ":" + d.Key))
+	req.Header().Set("Authorization", "Basic "+token)
 }

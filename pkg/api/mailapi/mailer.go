@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -16,7 +17,6 @@ import (
 	pb "github.com/ludusrusso/kannon/proto/kannon/mailer/apiv1"
 	mailerv1connect "github.com/ludusrusso/kannon/proto/kannon/mailer/apiv1/apiv1connect"
 	"github.com/sirupsen/logrus"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -26,76 +26,82 @@ type mailAPIService struct {
 	sendingPoll pool.SendingPoolManager
 }
 
-func (s mailAPIService) SendHTML(ctx context.Context, req *pb.SendHTMLReq) (*pb.SendRes, error) {
-	domain, err := s.getCallDomainFromContext(ctx)
+func (s mailAPIService) SendHTML(ctx context.Context, req *connect.Request[pb.SendHTMLReq]) (*connect.Response[pb.SendRes], error) {
+	domain, err := s.getCallDomainFromContext(ctx, req.Header())
 	if err != nil {
 		return nil, fmt.Errorf("invalid or wrong auth")
 	}
 
-	req.Html = utils.ReplaceCustomFields(req.Html, req.GlobalFields)
+	req.Msg.Html = utils.ReplaceCustomFields(req.Msg.Html, req.Msg.GlobalFields)
 
-	template, err := s.templates.CreateTransientTemplate(ctx, req.Html, domain.Domain)
+	template, err := s.templates.CreateTransientTemplate(ctx, req.Msg.Html, domain.Domain)
 	if err != nil {
 		logrus.Errorf("cannot create template %v\n", err)
 		return nil, fmt.Errorf("cannot create template %v", err)
 	}
 
-	return s.SendTemplate(ctx, &pb.SendTemplateReq{
-		Sender:        req.Sender,
-		Subject:       req.Subject,
+	res := &pb.SendTemplateReq{
+		Sender:        req.Msg.Sender,
+		Subject:       req.Msg.Subject,
 		TemplateId:    template.TemplateID,
-		ScheduledTime: req.ScheduledTime,
-		Recipients:    req.Recipients,
-		Attachments:   req.Attachments,
+		ScheduledTime: req.Msg.ScheduledTime,
+		Recipients:    req.Msg.Recipients,
+		Attachments:   req.Msg.Attachments,
 		GlobalFields:  nil,
-	})
+	}
+
+	return s.sendTemplate(ctx, domain, connect.NewRequest(res))
 }
 
-func (s mailAPIService) SendTemplate(ctx context.Context, req *pb.SendTemplateReq) (*pb.SendRes, error) {
-	domain, err := s.getCallDomainFromContext(ctx)
+func (s mailAPIService) SendTemplate(ctx context.Context, req *connect.Request[pb.SendTemplateReq]) (*connect.Response[pb.SendRes], error) {
+	domain, err := s.getCallDomainFromContext(ctx, req.Header())
 	if err != nil {
 		return nil, fmt.Errorf("invalid or wrong auth")
 	}
 
-	template, err := s.templates.FindTemplate(ctx, domain.Domain, req.TemplateId)
+	return s.sendTemplate(ctx, domain, req)
+}
+
+func (s mailAPIService) sendTemplate(ctx context.Context, domain sqlc.Domain, req *connect.Request[pb.SendTemplateReq]) (*connect.Response[pb.SendRes], error) {
+	template, err := s.templates.FindTemplate(ctx, domain.Domain, req.Msg.TemplateId)
 	if err != nil {
 		logrus.Errorf("cannot find template %v\n", err)
-		return nil, fmt.Errorf("cannot find template with id: %v", req.TemplateId)
+		return nil, fmt.Errorf("cannot find template with id: %v", req.Msg.TemplateId)
 	}
 
-	template, err = s.createTemplateWithGlobalFieds(ctx, template, req.GlobalFields)
+	template, err = s.createTemplateWithGlobalFieds(ctx, template, req.Msg.GlobalFields)
 	if err != nil {
 		logrus.Errorf("cannot create transient template %v\n", err)
 		return nil, fmt.Errorf("cannot create template %v", err)
 	}
 
 	sender := pool.Sender{
-		Email: req.Sender.Email,
-		Alias: req.Sender.Alias,
+		Email: req.Msg.Sender.Email,
+		Alias: req.Msg.Sender.Alias,
 	}
 
 	scheduled := time.Now()
-	if req.ScheduledTime != nil {
-		scheduled = req.ScheduledTime.AsTime()
+	if req.Msg.ScheduledTime != nil {
+		scheduled = req.Msg.ScheduledTime.AsTime()
 	}
 
 	attachments := make(sqlc.Attachments)
-	for _, r := range req.Attachments {
+	for _, r := range req.Msg.Attachments {
 		attachments[r.Filename] = r.Content
 	}
 
-	pool, err := s.sendingPoll.AddRecipientsPool(ctx, template, req.Recipients, sender, scheduled, req.Subject, domain.Domain, attachments)
+	pool, err := s.sendingPoll.AddRecipientsPool(ctx, template, req.Msg.Recipients, sender, scheduled, req.Msg.Subject, domain.Domain, attachments)
 
 	if err != nil {
 		logrus.Errorf("cannot create pool %v\n", err)
 		return nil, err
 	}
 
-	return &pb.SendRes{
+	return connect.NewResponse(&pb.SendRes{
 		MessageId:     pool.MessageID,
 		TemplateId:    template.TemplateID,
 		ScheduledTime: timestamppb.New(scheduled),
-	}, nil
+	}), nil
 }
 
 func (s mailAPIService) Close() error {
@@ -115,18 +121,9 @@ func (s mailAPIService) createTemplateWithGlobalFieds(ctx context.Context, templ
 	return s.templates.CreateTransientTemplate(ctx, newHTML, template.Domain)
 }
 
-func (s mailAPIService) getCallDomainFromContext(ctx context.Context) (sqlc.Domain, error) {
-	m, ok := metadata.FromIncomingContext(ctx)
-	if !ok {
-		return sqlc.Domain{}, fmt.Errorf("cannot find metatada")
-	}
+func (s mailAPIService) getCallDomainFromContext(ctx context.Context, headers http.Header) (sqlc.Domain, error) {
+	auth := headers.Get("Authorization")
 
-	auths := m.Get("authorization")
-	if len(auths) != 1 {
-		return sqlc.Domain{}, fmt.Errorf("cannot find authorization header")
-	}
-
-	auth := auths[0]
 	if !strings.HasPrefix(auth, "Basic ") {
 		return sqlc.Domain{}, fmt.Errorf("no prefix Basic in auth: %v", auth)
 	}
@@ -150,39 +147,15 @@ func (s mailAPIService) getCallDomainFromContext(ctx context.Context) (sqlc.Doma
 	return domain, nil
 }
 
-// Adapter to Connect handler interface
-
-type mailAPIConnectAdapter struct {
-	impl *mailAPIService
-}
-
-func (a *mailAPIConnectAdapter) SendHTML(ctx context.Context, req *connect.Request[pb.SendHTMLReq]) (*connect.Response[pb.SendRes], error) {
-	resp, err := a.impl.SendHTML(ctx, req.Msg)
-	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
-	}
-	return connect.NewResponse(resp), nil
-}
-
-func (a *mailAPIConnectAdapter) SendTemplate(ctx context.Context, req *connect.Request[pb.SendTemplateReq]) (*connect.Response[pb.SendRes], error) {
-	resp, err := a.impl.SendTemplate(ctx, req.Msg)
-	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
-	}
-	return connect.NewResponse(resp), nil
-}
-
 func NewMailerAPIV1(q *sqlc.Queries) mailerv1connect.MailerHandler {
 	domainsCli := domains.NewDomainManager(q)
 
 	sendingPoolCli := pool.NewSendingPoolManager(q)
 	templates := templates.NewTemplateManager(q)
 
-	return &mailAPIConnectAdapter{
-		impl: &mailAPIService{
-			domains:     domainsCli,
-			sendingPoll: sendingPoolCli,
-			templates:   templates,
-		},
+	return &mailAPIService{
+		domains:     domainsCli,
+		sendingPoll: sendingPoolCli,
+		templates:   templates,
 	}
 }

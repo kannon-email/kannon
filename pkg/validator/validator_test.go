@@ -24,7 +24,6 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	_ "github.com/lib/pq"
@@ -112,8 +111,7 @@ func runOneCycle(t *testing.T) {
 func sendEmail(t *testing.T, domain *adminapiv1.Domain, email string) {
 	t.Helper()
 
-	ctx := getDomainCtx(domain)
-	_, err := ts.SendHTML(ctx, connect.NewRequest(&mailerapiv1.SendHTMLReq{
+	req := connect.NewRequest(&mailerapiv1.SendHTMLReq{
 		Sender: &mailertypes.Sender{
 			Email: "test@email.com",
 			Alias: "test",
@@ -126,7 +124,11 @@ func sendEmail(t *testing.T, domain *adminapiv1.Domain, email string) {
 				Email: email,
 			},
 		},
-	}))
+	})
+
+	authRequest(req, domain)
+
+	_, err := ts.SendHTML(context.Background(), req)
 	assert.Nil(t, err)
 }
 
@@ -151,10 +153,9 @@ func cleanDB(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func getDomainCtx(d *adminapiv1.Domain) context.Context {
+func authRequest[T any](req *connect.Request[T], d *adminapiv1.Domain) {
 	token := base64.StdEncoding.EncodeToString([]byte(d.Domain + ":" + d.Key))
-	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Basic "+token))
-	return ctx
+	req.Header().Set("Authorization", "Basic "+token)
 }
 
 type MockPublisher struct {

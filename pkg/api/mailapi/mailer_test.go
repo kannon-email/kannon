@@ -20,11 +20,8 @@ func TestInsertMail(t *testing.T) {
 
 	d := createTestDomain(t)
 
-	ctx := getDomainCtx(d)
-
 	schedTime := time.Now().Add(10 * time.Minute).Truncate(1 * time.Second)
-
-	res, err := ts.SendHTML(ctx, connect.NewRequest(&mailerv1.SendHTMLReq{
+	req := connect.NewRequest(&mailerv1.SendHTMLReq{
 		Sender: &types.Sender{
 			Email: "test@test.com",
 			Alias: "Test",
@@ -40,7 +37,11 @@ func TestInsertMail(t *testing.T) {
 		Subject:       "Test",
 		Html:          "Hello {{ name }}",
 		ScheduledTime: timestamppb.New(schedTime),
-	}))
+	})
+
+	authRequest(req, d)
+
+	res, err := ts.SendHTML(context.Background(), req)
 
 	assert.Nil(t, err)
 	assert.NotEmpty(t, res.Msg.MessageId)
@@ -67,11 +68,9 @@ func TestSendMailWithGlobalFields(t *testing.T) {
 
 	d := createTestDomain(t)
 
-	ctx := getDomainCtx(d)
-
 	schedTime := time.Now().Add(10 * time.Minute).Truncate(1 * time.Second)
 
-	res, err := ts.SendHTML(ctx, connect.NewRequest(&mailerv1.SendHTMLReq{
+	req := connect.NewRequest(&mailerv1.SendHTMLReq{
 		Sender: &types.Sender{
 			Email: "test@test.com",
 			Alias: "Test",
@@ -82,7 +81,10 @@ func TestSendMailWithGlobalFields(t *testing.T) {
 		GlobalFields: map[string]string{
 			"name": "Global",
 		},
-	}))
+	})
+	authRequest(req, d)
+
+	res, err := ts.SendHTML(context.Background(), req)
 
 	assert.Nil(t, err)
 	assert.NotEmpty(t, res.Msg.MessageId)
@@ -98,8 +100,6 @@ func TestSendTemplateWithGlobalFields(t *testing.T) {
 
 	d := createTestDomain(t)
 
-	ctx := getDomainCtx(d)
-
 	schedTime := time.Now().Add(10 * time.Minute).Truncate(1 * time.Second)
 
 	tmp, err := q.CreateTemplate(context.Background(), sqlc.CreateTemplateParams{
@@ -111,7 +111,7 @@ func TestSendTemplateWithGlobalFields(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	res, err := ts.SendTemplate(ctx, connect.NewRequest(&mailerv1.SendTemplateReq{
+	req := connect.NewRequest(&mailerv1.SendTemplateReq{
 		Sender: &types.Sender{
 			Email: "test@test.com",
 			Alias: "Test",
@@ -122,7 +122,10 @@ func TestSendTemplateWithGlobalFields(t *testing.T) {
 		GlobalFields: map[string]string{
 			"name": "Global",
 		},
-	}))
+	})
+	authRequest(req, d)
+
+	res, err := ts.SendTemplate(context.Background(), req)
 
 	assert.Nil(t, err)
 	assert.NotEmpty(t, res.Msg.MessageId)

@@ -15,7 +15,6 @@ import (
 	"github.com/ludusrusso/kannon/pkg/api/mailapi"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
-	"google.golang.org/grpc/metadata"
 
 	adminv1connect "github.com/ludusrusso/kannon/proto/kannon/admin/apiv1/apiv1connect"
 	mailerv1connect "github.com/ludusrusso/kannon/proto/kannon/mailer/apiv1/apiv1connect"
@@ -74,8 +73,7 @@ func cleanDB(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func getDomainCtx(d *adminv1.Domain) context.Context {
+func authRequest[T any](req *connect.Request[T], d *adminv1.Domain) {
 	token := base64.StdEncoding.EncodeToString([]byte(d.Domain + ":" + d.Key))
-	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Basic "+token))
-	return ctx
+	req.Header().Set("Authorization", "Basic "+token)
 }
