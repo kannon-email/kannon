@@ -178,14 +178,21 @@ flowchart TD
         Bounce["Bounce"]
         Stats["Stats"]
     end
-    API <--> DB[(PostgreSQL)]
-    Sender <--> NATS[(NATS)]
+    DB[(PostgreSQL)]
+    NATS[(NATS)]
+    API <--> DB
+    Dispatcher <--> DB
+    Sender <--> DB
+    Verifier <--> DB
+    Stats <--> DB
+    Bounce <--> DB
+    API <--> NATS
+    Sender <--> NATS
     Dispatcher <--> NATS
     SMTP <--> NATS
     Stats <--> NATS
     Verifier <--> NATS
     Bounce <--> NATS
-    API <--> NATS
 ```
 
 ## API and NATS Message Flows
