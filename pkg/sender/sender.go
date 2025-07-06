@@ -2,7 +2,7 @@ package sender
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"time"
 
 	msgtypes "github.com/kannon-email/kannon/proto/kannon/mailer/types"
@@ -12,7 +12,7 @@ import (
 	"github.com/kannon-email/kannon/internal/smtp"
 	"github.com/kannon-email/kannon/internal/utils"
 	"github.com/kannon-email/kannon/internal/x/container"
-	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -33,7 +33,7 @@ func (c Config) GetMaxJobs() uint {
 type sender struct {
 	sender    smtp.Sender
 	publisher publisher.Publisher
-	js        nats.JetStreamContext
+	js        jetstream.JetStream
 	cfg       Config
 }
 
@@ -41,7 +41,7 @@ func NewSenderFromContainer(cnt *container.Container, cfg Config) *sender {
 	return NewSender(cnt.NatsPublisher(), cnt.NatsJetStream(), smtp.NewSender(cfg.Hostname), cfg)
 }
 
-func NewSender(publisher publisher.Publisher, js nats.JetStreamContext, s smtp.Sender, cfg Config) *sender {
+func NewSender(publisher publisher.Publisher, js jetstream.JetStream, s smtp.Sender, cfg Config) *sender {
 	return &sender{
 		sender:    s,
 		publisher: publisher,
@@ -54,54 +54,47 @@ func (s *sender) Run(ctx context.Context) error {
 	logrus.WithField("hostname", s.cfg.Hostname).
 		WithField("max_jobs", s.cfg.GetMaxJobs()).
 		Infof("Starting Sender Service")
-	mustConfigureJS(s.js)
+	mustConfigureStatsJS(ctx, s.js)
 
-	con := utils.MustGetPullSubscriber(s.js, "kannon.sending", "kannon-sending-pool")
+	consumer := utils.MustGetPullSubscriber(ctx, s.js, "kannon-sending", "kannon.sending", "kannon-sending-pool")
 
-	go func() {
-		s.handleSend(con)
-	}()
-	<-ctx.Done()
-
-	return nil
+	return s.handleSend(ctx, consumer)
 }
 
-func (s *sender) handleSend(con *nats.Subscription) {
+func (s *sender) handleSend(ctx context.Context, consumer jetstream.Consumer) error {
 	logrus.Infof("🚀 Ready to send!\n")
 
 	maxJobs := s.cfg.GetMaxJobs()
 
 	ch := make(chan bool, maxJobs)
-	for {
-		logrus.Debugf("fetching %d messages", maxJobs)
-		msgs, err := con.Fetch(int(maxJobs), nats.MaxWait(1*time.Second))
-		if err != nil {
-			if err != nats.ErrTimeout {
-				logrus.Errorf("error fetching messages: %v", err)
-				return
+
+	con, err := consumer.Consume(func(msg jetstream.Msg) {
+		ch <- true
+		go func() {
+			err := s.handleMessage(msg)
+			if err != nil {
+				logrus.Errorf("error in handling message: %v\n", err.Error())
 			}
-			continue
-		}
-		logrus.Debugf("fetched %d messages", len(msgs))
-		for _, msg := range msgs {
-			ch <- true
-			go func(msg *nats.Msg) {
-				err = s.handleMessage(msg)
-				if err != nil {
-					logrus.Errorf("error in handling message: %v\n", err.Error())
-				}
-				if err := msg.Ack(); err != nil {
-					logrus.Errorf("cannot hack message: %v\n", err.Error())
-				}
-				<-ch
-			}(msg)
-		}
+			if err := msg.Ack(); err != nil {
+				logrus.Errorf("cannot hack message: %v\n", err.Error())
+			}
+			<-ch
+		}()
+	})
+	if err != nil {
+		return fmt.Errorf("error in consuming messages: %v\n", err.Error())
 	}
+	defer con.Drain()
+
+	<-ctx.Done()
+
+	logrus.Infof("👋 Shutting down Sender Service")
+	return ctx.Err()
 }
 
-func (s *sender) handleMessage(msg *nats.Msg) error {
+func (s *sender) handleMessage(msg jetstream.Msg) error {
 	data := &msgtypes.EmailToSend{}
-	err := proto.Unmarshal(msg.Data, data)
+	err := proto.Unmarshal(msg.Data(), data)
 	if err != nil {
 		return err
 	}
@@ -178,23 +171,24 @@ func (s *sender) handleSendError(sendErr smtp.SenderError, data *msgtypes.EmailT
 	return publisher.PublishStat(s.publisher, msg)
 }
 
-func mustConfigureJS(js nats.JetStreamContext) {
-	confs := nats.StreamConfig{
-		Name:        "kannon-stats",
+func mustConfigureStatsJS(ctx context.Context, js jetstream.JetStream) {
+	name := "kannon-stats"
+
+	confs := jetstream.StreamConfig{
+		Name:        name,
 		Description: "Email Stats for Kannon",
 		Replicas:    1,
 		Subjects:    []string{"kannon.stats.*"},
-		Retention:   nats.LimitsPolicy,
+		Retention:   jetstream.LimitsPolicy,
 		Duplicates:  10 * time.Minute,
 		MaxAge:      24 * time.Hour,
-		Storage:     nats.FileStorage,
-		Discard:     nats.DiscardOld,
+		Storage:     jetstream.FileStorage,
+		Discard:     jetstream.DiscardOld,
 	}
-	info, err := js.AddStream(&confs)
-	if errors.Is(err, nats.ErrStreamNameAlreadyInUse) {
-		logrus.Infof("stream exists\n")
-	} else if err != nil {
+	_, err := js.CreateOrUpdateStream(ctx, confs)
+	if err != nil {
 		logrus.Fatalf("cannot create js stream: %v", err)
 	}
-	logrus.Infof("created js stream: %v", info.Config.Name)
+
+	logrus.Infof("created js stream: %v", name)
 }

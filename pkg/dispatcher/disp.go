@@ -11,7 +11,7 @@ import (
 	"github.com/kannon-email/kannon/internal/statssec"
 	"github.com/kannon-email/kannon/internal/utils"
 	statstypes "github.com/kannon-email/kannon/proto/kannon/stats/types"
-	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
 )
@@ -21,7 +21,7 @@ type disp struct {
 	pm  pool.SendingPoolManager
 	mb  mailbuilder.MailBulder
 	pub publisher.Publisher
-	js  nats.JetStreamContext
+	js  jetstream.JetStream
 	log *logrus.Entry
 }
 
@@ -100,29 +100,28 @@ func (d disp) parsBouncedFunc(ctx context.Context, m *statstypes.Stats) error {
 type parseFunc func(ctx context.Context, msg *statstypes.Stats) error
 
 func (d disp) handleMsg(ctx context.Context, sbj, subName string, parse parseFunc) {
-	con := utils.MustGetPullSubscriber(d.js, sbj, subName)
-	for {
-		msgs, err := con.Fetch(10, nats.MaxWait(10*time.Second))
-		if err != nil {
-			if err != nats.ErrTimeout {
-				d.log.Errorf("error fetching messages: %v", err)
-				return
-			}
-			continue
-		}
-		for _, msg := range msgs {
+	con := utils.MustGetPullSubscriber(ctx, d.js, "kannon-stats", sbj, subName)
+	c, err := con.Consume(func(msg jetstream.Msg) {
+		d.handleWithAck(ctx, msg, func(ctx context.Context, msg jetstream.Msg) error {
 			m := &statstypes.Stats{}
-			if err := proto.Unmarshal(msg.Data, m); err != nil {
-				d.handleAck(msg, err)
-				continue
+			if err := proto.Unmarshal(msg.Data(), m); err != nil {
+				return err
 			}
-			err := parse(ctx, m)
-			d.handleAck(msg, err)
-		}
+			return parse(ctx, m)
+		})
+	})
+	if err != nil {
+		d.log.Errorf("Cannot consume messages: %v", err)
+		return
 	}
+	defer c.Drain()
+
+	<-ctx.Done()
+	d.log.Infof("Consumer %s stopped", subName)
 }
 
-func (d disp) handleAck(msg *nats.Msg, err error) {
+func (d disp) handleWithAck(ctx context.Context, msg jetstream.Msg, f func(ctx context.Context, msg jetstream.Msg) error) {
+	err := f(ctx, msg)
 	if err != nil {
 		if err := msg.Nak(); err != nil {
 			d.log.Errorf("Cannot nak msg to nats: %v", err)

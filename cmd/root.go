@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/kannon-email/kannon/internal/x/container"
 	"github.com/kannon-email/kannon/pkg/api"
@@ -51,20 +52,29 @@ func run(cmd *cobra.Command, args []string) {
 
 	if config.RunSender {
 		g.Go(func() error {
-			return runSender(ctx, cnt, config)
+			err := runSender(ctx, cnt, config)
+			if err != nil {
+				return fmt.Errorf("error in sender: %v", err)
+			}
+			return nil
 		})
 	}
 
 	if config.RunDispatcher {
 		g.Go(func() error {
-			return runDispatcher(ctx, cnt, config)
+			err := runDispatcher(ctx, cnt, config)
+			if err != nil {
+				return fmt.Errorf("error in dispatcher: %v", err)
+			}
+			return nil
 		})
 	}
 
 	if config.RunVerifier {
 		g.Go(func() error {
-			if err := validator.Run(ctx, cnt); err != nil {
-				logrus.Fatalf("error in verifier: %v", err)
+			err := validator.Run(ctx, cnt)
+			if err != nil {
+				return fmt.Errorf("error in verifier: %v", err)
 			}
 			return nil
 		})
@@ -72,26 +82,41 @@ func run(cmd *cobra.Command, args []string) {
 
 	if config.RunStats {
 		g.Go(func() error {
-			stats.Run(ctx, cnt)
+			err := stats.Run(ctx, cnt)
+			if err != nil {
+				return fmt.Errorf("error in stats: %v", err)
+			}
 			return nil
 		})
 	}
 
 	if config.RunBounce {
 		g.Go(func() error {
-			return bump.Run(ctx, cnt)
+			err := bump.Run(ctx, cnt)
+			if err != nil {
+				return fmt.Errorf("error in bounce: %v", err)
+			}
+			return nil
 		})
 	}
 
 	if config.RunAPI {
 		g.Go(func() error {
-			return runAPI(ctx, cnt, config)
+			err := runAPI(ctx, cnt, config)
+			if err != nil {
+				return fmt.Errorf("error in api: %v", err)
+			}
+			return nil
 		})
 	}
 
 	if config.RunSMTP {
 		g.Go(func() error {
-			return runSMTP(ctx, cnt, config)
+			err := runSMTP(ctx, cnt, config)
+			if err != nil {
+				return fmt.Errorf("error in smtp: %v", err)
+			}
+			return nil
 		})
 	}
 

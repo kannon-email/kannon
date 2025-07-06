@@ -1,24 +1,31 @@
 package utils
 
 import (
+	"context"
 	"time"
 
-	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
 	"github.com/sirupsen/logrus"
 )
 
-func MustGetPullSubscriber(js nats.JetStreamContext, subj string, durable string) *nats.Subscription {
+func MustGetPullSubscriber(ctx context.Context, js jetstream.JetStream, stream string, subj string, durable string) jetstream.Consumer {
 	var lastErr error
+
 	for i := 0; i < 10; i++ {
-		conn, err := js.PullSubscribe(subj, durable)
+		conn, err := js.CreateOrUpdateConsumer(ctx, stream, jetstream.ConsumerConfig{
+			Name:          durable,
+			Durable:       durable,
+			FilterSubject: subj,
+		})
 		if err == nil {
-			logrus.Debugf("pull subscriber created %v", durable)
 			return conn
 		}
+
 		logrus.Errorf("cannot create pull subscriber %v: %v", durable, err)
 		time.Sleep(1 * time.Second)
 		lastErr = err
 	}
+
 	logrus.Fatalf("cannot create pull subscriber %v: %v", durable, lastErr)
 	return nil
 }
