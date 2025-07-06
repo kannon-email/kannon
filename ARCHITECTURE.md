@@ -98,6 +98,73 @@ Kannon is a cloud-native, scalable SMTP mail sender designed for Kubernetes and 
 
 - Worker that validates emails in the pool before scheduling for sending. Publishes accepted/rejected stats to NATS.
 
+## NATS Streams, Topics, and Consumers
+
+Kannon uses NATS JetStream for reliable, decoupled messaging between its modules. The main streams and topics are:
+
+### Streams and Topics
+
+| Stream/Topic           | Description                    | Publishers (Modules) | Consumers (Modules) |
+| ---------------------- | ------------------------------ | -------------------- | ------------------- |
+| kannon.sending         | Emails to be sent via SMTP     | Dispatcher           | Sender              |
+| kannon.stats.accepted  | Email accepted for sending     | Validator            | Stats               |
+| kannon.stats.rejected  | Email rejected (invalid, etc.) | Validator            | Stats               |
+| kannon.stats.delivered | Email delivered successfully   | Sender               | Stats               |
+| kannon.stats.bounced   | Email bounced                  | Sender, SMTP Server  | Stats               |
+| kannon.stats.open      | Email opened (tracking pixel)  | Bump                 | Stats               |
+| kannon.stats.click     | Link clicked in email          | Bump                 | Stats               |
+| kannon.bounce          | Bounce events from SMTP server | SMTP Server          | Dispatcher, Stats   |
+
+### Example NATS JetStream Configuration
+
+```yaml
+streams:
+  - name: kannon_sending
+    subjects: ["kannon.sending"]
+    retention: limits
+    max_msgs: 100000
+    max_age: 72h
+  - name: kannon_stats
+    subjects: ["kannon.stats.*"]
+    retention: limits
+    max_msgs: 100000
+    max_age: 168h
+  - name: kannon_bounce
+    subjects: ["kannon.bounce"]
+    retention: limits
+    max_msgs: 10000
+    max_age: 168h
+```
+
+### Module Interactions with NATS
+
+- **Dispatcher**: Publishes to `kannon.sending`, listens to `kannon.bounce` and delivery/bounce/error events from NATS.
+- **Sender**: Consumes from `kannon.sending`, publishes to `kannon.stats.delivered`, `kannon.stats.bounced`, etc.
+- **Validator**: Publishes to `kannon.stats.accepted` and `kannon.stats.rejected`.
+- **Bump**: Publishes to `kannon.stats.open` and `kannon.stats.click`.
+- **Stats**: Consumes all `kannon.stats.*` topics.
+- **SMTP Server**: Publishes to `kannon.bounce` and `kannon.stats.bounced`.
+
+### NATS Messaging Diagram
+
+```mermaid
+flowchart TD
+    subgraph NATS
+        SENDING["kannon.sending"]
+        STATS["kannon.stats.*"]
+        BOUNCE["kannon.bounce"]
+    end
+    Dispatcher -- "publish" --> SENDING
+    SENDING -- "consume" --> Sender
+    Sender -- "publish" --> STATS
+    Validator -- "publish" --> STATS
+    Bump -- "publish" --> STATS
+    SMTPServer -- "publish" --> BOUNCE
+    BOUNCE -- "consume" --> Dispatcher
+    BOUNCE -- "consume" --> Stats
+    STATS -- "consume" --> Stats
+```
+
 ## Architecture Diagram
 
 ```mermaid

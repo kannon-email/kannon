@@ -58,6 +58,8 @@ Kannon is composed of several microservices and workers:
 
 All components can be enabled/disabled via CLI flags or config.
 
+> **See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for a full breakdown of modules, NATS streams, topics, consumers, and message flows.**
+
 ```mermaid
 flowchart TD
     subgraph Core
@@ -242,6 +244,7 @@ We welcome contributions! Please:
 - Use [feature request](.github/ISSUE_TEMPLATE/feature_request.md) and [bug report](.github/ISSUE_TEMPLATE/bug_report.md) templates for issues
 - Follow the [pull request template](.github/PULL_REQUEST_TEMPLATE.md)
 - See the [Apache 2.0 License](./LICENSE)
+- **Read our [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines, code style, and the full contribution process.**
 
 ### Local Development
 
