@@ -29,8 +29,6 @@ A **Cloud Native SMTP mail sender** for Kubernetes and modern infrastructure.
 
 ## Features
 
-**Implemented:**
-
 - Cloud-native, scalable SMTP mail sending
 - gRPC API for sending HTML and templated emails
 - DKIM and SPF support for deliverability

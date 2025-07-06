@@ -34,7 +34,7 @@ func TestMaxLoops10(t *testing.T) {
 	assert.Equal(t, uint(10), l.count)
 }
 
-func TestRunWithoutMaxLoopSholdEndWithErrContextExpired(t *testing.T) {
+func TestRunWithoutMaxLoopShouldEndWithErrContextExpired(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
 	defer cancel()
 
