@@ -4,11 +4,9 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/ludusrusso/kannon/internal/statssec"
-	"github.com/ludusrusso/kannon/internal/utils"
 	"github.com/ludusrusso/kannon/internal/x/container"
 	pb "github.com/ludusrusso/kannon/proto/kannon/stats/types"
 	"github.com/nats-io/nats.go"
@@ -54,76 +52,6 @@ func (s *srv) Run(ctx context.Context) error {
 	return server.ListenAndServe()
 }
 
-func (s *srv) handleClick(w http.ResponseWriter, r *http.Request) {
-	ctx := context.Background()
-	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
-	defer cancel()
-
-	token := strings.Replace(r.URL.Path, "/c/", "", 1)
-	claims, err := s.ss.VerifyLinkToken(ctx, token)
-	if err != nil {
-		logrus.Errorf("cannot verify click token: %v", err)
-		http.NotFound(w, r)
-		return
-	}
-
-	domain, err := utils.ExtractDomainFromMessageID(claims.MessageID)
-	if err != nil {
-		logrus.Errorf("cannot verify click token: %v", err)
-		http.NotFound(w, r)
-		return
-	}
-
-	defer writeRedirect(w, r, claims)
-
-	userAgent := r.UserAgent()
-	ip := readUserIP(r)
-	data := buildClickStat(claims, userAgent, ip, domain)
-
-	err = s.sendMsg(data, "kannon.stats.clicks")
-	if err != nil {
-		logrus.Errorf("cannot send message on nats: %v", err)
-		return
-	}
-
-	logrus.Infof("🔗 %s %s %s %s %s %s", r.Method, claims.URL, claims.MessageID, r.Header["User-Agent"], r.Host, ip)
-}
-
-func (s *srv) handleOpen(w http.ResponseWriter, r *http.Request) {
-	ctx := context.Background()
-	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
-	defer cancel()
-
-	token := strings.Replace(r.URL.Path, "/o/", "", 1)
-	claims, err := s.ss.VerifyOpenToken(ctx, token)
-	if err != nil {
-		logrus.Errorf("cannot verify open token: %v", err)
-		http.NotFound(w, r)
-		return
-	}
-
-	domain, err := utils.ExtractDomainFromMessageID(claims.MessageID)
-	if err != nil {
-		logrus.Errorf("cannot verify open token: %v", err)
-		http.NotFound(w, r)
-		return
-	}
-
-	defer writeTrackingPixel(w)
-
-	userAgent := r.UserAgent()
-	ip := readUserIP(r)
-	data := buildOpenStat(claims, userAgent, ip, domain)
-
-	err = s.sendMsg(data, "kannon.stats.opens")
-	if err != nil {
-		logrus.Errorf("cannot send message on nats: %v", err)
-		return
-	}
-
-	logrus.Infof("👀 %s %s %s %s %s", r.Method, claims.MessageID, r.Header["User-Agent"], r.Host, ip)
-}
-
 func (s *srv) sendMsg(data *pb.Stats, topic string) error {
 	msg, err := proto.Marshal(data)
 	if err != nil {
@@ -134,4 +62,15 @@ func (s *srv) sendMsg(data *pb.Stats, topic string) error {
 		return fmt.Errorf("cannot send message on nats: %w", err)
 	}
 	return nil
+}
+
+func readUserIP(r *http.Request) string {
+	IPAddress := r.Header.Get("X-Real-Ip")
+	if IPAddress == "" {
+		IPAddress = r.Header.Get("X-Forwarded-For")
+	}
+	if IPAddress == "" {
+		IPAddress = r.RemoteAddr
+	}
+	return IPAddress
 }

@@ -27,7 +27,7 @@ type mailAPIService struct {
 }
 
 func (s mailAPIService) SendHTML(ctx context.Context, req *connect.Request[pb.SendHTMLReq]) (*connect.Response[pb.SendRes], error) {
-	domain, err := s.getCallDomainFromContext(ctx, req.Header())
+	domain, err := s.getCallDomainFromHeaders(ctx, req.Header())
 	if err != nil {
 		return nil, fmt.Errorf("invalid or wrong auth")
 	}
@@ -54,7 +54,7 @@ func (s mailAPIService) SendHTML(ctx context.Context, req *connect.Request[pb.Se
 }
 
 func (s mailAPIService) SendTemplate(ctx context.Context, req *connect.Request[pb.SendTemplateReq]) (*connect.Response[pb.SendRes], error) {
-	domain, err := s.getCallDomainFromContext(ctx, req.Header())
+	domain, err := s.getCallDomainFromHeaders(ctx, req.Header())
 	if err != nil {
 		return nil, fmt.Errorf("invalid or wrong auth")
 	}
@@ -69,7 +69,7 @@ func (s mailAPIService) sendTemplate(ctx context.Context, domain sqlc.Domain, re
 		return nil, fmt.Errorf("cannot find template with id: %v", req.Msg.TemplateId)
 	}
 
-	template, err = s.createTemplateWithGlobalFieds(ctx, template, req.Msg.GlobalFields)
+	template, err = s.createTemplateWithGlobalFields(ctx, template, req.Msg.GlobalFields)
 	if err != nil {
 		logrus.Errorf("cannot create transient template %v\n", err)
 		return nil, fmt.Errorf("cannot create template %v", err)
@@ -108,7 +108,7 @@ func (s mailAPIService) Close() error {
 	return s.domains.Close()
 }
 
-func (s mailAPIService) createTemplateWithGlobalFieds(ctx context.Context, template sqlc.Template, globalFields map[string]string) (sqlc.Template, error) {
+func (s mailAPIService) createTemplateWithGlobalFields(ctx context.Context, template sqlc.Template, globalFields map[string]string) (sqlc.Template, error) {
 	if len(globalFields) == 0 {
 		return template, nil
 	}
@@ -121,7 +121,7 @@ func (s mailAPIService) createTemplateWithGlobalFieds(ctx context.Context, templ
 	return s.templates.CreateTransientTemplate(ctx, newHTML, template.Domain)
 }
 
-func (s mailAPIService) getCallDomainFromContext(ctx context.Context, headers http.Header) (sqlc.Domain, error) {
+func (s mailAPIService) getCallDomainFromHeaders(ctx context.Context, headers http.Header) (sqlc.Domain, error) {
 	auth := headers.Get("Authorization")
 
 	if !strings.HasPrefix(auth, "Basic ") {
