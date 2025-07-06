@@ -92,6 +92,7 @@ func TestPrepareMail(t *testing.T) {
 	authRequest(req, d.Msg)
 
 	res, err := ma.SendHTML(context.Background(), req)
+	assert.Nil(t, err)
 
 	err = pm.SetScheduled(context.Background(), res.Msg.MessageId, "test@emailtest.com")
 	assert.Nil(t, err)
@@ -173,6 +174,7 @@ func TestPrepareMailWithAttachments(t *testing.T) {
 	authRequest(req, d.Msg)
 
 	res, err := ma.SendHTML(context.Background(), req)
+	assert.Nil(t, err)
 
 	err = pm.SetScheduled(context.Background(), res.Msg.MessageId, "test@emailtest.com")
 	assert.Nil(t, err)
