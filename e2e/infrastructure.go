@@ -15,13 +15,13 @@ import (
 
 // TestInfrastructure holds the test infrastructure resources
 type TestInfrastructure struct {
-	pool     *dockertest.Pool
-	pgRes    *dockertest.Resource
-	natsRes  *dockertest.Resource
-	dbURL    string
-	natsURL  string
-	apiPort  uint
-	cleanup  func()
+	pool    *dockertest.Pool
+	pgRes   *dockertest.Resource
+	natsRes *dockertest.Resource
+	dbURL   string
+	natsURL string
+	apiPort uint
+	cleanup func()
 }
 
 // setupTestInfrastructure sets up PostgreSQL and NATS using dockertest
@@ -50,9 +50,9 @@ func setupTestInfrastructure(ctx context.Context) (*TestInfrastructure, error) {
 
 	// Start NATS
 	natsRes, err := pool.RunWithOptions(&dockertest.RunOptions{
-		Repository: "nats",
-		Tag:        "2.10-alpine",
-		Cmd:        []string{"-js", "-m", "8222"},
+		Repository:   "nats",
+		Tag:          "2.10-alpine",
+		Cmd:          []string{"-js", "-m", "8222"},
 		ExposedPorts: []string{"4222/tcp", "8222/tcp"},
 	}, func(config *docker.HostConfig) {
 		config.AutoRemove = true
@@ -135,34 +135,6 @@ func applySchema(ctx context.Context, db *pgxpool.Pool) error {
 	_, err := db.Exec(ctx, schema.Schema)
 	if err != nil {
 		return fmt.Errorf("failed to apply main schema: %w", err)
-	}
-
-	// Apply any additional test-specific schema if needed
-	// For example, ensure required tables exist
-	additionalSchema := `
-		-- Ensure stats table exists (if not already in schema)
-		CREATE TABLE IF NOT EXISTS stats (
-			id SERIAL PRIMARY KEY,
-			message_id VARCHAR(255) NOT NULL,
-			event_type VARCHAR(50) NOT NULL,
-			timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-			data JSONB
-		);
-		
-		-- Ensure sending_pool_emails table exists (if not already in schema)
-		CREATE TABLE IF NOT EXISTS sending_pool_emails (
-			id SERIAL PRIMARY KEY,
-			message_id VARCHAR(255) NOT NULL,
-			email VARCHAR(255) NOT NULL,
-			status VARCHAR(50) DEFAULT 'pending',
-			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-		);
-	`
-	
-	_, err = db.Exec(ctx, additionalSchema)
-	if err != nil {
-		return fmt.Errorf("failed to apply additional schema: %w", err)
 	}
 
 	return nil

@@ -94,5 +94,5 @@ func mustConfigureJS(js nats.JetStreamContext) {
 	} else if err != nil {
 		logrus.Fatalf("cannot create js stream: %v", err)
 	}
-	logrus.Infof("created js stream: %v", info)
+	logrus.Infof("created js stream: %v", info.Config.Name)
 }

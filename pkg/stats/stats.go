@@ -41,7 +41,15 @@ func handleStats(ctx context.Context, js nats.JetStreamContext, q *sq.Queries) {
 				logrus.Errorf("cannot marshal message %v", err.Error())
 			} else {
 				stype := sq.GetStatsType(data)
-				logrus.Printf("[%s] %s %s", StatsShow[stype], utils.ObfuscateEmail(data.Email), data.MessageId)
+
+				log := logrus.WithFields(logrus.Fields{
+					"type":   stype,
+					"email":  utils.ObfuscateEmail(data.Email),
+					"msg_id": data.MessageId,
+				})
+
+				log.Infof("%s", StatsShow[stype])
+
 				err := q.InsertStat(ctx, sq.InsertStatParams{
 					Email:     data.Email,
 					MessageID: data.MessageId,
