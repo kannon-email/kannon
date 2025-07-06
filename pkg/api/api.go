@@ -14,6 +14,8 @@ import (
 	mailerv1connect "github.com/ludusrusso/kannon/proto/kannon/mailer/apiv1/apiv1connect"
 	statsv1connect "github.com/ludusrusso/kannon/proto/kannon/stats/apiv1/apiv1connect"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
 )
 
 type Config struct {
@@ -54,7 +56,9 @@ func startAPIServer(ctx context.Context, port uint, adminServer adminv1connect.A
 	mux.Handle(mailerPath, mailerHandler)
 	mux.Handle(statsPath, statsHandler)
 
-	server := &http.Server{Addr: addr, Handler: mux}
+	handler := h2c.NewHandler(mux, &http2.Server{})
+
+	server := &http.Server{Addr: addr, Handler: handler}
 	go func() {
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
