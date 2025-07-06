@@ -1,9 +1,14 @@
-version: v1beta1
+version: v2
 
+managed:
+  enabled: true
+  override:
+    - file_option: go_package_prefix
+      value: github.com/ludusrusso/kannon/proto
 plugins:
-  - name: go
+  - remote: buf.build/protocolbuffers/go
     out: proto
     opt: paths=source_relative
-  - name: go-grpc
+  - remote: buf.build/connectrpc/go
     out: proto
-    opt: paths=source_relative,require_unimplemented_servers=false
+    opt: paths=source_relative

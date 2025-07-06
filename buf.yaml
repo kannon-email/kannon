@@ -1,7 +1,6 @@
-version: v1beta1
-build:
-  roots:
-    - ./.proto
+version: v2
+modules:
+  - path: .proto
 lint:
   use:
     - BASIC

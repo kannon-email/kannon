@@ -6,23 +6,24 @@ import (
 	"os"
 	"testing"
 
+	"connectrpc.com/connect"
 	"github.com/jackc/pgx/v5/pgxpool"
 	schema "github.com/ludusrusso/kannon/db"
 	sqlc "github.com/ludusrusso/kannon/internal/db"
 	"github.com/ludusrusso/kannon/internal/pool"
 	"github.com/ludusrusso/kannon/internal/runner"
 	"github.com/ludusrusso/kannon/internal/tests"
-	"github.com/ludusrusso/kannon/mocks"
 	"github.com/ludusrusso/kannon/pkg/api/adminapi"
 	"github.com/ludusrusso/kannon/pkg/api/mailapi"
 	"github.com/ludusrusso/kannon/pkg/validator"
 	adminapiv1 "github.com/ludusrusso/kannon/proto/kannon/admin/apiv1"
+	adminv1connect "github.com/ludusrusso/kannon/proto/kannon/admin/apiv1/apiv1connect"
 	mailerapiv1 "github.com/ludusrusso/kannon/proto/kannon/mailer/apiv1"
+	mailerv1connect "github.com/ludusrusso/kannon/proto/kannon/mailer/apiv1/apiv1connect"
 	mailertypes "github.com/ludusrusso/kannon/proto/kannon/mailer/types"
 
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -32,10 +33,10 @@ import (
 var db *pgxpool.Pool
 var q *sqlc.Queries
 var vt *validator.Validator
-var mp mocks.Publisher
+var mp MockPublisher
 
-var ts mailerapiv1.MailerServer
-var adminAPI adminapiv1.ApiServer
+var ts mailerv1connect.MailerHandler
+var adminAPI adminv1connect.ApiHandler
 
 func TestMain(m *testing.M) {
 	var purge tests.PurgeFunc
@@ -73,15 +74,15 @@ func TestValidEmail(t *testing.T) {
 	sendEmail(t, domain, "valid@email.com")
 	sendEmail(t, domain, "valid@email2.com")
 
-	mp.EXPECT().Publish("kannon.stats.accepted", mock.Anything).Return(nil)
-
 	runOneCycle(t)
 
-	mp.AssertNumberOfCalls(t, "Publish", 2)
+	assert.Len(t, mp.subjects, 2)
+	for _, subj := range mp.subjects {
+		assert.Equal(t, "kannon.stats.accepted", subj)
+	}
 
 	t.Cleanup(func() {
-		mp.ExpectedCalls = nil
-		mp.Calls = nil
+		mp.subjects = nil
 		cleanDB(t)
 	})
 }
@@ -91,14 +92,13 @@ func TestInvalidEmail(t *testing.T) {
 	sendEmail(t, domain, "invalid-email.com")
 	sendEmail(t, domain, "invalid-email2.com")
 
-	mp.EXPECT().Publish("kannon.stats.rejected", mock.Anything).Return(nil)
 	runOneCycle(t)
 
-	mp.AssertNumberOfCalls(t, "Publish", 2)
+	assert.Len(t, mp.subjects, 2)
+	assert.Contains(t, mp.subjects, "kannon.stats.rejected")
 
 	t.Cleanup(func() {
-		mp.ExpectedCalls = nil
-		mp.Calls = nil
+		mp.subjects = nil
 		cleanDB(t)
 	})
 }
@@ -113,7 +113,7 @@ func sendEmail(t *testing.T, domain *adminapiv1.Domain, email string) {
 	t.Helper()
 
 	ctx := getDomainCtx(domain)
-	_, err := ts.SendHTML(ctx, &mailerapiv1.SendHTMLReq{
+	_, err := ts.SendHTML(ctx, connect.NewRequest(&mailerapiv1.SendHTMLReq{
 		Sender: &mailertypes.Sender{
 			Email: "test@email.com",
 			Alias: "test",
@@ -126,17 +126,17 @@ func sendEmail(t *testing.T, domain *adminapiv1.Domain, email string) {
 				Email: email,
 			},
 		},
-	})
+	}))
 	assert.Nil(t, err)
 }
 
 func createTestDomain(t *testing.T) *adminapiv1.Domain {
 	t.Helper()
-	res, err := adminAPI.CreateDomain(context.Background(), &adminapiv1.CreateDomainRequest{
+	res, err := adminAPI.CreateDomain(context.Background(), connect.NewRequest(&adminapiv1.CreateDomainRequest{
 		Domain: "test.test.test",
-	})
+	}))
 	assert.Nil(t, err)
-	return res
+	return res.Msg
 }
 
 func cleanDB(t *testing.T) {
@@ -155,4 +155,13 @@ func getDomainCtx(d *adminapiv1.Domain) context.Context {
 	token := base64.StdEncoding.EncodeToString([]byte(d.Domain + ":" + d.Key))
 	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Basic "+token))
 	return ctx
+}
+
+type MockPublisher struct {
+	subjects []string
+}
+
+func (m *MockPublisher) Publish(subj string, data []byte) error {
+	m.subjects = append(m.subjects, subj)
+	return nil
 }
