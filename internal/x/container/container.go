@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	sqlc "github.com/ludusrusso/kannon/internal/db"
+	sqlc "github.com/kannon-email/kannon/internal/db"
 	"github.com/nats-io/nats.go"
 	"github.com/sirupsen/logrus"
 )

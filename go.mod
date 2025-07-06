@@ -1,4 +1,4 @@
-module github.com/ludusrusso/kannon
+module github.com/kannon-email/kannon
 
 go 1.24.3
 

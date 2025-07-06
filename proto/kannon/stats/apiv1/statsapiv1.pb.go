@@ -7,7 +7,7 @@
 package apiv1
 
 import (
-	types "github.com/ludusrusso/kannon/proto/kannon/stats/types"
+	types "github.com/kannon-email/kannon/proto/kannon/stats/types"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
@@ -278,9 +278,9 @@ const file_kannon_stats_apiv1_statsapiv1_proto_rawDesc = "" +
 	"\n" +
 	"StatsApiV1\x126\n" +
 	"\bGetStats\x12\x13.kannon.GetStatsReq\x1a\x13.kannon.GetStatsRes\"\x00\x12T\n" +
-	"\x12GetStatsAggregated\x12\x1d.kannon.GetStatsAggregatedReq\x1a\x1d.kannon.GetStatsAggregatedRes\"\x00B\x8c\x01\n" +
+	"\x12GetStatsAggregated\x12\x1d.kannon.GetStatsAggregatedReq\x1a\x1d.kannon.GetStatsAggregatedRes\"\x00B\x8e\x01\n" +
 	"\n" +
-	"com.kannonB\x0fStatsapiv1ProtoP\x01Z5github.com/ludusrusso/kannon/proto/kannon/stats/apiv1\xa2\x02\x03KXX\xaa\x02\x06Kannon\xca\x02\x06Kannon\xe2\x02\x12Kannon\\GPBMetadata\xea\x02\x06Kannonb\x06proto3"
+	"com.kannonB\x0fStatsapiv1ProtoP\x01Z7github.com/kannon-email/kannon/proto/kannon/stats/apiv1\xa2\x02\x03KXX\xaa\x02\x06Kannon\xca\x02\x06Kannon\xe2\x02\x12Kannon\\GPBMetadata\xea\x02\x06Kannonb\x06proto3"
 
 var (
 	file_kannon_stats_apiv1_statsapiv1_proto_rawDescOnce sync.Once

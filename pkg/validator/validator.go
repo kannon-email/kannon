@@ -6,12 +6,12 @@ import (
 	"regexp"
 	"time"
 
-	sqlc "github.com/ludusrusso/kannon/internal/db"
-	"github.com/ludusrusso/kannon/internal/pool"
-	"github.com/ludusrusso/kannon/internal/publisher"
-	"github.com/ludusrusso/kannon/internal/runner"
-	"github.com/ludusrusso/kannon/internal/x/container"
-	"github.com/ludusrusso/kannon/proto/kannon/stats/types"
+	sqlc "github.com/kannon-email/kannon/internal/db"
+	"github.com/kannon-email/kannon/internal/pool"
+	"github.com/kannon-email/kannon/internal/publisher"
+	"github.com/kannon-email/kannon/internal/runner"
+	"github.com/kannon-email/kannon/internal/x/container"
+	"github.com/kannon-email/kannon/proto/kannon/stats/types"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )

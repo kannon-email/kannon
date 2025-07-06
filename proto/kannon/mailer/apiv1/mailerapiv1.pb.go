@@ -7,7 +7,7 @@
 package apiv1
 
 import (
-	types "github.com/ludusrusso/kannon/proto/kannon/mailer/types"
+	types "github.com/kannon-email/kannon/proto/kannon/mailer/types"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
@@ -365,8 +365,8 @@ const file_kannon_mailer_apiv1_mailerapiv1_proto_rawDesc = "" +
 	"\x0escheduled_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\rscheduledTime2\xbc\x01\n" +
 	"\x06Mailer\x12T\n" +
 	"\bSendHTML\x12$.pkg.kannon.mailer.apiv1.SendHTMLReq\x1a .pkg.kannon.mailer.apiv1.SendRes\"\x00\x12\\\n" +
-	"\fSendTemplate\x12(.pkg.kannon.mailer.apiv1.SendTemplateReq\x1a .pkg.kannon.mailer.apiv1.SendRes\"\x00B\xe7\x01\n" +
-	"\x1bcom.pkg.kannon.mailer.apiv1B\x10Mailerapiv1ProtoP\x01Z6github.com/ludusrusso/kannon/proto/kannon/mailer/apiv1\xa2\x02\x04PKMA\xaa\x02\x17Pkg.Kannon.Mailer.Apiv1\xca\x02\x17Pkg\\Kannon\\Mailer\\Apiv1\xe2\x02#Pkg\\Kannon\\Mailer\\Apiv1\\GPBMetadata\xea\x02\x1aPkg::Kannon::Mailer::Apiv1b\x06proto3"
+	"\fSendTemplate\x12(.pkg.kannon.mailer.apiv1.SendTemplateReq\x1a .pkg.kannon.mailer.apiv1.SendRes\"\x00B\xe9\x01\n" +
+	"\x1bcom.pkg.kannon.mailer.apiv1B\x10Mailerapiv1ProtoP\x01Z8github.com/kannon-email/kannon/proto/kannon/mailer/apiv1\xa2\x02\x04PKMA\xaa\x02\x17Pkg.Kannon.Mailer.Apiv1\xca\x02\x17Pkg\\Kannon\\Mailer\\Apiv1\xe2\x02#Pkg\\Kannon\\Mailer\\Apiv1\\GPBMetadata\xea\x02\x1aPkg::Kannon::Mailer::Apiv1b\x06proto3"
 
 var (
 	file_kannon_mailer_apiv1_mailerapiv1_proto_rawDescOnce sync.Once

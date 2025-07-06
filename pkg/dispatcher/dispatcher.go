@@ -8,11 +8,11 @@ import (
 
 	_ "github.com/lib/pq"
 
-	"github.com/ludusrusso/kannon/internal/mailbuilder"
-	"github.com/ludusrusso/kannon/internal/pool"
-	"github.com/ludusrusso/kannon/internal/runner"
-	"github.com/ludusrusso/kannon/internal/statssec"
-	"github.com/ludusrusso/kannon/internal/x/container"
+	"github.com/kannon-email/kannon/internal/mailbuilder"
+	"github.com/kannon-email/kannon/internal/pool"
+	"github.com/kannon-email/kannon/internal/runner"
+	"github.com/kannon-email/kannon/internal/statssec"
+	"github.com/kannon-email/kannon/internal/x/container"
 	"github.com/sirupsen/logrus"
 
 	"github.com/nats-io/nats.go"

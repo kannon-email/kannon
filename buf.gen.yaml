@@ -4,7 +4,7 @@ managed:
   enabled: true
   override:
     - file_option: go_package_prefix
-      value: github.com/ludusrusso/kannon/proto
+      value: github.com/kannon-email/kannon/proto
 plugins:
   - remote: buf.build/protocolbuffers/go
     out: proto

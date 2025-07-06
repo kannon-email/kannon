@@ -767,9 +767,9 @@ const file_kannon_stats_types_stats_proto_rawDesc = "" +
 	"\n" +
 	"user_agent\x18\x01 \x01(\tR\tuserAgent\x12\x0e\n" +
 	"\x02ip\x18\x02 \x01(\tR\x02ip\x12\x10\n" +
-	"\x03url\x18\x03 \x01(\tR\x03urlB\xdb\x01\n" +
+	"\x03url\x18\x03 \x01(\tR\x03urlB\xdd\x01\n" +
 	"\x1acom.pkg.kannon.stats.typesB\n" +
-	"StatsProtoP\x01Z5github.com/ludusrusso/kannon/proto/kannon/stats/types\xa2\x02\x04PKST\xaa\x02\x16Pkg.Kannon.Stats.Types\xca\x02\x16Pkg\\Kannon\\Stats\\Types\xe2\x02\"Pkg\\Kannon\\Stats\\Types\\GPBMetadata\xea\x02\x19Pkg::Kannon::Stats::Typesb\x06proto3"
+	"StatsProtoP\x01Z7github.com/kannon-email/kannon/proto/kannon/stats/types\xa2\x02\x04PKST\xaa\x02\x16Pkg.Kannon.Stats.Types\xca\x02\x16Pkg\\Kannon\\Stats\\Types\xe2\x02\"Pkg\\Kannon\\Stats\\Types\\GPBMetadata\xea\x02\x19Pkg::Kannon::Stats::Typesb\x06proto3"
 
 var (
 	file_kannon_stats_types_stats_proto_rawDescOnce sync.Once

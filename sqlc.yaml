@@ -28,7 +28,7 @@ sql:
               type: "StatsType"
           - column: "stats.data"
             go_type:
-              import: "github.com/ludusrusso/kannon/proto/kannon/stats/types"
+              import: "github.com/kannon-email/kannon/proto/kannon/stats/types"
               type: "StatsData"
               package: pbtypes
               pointer: true

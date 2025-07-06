@@ -8,12 +8,12 @@ import (
 	"strings"
 	"time"
 
-	sqlc "github.com/ludusrusso/kannon/internal/db"
-	"github.com/ludusrusso/kannon/internal/dkim"
-	"github.com/ludusrusso/kannon/internal/pool"
-	"github.com/ludusrusso/kannon/internal/statssec"
-	"github.com/ludusrusso/kannon/internal/utils"
-	pb "github.com/ludusrusso/kannon/proto/kannon/mailer/types"
+	sqlc "github.com/kannon-email/kannon/internal/db"
+	"github.com/kannon-email/kannon/internal/dkim"
+	"github.com/kannon-email/kannon/internal/pool"
+	"github.com/kannon-email/kannon/internal/statssec"
+	"github.com/kannon-email/kannon/internal/utils"
+	pb "github.com/kannon-email/kannon/proto/kannon/mailer/types"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/mail.v2"
 )

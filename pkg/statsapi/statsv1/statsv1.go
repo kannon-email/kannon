@@ -4,9 +4,9 @@ import (
 	"context"
 
 	"connectrpc.com/connect"
-	sq "github.com/ludusrusso/kannon/internal/db"
-	"github.com/ludusrusso/kannon/proto/kannon/stats/apiv1"
-	statsv1connect "github.com/ludusrusso/kannon/proto/kannon/stats/apiv1/apiv1connect"
+	sq "github.com/kannon-email/kannon/internal/db"
+	"github.com/kannon-email/kannon/proto/kannon/stats/apiv1"
+	statsv1connect "github.com/kannon-email/kannon/proto/kannon/stats/apiv1/apiv1connect"
 )
 
 // Adapter to Connect handler interface

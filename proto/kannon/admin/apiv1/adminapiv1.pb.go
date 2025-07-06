@@ -968,8 +968,8 @@ const file_kannon_admin_apiv1_adminapiv1_proto_rawDesc = "" +
 	"\x0eUpdateTemplate\x12).pkg.kannon.admin.apiv1.UpdateTemplateReq\x1a).pkg.kannon.admin.apiv1.UpdateTemplateRes\"\x00\x12h\n" +
 	"\x0eDeleteTemplate\x12).pkg.kannon.admin.apiv1.DeleteTemplateReq\x1a).pkg.kannon.admin.apiv1.DeleteTemplateRes\"\x00\x12_\n" +
 	"\vGetTemplate\x12&.pkg.kannon.admin.apiv1.GetTemplateReq\x1a&.pkg.kannon.admin.apiv1.GetTemplateRes\"\x00\x12b\n" +
-	"\fGetTemplates\x12'.pkg.kannon.admin.apiv1.GetTemplatesReq\x1a'.pkg.kannon.admin.apiv1.GetTemplatesRes\"\x00B\xe0\x01\n" +
-	"\x1acom.pkg.kannon.admin.apiv1B\x0fAdminapiv1ProtoP\x01Z5github.com/ludusrusso/kannon/proto/kannon/admin/apiv1\xa2\x02\x04PKAA\xaa\x02\x16Pkg.Kannon.Admin.Apiv1\xca\x02\x16Pkg\\Kannon\\Admin\\Apiv1\xe2\x02\"Pkg\\Kannon\\Admin\\Apiv1\\GPBMetadata\xea\x02\x19Pkg::Kannon::Admin::Apiv1b\x06proto3"
+	"\fGetTemplates\x12'.pkg.kannon.admin.apiv1.GetTemplatesReq\x1a'.pkg.kannon.admin.apiv1.GetTemplatesRes\"\x00B\xe2\x01\n" +
+	"\x1acom.pkg.kannon.admin.apiv1B\x0fAdminapiv1ProtoP\x01Z7github.com/kannon-email/kannon/proto/kannon/admin/apiv1\xa2\x02\x04PKAA\xaa\x02\x16Pkg.Kannon.Admin.Apiv1\xca\x02\x16Pkg\\Kannon\\Admin\\Apiv1\xe2\x02\"Pkg\\Kannon\\Admin\\Apiv1\\GPBMetadata\xea\x02\x19Pkg::Kannon::Admin::Apiv1b\x06proto3"
 
 var (
 	file_kannon_admin_apiv1_adminapiv1_proto_rawDescOnce sync.Once

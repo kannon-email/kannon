@@ -8,7 +8,7 @@ import (
 type loopFunc func(context.Context) error
 
 type RunOpts interface {
-	contifigureRunner(opts *runOpts)
+	configureRunner(opts *runOpts)
 }
 
 func Run(ctx context.Context, loop loopFunc, confOptions ...RunOpts) error {
@@ -33,13 +33,13 @@ func Run(ctx context.Context, loop loopFunc, confOptions ...RunOpts) error {
 
 func buildOptions(opts []RunOpts) runOpts {
 	o := runOpts{
-		loopWait: 10 * time.Second,
+		loopWait: 100 * time.Millisecond,
 	}
 	for _, opt := range opts {
 		if opt == nil {
 			continue
 		}
-		opt.contifigureRunner(&o)
+		opt.configureRunner(&o)
 	}
 	return o
 }
@@ -69,7 +69,7 @@ type configureMaxLoops struct {
 	maxLoops uint
 }
 
-func (c configureMaxLoops) contifigureRunner(opts *runOpts) {
+func (c configureMaxLoops) configureRunner(opts *runOpts) {
 	opts.maxLoops = maxLoopsOpt{
 		hasLimit: true,
 		maxLoop:  c.maxLoops,
@@ -86,6 +86,6 @@ type configureLoopWait struct {
 	wait time.Duration
 }
 
-func (c configureLoopWait) contifigureRunner(opts *runOpts) {
+func (c configureLoopWait) configureRunner(opts *runOpts) {
 	opts.loopWait = c.wait
 }

@@ -3,7 +3,7 @@ import "google/protobuf/timestamp.proto";
 
 package pkg.kannon.stats.types;
 
-option go_package = "github.com/ludusrusso/kannon/proto/kannon/stats/types";
+option go_package = "github.com/kannon-email/kannon/proto/kannon/stats/types";
 
 message StatsAggregated {
   string type = 1;

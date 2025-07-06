@@ -5,8 +5,8 @@ import (
 	"crypto/rand"
 	"fmt"
 
+	sqlc "github.com/kannon-email/kannon/internal/db"
 	"github.com/lucsky/cuid"
-	sqlc "github.com/ludusrusso/kannon/internal/db"
 )
 
 type manager struct {

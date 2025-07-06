@@ -6,10 +6,10 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	schema "github.com/ludusrusso/kannon/db"
-	sqlc "github.com/ludusrusso/kannon/internal/db"
-	"github.com/ludusrusso/kannon/internal/statssec"
-	"github.com/ludusrusso/kannon/internal/tests"
+	schema "github.com/kannon-email/kannon/db"
+	sqlc "github.com/kannon-email/kannon/internal/db"
+	"github.com/kannon-email/kannon/internal/statssec"
+	"github.com/kannon-email/kannon/internal/tests"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 

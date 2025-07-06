@@ -3,7 +3,7 @@ package utils_test
 import (
 	"testing"
 
-	"github.com/ludusrusso/kannon/internal/utils"
+	"github.com/kannon-email/kannon/internal/utils"
 	"github.com/stretchr/testify/assert"
 )
 

@@ -4,7 +4,7 @@ Copyright © 2023 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
-	dbschema "github.com/ludusrusso/kannon/db"
+	dbschema "github.com/kannon-email/kannon/db"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )

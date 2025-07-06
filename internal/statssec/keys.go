@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
-	sqlc "github.com/ludusrusso/kannon/internal/db"
+	sqlc "github.com/kannon-email/kannon/internal/db"
 )
 
 const tokenExpirePeriod = time.Hour * 24 * 30 * 3 // 3 months

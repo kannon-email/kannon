@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	sqlc "github.com/ludusrusso/kannon/internal/db"
+	sqlc "github.com/kannon-email/kannon/internal/db"
 )
 
 func TestReadWriteAttachment(t *testing.T) {

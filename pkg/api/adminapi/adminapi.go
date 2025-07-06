@@ -3,13 +3,13 @@ package adminapi
 import (
 	"context"
 
-	sqlc "github.com/ludusrusso/kannon/internal/db"
-	"github.com/ludusrusso/kannon/internal/domains"
-	"github.com/ludusrusso/kannon/internal/templates"
+	sqlc "github.com/kannon-email/kannon/internal/db"
+	"github.com/kannon-email/kannon/internal/domains"
+	"github.com/kannon-email/kannon/internal/templates"
 
 	"connectrpc.com/connect"
-	pb "github.com/ludusrusso/kannon/proto/kannon/admin/apiv1"
-	adminv1connect "github.com/ludusrusso/kannon/proto/kannon/admin/apiv1/apiv1connect"
+	pb "github.com/kannon-email/kannon/proto/kannon/admin/apiv1"
+	adminv1connect "github.com/kannon-email/kannon/proto/kannon/admin/apiv1/apiv1connect"
 )
 
 // Adapter to Connect handler interface

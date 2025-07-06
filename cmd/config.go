@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ludusrusso/kannon/pkg/api"
-	"github.com/ludusrusso/kannon/pkg/sender"
-	"github.com/ludusrusso/kannon/pkg/smtp"
+	"github.com/kannon-email/kannon/pkg/api"
+	"github.com/kannon-email/kannon/pkg/sender"
+	"github.com/kannon-email/kannon/pkg/smtp"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"

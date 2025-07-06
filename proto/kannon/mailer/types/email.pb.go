@@ -117,9 +117,9 @@ const file_kannon_mailer_types_email_proto_rawDesc = "" +
 	"\vreturn_path\x18\x04 \x01(\tR\n" +
 	"returnPath\x12\x12\n" +
 	"\x04body\x18\x05 \x01(\fR\x04body\x12!\n" +
-	"\fshould_retry\x18\x06 \x01(\bR\vshouldRetryB\xe1\x01\n" +
+	"\fshould_retry\x18\x06 \x01(\bR\vshouldRetryB\xe3\x01\n" +
 	"\x1bcom.pkg.kannon.mailer.typesB\n" +
-	"EmailProtoP\x01Z6github.com/ludusrusso/kannon/proto/kannon/mailer/types\xa2\x02\x04PKMT\xaa\x02\x17Pkg.Kannon.Mailer.Types\xca\x02\x17Pkg\\Kannon\\Mailer\\Types\xe2\x02#Pkg\\Kannon\\Mailer\\Types\\GPBMetadata\xea\x02\x1aPkg::Kannon::Mailer::Typesb\x06proto3"
+	"EmailProtoP\x01Z8github.com/kannon-email/kannon/proto/kannon/mailer/types\xa2\x02\x04PKMT\xaa\x02\x17Pkg.Kannon.Mailer.Types\xca\x02\x17Pkg\\Kannon\\Mailer\\Types\xe2\x02#Pkg\\Kannon\\Mailer\\Types\\GPBMetadata\xea\x02\x1aPkg::Kannon::Mailer::Typesb\x06proto3"
 
 var (
 	file_kannon_mailer_types_email_proto_rawDescOnce sync.Once

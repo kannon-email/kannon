@@ -3,9 +3,9 @@ package publisher
 import (
 	"fmt"
 
-	sq "github.com/ludusrusso/kannon/internal/db"
-	mailertypes "github.com/ludusrusso/kannon/proto/kannon/mailer/types"
-	"github.com/ludusrusso/kannon/proto/kannon/stats/types"
+	sq "github.com/kannon-email/kannon/internal/db"
+	mailertypes "github.com/kannon-email/kannon/proto/kannon/mailer/types"
+	"github.com/kannon-email/kannon/proto/kannon/stats/types"
 	"google.golang.org/protobuf/proto"
 )
 

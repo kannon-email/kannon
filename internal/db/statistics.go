@@ -1,7 +1,7 @@
 package sqlc
 
 import (
-	types "github.com/ludusrusso/kannon/proto/kannon/stats/types"
+	types "github.com/kannon-email/kannon/proto/kannon/stats/types"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 

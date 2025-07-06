@@ -5,9 +5,9 @@ import (
 	"math"
 	"time"
 
-	sqlc "github.com/ludusrusso/kannon/internal/db"
-	"github.com/ludusrusso/kannon/internal/utils"
-	pb "github.com/ludusrusso/kannon/proto/kannon/mailer/types"
+	sqlc "github.com/kannon-email/kannon/internal/db"
+	"github.com/kannon-email/kannon/internal/utils"
+	pb "github.com/kannon-email/kannon/proto/kannon/mailer/types"
 )
 
 type Sender struct {

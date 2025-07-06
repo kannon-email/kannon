@@ -7,12 +7,12 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	sqlc "github.com/ludusrusso/kannon/internal/db"
+	sqlc "github.com/kannon-email/kannon/internal/db"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	mailerv1 "github.com/ludusrusso/kannon/proto/kannon/mailer/apiv1"
-	types "github.com/ludusrusso/kannon/proto/kannon/mailer/types"
+	mailerv1 "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1"
+	types "github.com/kannon-email/kannon/proto/kannon/mailer/types"
 )
 
 func TestInsertMail(t *testing.T) {

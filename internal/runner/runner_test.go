@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ludusrusso/kannon/internal/runner"
+	"github.com/kannon-email/kannon/internal/runner"
 	"github.com/stretchr/testify/assert"
 )
 

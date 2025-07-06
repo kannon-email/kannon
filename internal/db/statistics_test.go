@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
-	types "github.com/ludusrusso/kannon/proto/kannon/stats/types"
+	types "github.com/kannon-email/kannon/proto/kannon/stats/types"
 	"github.com/stretchr/testify/require"
 )
 

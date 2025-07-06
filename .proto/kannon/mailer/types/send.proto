@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package pkg.kannon.mailer.types;
 
-option go_package = "github.com/ludusrusso/kannon/proto/kannon/mailer/types";
+option go_package = "github.com/kannon-email/kannon/proto/kannon/mailer/types";
 
 message Sender {
   string email = 1;

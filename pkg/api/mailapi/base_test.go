@@ -8,18 +8,18 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/jackc/pgx/v5/pgxpool"
-	schema "github.com/ludusrusso/kannon/db"
-	sqlc "github.com/ludusrusso/kannon/internal/db"
-	"github.com/ludusrusso/kannon/internal/tests"
-	"github.com/ludusrusso/kannon/pkg/api/adminapi"
-	"github.com/ludusrusso/kannon/pkg/api/mailapi"
+	schema "github.com/kannon-email/kannon/db"
+	sqlc "github.com/kannon-email/kannon/internal/db"
+	"github.com/kannon-email/kannon/internal/tests"
+	"github.com/kannon-email/kannon/pkg/api/adminapi"
+	"github.com/kannon-email/kannon/pkg/api/mailapi"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 
-	adminv1connect "github.com/ludusrusso/kannon/proto/kannon/admin/apiv1/apiv1connect"
-	mailerv1connect "github.com/ludusrusso/kannon/proto/kannon/mailer/apiv1/apiv1connect"
+	adminv1connect "github.com/kannon-email/kannon/proto/kannon/admin/apiv1/apiv1connect"
+	mailerv1connect "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1/apiv1connect"
 
-	adminv1 "github.com/ludusrusso/kannon/proto/kannon/admin/apiv1"
+	adminv1 "github.com/kannon-email/kannon/proto/kannon/admin/apiv1"
 
 	_ "github.com/lib/pq"
 )

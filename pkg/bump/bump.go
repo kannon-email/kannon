@@ -3,7 +3,7 @@ package bump
 import (
 	"context"
 
-	"github.com/ludusrusso/kannon/internal/x/container"
+	"github.com/kannon-email/kannon/internal/x/container"
 )
 
 func Run(ctx context.Context, cnt *container.Container) error {

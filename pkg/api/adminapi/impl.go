@@ -3,11 +3,11 @@ package adminapi
 import (
 	"context"
 
-	sqlc "github.com/ludusrusso/kannon/internal/db"
-	"github.com/ludusrusso/kannon/internal/domains"
-	"github.com/ludusrusso/kannon/internal/templates"
+	sqlc "github.com/kannon-email/kannon/internal/db"
+	"github.com/kannon-email/kannon/internal/domains"
+	"github.com/kannon-email/kannon/internal/templates"
 
-	pb "github.com/ludusrusso/kannon/proto/kannon/admin/apiv1"
+	pb "github.com/kannon-email/kannon/proto/kannon/admin/apiv1"
 )
 
 type adminAPIService struct {

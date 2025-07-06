@@ -4,9 +4,9 @@ import (
 	"context"
 
 	"github.com/jackc/pgx/v5/pgtype"
-	sq "github.com/ludusrusso/kannon/internal/db"
-	"github.com/ludusrusso/kannon/proto/kannon/stats/apiv1"
-	"github.com/ludusrusso/kannon/proto/kannon/stats/types"
+	sq "github.com/kannon-email/kannon/internal/db"
+	"github.com/kannon-email/kannon/proto/kannon/stats/apiv1"
+	"github.com/kannon-email/kannon/proto/kannon/stats/types"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 

@@ -138,8 +138,8 @@ const file_kannon_mailer_types_send_proto_rawDesc = "" +
 	"\x06fields\x18\x02 \x03(\v2..pkg.kannon.mailer.types.Recipient.FieldsEntryR\x06fields\x1a9\n" +
 	"\vFieldsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\xe0\x01\n" +
-	"\x1bcom.pkg.kannon.mailer.typesB\tSendProtoP\x01Z6github.com/ludusrusso/kannon/proto/kannon/mailer/types\xa2\x02\x04PKMT\xaa\x02\x17Pkg.Kannon.Mailer.Types\xca\x02\x17Pkg\\Kannon\\Mailer\\Types\xe2\x02#Pkg\\Kannon\\Mailer\\Types\\GPBMetadata\xea\x02\x1aPkg::Kannon::Mailer::Typesb\x06proto3"
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\xe2\x01\n" +
+	"\x1bcom.pkg.kannon.mailer.typesB\tSendProtoP\x01Z8github.com/kannon-email/kannon/proto/kannon/mailer/types\xa2\x02\x04PKMT\xaa\x02\x17Pkg.Kannon.Mailer.Types\xca\x02\x17Pkg\\Kannon\\Mailer\\Types\xe2\x02#Pkg\\Kannon\\Mailer\\Types\\GPBMetadata\xea\x02\x1aPkg::Kannon::Mailer::Typesb\x06proto3"
 
 var (
 	file_kannon_mailer_types_send_proto_rawDescOnce sync.Once

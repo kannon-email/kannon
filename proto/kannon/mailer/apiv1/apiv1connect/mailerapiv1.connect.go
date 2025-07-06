@@ -8,7 +8,7 @@ import (
 	connect "connectrpc.com/connect"
 	context "context"
 	errors "errors"
-	apiv1 "github.com/ludusrusso/kannon/proto/kannon/mailer/apiv1"
+	apiv1 "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1"
 	http "net/http"
 	strings "strings"
 )

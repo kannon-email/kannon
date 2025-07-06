@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	sqlc "github.com/ludusrusso/kannon/internal/db"
-	"github.com/ludusrusso/kannon/internal/statssec"
-	"github.com/ludusrusso/kannon/internal/utils"
-	pb "github.com/ludusrusso/kannon/proto/kannon/stats/types"
+	sqlc "github.com/kannon-email/kannon/internal/db"
+	"github.com/kannon-email/kannon/internal/statssec"
+	"github.com/kannon-email/kannon/internal/utils"
+	pb "github.com/kannon-email/kannon/proto/kannon/stats/types"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )

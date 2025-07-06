@@ -1,5 +1,5 @@
 syntax = "proto3";
-option go_package = "github.com/ludusrusso/kannon/proto/kannon/admin/apiv1";
+option go_package = "github.com/kannon-email/kannon/proto/kannon/admin/apiv1";
 
 package pkg.kannon.admin.apiv1;
 

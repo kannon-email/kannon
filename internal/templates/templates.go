@@ -3,7 +3,7 @@ package templates
 import (
 	"context"
 
-	sqlc "github.com/ludusrusso/kannon/internal/db"
+	sqlc "github.com/kannon-email/kannon/internal/db"
 )
 
 // Manager implement interface to manage Templates

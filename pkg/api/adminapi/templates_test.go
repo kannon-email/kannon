@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
-	pb "github.com/ludusrusso/kannon/proto/kannon/admin/apiv1"
+	pb "github.com/kannon-email/kannon/proto/kannon/admin/apiv1"
 	"github.com/stretchr/testify/assert"
 
 	_ "github.com/lib/pq"

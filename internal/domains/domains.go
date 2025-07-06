@@ -4,8 +4,8 @@ import (
 	"context"
 	"math/rand"
 
-	sqlc "github.com/ludusrusso/kannon/internal/db"
-	"github.com/ludusrusso/kannon/internal/dkim"
+	sqlc "github.com/kannon-email/kannon/internal/db"
+	"github.com/kannon-email/kannon/internal/dkim"
 )
 
 type domainManager struct {

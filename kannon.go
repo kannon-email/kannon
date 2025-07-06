@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/ludusrusso/kannon/cmd"
+	"github.com/kannon-email/kannon/cmd"
 	"github.com/sirupsen/logrus"
 )
 

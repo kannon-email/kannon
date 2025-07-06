@@ -9,7 +9,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5/pgtype"
-	pbtypes "github.com/ludusrusso/kannon/proto/kannon/stats/types"
+	pbtypes "github.com/kannon-email/kannon/proto/kannon/stats/types"
 )
 
 type TemplateType string

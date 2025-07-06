@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/ludusrusso/kannon/internal/pool"
+	"github.com/kannon-email/kannon/internal/pool"
 	"github.com/stretchr/testify/assert"
 )
 

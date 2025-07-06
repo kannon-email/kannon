@@ -7,10 +7,10 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	_ "github.com/lib/pq"
 
-	sq "github.com/ludusrusso/kannon/internal/db"
-	"github.com/ludusrusso/kannon/internal/utils"
-	"github.com/ludusrusso/kannon/internal/x/container"
-	"github.com/ludusrusso/kannon/proto/kannon/stats/types"
+	sq "github.com/kannon-email/kannon/internal/db"
+	"github.com/kannon-email/kannon/internal/utils"
+	"github.com/kannon-email/kannon/internal/x/container"
+	"github.com/kannon-email/kannon/proto/kannon/stats/types"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
 

@@ -8,8 +8,8 @@ import (
 	"strconv"
 
 	"github.com/emersion/go-smtp"
-	"github.com/ludusrusso/kannon/internal/utils"
-	st "github.com/ludusrusso/kannon/proto/kannon/stats/types"
+	"github.com/kannon-email/kannon/internal/utils"
+	st "github.com/kannon-email/kannon/proto/kannon/stats/types"
 	"github.com/nats-io/nats.go"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
