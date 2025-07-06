@@ -7,16 +7,16 @@ import (
 	"strings"
 	"time"
 
+	"connectrpc.com/connect"
 	sqlc "github.com/ludusrusso/kannon/internal/db"
 	"github.com/ludusrusso/kannon/internal/domains"
 	"github.com/ludusrusso/kannon/internal/pool"
 	"github.com/ludusrusso/kannon/internal/templates"
 	"github.com/ludusrusso/kannon/internal/utils"
 	pb "github.com/ludusrusso/kannon/proto/kannon/mailer/apiv1"
+	mailerv1connect "github.com/ludusrusso/kannon/proto/kannon/mailer/apiv1/apiv1connect"
 	"github.com/sirupsen/logrus"
-	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -29,7 +29,7 @@ type mailAPIService struct {
 func (s mailAPIService) SendHTML(ctx context.Context, req *pb.SendHTMLReq) (*pb.SendRes, error) {
 	domain, err := s.getCallDomainFromContext(ctx)
 	if err != nil {
-		return nil, status.Errorf(codes.Unauthenticated, "invalid or wrong auth")
+		return nil, fmt.Errorf("invalid or wrong auth")
 	}
 
 	req.Html = utils.ReplaceCustomFields(req.Html, req.GlobalFields)
@@ -37,7 +37,7 @@ func (s mailAPIService) SendHTML(ctx context.Context, req *pb.SendHTMLReq) (*pb.
 	template, err := s.templates.CreateTransientTemplate(ctx, req.Html, domain.Domain)
 	if err != nil {
 		logrus.Errorf("cannot create template %v\n", err)
-		return nil, status.Errorf(codes.Internal, "cannot create template %v", err)
+		return nil, fmt.Errorf("cannot create template %v", err)
 	}
 
 	return s.SendTemplate(ctx, &pb.SendTemplateReq{
@@ -54,19 +54,19 @@ func (s mailAPIService) SendHTML(ctx context.Context, req *pb.SendHTMLReq) (*pb.
 func (s mailAPIService) SendTemplate(ctx context.Context, req *pb.SendTemplateReq) (*pb.SendRes, error) {
 	domain, err := s.getCallDomainFromContext(ctx)
 	if err != nil {
-		return nil, status.Errorf(codes.Unauthenticated, "invalid or wrong auth")
+		return nil, fmt.Errorf("invalid or wrong auth")
 	}
 
 	template, err := s.templates.FindTemplate(ctx, domain.Domain, req.TemplateId)
 	if err != nil {
 		logrus.Errorf("cannot find template %v\n", err)
-		return nil, status.Errorf(codes.InvalidArgument, "cannot find template with id: %v", req.TemplateId)
+		return nil, fmt.Errorf("cannot find template with id: %v", req.TemplateId)
 	}
 
 	template, err = s.createTemplateWithGlobalFieds(ctx, template, req.GlobalFields)
 	if err != nil {
 		logrus.Errorf("cannot create transient template %v\n", err)
-		return nil, status.Errorf(codes.Internal, "cannot create template %v", err)
+		return nil, fmt.Errorf("cannot create template %v", err)
 	}
 
 	sender := pool.Sender{
@@ -150,15 +150,39 @@ func (s mailAPIService) getCallDomainFromContext(ctx context.Context) (sqlc.Doma
 	return domain, nil
 }
 
-func NewMailerAPIV1(q *sqlc.Queries) pb.MailerServer {
+// Adapter to Connect handler interface
+
+type mailAPIConnectAdapter struct {
+	impl *mailAPIService
+}
+
+func (a *mailAPIConnectAdapter) SendHTML(ctx context.Context, req *connect.Request[pb.SendHTMLReq]) (*connect.Response[pb.SendRes], error) {
+	resp, err := a.impl.SendHTML(ctx, req.Msg)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	return connect.NewResponse(resp), nil
+}
+
+func (a *mailAPIConnectAdapter) SendTemplate(ctx context.Context, req *connect.Request[pb.SendTemplateReq]) (*connect.Response[pb.SendRes], error) {
+	resp, err := a.impl.SendTemplate(ctx, req.Msg)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	return connect.NewResponse(resp), nil
+}
+
+func NewMailerAPIV1(q *sqlc.Queries) mailerv1connect.MailerHandler {
 	domainsCli := domains.NewDomainManager(q)
 
 	sendingPoolCli := pool.NewSendingPoolManager(q)
 	templates := templates.NewTemplateManager(q)
 
-	return &mailAPIService{
-		domains:     domainsCli,
-		sendingPoll: sendingPoolCli,
-		templates:   templates,
+	return &mailAPIConnectAdapter{
+		impl: &mailAPIService{
+			domains:     domainsCli,
+			sendingPoll: sendingPoolCli,
+			templates:   templates,
+		},
 	}
 }

@@ -94,8 +94,11 @@ func prepareConfig() {
 }
 
 func readConfig() (Config, error) {
+	//nolint:errcheck
 	viper.BindEnv("database_url")
+	//nolint:errcheck
 	viper.BindEnv("nats_url")
+	//nolint:errcheck
 	viper.BindEnv("debug")
 
 	var config Config
