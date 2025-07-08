@@ -43,7 +43,7 @@ func Run(ctx context.Context, cnt *container.Container) error {
 
 	pm := pool.NewSendingPoolManager(q)
 
-	nc := cnt.Nats()
+	nc := cnt.NatsPublisher()
 
 	v := Validator{
 		pm:  pm,

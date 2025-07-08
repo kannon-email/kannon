@@ -31,6 +31,7 @@ func handleStats(ctx context.Context, js nats.JetStreamContext, q *sq.Queries) {
 		if err != nil {
 			if err != nats.ErrTimeout {
 				logrus.Errorf("error fetching messages: %v", err)
+				return
 			}
 			continue
 		}

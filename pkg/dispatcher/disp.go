@@ -25,8 +25,8 @@ type disp struct {
 	log *logrus.Entry
 }
 
-func (d disp) DispatchCycle(pctx context.Context) error {
-	ctx, cancel := context.WithTimeout(pctx, 10*time.Second)
+func (d disp) DispatchCycle(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	emails, err := d.pm.PrepareForSend(ctx, 20)
 	if err != nil {
@@ -106,6 +106,7 @@ func (d disp) handleMsg(ctx context.Context, sbj, subName string, parse parseFun
 		if err != nil {
 			if err != nats.ErrTimeout {
 				d.log.Errorf("error fetching messages: %v", err)
+				return
 			}
 			continue
 		}

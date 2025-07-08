@@ -52,8 +52,6 @@ func (m *mailBuilder) BuildEmail(ctx context.Context, email sqlc.SendingPoolEmai
 		Alias: emailData.SenderAlias,
 	}
 
-	logrus.Infof("📧 Building attachmes for %+v\n", emailData.Attachments)
-
 	attachments := make(Attachments)
 	for name, r := range emailData.Attachments {
 		attachments[name] = bytes.NewReader(r)

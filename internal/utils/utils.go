@@ -12,6 +12,7 @@ func MustGetPullSubscriber(js nats.JetStreamContext, subj string, durable string
 	for i := 0; i < 10; i++ {
 		conn, err := js.PullSubscribe(subj, durable)
 		if err == nil {
+			logrus.Debugf("pull subscriber created %v", durable)
 			return conn
 		}
 		logrus.Errorf("cannot create pull subscriber %v: %v", durable, err)
