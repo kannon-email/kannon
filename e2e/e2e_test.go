@@ -30,11 +30,10 @@ import (
 // TestE2EEmailSending tests the entire email sending pipeline with real infrastructure
 func TestE2EEmailSending(t *testing.T) {
 	infra, err := setupTestInfrastructure(t.Context())
+	defer infra.Cleanup()
 	if err != nil {
-		t.Skipf("Docker not available, skipping E2E test: %v", err)
-		return
+		t.Fatalf("Failed to setup test infrastructure: %v", err)
 	}
-	defer infra.cleanup()
 
 	// Start Kannon services
 	ctx, cancel := context.WithCancel(t.Context())
@@ -216,7 +215,6 @@ func testMultipleRecipientsEmail(t *testing.T, clientFactory *clientFactory, smt
 		stats := client.GetStats(t)
 		require.EqualValues(tt, 6, stats.Total)
 	}, 10*time.Second, 1*time.Second, "Stats should be available within 60 seconds")
-
 }
 
 // testEmailWithAttachments tests sending emails with attachments

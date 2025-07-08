@@ -3,6 +3,7 @@ package e2e_test
 import (
 	"context"
 	"fmt"
+	"log"
 	"net"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -15,23 +16,101 @@ import (
 
 // TestInfrastructure holds the test infrastructure resources
 type TestInfrastructure struct {
-	pool    *dockertest.Pool
-	pgRes   *dockertest.Resource
-	natsRes *dockertest.Resource
 	dbURL   string
 	natsURL string
 	apiPort uint
-	cleanup func()
+	cleanup []func() error
+}
+
+func (infra *TestInfrastructure) Cleanup() {
+	for _, cleanFunc := range infra.cleanup {
+		if err := cleanFunc(); err != nil {
+			log.Printf("Error cleaning up: %v", err)
+		}
+	}
 }
 
 // setupTestInfrastructure sets up PostgreSQL and NATS using dockertest
 func setupTestInfrastructure(ctx context.Context) (*TestInfrastructure, error) {
+	infra := &TestInfrastructure{}
+
 	pool, err := dockertest.NewPool("")
 	if err != nil {
-		return nil, fmt.Errorf("could not connect to docker: %w", err)
+		return infra, fmt.Errorf("could not connect to docker: %w", err)
 	}
 
 	// Start PostgreSQL
+	pgRes, err := createDatabase(pool)
+	if err != nil {
+		return infra, err
+	}
+	infra.cleanup = append(infra.cleanup, func() error {
+		return pool.Purge(pgRes)
+	})
+
+	// Start NATS
+	natsRes, err := createNats(pool)
+	if err != nil {
+		return infra, fmt.Errorf("could not start nats: %w", err)
+	}
+	infra.cleanup = append(infra.cleanup, func() error {
+		return pool.Purge(natsRes)
+	})
+
+	// Get connection URLs
+	dbURL := fmt.Sprintf("postgresql://test:test@localhost:%s/test?sslmode=disable", pgRes.GetPort("5432/tcp"))
+	natsURL := fmt.Sprintf("nats://localhost:%s", natsRes.GetPort("4222/tcp"))
+
+	// Wait for PostgreSQL to be ready
+	var db *pgxpool.Pool
+	err = pool.Retry(func() error {
+		var err error
+		tmpDb, err := pgxpool.New(ctx, dbURL)
+		if err != nil {
+			return err
+		}
+
+		if err := tmpDb.Ping(ctx); err != nil {
+			tmpDb.Close()
+			return err
+		}
+
+		db = tmpDb
+		return nil
+	})
+	if err != nil {
+		return infra, fmt.Errorf("could not connect to postgres: %w", err)
+	}
+
+	// Apply database schema
+	err = applySchema(ctx, db)
+	if err != nil {
+		return infra, fmt.Errorf("could not apply schema: %w", err)
+	}
+	db.Close()
+
+	// Wait for NATS to be ready with JetStream
+	err = pool.Retry(func() error {
+		return testNatsConnection(natsURL)
+	})
+	if err != nil {
+		return infra, fmt.Errorf("could not connect to nats: %w", err)
+	}
+
+	// Find available port for API
+	apiPort, err := findAvailablePort()
+	if err != nil {
+		return infra, fmt.Errorf("could not find available port: %w", err)
+	}
+
+	infra.dbURL = dbURL
+	infra.natsURL = natsURL
+	infra.apiPort = apiPort
+
+	return infra, nil
+}
+
+func createDatabase(pool *dockertest.Pool) (*dockertest.Resource, error) {
 	pgRes, err := pool.RunWithOptions(&dockertest.RunOptions{
 		Repository: "postgres",
 		Tag:        "15-alpine",
@@ -48,7 +127,14 @@ func setupTestInfrastructure(ctx context.Context) (*TestInfrastructure, error) {
 		return nil, fmt.Errorf("could not start postgres: %w", err)
 	}
 
-	// Start NATS
+	if err := pgRes.Expire(300); err != nil {
+		return nil, fmt.Errorf("could not set postgres expiration: %w", err)
+	}
+
+	return pgRes, nil
+}
+
+func createNats(pool *dockertest.Pool) (*dockertest.Resource, error) {
 	natsRes, err := pool.RunWithOptions(&dockertest.RunOptions{
 		Repository:   "nats",
 		Tag:          "2.10-alpine",
@@ -59,74 +145,14 @@ func setupTestInfrastructure(ctx context.Context) (*TestInfrastructure, error) {
 		config.RestartPolicy = docker.RestartPolicy{Name: "no"}
 	})
 	if err != nil {
-		pool.Purge(pgRes)
 		return nil, fmt.Errorf("could not start nats: %w", err)
 	}
 
-	// Set expiration to 5 minutes to prevent hanging containers
-	pgRes.Expire(300)
-	natsRes.Expire(300)
-
-	// Get connection URLs
-	dbURL := fmt.Sprintf("postgresql://test:test@localhost:%s/test?sslmode=disable", pgRes.GetPort("5432/tcp"))
-	natsURL := fmt.Sprintf("nats://localhost:%s", natsRes.GetPort("4222/tcp"))
-
-	// Wait for PostgreSQL to be ready
-	var db *pgxpool.Pool
-	err = pool.Retry(func() error {
-		var err error
-		db, err = pgxpool.New(ctx, dbURL)
-		if err != nil {
-			return err
-		}
-		return db.Ping(ctx)
-	})
-	if err != nil {
-		pool.Purge(pgRes)
-		pool.Purge(natsRes)
-		return nil, fmt.Errorf("could not connect to postgres: %w", err)
+	if err := natsRes.Expire(300); err != nil {
+		return nil, fmt.Errorf("could not set nats expiration: %w", err)
 	}
 
-	// Apply database schema
-	err = applySchema(ctx, db)
-	if err != nil {
-		db.Close()
-		pool.Purge(pgRes)
-		pool.Purge(natsRes)
-		return nil, fmt.Errorf("could not apply schema: %w", err)
-	}
-	db.Close()
-
-	// Wait for NATS to be ready with JetStream
-	err = pool.Retry(func() error {
-		return testNatsConnection(natsURL)
-	})
-	if err != nil {
-		pool.Purge(pgRes)
-		pool.Purge(natsRes)
-		return nil, fmt.Errorf("could not connect to nats: %w", err)
-	}
-
-	// Find available port for API
-	apiPort, err := findAvailablePort()
-	if err != nil {
-		pool.Purge(pgRes)
-		pool.Purge(natsRes)
-		return nil, fmt.Errorf("could not find available port: %w", err)
-	}
-
-	return &TestInfrastructure{
-		pool:    pool,
-		pgRes:   pgRes,
-		natsRes: natsRes,
-		dbURL:   dbURL,
-		natsURL: natsURL,
-		apiPort: apiPort,
-		cleanup: func() {
-			pool.Purge(pgRes)
-			pool.Purge(natsRes)
-		},
-	}, nil
+	return natsRes, nil
 }
 
 // applySchema applies the database schema
