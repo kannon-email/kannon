@@ -66,20 +66,13 @@ func (s *sender) handleSend(ctx context.Context, consumer jetstream.Consumer) er
 
 	maxJobs := s.cfg.GetMaxJobs()
 
-	ch := make(chan bool, maxJobs)
+	tasks := NewParallel(maxJobs)
 
 	con, err := consumer.Consume(func(msg jetstream.Msg) {
-		ch <- true
-		go func() {
+		tasks.RunTask(func() {
 			err := s.handleMessage(msg)
-			if err != nil {
-				logrus.Errorf("error in handling message: %v\n", err.Error())
-			}
-			if err := msg.Ack(); err != nil {
-				logrus.Errorf("cannot hack message: %v\n", err.Error())
-			}
-			<-ch
-		}()
+			s.handleMsgAck(msg, err)
+		})
 	})
 	if err != nil {
 		return fmt.Errorf("error in consuming messages: %w", err)
@@ -87,9 +80,23 @@ func (s *sender) handleSend(ctx context.Context, consumer jetstream.Consumer) er
 	defer con.Drain()
 
 	<-ctx.Done()
+	tasks.WaitAndClose()
 
 	logrus.Infof("👋 Shutting down Sender Service")
 	return ctx.Err()
+}
+
+func (s *sender) handleMsgAck(msg jetstream.Msg, err error) {
+	if err != nil {
+		logrus.Errorf("error in handling message: %v\n", err.Error())
+		if err := msg.Nak(); err != nil {
+			logrus.Errorf("cannot nak message: %v\n", err.Error())
+		}
+		return
+	}
+	if err := msg.Ack(); err != nil {
+		logrus.Errorf("cannot ack message: %v\n", err.Error())
+	}
 }
 
 func (s *sender) handleMessage(msg jetstream.Msg) error {
