@@ -134,7 +134,8 @@ func runDispatcher(ctx context.Context, cnt *container.Container, _ Config) erro
 
 func runSender(ctx context.Context, cnt *container.Container, config Config) error {
 	cnf := config.Sender.ToSenderConfig()
-	return sender.Run(ctx, cnt, cnf)
+	sender := sender.NewSenderFromContainer(cnt, cnf)
+	return sender.Run(ctx)
 }
 
 func runSMTP(ctx context.Context, cnt *container.Container, config Config) error {

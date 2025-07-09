@@ -6,6 +6,7 @@ import (
 	sq "github.com/kannon-email/kannon/internal/db"
 	mailertypes "github.com/kannon-email/kannon/proto/kannon/mailer/types"
 	"github.com/kannon-email/kannon/proto/kannon/stats/types"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -14,6 +15,7 @@ type Publisher interface {
 }
 
 func SendEmail(p Publisher, email *mailertypes.EmailToSend) error {
+	logrus.WithField("subj", "kannon.sending").Debugf("[nats] publishing message")
 	msg, err := proto.Marshal(email)
 	if err != nil {
 		return err

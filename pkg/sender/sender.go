@@ -30,44 +30,63 @@ func (c Config) GetMaxJobs() uint {
 	return c.MaxJobs
 }
 
-func Run(ctx context.Context, cnt *container.Container, config Config) error {
-	nc := cnt.Nats()
+type sender struct {
+	sender    smtp.Sender
+	publisher publisher.Publisher
+	js        nats.JetStreamContext
+	cfg       Config
+}
 
-	senderHost := config.Hostname
-	maxSendingJobs := config.GetMaxJobs()
+func NewSenderFromContainer(cnt *container.Container, cfg Config) *sender {
+	return NewSender(cnt.NatsPublisher(), cnt.NatsJetStream(), smtp.NewSender(cfg.Hostname), cfg)
+}
 
-	logrus.Infof("Starting Sender Service with hostname: %v and %d jobs", senderHost, maxSendingJobs)
+func NewSender(publisher publisher.Publisher, js nats.JetStreamContext, s smtp.Sender, cfg Config) *sender {
+	return &sender{
+		sender:    s,
+		publisher: publisher,
+		js:        js,
+		cfg:       cfg,
+	}
+}
 
-	js := cnt.NatsJetStream()
-	mustConfigureJS(js)
+func (s *sender) Run(ctx context.Context) error {
+	logrus.WithField("hostname", s.cfg.Hostname).
+		WithField("max_jobs", s.cfg.GetMaxJobs()).
+		Infof("Starting Sender Service")
+	mustConfigureJS(s.js)
 
-	sender := smtp.NewSender(senderHost)
-	con := utils.MustGetPullSubscriber(js, "kannon.sending", "kannon-sending-pool")
+	con := utils.MustGetPullSubscriber(s.js, "kannon.sending", "kannon-sending-pool")
 
 	go func() {
-		handleSend(sender, con, nc, maxSendingJobs)
+		s.handleSend(con)
 	}()
-
 	<-ctx.Done()
 
 	return nil
 }
 
-func handleSend(sender smtp.Sender, con *nats.Subscription, nc *nats.Conn, maxParallelJobs uint) {
+func (s *sender) handleSend(con *nats.Subscription) {
 	logrus.Infof("🚀 Ready to send!\n")
-	ch := make(chan bool, maxParallelJobs)
+
+	maxJobs := s.cfg.GetMaxJobs()
+
+	ch := make(chan bool, maxJobs)
 	for {
-		msgs, err := con.Fetch(int(maxParallelJobs), nats.MaxWait(10*time.Second))
+		logrus.Debugf("fetching %d messages", maxJobs)
+		msgs, err := con.Fetch(int(maxJobs), nats.MaxWait(1*time.Second))
 		if err != nil {
 			if err != nats.ErrTimeout {
 				logrus.Errorf("error fetching messages: %v", err)
+				return
 			}
 			continue
 		}
+		logrus.Debugf("fetched %d messages", len(msgs))
 		for _, msg := range msgs {
 			ch <- true
 			go func(msg *nats.Msg) {
-				err = handleMessage(msg, sender, nc)
+				err = s.handleMessage(msg)
 				if err != nil {
 					logrus.Errorf("error in handling message: %v\n", err.Error())
 				}
@@ -80,22 +99,22 @@ func handleSend(sender smtp.Sender, con *nats.Subscription, nc *nats.Conn, maxPa
 	}
 }
 
-func handleMessage(msg *nats.Msg, sender smtp.Sender, nc *nats.Conn) error {
+func (s *sender) handleMessage(msg *nats.Msg) error {
 	data := &msgtypes.EmailToSend{}
 	err := proto.Unmarshal(msg.Data, data)
 	if err != nil {
 		return err
 	}
-	sendErr := sender.Send(data.ReturnPath, data.To, data.Body)
+	sendErr := s.sender.Send(data.ReturnPath, data.To, data.Body)
 	if sendErr != nil {
 		logrus.Infof("Cannot send email %v - %v: %v", utils.ObfuscateEmail(data.To), data.EmailId, sendErr.Error())
-		return handleSendError(sendErr, data, nc)
+		return s.handleSendError(sendErr, data)
 	}
 	logrus.Infof("Email delivered: %v - %v", utils.ObfuscateEmail(data.To), data.EmailId)
-	return handleSendSuccess(data, nc)
+	return s.handleSendSuccess(data)
 }
 
-func handleSendSuccess(data *msgtypes.EmailToSend, nc *nats.Conn) error {
+func (s *sender) handleSendSuccess(data *msgtypes.EmailToSend) error {
 	msgID, domain, err := utils.ExtractMsgIDAndDomainFromEmailID(data.EmailId)
 	if err != nil {
 		return nil
@@ -116,14 +135,14 @@ func handleSendSuccess(data *msgtypes.EmailToSend, nc *nats.Conn) error {
 	if err != nil {
 		return err
 	}
-	err = nc.Publish("kannon.stats.delivered", rm)
+	err = s.publisher.Publish("kannon.stats.delivered", rm)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func handleSendError(sendErr smtp.SenderError, data *msgtypes.EmailToSend, nc *nats.Conn) error {
+func (s *sender) handleSendError(sendErr smtp.SenderError, data *msgtypes.EmailToSend) error {
 	msgID, domain, err := utils.ExtractMsgIDAndDomainFromEmailID(data.EmailId)
 	if err != nil {
 		return nil
@@ -156,7 +175,7 @@ func handleSendError(sendErr smtp.SenderError, data *msgtypes.EmailToSend, nc *n
 		}
 	}
 
-	return publisher.PublishStat(nc, msg)
+	return publisher.PublishStat(s.publisher, msg)
 }
 
 func mustConfigureJS(js nats.JetStreamContext) {
@@ -177,5 +196,5 @@ func mustConfigureJS(js nats.JetStreamContext) {
 	} else if err != nil {
 		logrus.Fatalf("cannot create js stream: %v", err)
 	}
-	logrus.Infof("created js stream: %v", info)
+	logrus.Infof("created js stream: %v", info.Config.Name)
 }

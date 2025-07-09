@@ -12,18 +12,18 @@ CREATE TABLE domains (
     id SERIAL PRIMARY KEY,
     domain VARCHAR(254) UNIQUE NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    key VARCHAR(50) NOT NULL,
+    key VARCHAR NOT NULL,
     dkim_private_key VARCHAR NOT NULL,
     dkim_public_key VARCHAR NOT NULL
 );
 CREATE INDEX ON domains (domain);
 
 CREATE TABLE messages (
-    message_id VARCHAR(50) PRIMARY KEY,
+    message_id VARCHAR PRIMARY KEY,
     subject VARCHAR NOT NULL,
     sender_email VARCHAR(320) NOT NULL,
     sender_alias VARCHAR(100) NOT NULL,
-    template_id VARCHAR(50) NOT NULL,
+    template_id VARCHAR NOT NULL,
     domain VARCHAR(254) NOT NULL
 );
 CREATE INDEX ON messages (message_id);

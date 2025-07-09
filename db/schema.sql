@@ -31,7 +31,7 @@ CREATE TABLE public.domains (
     id integer NOT NULL,
     domain character varying(254) NOT NULL,
     created_at timestamp without time zone DEFAULT now() NOT NULL,
-    key character varying(50) NOT NULL,
+    key character varying NOT NULL,
     dkim_private_key character varying NOT NULL,
     dkim_public_key character varying NOT NULL
 );
@@ -62,11 +62,11 @@ ALTER SEQUENCE public.domains_id_seq OWNED BY public.domains.id;
 --
 
 CREATE TABLE public.messages (
-    message_id character varying(50) NOT NULL,
+    message_id character varying NOT NULL,
     subject character varying NOT NULL,
     sender_email character varying(320) NOT NULL,
     sender_alias character varying(100) NOT NULL,
-    template_id character varying(50) NOT NULL,
+    template_id character varying NOT NULL,
     domain character varying(254) NOT NULL,
     attachments jsonb
 );
@@ -77,7 +77,7 @@ CREATE TABLE public.messages (
 --
 
 CREATE TABLE public.schema_migrations (
-    version character varying(128) NOT NULL
+    version character varying(255) NOT NULL
 );
 
 

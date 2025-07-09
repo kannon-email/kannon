@@ -29,7 +29,6 @@ func Run(ctx context.Context, cnt *container.Container) error {
 	pm := pool.NewSendingPoolManager(q)
 	mb := mailbuilder.NewMailBuilder(q, ss)
 
-	nc := cnt.Nats()
 	js := cnt.NatsJetStream()
 	mustConfigureJS(js)
 
@@ -37,7 +36,7 @@ func Run(ctx context.Context, cnt *container.Container) error {
 		ss:  ss,
 		pm:  pm,
 		mb:  mb,
-		pub: nc,
+		pub: cnt.NatsPublisher(),
 		js:  js,
 		log: log,
 	}
@@ -66,7 +65,7 @@ func Run(ctx context.Context, cnt *container.Container) error {
 	go func() {
 		err := runner.Run(ctx, d.DispatchCycle, runner.WaitLoop(1*time.Second))
 		if err != nil {
-			logrus.Fatalf("error in runner, %v", err)
+			logrus.Errorf("error in runner, %v", err)
 		}
 		wg.Done()
 	}()
@@ -94,5 +93,5 @@ func mustConfigureJS(js nats.JetStreamContext) {
 	} else if err != nil {
 		logrus.Fatalf("cannot create js stream: %v", err)
 	}
-	logrus.Infof("created js stream: %v", info)
+	logrus.Infof("created js stream: %v", info.Config.Name)
 }

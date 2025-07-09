@@ -6,6 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	sqlc "github.com/kannon-email/kannon/internal/db"
+	"github.com/kannon-email/kannon/internal/publisher"
 	"github.com/nats-io/nats.go"
 	"github.com/sirupsen/logrus"
 )
@@ -93,6 +94,13 @@ func (c *Container) Nats() *nats.Conn {
 	})
 }
 
+func (c *Container) NatsPublisher() publisher.Publisher {
+	logrus.Debugf("[nats] creating publisher")
+	return &publisherWithDebug{
+		nc: c.Nats(),
+	}
+}
+
 func (c *Container) NatsJetStream() nats.JetStreamContext {
 	nc := c.Nats()
 	js, err := nc.JetStream()
@@ -112,4 +120,13 @@ func (s *singleton[T]) Get(ctx context.Context, f func(ctx context.Context) T) T
 		s.value = f(ctx)
 	})
 	return s.value
+}
+
+type publisherWithDebug struct {
+	nc *nats.Conn
+}
+
+func (p *publisherWithDebug) Publish(subj string, data []byte) error {
+	logrus.WithField("subj", subj).Debugf("[nats] publishing message")
+	return p.nc.Publish(subj, data)
 }
