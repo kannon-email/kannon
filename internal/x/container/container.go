@@ -8,6 +8,7 @@ import (
 	sqlc "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/publisher"
 	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
 	"github.com/sirupsen/logrus"
 )
 
@@ -101,9 +102,9 @@ func (c *Container) NatsPublisher() publisher.Publisher {
 	}
 }
 
-func (c *Container) NatsJetStream() nats.JetStreamContext {
+func (c *Container) NatsJetStream() jetstream.JetStream {
 	nc := c.Nats()
-	js, err := nc.JetStream()
+	js, err := jetstream.New(nc)
 	if err != nil {
 		logrus.Fatalf("Failed to create NATS JetStream: %v", err)
 	}

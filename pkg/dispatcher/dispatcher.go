@@ -2,11 +2,10 @@ package dispatcher
 
 import (
 	"context"
-	"errors"
-	"sync"
 	"time"
 
 	_ "github.com/lib/pq"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/kannon-email/kannon/internal/mailbuilder"
 	"github.com/kannon-email/kannon/internal/pool"
@@ -15,7 +14,7 @@ import (
 	"github.com/kannon-email/kannon/internal/x/container"
 	"github.com/sirupsen/logrus"
 
-	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
 )
 
 func Run(ctx context.Context, cnt *container.Container) error {
@@ -30,7 +29,7 @@ func Run(ctx context.Context, cnt *container.Container) error {
 	mb := mailbuilder.NewMailBuilder(q, ss)
 
 	js := cnt.NatsJetStream()
-	mustConfigureJS(js)
+	mustConfigureSendingStream(ctx, js)
 
 	d := disp{
 		ss:  ss,
@@ -41,57 +40,43 @@ func Run(ctx context.Context, cnt *container.Container) error {
 		log: log,
 	}
 
-	var wg sync.WaitGroup
+	eg, ctx := errgroup.WithContext(ctx)
 
-	wg.Add(1)
-	go func() {
-		d.handleErrors(ctx)
-		wg.Done()
-	}()
+	eg.Go(func() error {
+		return d.handleErrors(ctx)
+	})
 
-	wg.Add(1)
-	go func() {
-		d.handleDelivers(ctx)
-		wg.Done()
-	}()
+	eg.Go(func() error {
+		return d.handleDelivers(ctx)
+	})
 
-	wg.Add(1)
-	go func() {
-		d.handleBounced(ctx)
-		wg.Done()
-	}()
+	eg.Go(func() error {
+		return d.handleBounced(ctx)
+	})
 
-	wg.Add(1)
-	go func() {
-		err := runner.Run(ctx, d.DispatchCycle, runner.WaitLoop(1*time.Second))
-		if err != nil {
-			logrus.Errorf("error in runner, %v", err)
-		}
-		wg.Done()
-	}()
+	eg.Go(func() error {
+		return runner.Run(ctx, d.DispatchCycle, runner.WaitLoop(1*time.Second))
+	})
 
-	wg.Wait()
-
-	return nil
+	return eg.Wait()
 }
 
-func mustConfigureJS(js nats.JetStreamContext) {
-	confs := nats.StreamConfig{
+func mustConfigureSendingStream(ctx context.Context, js jetstream.JetStream) {
+	name := "kannon-sending"
+	confs := jetstream.StreamConfig{
 		Name:        "kannon-sending",
 		Description: "Email Sending Pool for Kannon",
 		Replicas:    1,
 		Subjects:    []string{"kannon.sending"},
-		Retention:   nats.LimitsPolicy,
+		Retention:   jetstream.LimitsPolicy,
 		Duplicates:  10 * time.Minute,
 		MaxAge:      24 * time.Hour,
-		Storage:     nats.FileStorage,
-		Discard:     nats.DiscardOld,
+		Storage:     jetstream.FileStorage,
+		Discard:     jetstream.DiscardOld,
 	}
-	info, err := js.AddStream(&confs)
-	if errors.Is(err, nats.ErrStreamNameAlreadyInUse) {
-		logrus.Infof("stream exists")
-	} else if err != nil {
+	_, err := js.CreateOrUpdateStream(ctx, confs)
+	if err != nil {
 		logrus.Fatalf("cannot create js stream: %v", err)
 	}
-	logrus.Infof("created js stream: %v", info.Config.Name)
+	logrus.Infof("created js stream: %v", name)
 }

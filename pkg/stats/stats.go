@@ -2,7 +2,6 @@ package stats
 
 import (
 	"context"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	_ "github.com/lib/pq"
@@ -14,63 +13,74 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
 )
 
-func Run(ctx context.Context, cnt *container.Container) {
+type statsHandler struct {
+	js jetstream.JetStream
+	q  *sq.Queries
+}
+
+func Run(ctx context.Context, cnt *container.Container) error {
 	q := cnt.Queries()
 	js := cnt.NatsJetStream()
 
-	handleStats(ctx, js, q)
+	statsHandler := statsHandler{
+		js: js,
+		q:  q,
+	}
+	return statsHandler.handleStats(ctx)
 }
 
-func handleStats(ctx context.Context, js nats.JetStreamContext, q *sq.Queries) {
-	con := utils.MustGetPullSubscriber(js, "kannon.stats.*", "kannon-stats-logs")
-	for {
-		msgs, err := con.Fetch(10, nats.MaxWait(10*time.Second))
-		if err != nil {
-			if err != nats.ErrTimeout {
-				logrus.Errorf("error fetching messages: %v", err)
-				return
-			}
-			continue
+func (h *statsHandler) handleStats(ctx context.Context) error {
+	con := utils.MustGetPullSubscriber(ctx, h.js, "kannon-stats", "kannon.stats.*", "kannon-stats-logs")
+	c, err := con.Consume(func(msg jetstream.Msg) {
+		if err := h.handleStatsMsg(ctx, msg); err != nil {
+			logrus.Errorf("Cannot handle stats msg: %v", err)
 		}
-		for _, msg := range msgs {
-			data := &types.Stats{}
-			err = proto.Unmarshal(msg.Data, data)
-			if err != nil {
-				logrus.Errorf("cannot marshal message %v", err.Error())
-			} else {
-				stype := sq.GetStatsType(data)
-
-				log := logrus.WithFields(logrus.Fields{
-					"type":   stype,
-					"email":  utils.ObfuscateEmail(data.Email),
-					"msg_id": data.MessageId,
-				})
-
-				log.Infof("%s", StatsShow[stype])
-
-				err := q.InsertStat(ctx, sq.InsertStatParams{
-					Email:     data.Email,
-					MessageID: data.MessageId,
-					Timestamp: pgtype.Timestamp{
-						Time:  data.Timestamp.AsTime(),
-						Valid: true,
-					},
-					Domain: data.Domain,
-					Type:   stype,
-					Data:   data.Data,
-				})
-				if err != nil {
-					logrus.Errorf("Cannot insert %v stat: %v", stype, err)
-				}
-			}
-			if err := msg.Ack(); err != nil {
-				logrus.Errorf("Cannot hack msg to nats: %v\n", err)
-			}
-		}
+	})
+	if err != nil {
+		return err
 	}
+
+	defer c.Drain()
+
+	<-ctx.Done()
+	return nil
+}
+
+func (h *statsHandler) handleStatsMsg(ctx context.Context, msg jetstream.Msg) error {
+	data := &types.Stats{}
+	err := proto.Unmarshal(msg.Data(), data)
+	if err != nil {
+		return msg.Term()
+	}
+
+	stype := sq.GetStatsType(data)
+
+	logrus.Printf("[%s] %s %s", StatsShow[stype], utils.ObfuscateEmail(data.Email), data.MessageId)
+	err = h.insertStat(ctx, data)
+	if err != nil {
+		logrus.Errorf("cannot insert %v stat: %v", stype, err)
+		return msg.Nak()
+	}
+
+	return msg.Ack()
+}
+
+func (h *statsHandler) insertStat(ctx context.Context, data *types.Stats) error {
+	stype := sq.GetStatsType(data)
+	return h.q.InsertStat(ctx, sq.InsertStatParams{
+		Email:     data.Email,
+		MessageID: data.MessageId,
+		Timestamp: pgtype.Timestamp{
+			Time:  data.Timestamp.AsTime(),
+			Valid: true,
+		},
+		Domain: data.Domain,
+		Type:   stype,
+		Data:   data.Data,
+	})
 }
 
 var StatsShow = map[sq.StatsType]string{
