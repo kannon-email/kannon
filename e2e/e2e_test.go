@@ -29,6 +29,10 @@ import (
 
 // TestE2EEmailSending tests the entire email sending pipeline with real infrastructure
 func TestE2EEmailSending(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping E2E test in short mode")
+	}
+
 	infra, err := setupTestInfrastructure(t.Context())
 	defer infra.Cleanup()
 	if err != nil {

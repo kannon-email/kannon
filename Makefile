@@ -3,7 +3,10 @@ GOBIN=$(PWD)/.bin
 .PHONY: test generate-db generate-proto 
 
 test:
-	go test ./...
+	go test ./... -v -short
+
+test-e2e:
+	go test ./e2e -v -timeout 10m
 
 
 generate-db:

@@ -42,11 +42,15 @@ Then, in another terminal:
 
 ```sh
 make test
-# or
-go test ./...
 ```
 
-### 5. Run Linters
+### 5. Run E2E Tests
+
+```sh
+make test-e2e
+```
+
+### 6. Run Linters
 
 ```sh
 make lint
