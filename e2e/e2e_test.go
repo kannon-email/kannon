@@ -82,8 +82,7 @@ func TestE2EEmailSending(t *testing.T) {
 
 	// Start stats
 	wg.Go(func() error {
-		stats.Run(ctx, cnt)
-		return nil
+		return stats.Run(ctx, cnt)
 	})
 
 	// Create API clients

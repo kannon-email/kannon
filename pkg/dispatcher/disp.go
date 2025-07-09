@@ -52,10 +52,10 @@ func (d disp) DispatchCycle(ctx context.Context) error {
 	return nil
 }
 
-func (d disp) handleErrors(ctx context.Context) {
+func (d disp) handleErrors(ctx context.Context) error {
 	sbj := "kannon.stats.error"
 	subName := "dispatcher-error"
-	d.handleMsg(ctx, sbj, subName, d.parseErrorsFunc)
+	return d.handleMsg(ctx, sbj, subName, d.parseErrorsFunc)
 }
 
 func (d disp) parseErrorsFunc(ctx context.Context, m *statstypes.Stats) error {
@@ -70,10 +70,10 @@ func (d disp) parseErrorsFunc(ctx context.Context, m *statstypes.Stats) error {
 	return nil
 }
 
-func (d disp) handleDelivers(ctx context.Context) {
+func (d disp) handleDelivers(ctx context.Context) error {
 	sbj := "kannon.stats.delivered"
 	subName := "dispatcher-delivered"
-	d.handleMsg(ctx, sbj, subName, d.parsDeliveredFunc)
+	return d.handleMsg(ctx, sbj, subName, d.parsDeliveredFunc)
 }
 
 func (d disp) parsDeliveredFunc(ctx context.Context, m *statstypes.Stats) error {
@@ -83,10 +83,10 @@ func (d disp) parsDeliveredFunc(ctx context.Context, m *statstypes.Stats) error 
 	return nil
 }
 
-func (d disp) handleBounced(ctx context.Context) {
+func (d disp) handleBounced(ctx context.Context) error {
 	sbj := "kannon.stats.bounced"
 	subName := "dispatcher-bounced"
-	d.handleMsg(ctx, sbj, subName, d.parsBouncedFunc)
+	return d.handleMsg(ctx, sbj, subName, d.parsBouncedFunc)
 }
 
 func (d disp) parsBouncedFunc(ctx context.Context, m *statstypes.Stats) error {
@@ -99,7 +99,7 @@ func (d disp) parsBouncedFunc(ctx context.Context, m *statstypes.Stats) error {
 
 type parseFunc func(ctx context.Context, msg *statstypes.Stats) error
 
-func (d disp) handleMsg(ctx context.Context, sbj, subName string, parse parseFunc) {
+func (d disp) handleMsg(ctx context.Context, sbj, subName string, parse parseFunc) error {
 	con := utils.MustGetPullSubscriber(ctx, d.js, "kannon-stats", sbj, subName)
 	c, err := con.Consume(func(msg jetstream.Msg) {
 		d.handleWithAck(ctx, msg, func(ctx context.Context, msg jetstream.Msg) error {
@@ -111,13 +111,13 @@ func (d disp) handleMsg(ctx context.Context, sbj, subName string, parse parseFun
 		})
 	})
 	if err != nil {
-		d.log.Errorf("Cannot consume messages: %v", err)
-		return
+		return fmt.Errorf("cannot consume %s for %s: %w", sbj, subName, err)
 	}
 	defer c.Drain()
 
 	<-ctx.Done()
 	d.log.Infof("Consumer %s stopped", subName)
+	return ctx.Err()
 }
 
 func (d disp) handleWithAck(ctx context.Context, msg jetstream.Msg, f func(ctx context.Context, msg jetstream.Msg) error) {

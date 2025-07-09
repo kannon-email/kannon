@@ -82,7 +82,7 @@ func (s *sender) handleSend(ctx context.Context, consumer jetstream.Consumer) er
 		}()
 	})
 	if err != nil {
-		return fmt.Errorf("error in consuming messages: %v\n", err.Error())
+		return fmt.Errorf("error in consuming messages: %w", err)
 	}
 	defer con.Drain()
 
