@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/go-faker/faker/v4"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
@@ -39,7 +40,28 @@ func TestE2EEmailSending(t *testing.T) {
 		t.Fatalf("Failed to setup test infrastructure: %v", err)
 	}
 
-	// Start Kannon services
+	senderMock := &senderMock{}
+
+	runKannon(t, infra, senderMock)
+
+	factory := makeFactory(infra)
+
+	t.Run("SingleRecipientEmail", func(t *testing.T) {
+		testSingleRecipientEmail(t, factory, senderMock, infra)
+	})
+
+	t.Run("MultipleRecipientsEmail", func(t *testing.T) {
+		testMultipleRecipientsEmail(t, factory, senderMock, infra)
+	})
+
+	t.Run("EmailWithAttachments", func(t *testing.T) {
+		testEmailWithAttachments(t, factory, senderMock, infra)
+	})
+
+	t.Log("🎉 E2E email sending test completed successfully!")
+}
+
+func runKannon(t *testing.T, infra *TestInfrastructure, senderMock *senderMock) {
 	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
@@ -47,17 +69,16 @@ func TestE2EEmailSending(t *testing.T) {
 		DBUrl:   infra.dbURL,
 		NatsURL: infra.natsURL,
 	})
-	defer cnt.Close()
+	t.Cleanup(func() {
+		cnt.Close()
+	})
 
-	// Start all Kannon services
-	var wg errgroup.Group
+	wg, ctx := errgroup.WithContext(ctx)
 
 	// Start API server
 	wg.Go(func() error {
 		return api.Run(ctx, api.Config{Port: infra.apiPort}, cnt)
 	})
-
-	senderMock := &senderMock{}
 
 	// Start sender with localhost hostname for local delivery
 	wg.Go(func() error {
@@ -85,7 +106,15 @@ func TestE2EEmailSending(t *testing.T) {
 		return stats.Run(ctx, cnt)
 	})
 
-	// Create API clients
+	go func() {
+		err := wg.Wait()
+		if err != nil {
+			logrus.Errorf("error in running kannon: %v", err)
+		}
+	}()
+}
+
+func makeFactory(infra *TestInfrastructure) *clientFactory {
 	adminClient := adminv1connect.NewApiClient(
 		http.DefaultClient,
 		fmt.Sprintf("http://localhost:%d", infra.apiPort),
@@ -101,26 +130,11 @@ func TestE2EEmailSending(t *testing.T) {
 		fmt.Sprintf("http://localhost:%d", infra.apiPort),
 	)
 
-	factory := &clientFactory{
+	return &clientFactory{
 		mailerClient: mailerClient,
 		adminClient:  adminClient,
 		statsClient:  statsClient,
 	}
-
-	// Run subtests
-	t.Run("SingleRecipientEmail", func(t *testing.T) {
-		testSingleRecipientEmail(t, factory, senderMock, infra)
-	})
-
-	t.Run("MultipleRecipientsEmail", func(t *testing.T) {
-		testMultipleRecipientsEmail(t, factory, senderMock, infra)
-	})
-
-	t.Run("EmailWithAttachments", func(t *testing.T) {
-		testEmailWithAttachments(t, factory, senderMock, infra)
-	})
-
-	t.Log("🎉 E2E email sending test completed successfully!")
 }
 
 func testSingleRecipientEmail(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
