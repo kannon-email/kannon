@@ -54,6 +54,10 @@ func TestE2EEmailSending(t *testing.T) {
 		testMultipleRecipientsEmail(t, factory, senderMock, infra)
 	})
 
+	t.Run("MassiveSend", func(t *testing.T) {
+		testMassiveSend(t, factory, infra)
+	})
+
 	t.Run("EmailWithAttachments", func(t *testing.T) {
 		testEmailWithAttachments(t, factory, senderMock, infra)
 	})
@@ -162,14 +166,15 @@ func testSingleRecipientEmail(t *testing.T, clientFactory *clientFactory, sender
 
 	client.SendEmail(t, sendReq)
 
-	// Assert that email is eventually received by SMTP server
-	assert.EventuallyWithT(t, func(t *assert.CollectT) {
-		email := senderMock.GetEmail(testEmail)
-		require.NotNil(t, email)
+	msg := requireGetEmail(t, senderMock, testEmail)
 
-		assert.Contains(t, string(email.Body), "Hello Test User!")
-		assert.Contains(t, string(email.Body), "This is a test email from Test Corp.")
-	}, 60*time.Second, 2*time.Second, "Email should be received within 60 seconds")
+	t.Run("EmailContent", func(t *testing.T) {
+		assert.Contains(t, msg.Body, "Hello Test User!")
+		assert.Contains(t, msg.Body, "This is a test email from Test Corp.")
+		assert.Equal(t, "Test Sender <sender@test.example.com>", msg.From)
+		assert.Equal(t, testEmail, msg.To)
+		assert.Equal(t, "Test Email from E2E Test", msg.Subject)
+	})
 
 	assert.EventuallyWithT(t, func(tt *assert.CollectT) {
 		stats := client.GetStats(t)
@@ -217,20 +222,53 @@ func testMultipleRecipientsEmail(t *testing.T, clientFactory *clientFactory, smt
 
 	client.SendEmail(t, sendReq)
 
-	// Assert that all emails are eventually received by SMTP server
-	assert.EventuallyWithT(t, func(t *assert.CollectT) {
-		for _, email := range testEmails {
-			msg := smtpServer.GetEmail(email)
-			require.NotNil(t, msg)
-
-			assert.Contains(t, string(msg.Body), "Hello Test User")
-			assert.Contains(t, string(msg.Body), "Your ID is: ID-")
-		}
-	}, 90*time.Second, 3*time.Second, "All emails should be received within 90 seconds")
+	for id, email := range testEmails {
+		t.Run(fmt.Sprintf("Email %d", id), func(t *testing.T) {
+			t.Parallel()
+			msg := requireGetEmail(t, smtpServer, email)
+			assert.Contains(t, msg.Body, fmt.Sprintf("Hello Test User %d", id+1))
+			assert.Contains(t, msg.Body, fmt.Sprintf("Your ID is: ID-%d", id+1))
+			assert.Equal(t, "Test Sender <sender@test.example.com>", msg.From)
+			assert.Equal(t, email, msg.To)
+			assert.Equal(t, fmt.Sprintf("Bulk Email Test - Test User %d", id+1), msg.Subject)
+		})
+	}
 
 	assert.EventuallyWithT(t, func(tt *assert.CollectT) {
 		stats := client.GetStats(t)
 		require.EqualValues(tt, 6, stats.Total)
+	}, 10*time.Second, 1*time.Second, "Stats should be available within 60 seconds")
+}
+
+func testMassiveSend(t *testing.T, clientFactory *clientFactory, infra *TestInfrastructure) {
+	client := clientFactory.NewClient(t, infra)
+
+	numRecipients := 100
+
+	recipients := make([]*mailertypes.Recipient, numRecipients)
+
+	for i := 0; i < numRecipients; i++ {
+		recipients[i] = &mailertypes.Recipient{
+			Email: makeFakeEmail(),
+		}
+	}
+
+	sendReq := &mailerapiv1.SendHTMLReq{
+		Sender: &mailertypes.Sender{
+			Email: "sender@test.example.com",
+			Alias: "Test Sender",
+		},
+		Recipients:    recipients,
+		Subject:       "Bulk Email Test - {{name}}",
+		Html:          "<h1>Hello {{name}}!</h1><p>Your ID is: {{id}}</p>",
+		ScheduledTime: timestamppb.Now(),
+	}
+
+	client.SendEmail(t, sendReq)
+
+	assert.EventuallyWithT(t, func(tt *assert.CollectT) {
+		stats := client.GetStats(t)
+		require.EqualValues(tt, 2*numRecipients, stats.Total)
 	}, 10*time.Second, 1*time.Second, "Stats should be available within 60 seconds")
 }
 
@@ -268,17 +306,34 @@ func testEmailWithAttachments(t *testing.T, clientFactory *clientFactory, smtpSe
 
 	client.SendEmail(t, sendReq)
 
-	// Assert that email with attachment is eventually received by SMTP server
-	assert.EventuallyWithT(t, func(t *assert.CollectT) {
-		msg := smtpServer.GetEmail(email)
-		require.NotNil(t, msg)
+	msg := requireGetEmail(t, smtpServer, email)
 
-		assert.Contains(t, string(msg.Body), "Hello Attachment Test User!")
-		assert.Contains(t, string(msg.Body), "Please find the attachment below.")
-		assert.Contains(t, string(msg.Body), "test-document.txt")
-	}, 60*time.Second, 2*time.Second, "Email with attachment")
+	t.Run("EmailContent", func(t *testing.T) {
+		assert.Contains(t, msg.Body, "Hello Attachment Test User!")
+		assert.Contains(t, msg.Body, "Please find the attachment below.")
+	})
+
+	t.Run("Attachment", func(t *testing.T) {
+		assert.Equal(t, 1, len(msg.Attachments))
+
+		att := msg.Attachments[0]
+		assert.Equal(t, "test-document.txt", att.Filename)
+		assert.Equal(t, attachmentData, att.Content)
+	})
 }
 
 func makeFakeEmail() string {
 	return strings.ToLower(faker.Email())
+}
+
+func requireGetEmail(t *testing.T, s *senderMock, email string) ParsedEmail {
+	var msg ParsedEmail
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		email := s.GetEmail(email)
+		require.NotNil(t, email)
+
+		msg = parseEmail(t, email.Body)
+	}, 60*time.Second, 2*time.Second, "Email should be received within 60 seconds")
+
+	return msg
 }
