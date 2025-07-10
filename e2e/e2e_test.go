@@ -54,6 +54,10 @@ func TestE2EEmailSending(t *testing.T) {
 		testMultipleRecipientsEmail(t, factory, senderMock, infra)
 	})
 
+	t.Run("MassiveSend", func(t *testing.T) {
+		testMassiveSend(t, factory, infra)
+	})
+
 	t.Run("EmailWithAttachments", func(t *testing.T) {
 		testEmailWithAttachments(t, factory, senderMock, infra)
 	})
@@ -233,6 +237,38 @@ func testMultipleRecipientsEmail(t *testing.T, clientFactory *clientFactory, smt
 	assert.EventuallyWithT(t, func(tt *assert.CollectT) {
 		stats := client.GetStats(t)
 		require.EqualValues(tt, 6, stats.Total)
+	}, 10*time.Second, 1*time.Second, "Stats should be available within 60 seconds")
+}
+
+func testMassiveSend(t *testing.T, clientFactory *clientFactory, infra *TestInfrastructure) {
+	client := clientFactory.NewClient(t, infra)
+
+	numRecipients := 100
+
+	recipients := make([]*mailertypes.Recipient, numRecipients)
+
+	for i := 0; i < numRecipients; i++ {
+		recipients[i] = &mailertypes.Recipient{
+			Email: makeFakeEmail(),
+		}
+	}
+
+	sendReq := &mailerapiv1.SendHTMLReq{
+		Sender: &mailertypes.Sender{
+			Email: "sender@test.example.com",
+			Alias: "Test Sender",
+		},
+		Recipients:    recipients,
+		Subject:       "Bulk Email Test - {{name}}",
+		Html:          "<h1>Hello {{name}}!</h1><p>Your ID is: {{id}}</p>",
+		ScheduledTime: timestamppb.Now(),
+	}
+
+	client.SendEmail(t, sendReq)
+
+	assert.EventuallyWithT(t, func(tt *assert.CollectT) {
+		stats := client.GetStats(t)
+		require.EqualValues(tt, 2*numRecipients, stats.Total)
 	}, 10*time.Second, 1*time.Second, "Stats should be available within 60 seconds")
 }
 
