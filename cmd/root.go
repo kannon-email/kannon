@@ -45,6 +45,10 @@ func run(cmd *cobra.Command, args []string) {
 	cnt := container.New(ctx, container.Config{
 		DBUrl:   config.DatabaseURL,
 		NatsURL: config.NatsURL,
+		SenderConfig: container.SenderConfig{
+			DemoSender: config.Sender.DemoSender,
+			Hostname:   config.Sender.Hostname,
+		},
 	})
 	defer cnt.Close()
 
@@ -165,5 +169,6 @@ func runSender(ctx context.Context, cnt *container.Container, config Config) err
 
 func runSMTP(ctx context.Context, cnt *container.Container, config Config) error {
 	cnf := config.SMTP.ToSMTPConfig()
-	return smtp.Run(ctx, cnt, cnf)
+	conn := cnt.Nats()
+	return smtp.Run(ctx, conn, cnf)
 }

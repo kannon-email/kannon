@@ -5,14 +5,11 @@ import (
 	"time"
 
 	"github.com/emersion/go-smtp"
-	"github.com/kannon-email/kannon/internal/x/container"
 	"github.com/nats-io/nats.go"
 	"github.com/sirupsen/logrus"
 )
 
-func Run(ctx context.Context, cnt *container.Container, config Config) error {
-	nc := cnt.Nats()
-
+func Run(ctx context.Context, nc *nats.Conn, config Config) error {
 	s := buildServer(config, nc)
 	defer s.Close()
 
