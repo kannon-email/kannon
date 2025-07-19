@@ -43,14 +43,14 @@ func (c APIConfig) ToAPIConfig() api.Config {
 }
 
 type SenderConfig struct {
-	Hostname string `mapstructure:"hostname"`
-	MaxJobs  uint   `mapstructure:"max_jobs"`
+	Hostname   string `mapstructure:"hostname"`
+	MaxJobs    uint   `mapstructure:"max_jobs"`
+	DemoSender bool   `mapstructure:"demo_sender"`
 }
 
 func (c SenderConfig) ToSenderConfig() sender.Config {
 	return sender.Config{
-		Hostname: c.Hostname,
-		MaxJobs:  c.MaxJobs,
+		MaxJobs: c.MaxJobs,
 	}
 }
 

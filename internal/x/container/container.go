@@ -7,14 +7,21 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	sqlc "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/publisher"
+	"github.com/kannon-email/kannon/internal/smtp"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/sirupsen/logrus"
 )
 
 type Config struct {
-	DBUrl   string
-	NatsURL string
+	DBUrl        string
+	NatsURL      string
+	SenderConfig SenderConfig
+}
+
+type SenderConfig struct {
+	DemoSender bool
+	Hostname   string
 }
 
 // Container implements the Dependency Injection (DI) pattern for Go.
@@ -25,8 +32,9 @@ type Container struct {
 	cfg Config
 
 	// singleton instances
-	db   *singleton[*pgxpool.Pool]
-	nats *singleton[*nats.Conn]
+	db     *singleton[*pgxpool.Pool]
+	nats   *singleton[*nats.Conn]
+	sender *singleton[smtp.Sender]
 
 	closers []CloserFunc
 }
@@ -48,10 +56,11 @@ func (c *Container) Close() {
 // New creates a new Container with the given context and configuration.
 func New(ctx context.Context, cfg Config) *Container {
 	return &Container{
-		ctx:  ctx,
-		cfg:  cfg,
-		db:   &singleton[*pgxpool.Pool]{},
-		nats: &singleton[*nats.Conn]{},
+		ctx:    ctx,
+		cfg:    cfg,
+		db:     &singleton[*pgxpool.Pool]{},
+		nats:   &singleton[*nats.Conn]{},
+		sender: &singleton[smtp.Sender]{},
 	}
 }
 
@@ -109,6 +118,16 @@ func (c *Container) NatsJetStream() jetstream.JetStream {
 		logrus.Fatalf("Failed to create NATS JetStream: %v", err)
 	}
 	return js
+}
+
+func (c *Container) Sender() smtp.Sender {
+	return c.sender.Get(c.ctx, func(ctx context.Context) smtp.Sender {
+		sender := smtp.NewSender(c.cfg.SenderConfig.Hostname)
+		if c.cfg.SenderConfig.DemoSender {
+			sender = smtp.NewDemoSender(c.cfg.SenderConfig.Hostname)
+		}
+		return sender
+	})
 }
 
 type singleton[T any] struct {

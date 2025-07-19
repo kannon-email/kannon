@@ -19,8 +19,7 @@ import (
 )
 
 type Config struct {
-	Hostname string
-	MaxJobs  uint
+	MaxJobs uint
 }
 
 func (c Config) GetMaxJobs() uint {
@@ -38,7 +37,10 @@ type sender struct {
 }
 
 func NewSenderFromContainer(cnt *container.Container, cfg Config) *sender {
-	return NewSender(cnt.NatsPublisher(), cnt.NatsJetStream(), smtp.NewSender(cfg.Hostname), cfg)
+	sender := cnt.Sender()
+	js := cnt.NatsJetStream()
+	publisher := cnt.NatsPublisher()
+	return NewSender(publisher, js, sender, cfg)
 }
 
 func NewSender(publisher publisher.Publisher, js jetstream.JetStream, s smtp.Sender, cfg Config) *sender {
@@ -51,7 +53,7 @@ func NewSender(publisher publisher.Publisher, js jetstream.JetStream, s smtp.Sen
 }
 
 func (s *sender) Run(ctx context.Context) error {
-	logrus.WithField("hostname", s.cfg.Hostname).
+	logrus.WithField("hostname", s.sender.SenderName()).
 		WithField("max_jobs", s.cfg.GetMaxJobs()).
 		Infof("Starting Sender Service")
 	mustConfigureStatsJS(ctx, s.js)

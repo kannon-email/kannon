@@ -22,6 +22,7 @@ A **Cloud Native SMTP mail sender** for Kubernetes and modern infrastructure.
 - [Deployment](#deployment)
 - [Domain & DNS Setup](#domain--dns-setup)
 - [Sending Mail](#sending-mail)
+- [Testing & Demo Mode](#testing--demo-mode)
 - [Development & Contributing](#development--contributing)
 - [License](#license)
 
@@ -38,6 +39,7 @@ A **Cloud Native SMTP mail sender** for Kubernetes and modern infrastructure.
 - Template management (CRUD via API)
 - Kubernetes-ready deployment
 - Postgres-backed persistence
+- **Demo sender mode for testing and development**
 
 **Planned:**
 
@@ -136,6 +138,7 @@ Kannon can be configured via YAML file, environment variables, or CLI flags. Pre
 | `api.port` / `K_API_PORT`                       | int      | 50051          | gRPC API port                          |
 | `sender.hostname` / `K_SENDER_HOSTNAME`         | string   | (required)     | Hostname for outgoing mail             |
 | `sender.max_jobs` / `K_SENDER_MAX_JOBS`         | int      | 10             | Max parallel sending jobs              |
+| `sender.demo_sender` / `K_SENDER_DEMO_SENDER`   | bool     | false          | Enable demo sender mode for testing    |
 | `smtp.address` / `K_SMTP_ADDRESS`               | string   | :25            | SMTP server listen address             |
 | `smtp.domain` / `K_SMTP_DOMAIN`                 | string   | localhost      | SMTP server domain                     |
 | `smtp.read_timeout` / `K_SMTP_READ_TIMEOUT`     | duration | 10s            | SMTP read timeout                      |
@@ -244,6 +247,65 @@ To send mail, you must register a sender domain and configure DNS:
 - Use the gRPC API (`SendHTML` or `SendTemplate`) with Basic Auth as above.
 - See the [proto file](./proto/kannon/mailer/apiv1/mailerapiv1.proto) for all fields and options.
 
+## Testing & Demo Mode
+
+Kannon includes a **demo sender mode** for testing and development without actually sending emails. This is particularly useful for:
+
+- **Development environments** where you don't want to send real emails
+- **Testing email templates** and content without affecting deliverability
+- **CI/CD pipelines** where you need to verify email functionality
+- **Local development** without SMTP server setup
+
+### Enabling Demo Mode
+
+Set `sender.demo_sender: true` in your configuration:
+
+```yaml
+sender:
+  hostname: kannon.example.com
+  max_jobs: 10
+  demo_sender: true # Enable demo sender mode
+```
+
+Or via environment variable:
+
+```bash
+export K_SENDER_DEMO_SENDER=true
+```
+
+### Demo Sender Behavior
+
+When demo mode is enabled:
+
+- **Emails are not actually sent** - they're processed through the pipeline but not delivered
+- **Statistics are still collected** - you can track delivery attempts and errors.
+- **Error simulation** - emails containing "error" in the recipient address will simulate delivery failures
+- **Full pipeline testing** - all components (API, dispatcher, sender, stats) work normally
+- **Template processing** - HTML templates and custom fields are processed correctly
+
+This mode mocks the SMTP client and does not actually send emails.
+
+**IMPROVEMENTS:**
+
+- mock opens, clicks, etc.
+- mock bounce, spam, etc.
+
+### Example: Testing with Demo Mode
+
+```bash
+# Start Kannon with demo sender enabled
+./kannon --run-api --run-sender --run-dispatcher \
+  --sender-demo-sender \
+  --sender-hostname test.example.com \
+  --config ./config.yaml
+
+# Send test emails via API
+# Emails will be processed but not actually sent
+# Statistics will be collected normally
+```
+
+This makes it easy to test your email integration without setting up SMTP servers or worrying about deliverability during development.
+
 ## Development & Contributing
 
 We welcome contributions! Please:
@@ -264,6 +326,7 @@ We welcome contributions! Please:
 
 - Unit and integration tests are in `internal/`, `pkg/`, and run with `go test ./...`
 - Some tests use Docker to spin up a test Postgres instance
+- **E2E tests** include comprehensive email sending pipeline testing with demo sender mode
 
 ---
 

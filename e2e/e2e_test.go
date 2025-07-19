@@ -87,8 +87,7 @@ func runKannon(t *testing.T, infra *TestInfrastructure, senderMock *senderMock) 
 	// Start sender with localhost hostname for local delivery
 	wg.Go(func() error {
 		cfg := sender.Config{
-			Hostname: "testhost.local",
-			MaxJobs:  5,
+			MaxJobs: 5,
 		}
 
 		sender := sender.NewSender(cnt.Nats(), cnt.NatsJetStream(), senderMock, cfg)

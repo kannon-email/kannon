@@ -8,6 +8,7 @@ api:
 sender:
   hostname: kannon.ludusrusso.dev
   max_jobs: 100
+  demo_sender: true
 
 run-smtp: true
 run-bounce: true
