@@ -17,28 +17,23 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func NewValidator(pm pool.SendingPoolManager, pub publisher.Publisher, log *logrus.Entry) *Validator {
-	if log == nil {
-		log = logrus.WithField("component", "validator")
-	}
+func NewValidator(pm pool.SendingPoolManager, pub publisher.Publisher) *Validator {
 	return &Validator{
 		pm:  pm,
 		pub: pub,
-		log: log,
 	}
 }
 
 type Validator struct {
 	pm  pool.SendingPoolManager
 	pub publisher.Publisher
-	log *logrus.Entry
+}
+
+func (v *Validator) log() *logrus.Entry {
+	return logrus.WithField("component", "validator")
 }
 
 func Run(ctx context.Context, cnt *container.Container) error {
-	l := logrus.WithField("component", "validator")
-
-	l.Info("🚀 Starting validator")
-
 	q := cnt.Queries()
 
 	pm := pool.NewSendingPoolManager(q)
@@ -48,8 +43,9 @@ func Run(ctx context.Context, cnt *container.Container) error {
 	v := Validator{
 		pm:  pm,
 		pub: nc,
-		log: l,
 	}
+
+	v.log().Info("🚀 Starting validator")
 
 	return runner.Run(ctx, v.Cycle, runner.WaitLoop(1*time.Second))
 }
@@ -62,11 +58,11 @@ func (d *Validator) Cycle(pctx context.Context) error {
 		return fmt.Errorf("cannot prepare emails for send: %v", err)
 	}
 
-	d.log.Debugf("[validator] preparing %d emails", len(emails))
+	d.log().Debugf("validating %d emails", len(emails))
 
 	for _, pool := range emails {
 		if err := d.handlePool(ctx, pool); err != nil {
-			d.log.Errorf("error handling pool email: %#v", pool)
+			d.log().WithError(err).Errorf("error handling pool email: %#v", pool)
 		}
 	}
 	return nil

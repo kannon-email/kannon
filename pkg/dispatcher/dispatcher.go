@@ -18,10 +18,6 @@ import (
 )
 
 func Run(ctx context.Context, cnt *container.Container) error {
-	log := logrus.WithField("component", "dispatcher")
-
-	log.Info("🚀 Starting dispatcher")
-
 	q := cnt.Queries()
 
 	ss := statssec.NewStatsService(q)
@@ -37,8 +33,9 @@ func Run(ctx context.Context, cnt *container.Container) error {
 		mb:  mb,
 		pub: cnt.NatsPublisher(),
 		js:  js,
-		log: log,
 	}
+
+	d.log().Info("🚀 Starting dispatcher")
 
 	eg, ctx := errgroup.WithContext(ctx)
 
