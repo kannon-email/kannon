@@ -115,6 +115,14 @@ func runKannon(t *testing.T, infra *TestInfrastructure, senderMock *senderMock) 
 			logrus.Errorf("error in running kannon: %v", err)
 		}
 	}()
+
+	// Wait for API to be available before proceeding with tests
+	t.Log("⏳ Waiting for API to be available...")
+	err := infra.WaitForAPIHealth(ctx, 30*time.Second)
+	if err != nil {
+		t.Fatalf("API failed to become available: %v", err)
+	}
+	t.Log("✅ API is ready, proceeding with tests")
 }
 
 func makeFactory(infra *TestInfrastructure) *clientFactory {

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/http"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/nats-io/nats.go"
@@ -235,4 +237,39 @@ func (infra *TestInfrastructure) IsHealthy(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// WaitForAPIHealth waits for the API health endpoint to be available
+func (infra *TestInfrastructure) WaitForAPIHealth(ctx context.Context, timeout time.Duration) error {
+	healthURL := fmt.Sprintf("http://localhost:%d/health", infra.apiPort)
+	client := &http.Client{Timeout: 5 * time.Second}
+	
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+	
+	for {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("timeout waiting for API health check at %s: %w", healthURL, ctx.Err())
+		case <-ticker.C:
+			req, err := http.NewRequestWithContext(ctx, "GET", healthURL, nil)
+			if err != nil {
+				continue
+			}
+			
+			resp, err := client.Do(req)
+			if err != nil {
+				continue
+			}
+			resp.Body.Close()
+			
+			if resp.StatusCode == http.StatusOK {
+				log.Printf("✅ API health check successful at %s", healthURL)
+				return nil
+			}
+		}
+	}
 }
