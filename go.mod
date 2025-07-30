@@ -7,13 +7,14 @@ require (
 	github.com/amacneil/dbmate/v2 v2.27.0
 	github.com/emersion/go-msgauth v0.7.0
 	github.com/emersion/go-smtp v0.23.0
+	github.com/go-faker/faker/v4 v4.6.1
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/jackc/pgx/v4 v4.18.3
 	github.com/jackc/pgx/v5 v5.7.5
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/lib/pq v1.10.9
 	github.com/lucsky/cuid v1.2.1
-	github.com/nats-io/nats.go v1.43.0
+	github.com/nats-io/nats.go v1.44.0
 	github.com/networkteam/obfuscate v0.1.0
 	github.com/ory/dockertest/v3 v3.12.0
 	github.com/sirupsen/logrus v1.9.3
@@ -40,7 +41,6 @@ require (
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
-	github.com/go-faker/faker/v4 v4.6.1 // indirect
 	github.com/go-sql-driver/mysql v1.9.3 // indirect
 	github.com/go-viper/mapstructure/v2 v2.3.0 // indirect
 	github.com/gofrs/uuid v4.4.0+incompatible // indirect
