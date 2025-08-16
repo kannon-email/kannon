@@ -1,6 +1,11 @@
 GOBIN=$(PWD)/.bin
 
-.PHONY: test generate-db generate-proto 
+.PHONY: test generate-db generate-proto upgrade
+
+upgrade:
+	go get -u ./...
+	go mod tidy
+	mise upgrade
 
 test:
 	go test ./... -v -short

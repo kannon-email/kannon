@@ -1,5 +1,5 @@
 nats_url: nats://nats:4222
-debug: true
+# debug: true
 database_url: postgresql://postgres:example@db:5432/postgres?sslmode=disable
 
 api:
