@@ -7,11 +7,16 @@ import (
 	"time"
 )
 
+const (
+	testValue   = "test-value"
+	initialized = "initialized"
+)
+
 func TestSingleton_SuccessfulInitialization(t *testing.T) {
 	s := &singleton[string]{}
 	ctx := context.Background()
 
-	expected := "test-value"
+	expected := testValue
 	initFunc := func(ctx context.Context) (string, error) {
 		return expected, nil
 	}
@@ -66,12 +71,12 @@ func TestSingleton_ConcurrentAccess(t *testing.T) {
 	callCount := 0
 	var mu sync.Mutex
 
-	initFunc := func(ctx context.Context) (string, error) {
+	initFunc := func(_ context.Context) (string, error) {
 		mu.Lock()
 		defer mu.Unlock()
 		callCount++
 		time.Sleep(10 * time.Millisecond) // Simulate some work
-		return "initialized", nil
+		return initialized, nil
 	}
 
 	const numGoroutines = 10
@@ -88,8 +93,8 @@ func TestSingleton_ConcurrentAccess(t *testing.T) {
 	// Collect all results
 	for i := 0; i < numGoroutines; i++ {
 		result := <-results
-		if result != "initialized" {
-			t.Errorf("Expected 'initialized', got %s", result)
+		if result != initialized {
+			t.Errorf("Expected %q, got %s", initialized, result)
 		}
 	}
 
@@ -184,9 +189,13 @@ func TestSingleton_InterfaceType(t *testing.T) {
 	}
 }
 
+type contextKey string
+
+const testKey contextKey = "key"
+
 func TestSingleton_ContextPassing(t *testing.T) {
 	s := &singleton[string]{}
-	ctx := context.WithValue(context.Background(), "key", "test-value")
+	ctx := context.WithValue(context.Background(), testKey, testValue)
 
 	var receivedCtx context.Context
 	initFunc := func(ctx context.Context) (string, error) {
@@ -196,7 +205,7 @@ func TestSingleton_ContextPassing(t *testing.T) {
 
 	s.MustGet(ctx, initFunc)
 
-	if receivedCtx.Value("key") != "test-value" {
+	if receivedCtx.Value(testKey) != testValue {
 		t.Error("Context was not properly passed to initialization function")
 	}
 }

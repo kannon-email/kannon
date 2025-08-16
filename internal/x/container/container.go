@@ -38,20 +38,6 @@ type Container struct {
 	closers []CloserFunc
 }
 
-type CloserFunc func() error
-
-func (c *Container) addClosers(closers ...CloserFunc) {
-	c.closers = append(c.closers, closers...)
-}
-
-func (c *Container) Close() {
-	for _, closer := range c.closers {
-		if err := closer(); err != nil {
-			logrus.Errorf("Failed to close: %v", err)
-		}
-	}
-}
-
 // New creates a new Container with the given context and configuration.
 func New(ctx context.Context, cfg Config) *Container {
 	return &Container{
@@ -71,7 +57,7 @@ func (c *Container) DB() *pgxpool.Pool {
 			return nil, err
 		}
 
-		c.addClosers(func() error {
+		c.addClosers(func(_ context.Context) error {
 			db.Close()
 			return nil
 		})
@@ -92,7 +78,7 @@ func (c *Container) Nats() *nats.Conn {
 			return nil, err
 		}
 
-		c.addClosers(func() error {
+		c.addClosers(func(_ context.Context) error {
 			if err := nc.Drain(); err != nil {
 				return err
 			}
