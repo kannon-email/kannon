@@ -2,6 +2,8 @@ package container
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	sqlc "github.com/kannon-email/kannon/internal/db"
@@ -36,6 +38,7 @@ type Container struct {
 	sender *singleton[smtp.Sender]
 
 	closers []CloserFunc
+	hzs     []HZ
 }
 
 // New creates a new Container with the given context and configuration.
@@ -61,6 +64,11 @@ func (c *Container) DB() *pgxpool.Pool {
 			db.Close()
 			return nil
 		})
+
+		c.addHZ("db", func(ctx context.Context) error {
+			return db.Ping(ctx)
+		})
+
 		return db, nil
 	})
 }
@@ -85,6 +93,28 @@ func (c *Container) Nats() *nats.Conn {
 			nc.Close()
 			return nil
 		})
+
+		c.addHZ("nats", func(ctx context.Context) error {
+			// Check connection status
+			s := nc.Status()
+			if s != nats.CONNECTED {
+				return fmt.Errorf("nats status is %s", s)
+			}
+
+			// Test actual connectivity with RTT
+			rtt, err := nc.RTT()
+			if err != nil {
+				return fmt.Errorf("nats RTT check failed: %w", err)
+			}
+
+			// Check if RTT is within acceptable limits (5 seconds threshold)
+			if rtt > 5*time.Second {
+				return fmt.Errorf("nats RTT too high: %v (threshold: 5s)", rtt)
+			}
+
+			return nil
+		})
+
 		return nc, nil
 	})
 }
@@ -102,6 +132,36 @@ func (c *Container) NatsJetStream() jetstream.JetStream {
 	if err != nil {
 		logrus.Fatalf("Failed to create NATS JetStream: %v", err)
 	}
+
+	// Add JetStream health check
+	c.addHZ("jetstream", func(ctx context.Context) error {
+		// Check account info to verify JetStream is available
+		accountInfo, err := js.AccountInfo(ctx)
+		if err != nil {
+			return fmt.Errorf("jetstream account info failed: %w", err)
+		}
+
+		// Check if we're approaching stream limits
+		if accountInfo.Limits.MaxStreams > 0 {
+			usage := float64(accountInfo.Streams) / float64(accountInfo.Limits.MaxStreams)
+			if usage > 0.9 { // Alert at 90% usage
+				return fmt.Errorf("jetstream stream usage high: %d/%d (%.1f%%)",
+					accountInfo.Streams, accountInfo.Limits.MaxStreams, usage*100)
+			}
+		}
+
+		// Check if we're approaching memory limits
+		if accountInfo.Limits.MaxMemory > 0 {
+			usage := float64(accountInfo.Memory) / float64(accountInfo.Limits.MaxMemory)
+			if usage > 0.9 { // Alert at 90% usage
+				return fmt.Errorf("jetstream memory usage high: %d/%d bytes (%.1f%%)",
+					accountInfo.Memory, accountInfo.Limits.MaxMemory, usage*100)
+			}
+		}
+
+		return nil
+	})
+
 	return js
 }
 
