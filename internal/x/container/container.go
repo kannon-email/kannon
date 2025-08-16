@@ -2,7 +2,6 @@ package container
 
 import (
 	"context"
-	"sync"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	sqlc "github.com/kannon-email/kannon/internal/db"
@@ -66,17 +65,17 @@ func New(ctx context.Context, cfg Config) *Container {
 
 // DB returns a singleton DB connection.
 func (c *Container) DB() *pgxpool.Pool {
-	return c.db.Get(c.ctx, func(ctx context.Context) *pgxpool.Pool {
+	return c.db.MustGet(c.ctx, func(ctx context.Context) (*pgxpool.Pool, error) {
 		db, err := sqlc.Conn(c.ctx, c.cfg.DBUrl)
 		if err != nil {
-			logrus.Fatalf("Failed to connect to database: %v", err)
+			return nil, err
 		}
 
 		c.addClosers(func() error {
 			db.Close()
 			return nil
 		})
-		return db
+		return db, nil
 	})
 }
 
@@ -86,11 +85,11 @@ func (c *Container) Queries() *sqlc.Queries {
 }
 
 func (c *Container) Nats() *nats.Conn {
-	return c.nats.Get(c.ctx, func(ctx context.Context) *nats.Conn {
+	return c.nats.MustGet(c.ctx, func(ctx context.Context) (*nats.Conn, error) {
 		logrus.Debugf("connecting to NATS: %s", c.cfg.NatsURL)
 		nc, err := nats.Connect(c.cfg.NatsURL)
 		if err != nil {
-			logrus.Fatalf("Failed to connect to NATS: %v", err)
+			return nil, err
 		}
 
 		c.addClosers(func() error {
@@ -100,7 +99,7 @@ func (c *Container) Nats() *nats.Conn {
 			nc.Close()
 			return nil
 		})
-		return nc
+		return nc, nil
 	})
 }
 
@@ -121,25 +120,13 @@ func (c *Container) NatsJetStream() jetstream.JetStream {
 }
 
 func (c *Container) Sender() smtp.Sender {
-	return c.sender.Get(c.ctx, func(ctx context.Context) smtp.Sender {
+	return c.sender.MustGet(c.ctx, func(ctx context.Context) (smtp.Sender, error) {
 		sender := smtp.NewSender(c.cfg.SenderConfig.Hostname)
 		if c.cfg.SenderConfig.DemoSender {
 			sender = smtp.NewDemoSender(c.cfg.SenderConfig.Hostname)
 		}
-		return sender
+		return sender, nil
 	})
-}
-
-type singleton[T any] struct {
-	once  sync.Once
-	value T
-}
-
-func (s *singleton[T]) Get(ctx context.Context, f func(ctx context.Context) T) T {
-	s.once.Do(func() {
-		s.value = f(ctx)
-	})
-	return s.value
 }
 
 type publisherWithDebug struct {
