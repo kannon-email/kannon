@@ -14,7 +14,7 @@ require (
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/lib/pq v1.10.9
 	github.com/lucsky/cuid v1.2.1
-	github.com/nats-io/nats.go v1.44.0
+	github.com/nats-io/nats.go v1.45.0
 	github.com/networkteam/obfuscate v0.1.0
 	github.com/ory/dockertest/v3 v3.12.0
 	github.com/sirupsen/logrus v1.9.3
