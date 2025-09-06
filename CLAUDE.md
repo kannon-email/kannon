@@ -36,7 +36,7 @@ The project uses `mise` for tool version management. Tools are defined in `mise.
 - Go 1.25.1
 - buf 1.56.0
 - sqlc 1.29.0
-- golangci-lint 2.2.1
+- golangci-lint 2.4.0
 
 ## Architecture Overview
 

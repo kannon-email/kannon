@@ -12,7 +12,6 @@ import (
 	"github.com/ory/dockertest/v3/docker"
 
 	schema "github.com/kannon-email/kannon/db"
-	"github.com/kannon-email/kannon/internal/x/container"
 )
 
 // TestInfrastructure holds the test infrastructure resources
@@ -20,7 +19,6 @@ type TestInfrastructure struct {
 	dbURL   string
 	natsURL string
 	apiPort uint
-	ctn     *container.Container
 	cleanup []func() error
 }
 

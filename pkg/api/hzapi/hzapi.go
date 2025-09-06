@@ -16,7 +16,7 @@ type hzAPIConnectAdapter struct {
 
 func (h *hzAPIConnectAdapter) HZ(ctx context.Context, req *connect.Request[pb.HZRequest]) (*connect.Response[pb.HZResponse], error) {
 	result := h.hzService.HZ(ctx)
-	
+
 	// Convert map[string]error to map[string]string
 	stringResult := make(map[string]string)
 	for name, err := range result {
@@ -26,11 +26,11 @@ func (h *hzAPIConnectAdapter) HZ(ctx context.Context, req *connect.Request[pb.HZ
 			stringResult[name] = "OK"
 		}
 	}
-	
+
 	response := &pb.HZResponse{
 		Result: stringResult,
 	}
-	
+
 	return connect.NewResponse(response), nil
 }
 
