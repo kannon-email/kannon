@@ -60,9 +60,18 @@ func (c *Container) DB() *pgxpool.Pool {
 			return nil, err
 		}
 
-		c.addClosers(func(_ context.Context) error {
-			db.Close()
-			return nil
+		c.addClosers(func(ctx context.Context) error {
+			done := make(chan bool, 1)
+			go func() {
+				db.Close()
+				done <- true
+			}()
+			select {
+			case <-done:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
 		})
 
 		c.addHZ("db", func(ctx context.Context) error {
@@ -86,12 +95,18 @@ func (c *Container) Nats() *nats.Conn {
 			return nil, err
 		}
 
-		c.addClosers(func(_ context.Context) error {
-			if err := nc.Drain(); err != nil {
+		c.addClosers(func(ctx context.Context) error {
+			done := make(chan error, 1)
+			go func() {
+				done <- nc.Drain()
+			}()
+			defer nc.Close()
+			select {
+			case err := <-done:
 				return err
+			case <-ctx.Done():
+				return ctx.Err()
 			}
-			nc.Close()
-			return nil
 		})
 
 		c.addHZ("nats", func(ctx context.Context) error {

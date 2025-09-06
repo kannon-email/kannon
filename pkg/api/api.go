@@ -8,6 +8,7 @@ import (
 
 	"github.com/kannon-email/kannon/internal/x/container"
 	"github.com/kannon-email/kannon/pkg/api/adminapi"
+	"github.com/kannon-email/kannon/pkg/api/hzapi"
 	"github.com/kannon-email/kannon/pkg/api/mailapi"
 	"github.com/kannon-email/kannon/pkg/statsapi/statsv1"
 	adminv1connect "github.com/kannon-email/kannon/proto/kannon/admin/apiv1/apiv1connect"
@@ -39,11 +40,12 @@ func Run(ctx context.Context, config Config, cnt *container.Container) error {
 	adminAPIService := adminapi.CreateAdminAPIService(q)
 	mailAPIService := mailapi.NewMailerAPIV1(q)
 	statsAPIService := statsv1.NewStatsAPIService(q)
+	hzAPIService := hzapi.CreateHZAPIService(cnt)
 
-	return startAPIServer(ctx, port, adminAPIService, mailAPIService, statsAPIService)
+	return startAPIServer(ctx, port, adminAPIService, mailAPIService, statsAPIService, hzAPIService)
 }
 
-func startAPIServer(ctx context.Context, port uint, adminServer adminv1connect.ApiHandler, mailerServer mailerv1connect.MailerHandler, statsServer statsv1connect.StatsApiV1Handler) error {
+func startAPIServer(ctx context.Context, port uint, adminServer adminv1connect.ApiHandler, mailerServer mailerv1connect.MailerHandler, statsServer statsv1connect.StatsApiV1Handler, hzServer adminv1connect.HZServiceHandler) error {
 	addr := fmt.Sprintf("0.0.0.0:%d", port)
 	mux := http.NewServeMux()
 
@@ -51,10 +53,12 @@ func startAPIServer(ctx context.Context, port uint, adminServer adminv1connect.A
 	adminPath, adminHandler := adminv1connect.NewApiHandler(adminServer)
 	mailerPath, mailerHandler := mailerv1connect.NewMailerHandler(mailerServer)
 	statsPath, statsHandler := statsv1connect.NewStatsApiV1Handler(statsServer)
+	hzPath, hzHandler := adminv1connect.NewHZServiceHandler(hzServer)
 
 	mux.Handle(adminPath, adminHandler)
 	mux.Handle(mailerPath, mailerHandler)
 	mux.Handle(statsPath, statsHandler)
+	mux.Handle(hzPath, hzHandler)
 
 	handler := h2c.NewHandler(mux, &http2.Server{})
 

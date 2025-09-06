@@ -1,0 +1,11 @@
+package pkg.kannon.admin.apiv1;
+
+service HZService {
+	rpc HZ(HZRequest) returns (HZResponse) {}
+}
+
+message HZRequest {}
+
+message HZResponse {
+	map<string, string> result = 1;
+}

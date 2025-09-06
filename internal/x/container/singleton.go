@@ -34,5 +34,9 @@ func (s *singleton[T]) MustGet(ctx context.Context, f makeFn[T]) T {
 
 func getTypeName[T any]() string {
 	var zero T
-	return reflect.TypeOf(zero).String()
+	tf := reflect.TypeOf(zero)
+	if tf.Kind() == reflect.Pointer {
+		tf = tf.Elem()
+	}
+	return tf.String()
 }

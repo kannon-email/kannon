@@ -2,6 +2,8 @@ package e2e_test
 
 import (
 	"encoding/base64"
+	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
@@ -20,6 +22,7 @@ import (
 type clientTest struct {
 	mailerClient mailerv1connect.MailerClient
 	adminClient  adminv1connect.ApiClient
+	hzClient     adminv1connect.HZServiceClient
 	statsClient  statsv1connect.StatsApiV1Client
 	authToken    string
 	domain       string
@@ -56,6 +59,7 @@ type clientFactory struct {
 	mailerClient mailerv1connect.MailerClient
 	adminClient  adminv1connect.ApiClient
 	statsClient  statsv1connect.StatsApiV1Client
+	hzClient     adminv1connect.HZServiceClient
 }
 
 func (f *clientFactory) NewClient(t *testing.T, infra *TestInfrastructure) *clientTest {
@@ -70,7 +74,37 @@ func (f *clientFactory) NewClient(t *testing.T, infra *TestInfrastructure) *clie
 		mailerClient: f.mailerClient,
 		adminClient:  f.adminClient,
 		statsClient:  f.statsClient,
+		hzClient:     f.hzClient,
 		domain:       msg.Domain,
 		authToken:    base64.StdEncoding.EncodeToString([]byte(msg.Domain + ":" + msg.Key)),
+	}
+}
+
+func makeFactory(infra *TestInfrastructure) *clientFactory {
+	adminClient := adminv1connect.NewApiClient(
+		http.DefaultClient,
+		fmt.Sprintf("http://localhost:%d", infra.apiPort),
+	)
+
+	mailerClient := mailerv1connect.NewMailerClient(
+		http.DefaultClient,
+		fmt.Sprintf("http://localhost:%d", infra.apiPort),
+	)
+
+	statsClient := statsv1connect.NewStatsApiV1Client(
+		http.DefaultClient,
+		fmt.Sprintf("http://localhost:%d", infra.apiPort),
+	)
+
+	hzClient := adminv1connect.NewHZServiceClient(
+		http.DefaultClient,
+		fmt.Sprintf("http://localhost:%d", infra.apiPort),
+	)
+
+	return &clientFactory{
+		mailerClient: mailerClient,
+		adminClient:  adminClient,
+		statsClient:  statsClient,
+		hzClient:     hzClient,
 	}
 }
