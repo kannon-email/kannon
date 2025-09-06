@@ -94,7 +94,7 @@ flowchart TD
 
 ### Prerequisites
 
-- Go 1.24+
+- Go 1.25.1+
 - Docker (optional, for containerized deployment)
 - PostgreSQL database
 - NATS server (for internal messaging)

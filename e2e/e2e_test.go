@@ -3,11 +3,11 @@ package e2e_test
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"strings"
 	"testing"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/go-faker/faker/v4"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -21,11 +21,9 @@ import (
 	"github.com/kannon-email/kannon/pkg/sender"
 	"github.com/kannon-email/kannon/pkg/stats"
 	"github.com/kannon-email/kannon/pkg/validator"
-	adminv1connect "github.com/kannon-email/kannon/proto/kannon/admin/apiv1/apiv1connect"
+	adminapiv1 "github.com/kannon-email/kannon/proto/kannon/admin/apiv1"
 	mailerapiv1 "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1"
-	mailerv1connect "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1/apiv1connect"
 	mailertypes "github.com/kannon-email/kannon/proto/kannon/mailer/types"
-	statsv1connect "github.com/kannon-email/kannon/proto/kannon/stats/apiv1/apiv1connect"
 )
 
 // TestE2EEmailSending tests the entire email sending pipeline with real infrastructure
@@ -45,6 +43,10 @@ func TestE2EEmailSending(t *testing.T) {
 	runKannon(t, infra, senderMock)
 
 	factory := makeFactory(infra)
+
+	t.Run("HZ", func(t *testing.T) {
+		testHZ(t, factory, infra)
+	})
 
 	t.Run("SingleRecipientEmail", func(t *testing.T) {
 		testSingleRecipientEmail(t, factory, senderMock, infra)
@@ -115,29 +117,6 @@ func runKannon(t *testing.T, infra *TestInfrastructure, senderMock *senderMock) 
 			logrus.Errorf("error in running kannon: %v", err)
 		}
 	}()
-}
-
-func makeFactory(infra *TestInfrastructure) *clientFactory {
-	adminClient := adminv1connect.NewApiClient(
-		http.DefaultClient,
-		fmt.Sprintf("http://localhost:%d", infra.apiPort),
-	)
-
-	mailerClient := mailerv1connect.NewMailerClient(
-		http.DefaultClient,
-		fmt.Sprintf("http://localhost:%d", infra.apiPort),
-	)
-
-	statsClient := statsv1connect.NewStatsApiV1Client(
-		http.DefaultClient,
-		fmt.Sprintf("http://localhost:%d", infra.apiPort),
-	)
-
-	return &clientFactory{
-		mailerClient: mailerClient,
-		adminClient:  adminClient,
-		statsClient:  statsClient,
-	}
 }
 
 func testSingleRecipientEmail(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
@@ -319,6 +298,21 @@ func testEmailWithAttachments(t *testing.T, clientFactory *clientFactory, smtpSe
 		assert.Equal(t, "test-document.txt", att.Filename)
 		assert.Equal(t, attachmentData, att.Content)
 	})
+}
+
+func testHZ(t *testing.T, clientFactory *clientFactory, infra *TestInfrastructure) {
+	client := clientFactory.NewClient(t, infra)
+
+	hzResp, err := client.hzClient.HZ(t.Context(), connect.NewRequest(&adminapiv1.HZRequest{}))
+	require.NoError(t, err)
+	require.NotNil(t, hzResp.Msg)
+
+	results := hzResp.Msg.Result
+
+	logrus.Infof("HZ results: %+v", results)
+
+	assert.Equal(t, "", results["db"])
+	assert.Equal(t, "", results["nats"])
 }
 
 func makeFakeEmail() string {
