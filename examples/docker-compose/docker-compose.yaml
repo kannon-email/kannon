@@ -18,7 +18,7 @@ services:
     depends_on:
       - db
   kannon:
-    image: kannon
+    image: ghcr.io/kannon-email/kannon/kannon
     restart: always
     command: "--config /kannon.yaml"
     volumes:

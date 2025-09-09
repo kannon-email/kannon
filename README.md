@@ -39,7 +39,6 @@ A **Cloud Native SMTP mail sender** for Kubernetes and modern infrastructure.
 - Template management (CRUD via API)
 - Kubernetes-ready deployment
 - Postgres-backed persistence
-- **Demo sender mode for testing and development**
 
 **Planned:**
 
@@ -329,6 +328,109 @@ We welcome contributions! Please:
 - **E2E tests** include comprehensive email sending pipeline testing with demo sender mode
 
 ---
+
+## Local Testing for Integrations Development
+
+For developers building integrations with Kannon, we provide a complete local testing environment using Docker Compose with demo sender mode. This allows you to test the entire email pipeline without actually sending emails or requiring SMTP server setup.
+
+### Quick Start with Docker Compose
+
+The simplest way to get started is using the provided Docker Compose configuration:
+
+```bash
+cd examples/docker-compose/
+docker-compose up
+```
+
+This will start:
+- **PostgreSQL database** with automatic migrations
+- **NATS server** for internal messaging
+- **Kannon server** with all components enabled and **demo sender mode activated**
+
+The API will be available at `localhost:50051` (gRPC).
+
+### Demo Sender Mode Benefits
+
+When using the docker-compose setup, demo sender mode is automatically enabled (`demo_sender: true` in `kannon.yaml`), which means:
+
+- ✅ **Complete pipeline testing** - All API endpoints, template processing, and statistics work normally
+- ✅ **No real emails sent** - Safe for development and testing environments
+- ✅ **Statistics collection** - Track delivery attempts, errors, and metrics
+- ✅ **Error simulation** - Recipients containing "error" will simulate delivery failures
+- ✅ **Template processing** - HTML templates, custom fields, and attachments work correctly
+- ✅ **Authentication testing** - Full gRPC API authentication flow
+
+### Configuration
+
+The demo environment uses the configuration in `examples/docker-compose/kannon.yaml`:
+
+```yaml
+sender:
+  hostname: kannon.ludusrusso.dev
+  max_jobs: 100
+  demo_sender: true  # Mock SMTP sending
+
+# All components enabled for full testing
+run-smtp: true
+run-bounce: true  
+run-dispatcher: true
+run-verifier: true
+run-sender: true
+run-api: true
+run-stats: true
+```
+
+### Testing Your Integration
+
+1. **Start the environment:**
+   ```bash
+   cd examples/docker-compose/
+   docker-compose up -d
+   ```
+
+2. **Create a test domain** (using grpcurl or your gRPC client):
+   ```bash
+   # Register a domain for testing
+   grpcurl -plaintext -d '{"domain":"test.example.com"}' \
+     localhost:50051 kannon.admin.apiv1.AdminApiV1Service/CreateDomain
+   ```
+
+3. **Send test emails** via the API:
+   ```bash
+   # Send HTML email (will be processed but not actually sent)
+   grpcurl -plaintext \
+     -H "Authorization: Basic $(echo -n 'test.example.com:your-domain-key' | base64)" \
+     -d '{"sender":{"email":"test@test.example.com","alias":"Test"},"recipients":["user@example.com"],"subject":"Test Email","html":"<h1>Hello World</h1>"}' \
+     localhost:50051 kannon.mailer.apiv1.MailerApiV1Service/SendHTML
+   ```
+
+4. **Check statistics:**
+   ```bash
+   # View delivery stats (will show processed emails)
+   grpcurl -plaintext \
+     -H "Authorization: Basic $(echo -n 'test.example.com:your-domain-key' | base64)" \
+     localhost:50051 kannon.stats.apiv1.StatsApiV1Service/GetStats
+   ```
+
+### Integration Development Workflow
+
+1. **Develop against the local API** - Use `localhost:50051` as your Kannon endpoint
+2. **Test email templates** - Use `SendTemplate` API with your template designs
+3. **Verify statistics** - Check that your integration correctly handles delivery stats
+4. **Test error scenarios** - Send emails to recipients containing "error" to simulate failures
+5. **Validate attachments** - Test file attachments and custom fields functionality
+
+### Customizing the Environment
+
+To modify the demo environment:
+
+1. **Edit `examples/docker-compose/kannon.yaml`** for Kannon configuration
+2. **Edit `examples/docker-compose/docker-compose.yaml`** for infrastructure changes
+3. **Restart the environment:** `docker-compose down && docker-compose up`
+
+### Production Transition
+
+When ready for production, simply change `demo_sender: false` in your configuration and provide real SMTP credentials. Your integration code remains unchanged.
 
 ## License
 
