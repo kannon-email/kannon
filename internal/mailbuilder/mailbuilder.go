@@ -192,7 +192,10 @@ func replaceLinks(html string, replace func(link string) (string, error)) (strin
 		if err != nil {
 			return "", err
 		}
-		html = strings.Replace(html, link, newLink, 1)
+		// Replace the entire matched href attribute, not just the URL
+		oldHref := match[0]
+		newHref := strings.Replace(oldHref, link, newLink, 1)
+		html = strings.Replace(html, oldHref, newHref, 1)
 	}
 	return html, nil
 }
