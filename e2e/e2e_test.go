@@ -3,6 +3,7 @@ package e2e_test
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -22,6 +23,7 @@ import (
 	"github.com/kannon-email/kannon/pkg/stats"
 	"github.com/kannon-email/kannon/pkg/validator"
 	adminapiv1 "github.com/kannon-email/kannon/proto/kannon/admin/apiv1"
+	adminv1connect "github.com/kannon-email/kannon/proto/kannon/admin/apiv1/apiv1connect"
 	mailerapiv1 "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1"
 	mailertypes "github.com/kannon-email/kannon/proto/kannon/mailer/types"
 )
@@ -42,11 +44,12 @@ func TestE2EEmailSending(t *testing.T) {
 
 	runKannon(t, infra, senderMock)
 
+	// Wait for API server to be ready before creating clients
+	waitForAPIServer(t, infra)
+
 	factory := makeFactory(infra)
 
-	t.Run("HZ", func(t *testing.T) {
-		testHZ(t, factory, infra)
-	})
+	waitHZ(t, factory, infra)
 
 	t.Run("SingleRecipientEmail", func(t *testing.T) {
 		testSingleRecipientEmail(t, factory, senderMock, infra)
@@ -300,19 +303,41 @@ func testEmailWithAttachments(t *testing.T, clientFactory *clientFactory, smtpSe
 	})
 }
 
-func testHZ(t *testing.T, clientFactory *clientFactory, infra *TestInfrastructure) {
+func waitHZ(t *testing.T, clientFactory *clientFactory, infra *TestInfrastructure) {
 	client := clientFactory.NewClient(t, infra)
+	ctx := t.Context()
 
-	hzResp, err := client.hzClient.HZ(t.Context(), connect.NewRequest(&adminapiv1.HZRequest{}))
-	require.NoError(t, err)
-	require.NotNil(t, hzResp.Msg)
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		hzResp, err := client.hzClient.HZ(ctx, connect.NewRequest(&adminapiv1.HZRequest{}))
+		require.NoError(t, err)
+		require.NotNil(t, hzResp.Msg)
 
-	results := hzResp.Msg.Result
+		results := hzResp.Msg.Result
 
-	logrus.Infof("HZ results: %+v", results)
+		logrus.Infof("HZ results: %+v", results)
 
-	assert.Equal(t, "", results["db"])
-	assert.Equal(t, "", results["nats"])
+		assert.Equal(t, "", results["db"])
+		assert.Equal(t, "", results["nats"])
+	}, 60*time.Second, 2*time.Second, "HZ should be ready within 60 seconds")
+}
+
+func waitForAPIServer(t *testing.T, infra *TestInfrastructure) {
+	// Create a direct HZ client that doesn't require domain creation
+	hzClient := adminv1connect.NewHZServiceClient(
+		http.DefaultClient,
+		fmt.Sprintf("http://localhost:%d", infra.apiPort),
+	)
+
+	require.EventuallyWithT(t, func(tt *assert.CollectT) {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		_, err := hzClient.HZ(ctx, connect.NewRequest(&adminapiv1.HZRequest{}))
+		if err != nil {
+			tt.Errorf("Failed to connect to API server: %v", err)
+			return
+		}
+	}, 30*time.Second, 500*time.Millisecond, "API server should be ready within 30 seconds")
 }
 
 func makeFakeEmail() string {
