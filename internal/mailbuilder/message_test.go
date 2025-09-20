@@ -97,3 +97,25 @@ func TestEmptyAHrefLink(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, expectedhtml, res)
 }
+
+// https://github.com/kannon-email/kannon/issues/276
+func TestIssue276Link(t *testing.T) {
+	html := `<html>
+<body>
+<img src="https://google.com/test" />
+<a href="https://google.com" />
+</body></html>`
+
+	expectedhtml := `<html>
+<body>
+<img src="https://google.com/test" />
+<a href="https://google.comx" />
+</body></html>`
+
+	res, err := replaceLinks(html, func(link string) (string, error) {
+		return link + "x", nil
+	})
+
+	assert.Nil(t, err)
+	assert.Equal(t, expectedhtml, res)
+}
