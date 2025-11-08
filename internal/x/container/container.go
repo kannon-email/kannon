@@ -9,15 +9,17 @@ import (
 	sqlc "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/publisher"
 	"github.com/kannon-email/kannon/internal/smtp"
+	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/sirupsen/logrus"
 )
 
 type Config struct {
-	DBUrl        string
-	NatsURL      string
-	SenderConfig SenderConfig
+	DBUrl           string
+	NatsURL         string
+	UseEmbeddedNats bool
+	SenderConfig    SenderConfig
 }
 
 type SenderConfig struct {
@@ -33,9 +35,10 @@ type Container struct {
 	cfg Config
 
 	// singleton instances
-	db     *singleton[*pgxpool.Pool]
-	nats   *singleton[*nats.Conn]
-	sender *singleton[smtp.Sender]
+	db                 *singleton[*pgxpool.Pool]
+	nats               *singleton[*nats.Conn]
+	embeddedNatsServer *singleton[*server.Server]
+	sender             *singleton[smtp.Sender]
 
 	closers []CloserFunc
 	hzs     []HZ
@@ -44,11 +47,12 @@ type Container struct {
 // New creates a new Container with the given context and configuration.
 func New(ctx context.Context, cfg Config) *Container {
 	return &Container{
-		ctx:    ctx,
-		cfg:    cfg,
-		db:     &singleton[*pgxpool.Pool]{},
-		nats:   &singleton[*nats.Conn]{},
-		sender: &singleton[smtp.Sender]{},
+		ctx:                ctx,
+		cfg:                cfg,
+		db:                 &singleton[*pgxpool.Pool]{},
+		nats:               &singleton[*nats.Conn]{},
+		embeddedNatsServer: &singleton[*server.Server]{},
+		sender:             &singleton[smtp.Sender]{},
 	}
 }
 
@@ -87,10 +91,65 @@ func (c *Container) Queries() *sqlc.Queries {
 	return sqlc.New(c.DB())
 }
 
+// EmbeddedNatsServer returns a singleton embedded NATS server instance
+func (c *Container) EmbeddedNatsServer() *server.Server {
+	return c.embeddedNatsServer.MustGet(c.ctx, func(ctx context.Context) (*server.Server, error) {
+		logrus.Info("Starting embedded NATS server...")
+
+		opts := &server.Options{
+			Host:      "127.0.0.1",
+			Port:      -1, // Random available port
+			JetStream: true,
+			StoreDir:  "", // Use temp directory for storage
+		}
+
+		ns, err := server.NewServer(opts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create NATS server: %w", err)
+		}
+
+		// Start the server in a goroutine
+		go ns.Start()
+
+		// Wait for server to be ready
+		if !ns.ReadyForConnections(10 * time.Second) {
+			ns.Shutdown()
+			return nil, fmt.Errorf("NATS server not ready after 10 seconds")
+		}
+
+		logrus.Infof("Embedded NATS server started at %s", ns.ClientURL())
+
+		// Add closer for embedded NATS server
+		c.addClosers(func(ctx context.Context) error {
+			logrus.Info("Shutting down embedded NATS server...")
+			ns.Shutdown()
+			ns.WaitForShutdown()
+			return nil
+		})
+
+		// Add health check for embedded NATS server
+		c.addHZ("embedded-nats", func(ctx context.Context) error {
+			if !ns.ReadyForConnections(100 * time.Millisecond) {
+				return fmt.Errorf("embedded NATS server not ready")
+			}
+			return nil
+		})
+
+		return ns, nil
+	})
+}
+
 func (c *Container) Nats() *nats.Conn {
 	return c.nats.MustGet(c.ctx, func(ctx context.Context) (*nats.Conn, error) {
-		logrus.Debugf("connecting to NATS: %s", c.cfg.NatsURL)
-		nc, err := nats.Connect(c.cfg.NatsURL)
+		// Get NATS URL - use embedded server if enabled
+		natsURL := c.cfg.NatsURL
+		if c.cfg.UseEmbeddedNats {
+			ns := c.EmbeddedNatsServer()
+			natsURL = ns.ClientURL()
+		}
+
+		logrus.Debugf("connecting to NATS: %s", natsURL)
+		nc, err := nats.Connect(natsURL)
 		if err != nil {
 			return nil, err
 		}

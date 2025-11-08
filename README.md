@@ -96,9 +96,26 @@ flowchart TD
 - Go 1.25.1+
 - Docker (optional, for containerized deployment)
 - PostgreSQL database
-- NATS server (for internal messaging)
+- NATS server (optional - embedded mode available in standalone command)
 
-### Local Run (for development)
+### Standalone Mode (Recommended for Development/Testing)
+
+Run all Kannon components in a single process with embedded NATS (only PostgreSQL required):
+
+```sh
+git clone https://github.com/kannon-email/kannon.git
+cd kannon
+go build -o kannon .
+./kannon standalone --config ./config.yaml
+```
+
+This mode:
+- Runs all components (API, SMTP, Sender, Dispatcher, Verifier, Stats, Bounce)
+- Embeds NATS server (no external NATS required)
+- Ideal for development, testing, or single-server deployments
+- Still requires a PostgreSQL database
+
+### Local Run (Manual Component Selection)
 
 ```sh
 git clone https://github.com/kannon-email/kannon.git
@@ -106,6 +123,8 @@ cd kannon
 go build -o kannon .
 ./kannon --run-api --run-smtp --run-sender --run-dispatcher --config ./config.yaml
 ```
+
+> **Note:** This mode requires an external NATS server configured in your config file.
 
 ### Docker Compose
 
