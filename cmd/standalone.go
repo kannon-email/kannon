@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/kannon-email/kannon/internal/x/container"
 	"github.com/kannon-email/kannon/pkg/api"
@@ -12,7 +11,6 @@ import (
 	"github.com/kannon-email/kannon/pkg/smtp"
 	"github.com/kannon-email/kannon/pkg/stats"
 	"github.com/kannon-email/kannon/pkg/validator"
-	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -40,25 +38,10 @@ func runStandalone(cmd *cobra.Command, args []string) {
 		logrus.Fatalf("error in reading config: %v", err)
 	}
 
-	// Start embedded NATS server
-	logrus.Info("Starting embedded NATS server...")
-	ns, err := startEmbeddedNATS()
-	if err != nil {
-		logrus.Fatalf("failed to start embedded NATS: %v", err)
-	}
-	defer ns.Shutdown()
-
-	// Wait for server to be ready
-	if !ns.ReadyForConnections(10 * time.Second) {
-		logrus.Fatal("NATS server not ready after 10 seconds")
-	}
-
-	logrus.Infof("Embedded NATS server started at %s", ns.ClientURL())
-
-	// Create container with embedded NATS URL
+	// Create container with embedded NATS enabled
 	cnt := container.New(ctx, container.Config{
-		DBUrl:   config.DatabaseURL,
-		NatsURL: ns.ClientURL(),
+		DBUrl:           config.DatabaseURL,
+		UseEmbeddedNats: true,
 		SenderConfig: container.SenderConfig{
 			DemoSender: config.Sender.DemoSender,
 			Hostname:   config.Sender.Hostname,
@@ -151,34 +134,9 @@ func runStandalone(cmd *cobra.Command, args []string) {
 	}
 }
 
-// startEmbeddedNATS starts an embedded NATS server with JetStream enabled
-func startEmbeddedNATS() (*server.Server, error) {
-	opts := &server.Options{
-		Host:      "127.0.0.1",
-		Port:      -1, // Random available port
-		JetStream: true,
-		StoreDir:  "", // Use temp directory for storage
-	}
-
-	ns, err := server.NewServer(opts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create NATS server: %w", err)
-	}
-
-	// Start the server in a goroutine
-	go ns.Start()
-
-	return ns, nil
-}
-
-// initializeJetStream ensures JetStream streams are created
-func initializeJetStream(cnt *container.Container) error {
-	nc := cnt.Nats()
-	js, err := nc.JetStream()
-	if err != nil {
-		return fmt.Errorf("failed to get JetStream context: %w", err)
-	}
-
+// initializeJetStreamStreams creates the required JetStream streams
+// This function is idempotent - it checks if streams exist before creating them
+func initializeJetStreamStreams(js nats.JetStreamContext) error {
 	// Define the streams that Kannon uses
 	streams := []struct {
 		name     string
@@ -218,4 +176,15 @@ func initializeJetStream(cnt *container.Container) error {
 	}
 
 	return nil
+}
+
+// initializeJetStream ensures JetStream streams are created
+func initializeJetStream(cnt *container.Container) error {
+	nc := cnt.Nats()
+	js, err := nc.JetStream()
+	if err != nil {
+		return fmt.Errorf("failed to get JetStream context: %w", err)
+	}
+
+	return initializeJetStreamStreams(js)
 }

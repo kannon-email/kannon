@@ -1,13 +1,41 @@
 package cmd
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// startEmbeddedNATSForTest starts an embedded NATS server for testing purposes
+func startEmbeddedNATSForTest() (*server.Server, error) {
+	opts := &server.Options{
+		Host:      "127.0.0.1",
+		Port:      -1, // Random available port
+		JetStream: true,
+		StoreDir:  "", // Use temp directory for storage
+	}
+
+	ns, err := server.NewServer(opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create NATS server: %w", err)
+	}
+
+	// Start the server in a goroutine
+	go ns.Start()
+
+	// Wait for server to be ready
+	if !ns.ReadyForConnections(10 * time.Second) {
+		ns.Shutdown()
+		return nil, fmt.Errorf("NATS server not ready after 10 seconds")
+	}
+
+	return ns, nil
+}
 
 func TestStartEmbeddedNATS(t *testing.T) {
 	if testing.Short() {
@@ -15,7 +43,7 @@ func TestStartEmbeddedNATS(t *testing.T) {
 	}
 
 	// Start embedded NATS server
-	ns, err := startEmbeddedNATS()
+	ns, err := startEmbeddedNATSForTest()
 	require.NoError(t, err, "Failed to start embedded NATS server")
 	require.NotNil(t, ns, "NATS server should not be nil")
 	defer ns.Shutdown()
@@ -39,7 +67,7 @@ func TestEmbeddedNATSConnection(t *testing.T) {
 	}
 
 	// Start embedded NATS server
-	ns, err := startEmbeddedNATS()
+	ns, err := startEmbeddedNATSForTest()
 	require.NoError(t, err, "Failed to start embedded NATS server")
 	require.NotNil(t, ns, "NATS server should not be nil")
 	defer ns.Shutdown()
@@ -65,7 +93,7 @@ func TestEmbeddedNATSJetStream(t *testing.T) {
 	}
 
 	// Start embedded NATS server
-	ns, err := startEmbeddedNATS()
+	ns, err := startEmbeddedNATSForTest()
 	require.NoError(t, err, "Failed to start embedded NATS server")
 	require.NotNil(t, ns, "NATS server should not be nil")
 	defer ns.Shutdown()
@@ -96,7 +124,7 @@ func TestEmbeddedNATSPubSub(t *testing.T) {
 	}
 
 	// Start embedded NATS server
-	ns, err := startEmbeddedNATS()
+	ns, err := startEmbeddedNATSForTest()
 	require.NoError(t, err, "Failed to start embedded NATS server")
 	require.NotNil(t, ns, "NATS server should not be nil")
 	defer ns.Shutdown()
@@ -141,71 +169,7 @@ func TestInitializeJetStream(t *testing.T) {
 	}
 
 	// Start embedded NATS server
-	ns, err := startEmbeddedNATS()
-	require.NoError(t, err, "Failed to start embedded NATS server")
-	require.NotNil(t, ns, "NATS server should not be nil")
-	defer ns.Shutdown()
-
-	// Wait for server to be ready
-	ready := ns.ReadyForConnections(5 * time.Second)
-	require.True(t, ready, "NATS server should be ready within 5 seconds")
-
-	// Connect to the embedded NATS server
-	nc, err := nats.Connect(ns.ClientURL())
-	require.NoError(t, err, "Should be able to connect to embedded NATS")
-	require.NotNil(t, nc, "NATS connection should not be nil")
-	defer nc.Close()
-
-	// Manually initialize JetStream streams
-	js, err := nc.JetStream()
-	require.NoError(t, err, "Should be able to get JetStream context")
-
-	// Define the streams
-	streams := []struct {
-		name     string
-		subjects []string
-	}{
-		{
-			name:     "kannon-sending",
-			subjects: []string{"kannon.sending"},
-		},
-		{
-			name:     "kannon-stats",
-			subjects: []string{"kannon.stats.*"},
-		},
-		{
-			name:     "kannon-bounce",
-			subjects: []string{"kannon.bounce"},
-		},
-	}
-
-	// Create streams
-	for _, stream := range streams {
-		_, err := js.AddStream(&nats.StreamConfig{
-			Name:     stream.name,
-			Subjects: stream.subjects,
-			Storage:  nats.FileStorage,
-		})
-		require.NoError(t, err, "Should be able to create stream %s", stream.name)
-	}
-
-	// Verify streams were created
-	expectedStreams := []string{"kannon-sending", "kannon-stats", "kannon-bounce"}
-	for _, streamName := range expectedStreams {
-		info, err := js.StreamInfo(streamName)
-		assert.NoError(t, err, "Stream %s should exist", streamName)
-		assert.NotNil(t, info, "Stream info for %s should not be nil", streamName)
-		assert.Equal(t, streamName, info.Config.Name, "Stream name should match")
-	}
-}
-
-func TestInitializeJetStreamStreamsConfiguration(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping JetStream stream configuration test in short mode")
-	}
-
-	// Start embedded NATS server
-	ns, err := startEmbeddedNATS()
+	ns, err := startEmbeddedNATSForTest()
 	require.NoError(t, err, "Failed to start embedded NATS server")
 	require.NotNil(t, ns, "NATS server should not be nil")
 	defer ns.Shutdown()
@@ -224,6 +188,72 @@ func TestInitializeJetStreamStreamsConfiguration(t *testing.T) {
 	js, err := nc.JetStream()
 	require.NoError(t, err, "Should be able to get JetStream context")
 
+	// Call the actual helper function to initialize streams
+	err = initializeJetStreamStreams(js)
+	require.NoError(t, err, "Should be able to initialize JetStream streams")
+
+	// Verify streams were created with correct configuration
+	expectedStreams := []struct {
+		name     string
+		subjects []string
+		storage  nats.StorageType
+	}{
+		{
+			name:     "kannon-sending",
+			subjects: []string{"kannon.sending"},
+			storage:  nats.FileStorage,
+		},
+		{
+			name:     "kannon-stats",
+			subjects: []string{"kannon.stats.*"},
+			storage:  nats.FileStorage,
+		},
+		{
+			name:     "kannon-bounce",
+			subjects: []string{"kannon.bounce"},
+			storage:  nats.FileStorage,
+		},
+	}
+
+	for _, expected := range expectedStreams {
+		info, err := js.StreamInfo(expected.name)
+		require.NoError(t, err, "Stream %s should exist", expected.name)
+		require.NotNil(t, info, "Stream info for %s should not be nil", expected.name)
+		assert.Equal(t, expected.name, info.Config.Name, "Stream name should match")
+		assert.Equal(t, expected.subjects, info.Config.Subjects, "Stream subjects should match for %s", expected.name)
+		assert.Equal(t, expected.storage, info.Config.Storage, "Stream storage should be FileStorage for %s", expected.name)
+	}
+}
+
+func TestInitializeJetStreamStreamsConfiguration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping JetStream stream configuration test in short mode")
+	}
+
+	// Start embedded NATS server
+	ns, err := startEmbeddedNATSForTest()
+	require.NoError(t, err, "Failed to start embedded NATS server")
+	require.NotNil(t, ns, "NATS server should not be nil")
+	defer ns.Shutdown()
+
+	// Wait for server to be ready
+	ready := ns.ReadyForConnections(5 * time.Second)
+	require.True(t, ready, "NATS server should be ready within 5 seconds")
+
+	// Connect to the embedded NATS server
+	nc, err := nats.Connect(ns.ClientURL())
+	require.NoError(t, err, "Should be able to connect to embedded NATS")
+	require.NotNil(t, nc, "NATS connection should not be nil")
+	defer nc.Close()
+
+	// Get JetStream context
+	js, err := nc.JetStream()
+	require.NoError(t, err, "Should be able to get JetStream context")
+
+	// Call the actual helper function to initialize streams
+	err = initializeJetStreamStreams(js)
+	require.NoError(t, err, "Should be able to initialize JetStream streams")
+
 	testCases := []struct {
 		name     string
 		subjects []string
@@ -233,22 +263,56 @@ func TestInitializeJetStreamStreamsConfiguration(t *testing.T) {
 		{"kannon-bounce", []string{"kannon.bounce"}},
 	}
 
-	// Create and verify stream configurations
+	// Verify stream configurations
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Create stream
-			_, err := js.AddStream(&nats.StreamConfig{
-				Name:     tc.name,
-				Subjects: tc.subjects,
-				Storage:  nats.FileStorage,
-			})
-			require.NoError(t, err, "Should be able to create stream %s", tc.name)
-
 			// Verify stream configuration
 			info, err := js.StreamInfo(tc.name)
 			require.NoError(t, err, "Stream %s should exist", tc.name)
 			assert.Equal(t, tc.subjects, info.Config.Subjects, "Stream subjects should match")
 			assert.Equal(t, nats.FileStorage, info.Config.Storage, "Stream should use file storage")
 		})
+	}
+}
+
+func TestInitializeJetStreamIdempotency(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping JetStream idempotency test in short mode")
+	}
+
+	// Start embedded NATS server
+	ns, err := startEmbeddedNATSForTest()
+	require.NoError(t, err, "Failed to start embedded NATS server")
+	require.NotNil(t, ns, "NATS server should not be nil")
+	defer ns.Shutdown()
+
+	// Wait for server to be ready
+	ready := ns.ReadyForConnections(5 * time.Second)
+	require.True(t, ready, "NATS server should be ready within 5 seconds")
+
+	// Connect to the embedded NATS server
+	nc, err := nats.Connect(ns.ClientURL())
+	require.NoError(t, err, "Should be able to connect to embedded NATS")
+	require.NotNil(t, nc, "NATS connection should not be nil")
+	defer nc.Close()
+
+	// Get JetStream context
+	js, err := nc.JetStream()
+	require.NoError(t, err, "Should be able to get JetStream context")
+
+	// Call the helper function the first time
+	err = initializeJetStreamStreams(js)
+	require.NoError(t, err, "First call should succeed")
+
+	// Call the helper function again - should be idempotent
+	err = initializeJetStreamStreams(js)
+	require.NoError(t, err, "Second call should succeed (idempotent)")
+
+	// Verify streams still exist and are correctly configured
+	expectedStreams := []string{"kannon-sending", "kannon-stats", "kannon-bounce"}
+	for _, streamName := range expectedStreams {
+		info, err := js.StreamInfo(streamName)
+		require.NoError(t, err, "Stream %s should exist after idempotent calls", streamName)
+		require.NotNil(t, info, "Stream info for %s should not be nil", streamName)
 	}
 }
