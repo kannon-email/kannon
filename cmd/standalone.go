@@ -185,15 +185,15 @@ func initializeJetStream(cnt *container.Container) error {
 		subjects []string
 	}{
 		{
-			name:     "kannon_sending",
+			name:     "kannon-sending",
 			subjects: []string{"kannon.sending"},
 		},
 		{
-			name:     "kannon_stats",
+			name:     "kannon-stats",
 			subjects: []string{"kannon.stats.*"},
 		},
 		{
-			name:     "kannon_bounce",
+			name:     "kannon-bounce",
 			subjects: []string{"kannon.bounce"},
 		},
 	}
@@ -207,7 +207,7 @@ func initializeJetStream(cnt *container.Container) error {
 			_, err = js.AddStream(&nats.StreamConfig{
 				Name:     stream.name,
 				Subjects: stream.subjects,
-				Storage:  nats.MemoryStorage,
+				Storage:  nats.FileStorage,
 			})
 			if err != nil {
 				return fmt.Errorf("failed to create stream %s: %w", stream.name, err)

@@ -166,15 +166,15 @@ func TestInitializeJetStream(t *testing.T) {
 		subjects []string
 	}{
 		{
-			name:     "kannon_sending",
+			name:     "kannon-sending",
 			subjects: []string{"kannon.sending"},
 		},
 		{
-			name:     "kannon_stats",
+			name:     "kannon-stats",
 			subjects: []string{"kannon.stats.*"},
 		},
 		{
-			name:     "kannon_bounce",
+			name:     "kannon-bounce",
 			subjects: []string{"kannon.bounce"},
 		},
 	}
@@ -184,13 +184,13 @@ func TestInitializeJetStream(t *testing.T) {
 		_, err := js.AddStream(&nats.StreamConfig{
 			Name:     stream.name,
 			Subjects: stream.subjects,
-			Storage:  nats.MemoryStorage,
+			Storage:  nats.FileStorage,
 		})
 		require.NoError(t, err, "Should be able to create stream %s", stream.name)
 	}
 
 	// Verify streams were created
-	expectedStreams := []string{"kannon_sending", "kannon_stats", "kannon_bounce"}
+	expectedStreams := []string{"kannon-sending", "kannon-stats", "kannon-bounce"}
 	for _, streamName := range expectedStreams {
 		info, err := js.StreamInfo(streamName)
 		assert.NoError(t, err, "Stream %s should exist", streamName)
@@ -228,9 +228,9 @@ func TestInitializeJetStreamStreamsConfiguration(t *testing.T) {
 		name     string
 		subjects []string
 	}{
-		{"kannon_sending", []string{"kannon.sending"}},
-		{"kannon_stats", []string{"kannon.stats.*"}},
-		{"kannon_bounce", []string{"kannon.bounce"}},
+		{"kannon-sending", []string{"kannon.sending"}},
+		{"kannon-stats", []string{"kannon.stats.*"}},
+		{"kannon-bounce", []string{"kannon.bounce"}},
 	}
 
 	// Create and verify stream configurations
@@ -240,7 +240,7 @@ func TestInitializeJetStreamStreamsConfiguration(t *testing.T) {
 			_, err := js.AddStream(&nats.StreamConfig{
 				Name:     tc.name,
 				Subjects: tc.subjects,
-				Storage:  nats.MemoryStorage,
+				Storage:  nats.FileStorage,
 			})
 			require.NoError(t, err, "Should be able to create stream %s", tc.name)
 
@@ -248,7 +248,7 @@ func TestInitializeJetStreamStreamsConfiguration(t *testing.T) {
 			info, err := js.StreamInfo(tc.name)
 			require.NoError(t, err, "Stream %s should exist", tc.name)
 			assert.Equal(t, tc.subjects, info.Config.Subjects, "Stream subjects should match")
-			assert.Equal(t, nats.MemoryStorage, info.Config.Storage, "Stream should use memory storage")
+			assert.Equal(t, nats.FileStorage, info.Config.Storage, "Stream should use file storage")
 		})
 	}
 }
