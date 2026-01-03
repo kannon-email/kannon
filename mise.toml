@@ -1,6 +1,6 @@
 [tools]
 buf = "1.56.0"
 dbmate = "2.28.0"
-go = "1.25"
+go = "latest"
 "go:github.com/sqlc-dev/sqlc/cmd/sqlc" = "1.29.0"
 golangci-lint = "2.4.0"

@@ -15,10 +15,10 @@ test-e2e:
 
 
 generate-db:
-	PATH=$(GOBIN) sqlc generate
+	sqlc generate
 
 generate-proto:
-	PATH=$(GOBIN) buf generate
+	buf generate
 
 generate: generate-db generate-proto
 

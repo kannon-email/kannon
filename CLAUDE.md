@@ -33,7 +33,7 @@ Kannon is a cloud-native SMTP mail sender written in Go, designed for Kubernetes
 
 The project uses `mise` for tool version management. Tools are defined in `mise.toml`:
 
-- Go 1.25.1
+- Go 1.25.5
 - buf 1.56.0
 - sqlc 1.29.0
 - golangci-lint 2.4.0
