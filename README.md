@@ -93,7 +93,7 @@ flowchart TD
 
 ### Prerequisites
 
-- Go 1.25.1+
+- Go 1.25.5+
 - Docker (optional, for containerized deployment)
 - PostgreSQL database
 - NATS server (optional - embedded mode available in standalone command)
@@ -362,6 +362,7 @@ docker-compose up
 ```
 
 This will start:
+
 - **PostgreSQL database** with automatic migrations
 - **NATS server** for internal messaging
 - **Kannon server** with all components enabled and **demo sender mode activated**
@@ -387,11 +388,11 @@ The demo environment uses the configuration in `examples/docker-compose/kannon.y
 sender:
   hostname: kannon.ludusrusso.dev
   max_jobs: 100
-  demo_sender: true  # Mock SMTP sending
+  demo_sender: true # Mock SMTP sending
 
 # All components enabled for full testing
 run-smtp: true
-run-bounce: true  
+run-bounce: true
 run-dispatcher: true
 run-verifier: true
 run-sender: true
@@ -402,12 +403,14 @@ run-stats: true
 ### Testing Your Integration
 
 1. **Start the environment:**
+
    ```bash
    cd examples/docker-compose/
    docker-compose up -d
    ```
 
 2. **Create a test domain** (using grpcurl or your gRPC client):
+
    ```bash
    # Register a domain for testing
    grpcurl -plaintext -d '{"domain":"test.example.com"}' \
@@ -415,6 +418,7 @@ run-stats: true
    ```
 
 3. **Send test emails** via the API:
+
    ```bash
    # Send HTML email (will be processed but not actually sent)
    grpcurl -plaintext \

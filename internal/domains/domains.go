@@ -2,7 +2,7 @@ package domains
 
 import (
 	"context"
-	"math/rand"
+	"crypto/rand"
 
 	sqlc "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/dkim"
@@ -95,10 +95,13 @@ const (
 )
 
 func generateRandomKey() string {
-	letterRunes := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
-	b := make([]rune, keySize)
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	b := make([]byte, keySize)
+	if _, err := rand.Read(b); err != nil {
+		panic(err)
+	}
 	for i := range b {
-		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+		b[i] = charset[int(b[i])%len(charset)]
 	}
 	return string(b)
 }

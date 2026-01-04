@@ -100,7 +100,7 @@ func runStandalone(cmd *cobra.Command, args []string) {
 	// Bounce
 	g.Go(func() error {
 		logrus.Info("Starting Bounce component...")
-		if err := bump.Run(ctx, cnt); err != nil {
+		if err := bump.Run(ctx, cnt, config.Bump.ToBumpConfig()); err != nil {
 			return fmt.Errorf("error in bounce: %v", err)
 		}
 		return nil

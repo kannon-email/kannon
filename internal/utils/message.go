@@ -53,7 +53,7 @@ func ParseBounceReturnPath(returnPath string) (email string, messageID string, d
 	found = true
 
 	emailBytes, err := base64.StdEncoding.DecodeString(emailHash)
-	if len(match) != 3 {
+	if err != nil {
 		return "", "", "", false, fmt.Errorf("invalid returnPath: %v", err)
 	}
 	email = string(emailBytes)

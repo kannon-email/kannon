@@ -35,7 +35,7 @@ import (
 
 var db *pgxpool.Pool
 var q *sqlc.Queries
-var mb mailbuilder.MailBulder
+var mb mailbuilder.MailBuilder
 var ma mailerv1connect.MailerHandler
 var adminAPI adminv1connect.ApiHandler
 var pm pool.SendingPoolManager

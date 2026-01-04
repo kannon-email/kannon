@@ -23,7 +23,7 @@ import (
 type mailAPIService struct {
 	domains     domains.DomainManager
 	templates   templates.Manager
-	sendingPoll pool.SendingPoolManager
+	sendingPool pool.SendingPoolManager
 }
 
 func (s mailAPIService) SendHTML(ctx context.Context, req *connect.Request[pb.SendHTMLReq]) (*connect.Response[pb.SendRes], error) {
@@ -90,7 +90,7 @@ func (s mailAPIService) sendTemplate(ctx context.Context, domain sqlc.Domain, re
 		attachments[r.Filename] = r.Content
 	}
 
-	pool, err := s.sendingPoll.AddRecipientsPool(ctx, template, req.Msg.Recipients, sender, scheduled, req.Msg.Subject, domain.Domain, attachments)
+	pool, err := s.sendingPool.AddRecipientsPool(ctx, template, req.Msg.Recipients, sender, scheduled, req.Msg.Subject, domain.Domain, attachments)
 
 	if err != nil {
 		logrus.Errorf("cannot create pool %v\n", err)
@@ -137,6 +137,9 @@ func (s mailAPIService) getCallDomainFromHeaders(ctx context.Context, headers ht
 	authData := string(data)
 
 	parts := strings.Split(authData, ":")
+	if len(parts) != 2 {
+		return sqlc.Domain{}, fmt.Errorf("invalid auth format, expected domain:key")
+	}
 	d, k := parts[0], parts[1]
 
 	domain, err := s.domains.FindDomainWithKey(ctx, d, k)
@@ -155,7 +158,7 @@ func NewMailerAPIV1(q *sqlc.Queries) mailerv1connect.MailerHandler {
 
 	return &mailAPIService{
 		domains:     domainsCli,
-		sendingPoll: sendingPoolCli,
+		sendingPool: sendingPoolCli,
 		templates:   templates,
 	}
 }
