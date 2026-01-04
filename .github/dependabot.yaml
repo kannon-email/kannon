@@ -5,7 +5,6 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
-    versioning-strategy: increase
     groups:
       go-dependencies:
         patterns: ["*"]
@@ -13,9 +12,17 @@ updates:
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
-      interval: "monthly" 
+      interval: "monthly"
     open-pull-requests-limit: 2
-    versioning-strategy: increase
     groups:
       docker-updates:
+        patterns: ["*"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
         patterns: ["*"]

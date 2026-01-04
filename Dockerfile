@@ -1,7 +1,12 @@
 FROM golang:1.25.5 AS builder
 
 WORKDIR /app
+
+# Copy dependency files first for better caching
 COPY go.mod go.sum /app/
+RUN go mod download
+
+# Then copy source files
 COPY ./pkg ./pkg
 COPY ./cmd ./cmd
 COPY ./internal ./internal
