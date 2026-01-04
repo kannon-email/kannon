@@ -53,22 +53,10 @@ func (s *Service) DeactivateKey(ctx context.Context, ref KeyRef) (*APIKey, error
 }
 
 func (s *Service) ValidateForAuth(ctx context.Context, domain, key string) (*APIKey, error) {
-	// Get the key by its value (domain verification is done in repository)
-	apiKey, err := s.repo.GetByKey(ctx, domain, key)
+	// Use optimized repository method that validates in database
+	apiKey, err := s.repo.ValidateKeyForAuth(ctx, domain, key)
 	if err != nil {
 		// Always return generic error for security
-		return nil, ErrKeyNotFound
-	}
-
-	// Check if key is valid (active and not expired)
-	if !apiKey.IsValid() {
-		// Return appropriate error
-		if !apiKey.IsActiveStatus() {
-			return nil, ErrKeyInactive
-		}
-		if apiKey.IsExpired() {
-			return nil, ErrKeyExpired
-		}
 		return nil, ErrKeyNotFound
 	}
 

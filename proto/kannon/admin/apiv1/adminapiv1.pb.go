@@ -234,50 +234,6 @@ func (x *CreateDomainRequest) GetDomain() string {
 	return ""
 }
 
-type RegenerateDomainKeyRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Domain        string                 `protobuf:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *RegenerateDomainKeyRequest) Reset() {
-	*x = RegenerateDomainKeyRequest{}
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[5]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RegenerateDomainKeyRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RegenerateDomainKeyRequest) ProtoMessage() {}
-
-func (x *RegenerateDomainKeyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[5]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RegenerateDomainKeyRequest.ProtoReflect.Descriptor instead.
-func (*RegenerateDomainKeyRequest) Descriptor() ([]byte, []int) {
-	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{5}
-}
-
-func (x *RegenerateDomainKeyRequest) GetDomain() string {
-	if x != nil {
-		return x.Domain
-	}
-	return ""
-}
-
 type Domain struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Domain        string                 `protobuf:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"`
@@ -289,7 +245,7 @@ type Domain struct {
 
 func (x *Domain) Reset() {
 	*x = Domain{}
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[6]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -301,7 +257,7 @@ func (x *Domain) String() string {
 func (*Domain) ProtoMessage() {}
 
 func (x *Domain) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[6]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -314,7 +270,7 @@ func (x *Domain) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Domain.ProtoReflect.Descriptor instead.
 func (*Domain) Descriptor() ([]byte, []int) {
-	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{6}
+	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *Domain) GetDomain() string {
@@ -350,7 +306,7 @@ type Template struct {
 
 func (x *Template) Reset() {
 	*x = Template{}
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[7]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -362,7 +318,7 @@ func (x *Template) String() string {
 func (*Template) ProtoMessage() {}
 
 func (x *Template) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[7]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -375,7 +331,7 @@ func (x *Template) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Template.ProtoReflect.Descriptor instead.
 func (*Template) Descriptor() ([]byte, []int) {
-	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{7}
+	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *Template) GetTemplateId() string {
@@ -417,7 +373,7 @@ type CreateTemplateReq struct {
 
 func (x *CreateTemplateReq) Reset() {
 	*x = CreateTemplateReq{}
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[8]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -429,7 +385,7 @@ func (x *CreateTemplateReq) String() string {
 func (*CreateTemplateReq) ProtoMessage() {}
 
 func (x *CreateTemplateReq) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[8]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -442,7 +398,7 @@ func (x *CreateTemplateReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateTemplateReq.ProtoReflect.Descriptor instead.
 func (*CreateTemplateReq) Descriptor() ([]byte, []int) {
-	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{8}
+	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *CreateTemplateReq) GetHtml() string {
@@ -475,7 +431,7 @@ type CreateTemplateRes struct {
 
 func (x *CreateTemplateRes) Reset() {
 	*x = CreateTemplateRes{}
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[9]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -487,7 +443,7 @@ func (x *CreateTemplateRes) String() string {
 func (*CreateTemplateRes) ProtoMessage() {}
 
 func (x *CreateTemplateRes) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[9]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -500,7 +456,7 @@ func (x *CreateTemplateRes) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateTemplateRes.ProtoReflect.Descriptor instead.
 func (*CreateTemplateRes) Descriptor() ([]byte, []int) {
-	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{9}
+	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *CreateTemplateRes) GetTemplate() *Template {
@@ -521,7 +477,7 @@ type UpdateTemplateReq struct {
 
 func (x *UpdateTemplateReq) Reset() {
 	*x = UpdateTemplateReq{}
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[10]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -533,7 +489,7 @@ func (x *UpdateTemplateReq) String() string {
 func (*UpdateTemplateReq) ProtoMessage() {}
 
 func (x *UpdateTemplateReq) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[10]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -546,7 +502,7 @@ func (x *UpdateTemplateReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateTemplateReq.ProtoReflect.Descriptor instead.
 func (*UpdateTemplateReq) Descriptor() ([]byte, []int) {
-	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{10}
+	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *UpdateTemplateReq) GetTemplateId() string {
@@ -579,7 +535,7 @@ type UpdateTemplateRes struct {
 
 func (x *UpdateTemplateRes) Reset() {
 	*x = UpdateTemplateRes{}
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[11]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -591,7 +547,7 @@ func (x *UpdateTemplateRes) String() string {
 func (*UpdateTemplateRes) ProtoMessage() {}
 
 func (x *UpdateTemplateRes) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[11]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -604,7 +560,7 @@ func (x *UpdateTemplateRes) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateTemplateRes.ProtoReflect.Descriptor instead.
 func (*UpdateTemplateRes) Descriptor() ([]byte, []int) {
-	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{11}
+	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *UpdateTemplateRes) GetTemplate() *Template {
@@ -623,7 +579,7 @@ type DeleteTemplateReq struct {
 
 func (x *DeleteTemplateReq) Reset() {
 	*x = DeleteTemplateReq{}
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[12]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -635,7 +591,7 @@ func (x *DeleteTemplateReq) String() string {
 func (*DeleteTemplateReq) ProtoMessage() {}
 
 func (x *DeleteTemplateReq) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[12]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -648,7 +604,7 @@ func (x *DeleteTemplateReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteTemplateReq.ProtoReflect.Descriptor instead.
 func (*DeleteTemplateReq) Descriptor() ([]byte, []int) {
-	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{12}
+	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *DeleteTemplateReq) GetTemplateId() string {
@@ -667,7 +623,7 @@ type DeleteTemplateRes struct {
 
 func (x *DeleteTemplateRes) Reset() {
 	*x = DeleteTemplateRes{}
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[13]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -679,7 +635,7 @@ func (x *DeleteTemplateRes) String() string {
 func (*DeleteTemplateRes) ProtoMessage() {}
 
 func (x *DeleteTemplateRes) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[13]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -692,7 +648,7 @@ func (x *DeleteTemplateRes) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteTemplateRes.ProtoReflect.Descriptor instead.
 func (*DeleteTemplateRes) Descriptor() ([]byte, []int) {
-	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{13}
+	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *DeleteTemplateRes) GetTemplate() *Template {
@@ -711,7 +667,7 @@ type GetTemplateReq struct {
 
 func (x *GetTemplateReq) Reset() {
 	*x = GetTemplateReq{}
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[14]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -723,7 +679,7 @@ func (x *GetTemplateReq) String() string {
 func (*GetTemplateReq) ProtoMessage() {}
 
 func (x *GetTemplateReq) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[14]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -736,7 +692,7 @@ func (x *GetTemplateReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetTemplateReq.ProtoReflect.Descriptor instead.
 func (*GetTemplateReq) Descriptor() ([]byte, []int) {
-	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{14}
+	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *GetTemplateReq) GetTemplateId() string {
@@ -755,7 +711,7 @@ type GetTemplateRes struct {
 
 func (x *GetTemplateRes) Reset() {
 	*x = GetTemplateRes{}
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[15]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -767,7 +723,7 @@ func (x *GetTemplateRes) String() string {
 func (*GetTemplateRes) ProtoMessage() {}
 
 func (x *GetTemplateRes) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[15]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -780,7 +736,7 @@ func (x *GetTemplateRes) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetTemplateRes.ProtoReflect.Descriptor instead.
 func (*GetTemplateRes) Descriptor() ([]byte, []int) {
-	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{15}
+	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *GetTemplateRes) GetTemplate() *Template {
@@ -801,7 +757,7 @@ type GetTemplatesReq struct {
 
 func (x *GetTemplatesReq) Reset() {
 	*x = GetTemplatesReq{}
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[16]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -813,7 +769,7 @@ func (x *GetTemplatesReq) String() string {
 func (*GetTemplatesReq) ProtoMessage() {}
 
 func (x *GetTemplatesReq) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[16]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -826,7 +782,7 @@ func (x *GetTemplatesReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetTemplatesReq.ProtoReflect.Descriptor instead.
 func (*GetTemplatesReq) Descriptor() ([]byte, []int) {
-	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{16}
+	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *GetTemplatesReq) GetDomain() string {
@@ -860,7 +816,7 @@ type GetTemplatesRes struct {
 
 func (x *GetTemplatesRes) Reset() {
 	*x = GetTemplatesRes{}
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[17]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -872,7 +828,7 @@ func (x *GetTemplatesRes) String() string {
 func (*GetTemplatesRes) ProtoMessage() {}
 
 func (x *GetTemplatesRes) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[17]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -885,7 +841,7 @@ func (x *GetTemplatesRes) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetTemplatesRes.ProtoReflect.Descriptor instead.
 func (*GetTemplatesRes) Descriptor() ([]byte, []int) {
-	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{17}
+	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *GetTemplatesRes) GetTemplates() []*Template {
@@ -918,7 +874,7 @@ type APIKey struct {
 
 func (x *APIKey) Reset() {
 	*x = APIKey{}
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[18]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -930,7 +886,7 @@ func (x *APIKey) String() string {
 func (*APIKey) ProtoMessage() {}
 
 func (x *APIKey) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[18]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -943,7 +899,7 @@ func (x *APIKey) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use APIKey.ProtoReflect.Descriptor instead.
 func (*APIKey) Descriptor() ([]byte, []int) {
-	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{18}
+	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *APIKey) GetId() string {
@@ -1013,7 +969,7 @@ type CreateAPIKeyRequest struct {
 
 func (x *CreateAPIKeyRequest) Reset() {
 	*x = CreateAPIKeyRequest{}
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[19]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1025,7 +981,7 @@ func (x *CreateAPIKeyRequest) String() string {
 func (*CreateAPIKeyRequest) ProtoMessage() {}
 
 func (x *CreateAPIKeyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[19]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1038,7 +994,7 @@ func (x *CreateAPIKeyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateAPIKeyRequest.ProtoReflect.Descriptor instead.
 func (*CreateAPIKeyRequest) Descriptor() ([]byte, []int) {
-	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{19}
+	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *CreateAPIKeyRequest) GetDomain() string {
@@ -1071,7 +1027,7 @@ type CreateAPIKeyResponse struct {
 
 func (x *CreateAPIKeyResponse) Reset() {
 	*x = CreateAPIKeyResponse{}
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[20]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1083,7 +1039,7 @@ func (x *CreateAPIKeyResponse) String() string {
 func (*CreateAPIKeyResponse) ProtoMessage() {}
 
 func (x *CreateAPIKeyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[20]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1096,7 +1052,7 @@ func (x *CreateAPIKeyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateAPIKeyResponse.ProtoReflect.Descriptor instead.
 func (*CreateAPIKeyResponse) Descriptor() ([]byte, []int) {
-	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{20}
+	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *CreateAPIKeyResponse) GetApiKey() *APIKey {
@@ -1118,7 +1074,7 @@ type ListAPIKeysRequest struct {
 
 func (x *ListAPIKeysRequest) Reset() {
 	*x = ListAPIKeysRequest{}
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[21]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1130,7 +1086,7 @@ func (x *ListAPIKeysRequest) String() string {
 func (*ListAPIKeysRequest) ProtoMessage() {}
 
 func (x *ListAPIKeysRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[21]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1143,7 +1099,7 @@ func (x *ListAPIKeysRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAPIKeysRequest.ProtoReflect.Descriptor instead.
 func (*ListAPIKeysRequest) Descriptor() ([]byte, []int) {
-	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{21}
+	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *ListAPIKeysRequest) GetDomain() string {
@@ -1183,7 +1139,7 @@ type ListAPIKeysResponse struct {
 
 func (x *ListAPIKeysResponse) Reset() {
 	*x = ListAPIKeysResponse{}
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[22]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1195,7 +1151,7 @@ func (x *ListAPIKeysResponse) String() string {
 func (*ListAPIKeysResponse) ProtoMessage() {}
 
 func (x *ListAPIKeysResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[22]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1208,7 +1164,7 @@ func (x *ListAPIKeysResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAPIKeysResponse.ProtoReflect.Descriptor instead.
 func (*ListAPIKeysResponse) Descriptor() ([]byte, []int) {
-	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{22}
+	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *ListAPIKeysResponse) GetApiKeys() []*APIKey {
@@ -1228,7 +1184,7 @@ type GetAPIKeyRequest struct {
 
 func (x *GetAPIKeyRequest) Reset() {
 	*x = GetAPIKeyRequest{}
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[23]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1240,7 +1196,7 @@ func (x *GetAPIKeyRequest) String() string {
 func (*GetAPIKeyRequest) ProtoMessage() {}
 
 func (x *GetAPIKeyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[23]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1253,7 +1209,7 @@ func (x *GetAPIKeyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAPIKeyRequest.ProtoReflect.Descriptor instead.
 func (*GetAPIKeyRequest) Descriptor() ([]byte, []int) {
-	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{23}
+	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *GetAPIKeyRequest) GetDomain() string {
@@ -1279,7 +1235,7 @@ type GetAPIKeyResponse struct {
 
 func (x *GetAPIKeyResponse) Reset() {
 	*x = GetAPIKeyResponse{}
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[24]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1291,7 +1247,7 @@ func (x *GetAPIKeyResponse) String() string {
 func (*GetAPIKeyResponse) ProtoMessage() {}
 
 func (x *GetAPIKeyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[24]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1304,7 +1260,7 @@ func (x *GetAPIKeyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAPIKeyResponse.ProtoReflect.Descriptor instead.
 func (*GetAPIKeyResponse) Descriptor() ([]byte, []int) {
-	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{24}
+	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *GetAPIKeyResponse) GetApiKey() *APIKey {
@@ -1324,7 +1280,7 @@ type DeactivateAPIKeyRequest struct {
 
 func (x *DeactivateAPIKeyRequest) Reset() {
 	*x = DeactivateAPIKeyRequest{}
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[25]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1336,7 +1292,7 @@ func (x *DeactivateAPIKeyRequest) String() string {
 func (*DeactivateAPIKeyRequest) ProtoMessage() {}
 
 func (x *DeactivateAPIKeyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[25]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1349,7 +1305,7 @@ func (x *DeactivateAPIKeyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeactivateAPIKeyRequest.ProtoReflect.Descriptor instead.
 func (*DeactivateAPIKeyRequest) Descriptor() ([]byte, []int) {
-	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{25}
+	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *DeactivateAPIKeyRequest) GetDomain() string {
@@ -1375,7 +1331,7 @@ type DeactivateAPIKeyResponse struct {
 
 func (x *DeactivateAPIKeyResponse) Reset() {
 	*x = DeactivateAPIKeyResponse{}
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[26]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1387,7 +1343,7 @@ func (x *DeactivateAPIKeyResponse) String() string {
 func (*DeactivateAPIKeyResponse) ProtoMessage() {}
 
 func (x *DeactivateAPIKeyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[26]
+	mi := &file_kannon_admin_apiv1_adminapiv1_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1400,7 +1356,7 @@ func (x *DeactivateAPIKeyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeactivateAPIKeyResponse.ProtoReflect.Descriptor instead.
 func (*DeactivateAPIKeyResponse) Descriptor() ([]byte, []int) {
-	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{26}
+	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *DeactivateAPIKeyResponse) GetApiKey() *APIKey {
@@ -1423,8 +1379,6 @@ const file_kannon_admin_apiv1_adminapiv1_proto_rawDesc = "" +
 	"\fGetDomainRes\x126\n" +
 	"\x06domain\x18\x01 \x01(\v2\x1e.pkg.kannon.admin.apiv1.DomainR\x06domain\"-\n" +
 	"\x13CreateDomainRequest\x12\x16\n" +
-	"\x06domain\x18\x01 \x01(\tR\x06domain\"4\n" +
-	"\x1aRegenerateDomainKeyRequest\x12\x16\n" +
 	"\x06domain\x18\x01 \x01(\tR\x06domain\"T\n" +
 	"\x06Domain\x12\x16\n" +
 	"\x06domain\x18\x01 \x01(\tR\x06domain\x12\x10\n" +
@@ -1502,14 +1456,12 @@ const file_kannon_admin_apiv1_adminapiv1_proto_rawDesc = "" +
 	"\x06domain\x18\x01 \x01(\tR\x06domain\x12\x0e\n" +
 	"\x02id\x18\x02 \x01(\tR\x02id\"S\n" +
 	"\x18DeactivateAPIKeyResponse\x127\n" +
-	"\aapi_key\x18\x01 \x01(\v2\x1e.pkg.kannon.admin.apiv1.APIKeyR\x06apiKey2\xc6\n" +
-	"\n" +
+	"\aapi_key\x18\x01 \x01(\v2\x1e.pkg.kannon.admin.apiv1.APIKeyR\x06apiKey2\xd9\t\n" +
 	"\x03Api\x12a\n" +
 	"\n" +
 	"GetDomains\x12%.pkg.kannon.admin.apiv1.GetDomainsReq\x1a*.pkg.kannon.admin.apiv1.GetDomainsResponse\"\x00\x12Y\n" +
 	"\tGetDomain\x12$.pkg.kannon.admin.apiv1.GetDomainReq\x1a$.pkg.kannon.admin.apiv1.GetDomainRes\"\x00\x12]\n" +
-	"\fCreateDomain\x12+.pkg.kannon.admin.apiv1.CreateDomainRequest\x1a\x1e.pkg.kannon.admin.apiv1.Domain\"\x00\x12k\n" +
-	"\x13RegenerateDomainKey\x122.pkg.kannon.admin.apiv1.RegenerateDomainKeyRequest\x1a\x1e.pkg.kannon.admin.apiv1.Domain\"\x00\x12h\n" +
+	"\fCreateDomain\x12+.pkg.kannon.admin.apiv1.CreateDomainRequest\x1a\x1e.pkg.kannon.admin.apiv1.Domain\"\x00\x12h\n" +
 	"\x0eCreateTemplate\x12).pkg.kannon.admin.apiv1.CreateTemplateReq\x1a).pkg.kannon.admin.apiv1.CreateTemplateRes\"\x00\x12h\n" +
 	"\x0eUpdateTemplate\x12).pkg.kannon.admin.apiv1.UpdateTemplateReq\x1a).pkg.kannon.admin.apiv1.UpdateTemplateRes\"\x00\x12h\n" +
 	"\x0eDeleteTemplate\x12).pkg.kannon.admin.apiv1.DeleteTemplateReq\x1a).pkg.kannon.admin.apiv1.DeleteTemplateRes\"\x00\x12_\n" +
@@ -1533,81 +1485,78 @@ func file_kannon_admin_apiv1_adminapiv1_proto_rawDescGZIP() []byte {
 	return file_kannon_admin_apiv1_adminapiv1_proto_rawDescData
 }
 
-var file_kannon_admin_apiv1_adminapiv1_proto_msgTypes = make([]protoimpl.MessageInfo, 27)
+var file_kannon_admin_apiv1_adminapiv1_proto_msgTypes = make([]protoimpl.MessageInfo, 26)
 var file_kannon_admin_apiv1_adminapiv1_proto_goTypes = []any{
-	(*GetDomainsReq)(nil),              // 0: pkg.kannon.admin.apiv1.GetDomainsReq
-	(*GetDomainsResponse)(nil),         // 1: pkg.kannon.admin.apiv1.GetDomainsResponse
-	(*GetDomainReq)(nil),               // 2: pkg.kannon.admin.apiv1.GetDomainReq
-	(*GetDomainRes)(nil),               // 3: pkg.kannon.admin.apiv1.GetDomainRes
-	(*CreateDomainRequest)(nil),        // 4: pkg.kannon.admin.apiv1.CreateDomainRequest
-	(*RegenerateDomainKeyRequest)(nil), // 5: pkg.kannon.admin.apiv1.RegenerateDomainKeyRequest
-	(*Domain)(nil),                     // 6: pkg.kannon.admin.apiv1.Domain
-	(*Template)(nil),                   // 7: pkg.kannon.admin.apiv1.Template
-	(*CreateTemplateReq)(nil),          // 8: pkg.kannon.admin.apiv1.CreateTemplateReq
-	(*CreateTemplateRes)(nil),          // 9: pkg.kannon.admin.apiv1.CreateTemplateRes
-	(*UpdateTemplateReq)(nil),          // 10: pkg.kannon.admin.apiv1.UpdateTemplateReq
-	(*UpdateTemplateRes)(nil),          // 11: pkg.kannon.admin.apiv1.UpdateTemplateRes
-	(*DeleteTemplateReq)(nil),          // 12: pkg.kannon.admin.apiv1.DeleteTemplateReq
-	(*DeleteTemplateRes)(nil),          // 13: pkg.kannon.admin.apiv1.DeleteTemplateRes
-	(*GetTemplateReq)(nil),             // 14: pkg.kannon.admin.apiv1.GetTemplateReq
-	(*GetTemplateRes)(nil),             // 15: pkg.kannon.admin.apiv1.GetTemplateRes
-	(*GetTemplatesReq)(nil),            // 16: pkg.kannon.admin.apiv1.GetTemplatesReq
-	(*GetTemplatesRes)(nil),            // 17: pkg.kannon.admin.apiv1.GetTemplatesRes
-	(*APIKey)(nil),                     // 18: pkg.kannon.admin.apiv1.APIKey
-	(*CreateAPIKeyRequest)(nil),        // 19: pkg.kannon.admin.apiv1.CreateAPIKeyRequest
-	(*CreateAPIKeyResponse)(nil),       // 20: pkg.kannon.admin.apiv1.CreateAPIKeyResponse
-	(*ListAPIKeysRequest)(nil),         // 21: pkg.kannon.admin.apiv1.ListAPIKeysRequest
-	(*ListAPIKeysResponse)(nil),        // 22: pkg.kannon.admin.apiv1.ListAPIKeysResponse
-	(*GetAPIKeyRequest)(nil),           // 23: pkg.kannon.admin.apiv1.GetAPIKeyRequest
-	(*GetAPIKeyResponse)(nil),          // 24: pkg.kannon.admin.apiv1.GetAPIKeyResponse
-	(*DeactivateAPIKeyRequest)(nil),    // 25: pkg.kannon.admin.apiv1.DeactivateAPIKeyRequest
-	(*DeactivateAPIKeyResponse)(nil),   // 26: pkg.kannon.admin.apiv1.DeactivateAPIKeyResponse
-	(*timestamppb.Timestamp)(nil),      // 27: google.protobuf.Timestamp
+	(*GetDomainsReq)(nil),            // 0: pkg.kannon.admin.apiv1.GetDomainsReq
+	(*GetDomainsResponse)(nil),       // 1: pkg.kannon.admin.apiv1.GetDomainsResponse
+	(*GetDomainReq)(nil),             // 2: pkg.kannon.admin.apiv1.GetDomainReq
+	(*GetDomainRes)(nil),             // 3: pkg.kannon.admin.apiv1.GetDomainRes
+	(*CreateDomainRequest)(nil),      // 4: pkg.kannon.admin.apiv1.CreateDomainRequest
+	(*Domain)(nil),                   // 5: pkg.kannon.admin.apiv1.Domain
+	(*Template)(nil),                 // 6: pkg.kannon.admin.apiv1.Template
+	(*CreateTemplateReq)(nil),        // 7: pkg.kannon.admin.apiv1.CreateTemplateReq
+	(*CreateTemplateRes)(nil),        // 8: pkg.kannon.admin.apiv1.CreateTemplateRes
+	(*UpdateTemplateReq)(nil),        // 9: pkg.kannon.admin.apiv1.UpdateTemplateReq
+	(*UpdateTemplateRes)(nil),        // 10: pkg.kannon.admin.apiv1.UpdateTemplateRes
+	(*DeleteTemplateReq)(nil),        // 11: pkg.kannon.admin.apiv1.DeleteTemplateReq
+	(*DeleteTemplateRes)(nil),        // 12: pkg.kannon.admin.apiv1.DeleteTemplateRes
+	(*GetTemplateReq)(nil),           // 13: pkg.kannon.admin.apiv1.GetTemplateReq
+	(*GetTemplateRes)(nil),           // 14: pkg.kannon.admin.apiv1.GetTemplateRes
+	(*GetTemplatesReq)(nil),          // 15: pkg.kannon.admin.apiv1.GetTemplatesReq
+	(*GetTemplatesRes)(nil),          // 16: pkg.kannon.admin.apiv1.GetTemplatesRes
+	(*APIKey)(nil),                   // 17: pkg.kannon.admin.apiv1.APIKey
+	(*CreateAPIKeyRequest)(nil),      // 18: pkg.kannon.admin.apiv1.CreateAPIKeyRequest
+	(*CreateAPIKeyResponse)(nil),     // 19: pkg.kannon.admin.apiv1.CreateAPIKeyResponse
+	(*ListAPIKeysRequest)(nil),       // 20: pkg.kannon.admin.apiv1.ListAPIKeysRequest
+	(*ListAPIKeysResponse)(nil),      // 21: pkg.kannon.admin.apiv1.ListAPIKeysResponse
+	(*GetAPIKeyRequest)(nil),         // 22: pkg.kannon.admin.apiv1.GetAPIKeyRequest
+	(*GetAPIKeyResponse)(nil),        // 23: pkg.kannon.admin.apiv1.GetAPIKeyResponse
+	(*DeactivateAPIKeyRequest)(nil),  // 24: pkg.kannon.admin.apiv1.DeactivateAPIKeyRequest
+	(*DeactivateAPIKeyResponse)(nil), // 25: pkg.kannon.admin.apiv1.DeactivateAPIKeyResponse
+	(*timestamppb.Timestamp)(nil),    // 26: google.protobuf.Timestamp
 }
 var file_kannon_admin_apiv1_adminapiv1_proto_depIdxs = []int32{
-	6,  // 0: pkg.kannon.admin.apiv1.GetDomainsResponse.domains:type_name -> pkg.kannon.admin.apiv1.Domain
-	6,  // 1: pkg.kannon.admin.apiv1.GetDomainRes.domain:type_name -> pkg.kannon.admin.apiv1.Domain
-	7,  // 2: pkg.kannon.admin.apiv1.CreateTemplateRes.template:type_name -> pkg.kannon.admin.apiv1.Template
-	7,  // 3: pkg.kannon.admin.apiv1.UpdateTemplateRes.template:type_name -> pkg.kannon.admin.apiv1.Template
-	7,  // 4: pkg.kannon.admin.apiv1.DeleteTemplateRes.template:type_name -> pkg.kannon.admin.apiv1.Template
-	7,  // 5: pkg.kannon.admin.apiv1.GetTemplateRes.template:type_name -> pkg.kannon.admin.apiv1.Template
-	7,  // 6: pkg.kannon.admin.apiv1.GetTemplatesRes.templates:type_name -> pkg.kannon.admin.apiv1.Template
-	27, // 7: pkg.kannon.admin.apiv1.APIKey.created_at:type_name -> google.protobuf.Timestamp
-	27, // 8: pkg.kannon.admin.apiv1.APIKey.expires_at:type_name -> google.protobuf.Timestamp
-	27, // 9: pkg.kannon.admin.apiv1.APIKey.deactivated_at:type_name -> google.protobuf.Timestamp
-	27, // 10: pkg.kannon.admin.apiv1.CreateAPIKeyRequest.expires_at:type_name -> google.protobuf.Timestamp
-	18, // 11: pkg.kannon.admin.apiv1.CreateAPIKeyResponse.api_key:type_name -> pkg.kannon.admin.apiv1.APIKey
-	18, // 12: pkg.kannon.admin.apiv1.ListAPIKeysResponse.api_keys:type_name -> pkg.kannon.admin.apiv1.APIKey
-	18, // 13: pkg.kannon.admin.apiv1.GetAPIKeyResponse.api_key:type_name -> pkg.kannon.admin.apiv1.APIKey
-	18, // 14: pkg.kannon.admin.apiv1.DeactivateAPIKeyResponse.api_key:type_name -> pkg.kannon.admin.apiv1.APIKey
+	5,  // 0: pkg.kannon.admin.apiv1.GetDomainsResponse.domains:type_name -> pkg.kannon.admin.apiv1.Domain
+	5,  // 1: pkg.kannon.admin.apiv1.GetDomainRes.domain:type_name -> pkg.kannon.admin.apiv1.Domain
+	6,  // 2: pkg.kannon.admin.apiv1.CreateTemplateRes.template:type_name -> pkg.kannon.admin.apiv1.Template
+	6,  // 3: pkg.kannon.admin.apiv1.UpdateTemplateRes.template:type_name -> pkg.kannon.admin.apiv1.Template
+	6,  // 4: pkg.kannon.admin.apiv1.DeleteTemplateRes.template:type_name -> pkg.kannon.admin.apiv1.Template
+	6,  // 5: pkg.kannon.admin.apiv1.GetTemplateRes.template:type_name -> pkg.kannon.admin.apiv1.Template
+	6,  // 6: pkg.kannon.admin.apiv1.GetTemplatesRes.templates:type_name -> pkg.kannon.admin.apiv1.Template
+	26, // 7: pkg.kannon.admin.apiv1.APIKey.created_at:type_name -> google.protobuf.Timestamp
+	26, // 8: pkg.kannon.admin.apiv1.APIKey.expires_at:type_name -> google.protobuf.Timestamp
+	26, // 9: pkg.kannon.admin.apiv1.APIKey.deactivated_at:type_name -> google.protobuf.Timestamp
+	26, // 10: pkg.kannon.admin.apiv1.CreateAPIKeyRequest.expires_at:type_name -> google.protobuf.Timestamp
+	17, // 11: pkg.kannon.admin.apiv1.CreateAPIKeyResponse.api_key:type_name -> pkg.kannon.admin.apiv1.APIKey
+	17, // 12: pkg.kannon.admin.apiv1.ListAPIKeysResponse.api_keys:type_name -> pkg.kannon.admin.apiv1.APIKey
+	17, // 13: pkg.kannon.admin.apiv1.GetAPIKeyResponse.api_key:type_name -> pkg.kannon.admin.apiv1.APIKey
+	17, // 14: pkg.kannon.admin.apiv1.DeactivateAPIKeyResponse.api_key:type_name -> pkg.kannon.admin.apiv1.APIKey
 	0,  // 15: pkg.kannon.admin.apiv1.Api.GetDomains:input_type -> pkg.kannon.admin.apiv1.GetDomainsReq
 	2,  // 16: pkg.kannon.admin.apiv1.Api.GetDomain:input_type -> pkg.kannon.admin.apiv1.GetDomainReq
 	4,  // 17: pkg.kannon.admin.apiv1.Api.CreateDomain:input_type -> pkg.kannon.admin.apiv1.CreateDomainRequest
-	5,  // 18: pkg.kannon.admin.apiv1.Api.RegenerateDomainKey:input_type -> pkg.kannon.admin.apiv1.RegenerateDomainKeyRequest
-	8,  // 19: pkg.kannon.admin.apiv1.Api.CreateTemplate:input_type -> pkg.kannon.admin.apiv1.CreateTemplateReq
-	10, // 20: pkg.kannon.admin.apiv1.Api.UpdateTemplate:input_type -> pkg.kannon.admin.apiv1.UpdateTemplateReq
-	12, // 21: pkg.kannon.admin.apiv1.Api.DeleteTemplate:input_type -> pkg.kannon.admin.apiv1.DeleteTemplateReq
-	14, // 22: pkg.kannon.admin.apiv1.Api.GetTemplate:input_type -> pkg.kannon.admin.apiv1.GetTemplateReq
-	16, // 23: pkg.kannon.admin.apiv1.Api.GetTemplates:input_type -> pkg.kannon.admin.apiv1.GetTemplatesReq
-	19, // 24: pkg.kannon.admin.apiv1.Api.CreateAPIKey:input_type -> pkg.kannon.admin.apiv1.CreateAPIKeyRequest
-	21, // 25: pkg.kannon.admin.apiv1.Api.ListAPIKeys:input_type -> pkg.kannon.admin.apiv1.ListAPIKeysRequest
-	23, // 26: pkg.kannon.admin.apiv1.Api.GetAPIKey:input_type -> pkg.kannon.admin.apiv1.GetAPIKeyRequest
-	25, // 27: pkg.kannon.admin.apiv1.Api.DeactivateAPIKey:input_type -> pkg.kannon.admin.apiv1.DeactivateAPIKeyRequest
-	1,  // 28: pkg.kannon.admin.apiv1.Api.GetDomains:output_type -> pkg.kannon.admin.apiv1.GetDomainsResponse
-	3,  // 29: pkg.kannon.admin.apiv1.Api.GetDomain:output_type -> pkg.kannon.admin.apiv1.GetDomainRes
-	6,  // 30: pkg.kannon.admin.apiv1.Api.CreateDomain:output_type -> pkg.kannon.admin.apiv1.Domain
-	6,  // 31: pkg.kannon.admin.apiv1.Api.RegenerateDomainKey:output_type -> pkg.kannon.admin.apiv1.Domain
-	9,  // 32: pkg.kannon.admin.apiv1.Api.CreateTemplate:output_type -> pkg.kannon.admin.apiv1.CreateTemplateRes
-	11, // 33: pkg.kannon.admin.apiv1.Api.UpdateTemplate:output_type -> pkg.kannon.admin.apiv1.UpdateTemplateRes
-	13, // 34: pkg.kannon.admin.apiv1.Api.DeleteTemplate:output_type -> pkg.kannon.admin.apiv1.DeleteTemplateRes
-	15, // 35: pkg.kannon.admin.apiv1.Api.GetTemplate:output_type -> pkg.kannon.admin.apiv1.GetTemplateRes
-	17, // 36: pkg.kannon.admin.apiv1.Api.GetTemplates:output_type -> pkg.kannon.admin.apiv1.GetTemplatesRes
-	20, // 37: pkg.kannon.admin.apiv1.Api.CreateAPIKey:output_type -> pkg.kannon.admin.apiv1.CreateAPIKeyResponse
-	22, // 38: pkg.kannon.admin.apiv1.Api.ListAPIKeys:output_type -> pkg.kannon.admin.apiv1.ListAPIKeysResponse
-	24, // 39: pkg.kannon.admin.apiv1.Api.GetAPIKey:output_type -> pkg.kannon.admin.apiv1.GetAPIKeyResponse
-	26, // 40: pkg.kannon.admin.apiv1.Api.DeactivateAPIKey:output_type -> pkg.kannon.admin.apiv1.DeactivateAPIKeyResponse
-	28, // [28:41] is the sub-list for method output_type
-	15, // [15:28] is the sub-list for method input_type
+	7,  // 18: pkg.kannon.admin.apiv1.Api.CreateTemplate:input_type -> pkg.kannon.admin.apiv1.CreateTemplateReq
+	9,  // 19: pkg.kannon.admin.apiv1.Api.UpdateTemplate:input_type -> pkg.kannon.admin.apiv1.UpdateTemplateReq
+	11, // 20: pkg.kannon.admin.apiv1.Api.DeleteTemplate:input_type -> pkg.kannon.admin.apiv1.DeleteTemplateReq
+	13, // 21: pkg.kannon.admin.apiv1.Api.GetTemplate:input_type -> pkg.kannon.admin.apiv1.GetTemplateReq
+	15, // 22: pkg.kannon.admin.apiv1.Api.GetTemplates:input_type -> pkg.kannon.admin.apiv1.GetTemplatesReq
+	18, // 23: pkg.kannon.admin.apiv1.Api.CreateAPIKey:input_type -> pkg.kannon.admin.apiv1.CreateAPIKeyRequest
+	20, // 24: pkg.kannon.admin.apiv1.Api.ListAPIKeys:input_type -> pkg.kannon.admin.apiv1.ListAPIKeysRequest
+	22, // 25: pkg.kannon.admin.apiv1.Api.GetAPIKey:input_type -> pkg.kannon.admin.apiv1.GetAPIKeyRequest
+	24, // 26: pkg.kannon.admin.apiv1.Api.DeactivateAPIKey:input_type -> pkg.kannon.admin.apiv1.DeactivateAPIKeyRequest
+	1,  // 27: pkg.kannon.admin.apiv1.Api.GetDomains:output_type -> pkg.kannon.admin.apiv1.GetDomainsResponse
+	3,  // 28: pkg.kannon.admin.apiv1.Api.GetDomain:output_type -> pkg.kannon.admin.apiv1.GetDomainRes
+	5,  // 29: pkg.kannon.admin.apiv1.Api.CreateDomain:output_type -> pkg.kannon.admin.apiv1.Domain
+	8,  // 30: pkg.kannon.admin.apiv1.Api.CreateTemplate:output_type -> pkg.kannon.admin.apiv1.CreateTemplateRes
+	10, // 31: pkg.kannon.admin.apiv1.Api.UpdateTemplate:output_type -> pkg.kannon.admin.apiv1.UpdateTemplateRes
+	12, // 32: pkg.kannon.admin.apiv1.Api.DeleteTemplate:output_type -> pkg.kannon.admin.apiv1.DeleteTemplateRes
+	14, // 33: pkg.kannon.admin.apiv1.Api.GetTemplate:output_type -> pkg.kannon.admin.apiv1.GetTemplateRes
+	16, // 34: pkg.kannon.admin.apiv1.Api.GetTemplates:output_type -> pkg.kannon.admin.apiv1.GetTemplatesRes
+	19, // 35: pkg.kannon.admin.apiv1.Api.CreateAPIKey:output_type -> pkg.kannon.admin.apiv1.CreateAPIKeyResponse
+	21, // 36: pkg.kannon.admin.apiv1.Api.ListAPIKeys:output_type -> pkg.kannon.admin.apiv1.ListAPIKeysResponse
+	23, // 37: pkg.kannon.admin.apiv1.Api.GetAPIKey:output_type -> pkg.kannon.admin.apiv1.GetAPIKeyResponse
+	25, // 38: pkg.kannon.admin.apiv1.Api.DeactivateAPIKey:output_type -> pkg.kannon.admin.apiv1.DeactivateAPIKeyResponse
+	27, // [27:39] is the sub-list for method output_type
+	15, // [15:27] is the sub-list for method input_type
 	15, // [15:15] is the sub-list for extension type_name
 	15, // [15:15] is the sub-list for extension extendee
 	0,  // [0:15] is the sub-list for field type_name
@@ -1624,7 +1573,7 @@ func file_kannon_admin_apiv1_adminapiv1_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_kannon_admin_apiv1_adminapiv1_proto_rawDesc), len(file_kannon_admin_apiv1_adminapiv1_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   27,
+			NumMessages:   26,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

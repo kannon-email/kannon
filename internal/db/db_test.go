@@ -68,7 +68,7 @@ func TestDomains(t *testing.T) {
 	assert.Equal(t, d.ID, domain.ID)
 
 	// cleanup
-	_, err = db.Exec(context.Background(), "TRUNCATE domains")
+	_, err = db.Exec(context.Background(), "DELETE FROM domains")
 	assert.Nil(t, err)
 }
 
@@ -99,8 +99,8 @@ func TestTemplates(t *testing.T) {
 	assert.Equal(t, template, tmp)
 
 	// cleanup
-	_, err = db.Exec(context.Background(), "TRUNCATE templates")
+	_, err = db.Exec(context.Background(), "DELETE FROM templates")
 	assert.Nil(t, err)
-	_, err = db.Exec(context.Background(), "TRUNCATE domains")
+	_, err = db.Exec(context.Background(), "DELETE FROM domains")
 	assert.Nil(t, err)
 }

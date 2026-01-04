@@ -9,7 +9,6 @@ service Api {
   rpc GetDomains(GetDomainsReq) returns (GetDomainsResponse) {}
   rpc GetDomain(GetDomainReq) returns (GetDomainRes) {}
   rpc CreateDomain(CreateDomainRequest) returns (Domain) {}
-  rpc RegenerateDomainKey(RegenerateDomainKeyRequest) returns (Domain) {}
 
   rpc CreateTemplate(CreateTemplateReq) returns (CreateTemplateRes) {}
   rpc UpdateTemplate(UpdateTemplateReq) returns (UpdateTemplateRes) {}
@@ -38,10 +37,6 @@ message GetDomainRes {
 }
 
 message CreateDomainRequest {
-  string domain = 1;
-}
-
-message RegenerateDomainKeyRequest {
   string domain = 1;
 }
 

@@ -55,7 +55,6 @@ func TestCreateANewDomain(t *testing.T) {
 	newDomain := "test.test.test"
 
 	var domain *pb.Domain
-	var domain2 *pb.Domain
 
 	// When I create a domain
 	t.Run("When I create a domain", func(t *testing.T) {
@@ -82,15 +81,6 @@ func TestCreateANewDomain(t *testing.T) {
 		}))
 		assert.Nil(t, err)
 		assert.Equal(t, newDomain, resGetDomain.Msg.Domain.Domain)
-	})
-
-	t.Run("I should be able to change the key", func(t *testing.T) {
-		res, err := testservice.RegenerateDomainKey(context.Background(), connect.NewRequest(&pb.RegenerateDomainKeyRequest{
-			Domain: newDomain,
-		}))
-		domain2 = res.Msg
-		assert.Nil(t, err)
-		assert.NotEqual(t, domain.Key, domain2.Key)
 	})
 
 	cleanDB(t)

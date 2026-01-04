@@ -423,6 +423,14 @@ CREATE UNIQUE INDEX unique_emails_message_id_idx ON public.sending_pool_emails U
 
 
 --
+-- Name: api_keys api_keys_domain_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.api_keys
+    ADD CONSTRAINT api_keys_domain_fkey FOREIGN KEY (domain) REFERENCES public.domains(domain) ON DELETE CASCADE;
+
+
+--
 -- Name: sending_pool_emails sending_pool_emails_message_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 

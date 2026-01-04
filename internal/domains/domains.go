@@ -17,7 +17,6 @@ type DomainManager interface {
 	FindDomain(ctx context.Context, domain string) (sqlc.Domain, error)
 	FindDomainWithKey(ctx context.Context, domain string, key string) (sqlc.Domain, error)
 	GetAllDomains(ctx context.Context) ([]sqlc.Domain, error)
-	RegenerateDomainKey(ctx context.Context, domain string) (sqlc.Domain, error)
 	Close() error
 }
 
@@ -72,17 +71,6 @@ func (dm *domainManager) GetAllDomains(ctx context.Context) ([]sqlc.Domain, erro
 		return domains, err
 	}
 	return domains, nil
-}
-
-func (dm *domainManager) RegenerateDomainKey(ctx context.Context, d string) (sqlc.Domain, error) {
-	domain, err := dm.q.SetDomainKey(ctx, sqlc.SetDomainKeyParams{
-		Key:    generateRandomKey(),
-		Domain: d,
-	})
-	if err != nil {
-		return sqlc.Domain{}, err
-	}
-	return domain, nil
 }
 
 func (dm *domainManager) Close() error {

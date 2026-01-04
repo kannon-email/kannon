@@ -19,8 +19,6 @@ import (
 	adminv1connect "github.com/kannon-email/kannon/proto/kannon/admin/apiv1/apiv1connect"
 	mailerv1connect "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1/apiv1connect"
 
-	adminv1 "github.com/kannon-email/kannon/proto/kannon/admin/apiv1"
-
 	_ "github.com/lib/pq"
 )
 
@@ -52,29 +50,9 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-type testDomainWithKey struct {
-	domain *adminv1.Domain
-	apiKey string
-}
-
-func createTestDomain(t *testing.T) *testDomainWithKey {
+func createTestDomain(t *testing.T) *tests.DomainWithKey {
 	t.Helper()
-	res, err := adminAPI.CreateDomain(context.Background(), connect.NewRequest(&adminv1.CreateDomainRequest{
-		Domain: "test.test.test",
-	}))
-	assert.Nil(t, err)
-
-	// Create an API key for authentication
-	keyRes, err := adminAPI.CreateAPIKey(context.Background(), connect.NewRequest(&adminv1.CreateAPIKeyRequest{
-		Domain: res.Msg.Domain,
-		Name:   "test-key",
-	}))
-	assert.Nil(t, err)
-
-	return &testDomainWithKey{
-		domain: res.Msg,
-		apiKey: keyRes.Msg.ApiKey.Key,
-	}
+	return tests.CreateTestDomain(t, adminAPI)
 }
 
 func cleanDB(t *testing.T) {
@@ -89,7 +67,7 @@ func cleanDB(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func authRequest[T any](req *connect.Request[T], d *testDomainWithKey) {
-	token := base64.StdEncoding.EncodeToString([]byte(d.domain.Domain + ":" + d.apiKey))
+func authRequest[T any](req *connect.Request[T], d *tests.DomainWithKey) {
+	token := base64.StdEncoding.EncodeToString([]byte(d.Domain.Domain + ":" + d.APIKey))
 	req.Header().Set("Authorization", "Basic "+token)
 }

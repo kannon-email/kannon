@@ -60,36 +60,6 @@ func (s *adminAPIService) CreateDomain(ctx context.Context, in *pb.CreateDomainR
 	return protoDomain, nil
 }
 
-func (s *adminAPIService) RegenerateDomainKey(ctx context.Context, in *pb.RegenerateDomainKeyRequest) (*pb.Domain, error) {
-	domain, err := s.dm.RegenerateDomainKey(ctx, in.Domain)
-	if err != nil {
-		return nil, err
-	}
-
-	// Deactivate all existing API keys for this domain
-	existingKeys, err := s.apiKeys.ListKeys(ctx, domain.Domain, true, apikeys.Pagination{Limit: 1000, Offset: 0})
-	if err != nil {
-		return nil, err
-	}
-	for _, key := range existingKeys {
-		ref, err := apikeys.ParseKeyRef(domain.Domain, key.ID().String())
-		if err != nil {
-			continue
-		}
-		_, _ = s.apiKeys.DeactivateKey(ctx, ref)
-	}
-
-	// Create a new default API key
-	apiKey, err := s.apiKeys.CreateKey(ctx, domain.Domain, "default", nil)
-	if err != nil {
-		return nil, err
-	}
-
-	// Return domain with the new API key
-	protoDomain := dbDomainToProtoDomain(domain)
-	protoDomain.Key = apiKey.Key()
-	return protoDomain, nil
-}
 
 func dbDomainToProtoDomain(in sqlc.Domain) *pb.Domain {
 	return &pb.Domain{

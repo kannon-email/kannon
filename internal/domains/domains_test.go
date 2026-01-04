@@ -44,7 +44,7 @@ func TestMain(m *testing.M) {
 }
 
 func cleanDB(t *testing.T) {
-	_, err := db.Exec(context.Background(), "TRUNCATE domains CASCADE")
+	_, err := db.Exec(context.Background(), "DELETE FROM domains CASCADE")
 	require.NoError(t, err)
 }
 
@@ -156,35 +156,6 @@ func TestGetAllDomains(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, 3, len(domains), "Should have 3 domains")
-}
-
-func TestRegenerateDomainKey(t *testing.T) {
-	defer cleanDB(t)
-
-	ctx := context.Background()
-
-	// Create a domain
-	created, err := dm.CreateDomain(ctx, "regenerate-test.com")
-	require.NoError(t, err)
-	originalKey := created.Key
-
-	// Regenerate key
-	updated, err := dm.RegenerateDomainKey(ctx, "regenerate-test.com")
-	require.NoError(t, err)
-
-	assert.Equal(t, created.ID, updated.ID)
-	assert.Equal(t, created.Domain, updated.Domain)
-	assert.NotEqual(t, originalKey, updated.Key, "Key should be regenerated")
-	assert.Equal(t, 30, len(updated.Key), "New key should be 30 characters")
-}
-
-func TestRegenerateDomainKey_NotFound(t *testing.T) {
-	defer cleanDB(t)
-
-	ctx := context.Background()
-
-	_, err := dm.RegenerateDomainKey(ctx, "nonexistent.com")
-	assert.Error(t, err, "Should return error for nonexistent domain")
 }
 
 func TestClose(t *testing.T) {

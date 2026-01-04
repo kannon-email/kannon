@@ -44,14 +44,6 @@ func (a *adminAPIConnectAdapter) CreateDomain(ctx context.Context, req *connect.
 	return connect.NewResponse(resp), nil
 }
 
-func (a *adminAPIConnectAdapter) RegenerateDomainKey(ctx context.Context, req *connect.Request[pb.RegenerateDomainKeyRequest]) (*connect.Response[pb.Domain], error) {
-	resp, err := a.impl.RegenerateDomainKey(ctx, req.Msg)
-	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
-	}
-	return connect.NewResponse(resp), nil
-}
-
 func (a *adminAPIConnectAdapter) CreateTemplate(ctx context.Context, req *connect.Request[pb.CreateTemplateReq]) (*connect.Response[pb.CreateTemplateRes], error) {
 	resp, err := a.impl.CreateTemplate(ctx, req.Msg)
 	if err != nil {

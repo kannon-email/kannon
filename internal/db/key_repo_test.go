@@ -30,9 +30,9 @@ func TestAPIKeysRepository(t *testing.T) {
 		},
 		CleanDB: func(t *testing.T) {
 			ctx := context.Background()
-			_, err := db.Exec(ctx, "TRUNCATE api_keys CASCADE")
+			_, err := db.Exec(ctx, "DELETE FROM api_keys CASCADE")
 			require.NoError(t, err)
-			_, err = db.Exec(ctx, "TRUNCATE domains CASCADE")
+			_, err = db.Exec(ctx, "DELETE FROM domains CASCADE")
 			require.NoError(t, err)
 		},
 	}

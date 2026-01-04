@@ -126,6 +126,28 @@ func (r *apiKeysRepository) GetByKey(ctx context.Context, domain, key string) (*
 	return rowToAPIKey(row), nil
 }
 
+func (r *apiKeysRepository) ValidateKeyForAuth(ctx context.Context, domain, key string) (*apikeys.APIKey, error) {
+	// Validate key format first
+	if len(key) < 2+30 || key[:2] != "k_" {
+		return nil, apikeys.ErrInvalidKey
+	}
+
+	// Use optimized query that checks active status and expiration in database
+	row, err := r.q.ValidateAPIKeyForAuth(ctx, ValidateAPIKeyForAuthParams{
+		Domain: domain,
+		Key:    key,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// Key doesn't exist, is inactive, or is expired - return generic error
+			return nil, apikeys.ErrKeyNotFound
+		}
+		return nil, err
+	}
+
+	return rowToAPIKey(row), nil
+}
+
 func (r *apiKeysRepository) GetByID(ctx context.Context, ref apikeys.KeyRef) (*apikeys.APIKey, error) {
 	row, err := r.q.GetAPIKeyByID(ctx, GetAPIKeyByIDParams{
 		ID:     ref.KeyID().String(),
