@@ -87,6 +87,28 @@ Components communicate via NATS JetStream topics:
 4. Run `make lint` to check code quality
 5. For E2E testing, use `make test-e2e`
 
+## Documentation Maintenance
+
+After making code changes, check if the following documentation needs updating:
+
+| If you change... | Update... |
+|------------------|-----------|
+| Core components (`kannon.go`, `cmd/`) | `README.md` (Architecture section), `ARCHITECTURE.md` |
+| Database schema or queries (`internal/db/`, `db/migrations/`) | `README.md` (Database Schema section), `ARCHITECTURE.md` |
+| Proto files (`proto/`) | `README.md` (API section) |
+| NATS topics/consumers | `ARCHITECTURE.md` (NATS Streams section) |
+| CLI flags or configuration | `README.md` (Configuration section) |
+| Build/test commands | `CLAUDE.md` (Development Commands section) |
+| New packages or major refactoring | `CLAUDE.md` (Architecture Overview section) |
+| DI container (`internal/x/container/`) | `internal/x/container/README.md` |
+| E2E tests infrastructure | `e2e/README.md` |
+
+**Key documentation files:**
+- `README.md` - User-facing documentation (features, setup, configuration)
+- `ARCHITECTURE.md` - Technical deep-dive (modules, message flows, NATS)
+- `CLAUDE.md` - AI assistant guidance (commands, key files, workflow)
+- `CONTRIBUTING.md` - Contribution guidelines
+
 ## Key Files to Understand
 
 - `kannon.go` - Main application entry point

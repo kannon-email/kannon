@@ -88,6 +88,28 @@ make lint
 - All PRs are automatically tested via GitHub Actions.
 - PRs must pass all tests and linters before merging.
 
+### CI Workflows
+
+The project uses several GitHub Actions workflows:
+
+- **`ci.yaml`**: Main CI pipeline that runs on all PRs and pushes to `main`
+  - **Unit Tests**: Runs `make test` with Go module caching for faster builds
+  - **E2E Tests**: Runs `make test-e2e` in a separate job
+  - **Docker Build**: Builds and pushes Docker images with layer caching (only on `main` and tags)
+  - Includes concurrency management to cancel outdated builds
+
+- **`golang.yaml`**: Runs `golangci-lint` on all PRs with Go module caching
+
+- **`dependabot-auto-merge.yaml`**: Automatically merges Dependabot PRs for minor/patch updates after CI passes
+
+- **`release.yaml`**: Manages release drafts using release-drafter
+
+### Build Optimization
+
+- **Go module caching**: CI workflows cache `~/go/pkg/mod` and `~/.cache/go-build` to speed up builds
+- **Docker layer caching**: Docker builds use GitHub Actions cache for faster image builds
+- **Concurrency control**: Outdated builds are automatically cancelled when new commits are pushed
+
 ## Community & Contact
 
 - For questions, join the discussion on GitHub or open an issue.
