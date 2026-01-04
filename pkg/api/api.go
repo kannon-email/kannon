@@ -37,8 +37,8 @@ func Run(ctx context.Context, config Config, cnt *container.Container) error {
 
 	q := cnt.Queries()
 
-	adminAPIService := adminapi.CreateAdminAPIService(q)
-	mailAPIService := mailapi.NewMailerAPIV1(q)
+	adminAPIService := adminapi.CreateAdminAPIService(q, cnt.DB())
+	mailAPIService := mailapi.NewMailerAPIV1(q, cnt.DB())
 	statsAPIService := statsv1.NewStatsAPIService(q)
 	hzAPIService := hzapi.CreateHZAPIService(cnt)
 

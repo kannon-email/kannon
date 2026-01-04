@@ -1,6 +1,10 @@
+-- Dumped from database version 17.6 (Homebrew)
+-- Dumped by pg_dump version 17.6 (Homebrew)
+
 SET statement_timeout = 0;
 SET lock_timeout = 0;
 SET idle_in_transaction_session_timeout = 0;
+SET transaction_timeout = 0;
 SET client_encoding = 'UTF8';
 SET standard_conforming_strings = on;
 SELECT pg_catalog.set_config('search_path', '', false);
@@ -22,6 +26,22 @@ CREATE TYPE public.template_type AS ENUM (
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
+
+--
+-- Name: api_keys; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.api_keys (
+    id character varying(30) NOT NULL,
+    key character varying(64) NOT NULL,
+    name character varying(100) NOT NULL,
+    domain character varying(254) NOT NULL,
+    created_at timestamp without time zone DEFAULT now() NOT NULL,
+    expires_at timestamp without time zone,
+    is_active boolean DEFAULT true NOT NULL,
+    deactivated_at timestamp without time zone
+);
+
 
 --
 -- Name: domains; Type: TABLE; Schema: public; Owner: -
@@ -77,7 +97,7 @@ CREATE TABLE public.messages (
 --
 
 CREATE TABLE public.schema_migrations (
-    version character varying(255) NOT NULL
+    version character varying NOT NULL
 );
 
 
@@ -232,6 +252,22 @@ ALTER TABLE ONLY public.templates ALTER COLUMN id SET DEFAULT nextval('public.te
 
 
 --
+-- Name: api_keys api_keys_key_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.api_keys
+    ADD CONSTRAINT api_keys_key_key UNIQUE (key);
+
+
+--
+-- Name: api_keys api_keys_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.api_keys
+    ADD CONSTRAINT api_keys_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: domains domains_domain_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -293,6 +329,27 @@ ALTER TABLE ONLY public.stats
 
 ALTER TABLE ONLY public.templates
     ADD CONSTRAINT templates_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: api_keys_domain_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX api_keys_domain_idx ON public.api_keys USING btree (domain);
+
+
+--
+-- Name: api_keys_expires_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX api_keys_expires_at_idx ON public.api_keys USING btree (expires_at) WHERE (expires_at IS NOT NULL);
+
+
+--
+-- Name: api_keys_key_active_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX api_keys_key_active_idx ON public.api_keys USING btree (key) WHERE (is_active = true);
 
 
 --
@@ -390,4 +447,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20220830073617'),
     ('20220904111715'),
     ('20240420090612'),
-    ('20240421080953');
+    ('20240421080953'),
+    ('20260104120000');

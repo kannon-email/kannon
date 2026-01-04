@@ -3,6 +3,8 @@ package adminapi
 import (
 	"context"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/kannon-email/kannon/internal/apikeys"
 	sqlc "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/domains"
 	"github.com/kannon-email/kannon/internal/templates"
@@ -90,13 +92,49 @@ func (a *adminAPIConnectAdapter) GetTemplates(ctx context.Context, req *connect.
 	return connect.NewResponse(resp), nil
 }
 
-func CreateAdminAPIService(q *sqlc.Queries) adminv1connect.ApiHandler {
+func (a *adminAPIConnectAdapter) CreateAPIKey(ctx context.Context, req *connect.Request[pb.CreateAPIKeyRequest]) (*connect.Response[pb.CreateAPIKeyResponse], error) {
+	resp, err := a.impl.CreateAPIKey(ctx, req.Msg)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	return connect.NewResponse(resp), nil
+}
+
+func (a *adminAPIConnectAdapter) ListAPIKeys(ctx context.Context, req *connect.Request[pb.ListAPIKeysRequest]) (*connect.Response[pb.ListAPIKeysResponse], error) {
+	resp, err := a.impl.ListAPIKeys(ctx, req.Msg)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	return connect.NewResponse(resp), nil
+}
+
+func (a *adminAPIConnectAdapter) GetAPIKey(ctx context.Context, req *connect.Request[pb.GetAPIKeyRequest]) (*connect.Response[pb.GetAPIKeyResponse], error) {
+	resp, err := a.impl.GetAPIKey(ctx, req.Msg)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	return connect.NewResponse(resp), nil
+}
+
+func (a *adminAPIConnectAdapter) DeactivateAPIKey(ctx context.Context, req *connect.Request[pb.DeactivateAPIKeyRequest]) (*connect.Response[pb.DeactivateAPIKeyResponse], error) {
+	resp, err := a.impl.DeactivateAPIKey(ctx, req.Msg)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	return connect.NewResponse(resp), nil
+}
+
+func CreateAdminAPIService(q *sqlc.Queries, pool *pgxpool.Pool) adminv1connect.ApiHandler {
 	dm := domains.NewDomainManager(q)
 	tm := templates.NewTemplateManager(q)
+	apiKeysRepo := sqlc.NewAPIKeysRepository(q, pool)
+	apiKeysService := apikeys.NewService(apiKeysRepo)
 	return &adminAPIConnectAdapter{
 		impl: &adminAPIService{
-			dm: dm,
-			tm: tm,
+			dm:      dm,
+			tm:      tm,
+			apiKeys: apiKeysService,
+			q:       q,
 		},
 	}
 }

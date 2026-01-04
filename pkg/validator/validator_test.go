@@ -50,8 +50,8 @@ func TestMain(m *testing.M) {
 	pm := pool.NewSendingPoolManager(q)
 	vt = validator.NewValidator(pm, &mp)
 
-	ts = mailapi.NewMailerAPIV1(q)
-	adminAPI = adminapi.CreateAdminAPIService(q)
+	ts = mailapi.NewMailerAPIV1(q, db)
+	adminAPI = adminapi.CreateAdminAPIService(q, db)
 
 	code := m.Run()
 
@@ -108,7 +108,12 @@ func runOneCycle(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func sendEmail(t *testing.T, domain *adminapiv1.Domain, email string) {
+type testDomainWithKey struct {
+	domain *adminapiv1.Domain
+	apiKey string
+}
+
+func sendEmail(t *testing.T, domainWithKey *testDomainWithKey, email string) {
 	t.Helper()
 
 	req := connect.NewRequest(&mailerapiv1.SendHTMLReq{
@@ -126,19 +131,30 @@ func sendEmail(t *testing.T, domain *adminapiv1.Domain, email string) {
 		},
 	})
 
-	authRequest(req, domain)
+	authRequest(req, domainWithKey)
 
 	_, err := ts.SendHTML(context.Background(), req)
 	assert.Nil(t, err)
 }
 
-func createTestDomain(t *testing.T) *adminapiv1.Domain {
+func createTestDomain(t *testing.T) *testDomainWithKey {
 	t.Helper()
 	res, err := adminAPI.CreateDomain(context.Background(), connect.NewRequest(&adminapiv1.CreateDomainRequest{
 		Domain: "test.test.test",
 	}))
 	assert.Nil(t, err)
-	return res.Msg
+
+	// Create an API key for authentication
+	keyRes, err := adminAPI.CreateAPIKey(context.Background(), connect.NewRequest(&adminapiv1.CreateAPIKeyRequest{
+		Domain: res.Msg.Domain,
+		Name:   "test-key",
+	}))
+	assert.Nil(t, err)
+
+	return &testDomainWithKey{
+		domain: res.Msg,
+		apiKey: keyRes.Msg.ApiKey.Key,
+	}
 }
 
 func cleanDB(t *testing.T) {
@@ -153,8 +169,8 @@ func cleanDB(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func authRequest[T any](req *connect.Request[T], d *adminapiv1.Domain) {
-	token := base64.StdEncoding.EncodeToString([]byte(d.Domain + ":" + d.Key))
+func authRequest[T any](req *connect.Request[T], d *testDomainWithKey) {
+	token := base64.StdEncoding.EncodeToString([]byte(d.domain.Domain + ":" + d.apiKey))
 	req.Header().Set("Authorization", "Basic "+token)
 }
 

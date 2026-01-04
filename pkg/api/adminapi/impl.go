@@ -3,6 +3,7 @@ package adminapi
 import (
 	"context"
 
+	"github.com/kannon-email/kannon/internal/apikeys"
 	sqlc "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/domains"
 	"github.com/kannon-email/kannon/internal/templates"
@@ -11,8 +12,10 @@ import (
 )
 
 type adminAPIService struct {
-	dm domains.DomainManager
-	tm templates.Manager
+	dm      domains.DomainManager
+	tm      templates.Manager
+	apiKeys *apikeys.Service
+	q       *sqlc.Queries
 }
 
 func (s *adminAPIService) GetDomains(ctx context.Context, in *pb.GetDomainsReq) (*pb.GetDomainsResponse, error) {
@@ -45,7 +48,16 @@ func (s *adminAPIService) CreateDomain(ctx context.Context, in *pb.CreateDomainR
 		return nil, err
 	}
 
-	return dbDomainToProtoDomain(domain), nil
+	// Create a default API key for the domain
+	apiKey, err := s.apiKeys.CreateKey(ctx, domain.Domain, "default", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// Return domain with the API key
+	protoDomain := dbDomainToProtoDomain(domain)
+	protoDomain.Key = apiKey.Key()
+	return protoDomain, nil
 }
 
 func (s *adminAPIService) RegenerateDomainKey(ctx context.Context, in *pb.RegenerateDomainKeyRequest) (*pb.Domain, error) {
@@ -54,7 +66,29 @@ func (s *adminAPIService) RegenerateDomainKey(ctx context.Context, in *pb.Regene
 		return nil, err
 	}
 
-	return dbDomainToProtoDomain(domain), nil
+	// Deactivate all existing API keys for this domain
+	existingKeys, err := s.apiKeys.ListKeys(ctx, domain.Domain, true, apikeys.Pagination{Limit: 1000, Offset: 0})
+	if err != nil {
+		return nil, err
+	}
+	for _, key := range existingKeys {
+		ref, err := apikeys.ParseKeyRef(domain.Domain, key.ID().String())
+		if err != nil {
+			continue
+		}
+		_, _ = s.apiKeys.DeactivateKey(ctx, ref)
+	}
+
+	// Create a new default API key
+	apiKey, err := s.apiKeys.CreateKey(ctx, domain.Domain, "default", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// Return domain with the new API key
+	protoDomain := dbDomainToProtoDomain(domain)
+	protoDomain.Key = apiKey.Key()
+	return protoDomain, nil
 }
 
 func dbDomainToProtoDomain(in sqlc.Domain) *pb.Domain {

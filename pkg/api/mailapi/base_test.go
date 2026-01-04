@@ -39,8 +39,8 @@ func TestMain(m *testing.M) {
 	}
 
 	q = sqlc.New(db)
-	ts = mailapi.NewMailerAPIV1(q)
-	adminAPI = adminapi.CreateAdminAPIService(q)
+	ts = mailapi.NewMailerAPIV1(q, db)
+	adminAPI = adminapi.CreateAdminAPIService(q, db)
 
 	code := m.Run()
 
@@ -52,13 +52,29 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func createTestDomain(t *testing.T) *adminv1.Domain {
+type testDomainWithKey struct {
+	domain *adminv1.Domain
+	apiKey string
+}
+
+func createTestDomain(t *testing.T) *testDomainWithKey {
 	t.Helper()
 	res, err := adminAPI.CreateDomain(context.Background(), connect.NewRequest(&adminv1.CreateDomainRequest{
 		Domain: "test.test.test",
 	}))
 	assert.Nil(t, err)
-	return res.Msg
+
+	// Create an API key for authentication
+	keyRes, err := adminAPI.CreateAPIKey(context.Background(), connect.NewRequest(&adminv1.CreateAPIKeyRequest{
+		Domain: res.Msg.Domain,
+		Name:   "test-key",
+	}))
+	assert.Nil(t, err)
+
+	return &testDomainWithKey{
+		domain: res.Msg,
+		apiKey: keyRes.Msg.ApiKey.Key,
+	}
 }
 
 func cleanDB(t *testing.T) {
@@ -73,7 +89,7 @@ func cleanDB(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func authRequest[T any](req *connect.Request[T], d *adminv1.Domain) {
-	token := base64.StdEncoding.EncodeToString([]byte(d.Domain + ":" + d.Key))
+func authRequest[T any](req *connect.Request[T], d *testDomainWithKey) {
+	token := base64.StdEncoding.EncodeToString([]byte(d.domain.Domain + ":" + d.apiKey))
 	req.Header().Set("Authorization", "Basic "+token)
 }

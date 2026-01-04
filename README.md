@@ -333,6 +333,12 @@ We welcome contributions! Please:
 - See the [Apache 2.0 License](./LICENSE)
 - **Read our [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines, code style, and the full contribution process.**
 
+### Developer Documentation
+
+- **[REPOSITORY_GUIDE.md](docs/REPOSITORY_GUIDE.md)** - PostgreSQL repository implementation patterns
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** - Detailed technical architecture
+- **[CLAUDE.md](CLAUDE.md)** - AI assistant guidance for working with the codebase
+
 ### Local Development
 
 - Build: `go build -o kannon .`

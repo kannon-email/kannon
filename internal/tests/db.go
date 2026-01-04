@@ -26,7 +26,7 @@ func TestPostgresInit(schema string) (*pgxpool.Pool, PurgeFunc, error) {
 	// pulls an image, creates a container based on it and runs it
 	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
 		Repository: "postgres",
-		Tag:        "13-alpine",
+		Tag:        "17-alpine",
 		Env: []string{
 			"POSTGRES_USER=test",
 			"POSTGRES_PASSWORD=test",

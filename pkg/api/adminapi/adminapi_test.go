@@ -33,7 +33,7 @@ func TestMain(m *testing.M) {
 	}
 
 	q = sqlc.New(db)
-	testservice = adminapi.CreateAdminAPIService(q)
+	testservice = adminapi.CreateAdminAPIService(q, db)
 
 	code := m.Run()
 

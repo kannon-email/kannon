@@ -64,6 +64,7 @@ The project uses `mise` for tool version management. Tools are defined in `mise.
 - SQL queries defined in `internal/db/*.sql` files
 - Database models and queries in `internal/db/` (generated)
 - PostgreSQL migrations in `db/migrations/`
+- See `docs/REPOSITORY_GUIDE.md` for repository implementation patterns
 
 ### NATS Messaging
 
@@ -95,6 +96,7 @@ After making code changes, check if the following documentation needs updating:
 |------------------|-----------|
 | Core components (`kannon.go`, `cmd/`) | `README.md` (Architecture section), `ARCHITECTURE.md` |
 | Database schema or queries (`internal/db/`, `db/migrations/`) | `README.md` (Database Schema section), `ARCHITECTURE.md` |
+| Repository implementations (`internal/db/*_repo.go`) | `docs/REPOSITORY_GUIDE.md` |
 | Proto files (`proto/`) | `README.md` (API section) |
 | NATS topics/consumers | `ARCHITECTURE.md` (NATS Streams section) |
 | CLI flags or configuration | `README.md` (Configuration section) |
@@ -108,6 +110,7 @@ After making code changes, check if the following documentation needs updating:
 - `ARCHITECTURE.md` - Technical deep-dive (modules, message flows, NATS)
 - `CLAUDE.md` - AI assistant guidance (commands, key files, workflow)
 - `CONTRIBUTING.md` - Contribution guidelines
+- `docs/REPOSITORY_GUIDE.md` - PostgreSQL repository implementation patterns
 
 ## Key Files to Understand
 
