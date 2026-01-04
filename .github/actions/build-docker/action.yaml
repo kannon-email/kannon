@@ -28,9 +28,13 @@ outputs:
 runs:
   using: "composite"
   steps:
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      with:
+        driver-opts: network=host
     - name: Docker meta
       id: docker_meta
-      uses: docker/metadata-action@v4
+      uses: docker/metadata-action@v5
       with:
         images: |
           ghcr.io/${{ github.repository }}/${{ inputs.docker-target }}
@@ -42,10 +46,11 @@ runs:
             type=raw,value=${{inputs.branch}}-${{inputs.sha}}-${{ inputs.ts }}
     - name: Build and push
       id: docker_build
-      uses: docker/build-push-action@v4
+      uses: docker/build-push-action@v6
       with:
         push: ${{ inputs.push }}
-        network: host
         tags: ${{ steps.docker_meta.outputs.tags }}
         target: ${{ inputs.docker-target }}
         context: ${{ inputs.docker-context }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
