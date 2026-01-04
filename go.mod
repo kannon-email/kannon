@@ -7,7 +7,7 @@ require (
 	github.com/amacneil/dbmate/v2 v2.28.0
 	github.com/emersion/go-msgauth v0.7.0
 	github.com/emersion/go-smtp v0.24.0
-	github.com/go-faker/faker/v4 v4.6.2
+	github.com/go-faker/faker/v4 v4.7.0
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/jackc/pgx/v4 v4.18.3
 	github.com/jackc/pgx/v5 v5.8.0
