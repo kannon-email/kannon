@@ -15,18 +15,20 @@ import (
 )
 
 type srv struct {
-	nc *nats.Conn
-	ss statssec.StatsService
+	nc  *nats.Conn
+	ss  statssec.StatsService
+	cfg Config
 }
 
-func NewServer(cnt *container.Container) *srv {
+func NewServer(cnt *container.Container, cfg Config) *srv {
 	nc := cnt.Nats()
 	q := cnt.Queries()
 	ss := statssec.NewStatsService(q)
 
 	return &srv{
-		nc: nc,
-		ss: ss,
+		nc:  nc,
+		ss:  ss,
+		cfg: cfg,
 	}
 }
 
@@ -36,9 +38,14 @@ func (s *srv) Run(ctx context.Context) error {
 	mux.HandleFunc("/o/", s.handleOpen)
 	mux.HandleFunc("/c/", s.handleClick)
 
-	logrus.Infof("running bounce on %s", "localhost:8080")
+	port := s.cfg.Port
+	if port == 0 {
+		port = 8080 // default port
+	}
+	addr := fmt.Sprintf("0.0.0.0:%d", port)
+	logrus.Infof("running bounce on %s", addr)
 
-	server := &http.Server{Addr: "0.0.0.0:8080", Handler: mux}
+	server := &http.Server{Addr: addr, Handler: mux}
 
 	go func() {
 		<-ctx.Done()

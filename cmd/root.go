@@ -96,7 +96,7 @@ func run(cmd *cobra.Command, args []string) {
 
 	if config.RunBounce {
 		g.Go(func() error {
-			err := bump.Run(ctx, cnt)
+			err := bump.Run(ctx, cnt, config.Bump.ToBumpConfig())
 			if err != nil {
 				return fmt.Errorf("error in bounce: %v", err)
 			}

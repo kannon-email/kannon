@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/kannon-email/kannon/pkg/api"
+	"github.com/kannon-email/kannon/pkg/bump"
 	"github.com/kannon-email/kannon/pkg/sender"
 	"github.com/kannon-email/kannon/pkg/smtp"
 	"github.com/sirupsen/logrus"
@@ -22,6 +23,7 @@ type Config struct {
 	API           APIConfig    `mapstructure:"api"`
 	Sender        SenderConfig `mapstructure:"sender"`
 	SMTP          SMTPConfig   `mapstructure:"smtp"`
+	Bump          BumpConfig   `mapstructure:"bump"`
 	RunAPI        bool         `mapstructure:"run-api"`
 	RunSMTP       bool         `mapstructure:"run-smtp"`
 	RunSender     bool         `mapstructure:"run-sender"`
@@ -38,6 +40,16 @@ type APIConfig struct {
 
 func (c APIConfig) ToAPIConfig() api.Config {
 	return api.Config{
+		Port: c.Port,
+	}
+}
+
+type BumpConfig struct {
+	Port uint `mapstructure:"port"`
+}
+
+func (c BumpConfig) ToBumpConfig() bump.Config {
+	return bump.Config{
 		Port: c.Port,
 	}
 }

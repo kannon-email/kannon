@@ -20,12 +20,12 @@ import (
 
 const maxRetry = 10
 
-type MailBulder interface {
+type MailBuilder interface {
 	BuildEmail(ctx context.Context, email sqlc.SendingPoolEmail) (*pb.EmailToSend, error)
 }
 
 // NewMailBuilder creates an SMTP mailer
-func NewMailBuilder(q *sqlc.Queries, st statssec.StatsService) MailBulder {
+func NewMailBuilder(q *sqlc.Queries, st statssec.StatsService) MailBuilder {
 	return &mailBuilder{
 		db: q,
 		st: st,

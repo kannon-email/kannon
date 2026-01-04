@@ -19,7 +19,7 @@ import (
 type disp struct {
 	ss  statssec.StatsService
 	pm  pool.SendingPoolManager
-	mb  mailbuilder.MailBulder
+	mb  mailbuilder.MailBuilder
 	pub publisher.Publisher
 	js  jetstream.JetStream
 }
