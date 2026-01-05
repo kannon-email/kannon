@@ -1,7 +1,6 @@
 package sqlc
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -10,32 +9,26 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type testHelper struct{}
+
+func (h testHelper) CreateDomain(t *testing.T) string {
+	ctx := t.Context()
+	domainName := fmt.Sprintf("test-apikeys-%d.com", time.Now().UnixNano())
+
+	// Create domain directly using queries
+	_, err := q.CreateDomain(ctx, CreateDomainParams{
+		Domain:         domainName,
+		Key:            "",
+		DkimPrivateKey: "test-private",
+		DkimPublicKey:  "test-public",
+	})
+	require.NoError(t, err)
+
+	return domainName
+}
+
 func TestAPIKeysRepository(t *testing.T) {
 	repo := NewAPIKeysRepository(q, db)
-
-	helper := apikeys.RepoTestHelper{
-		CreateDomain: func(t *testing.T) string {
-			ctx := context.Background()
-			domainName := fmt.Sprintf("test-apikeys-%d.com", time.Now().UnixNano())
-
-			// Create domain directly using queries
-			_, err := q.CreateDomain(ctx, CreateDomainParams{
-				Domain:         domainName,
-				Key:            "",
-				DkimPrivateKey: "test-private",
-				DkimPublicKey:  "test-public",
-			})
-			require.NoError(t, err)
-			return domainName
-		},
-		CleanDB: func(t *testing.T) {
-			ctx := context.Background()
-			_, err := db.Exec(ctx, "DELETE FROM api_keys CASCADE")
-			require.NoError(t, err)
-			_, err = db.Exec(ctx, "DELETE FROM domains CASCADE")
-			require.NoError(t, err)
-		},
-	}
-
+	helper := testHelper{}
 	apikeys.RunRepoSpec(t, repo, helper)
 }

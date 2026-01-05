@@ -1,7 +1,6 @@
 package apikeys
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -11,9 +10,8 @@ import (
 )
 
 // RepoTestHelper provides test utilities for repository tests
-type RepoTestHelper struct {
-	CreateDomain func(t *testing.T) string // Creates a domain and returns its name
-	CleanDB      func(t *testing.T)        // Cleans up the database
+type RepoTestHelper interface {
+	CreateDomain(t *testing.T) string // Creates a domain, registers cleanup, and returns its name
 }
 
 // RunRepoSpec runs the repository specification tests against any Repository implementation
@@ -37,8 +35,7 @@ func RunRepoSpec(t *testing.T, repo Repository, helper RepoTestHelper) {
 
 func testCreate(t *testing.T, repo Repository, helper RepoTestHelper) {
 	t.Run("Success", func(t *testing.T) {
-		defer helper.CleanDB(t)
-		ctx := context.Background()
+		ctx := t.Context()
 		domain := helper.CreateDomain(t)
 
 		key, err := NewAPIKey(domain, "test-key", nil)
@@ -51,8 +48,7 @@ func testCreate(t *testing.T, repo Repository, helper RepoTestHelper) {
 	})
 
 	t.Run("WithExpiration", func(t *testing.T) {
-		defer helper.CleanDB(t)
-		ctx := context.Background()
+		ctx := t.Context()
 		domain := helper.CreateDomain(t)
 
 		expiresAt := time.Now().Add(24 * time.Hour)
@@ -67,8 +63,7 @@ func testCreate(t *testing.T, repo Repository, helper RepoTestHelper) {
 
 func testUpdate(t *testing.T, repo Repository, helper RepoTestHelper) {
 	t.Run("Deactivate", func(t *testing.T) {
-		defer helper.CleanDB(t)
-		ctx := context.Background()
+		ctx := t.Context()
 		domain := helper.CreateDomain(t)
 
 		// Create a key
@@ -98,8 +93,7 @@ func testUpdate(t *testing.T, repo Repository, helper RepoTestHelper) {
 
 func testGetByKey(t *testing.T, repo Repository, helper RepoTestHelper) {
 	t.Run("Success", func(t *testing.T) {
-		defer helper.CleanDB(t)
-		ctx := context.Background()
+		ctx := t.Context()
 		domain := helper.CreateDomain(t)
 
 		created, err := NewAPIKey(domain, "test-key", nil)
@@ -118,8 +112,7 @@ func testGetByKey(t *testing.T, repo Repository, helper RepoTestHelper) {
 	})
 
 	t.Run("NotFound", func(t *testing.T) {
-		defer helper.CleanDB(t)
-		ctx := context.Background()
+		ctx := t.Context()
 		domain := helper.CreateDomain(t)
 
 		_, err := repo.GetByKey(ctx, domain, "k_nonexistent12345678901234567890")
@@ -127,8 +120,7 @@ func testGetByKey(t *testing.T, repo Repository, helper RepoTestHelper) {
 	})
 
 	t.Run("InvalidFormat", func(t *testing.T) {
-		defer helper.CleanDB(t)
-		ctx := context.Background()
+		ctx := t.Context()
 		domain := helper.CreateDomain(t)
 
 		_, err := repo.GetByKey(ctx, domain, "invalid-key")
@@ -138,8 +130,7 @@ func testGetByKey(t *testing.T, repo Repository, helper RepoTestHelper) {
 
 func testGetByID(t *testing.T, repo Repository, helper RepoTestHelper) {
 	t.Run("Success", func(t *testing.T) {
-		defer helper.CleanDB(t)
-		ctx := context.Background()
+		ctx := t.Context()
 		domain := helper.CreateDomain(t)
 
 		created, err := NewAPIKey(domain, "test-key", nil)
@@ -156,8 +147,7 @@ func testGetByID(t *testing.T, repo Repository, helper RepoTestHelper) {
 	})
 
 	t.Run("NotFound", func(t *testing.T) {
-		defer helper.CleanDB(t)
-		ctx := context.Background()
+		ctx := t.Context()
 		domain := helper.CreateDomain(t)
 
 		nonExistentID, _ := ParseID("key_nonexistent")
@@ -169,8 +159,7 @@ func testGetByID(t *testing.T, repo Repository, helper RepoTestHelper) {
 
 func testList(t *testing.T, repo Repository, helper RepoTestHelper) {
 	t.Run("Success", func(t *testing.T) {
-		defer helper.CleanDB(t)
-		ctx := context.Background()
+		ctx := t.Context()
 		domain := helper.CreateDomain(t)
 
 		// Create multiple keys
@@ -188,8 +177,7 @@ func testList(t *testing.T, repo Repository, helper RepoTestHelper) {
 	})
 
 	t.Run("WithActiveFilter", func(t *testing.T) {
-		defer helper.CleanDB(t)
-		ctx := context.Background()
+		ctx := t.Context()
 		domain := helper.CreateDomain(t)
 
 		// Create 2 active keys
@@ -230,8 +218,7 @@ func testList(t *testing.T, repo Repository, helper RepoTestHelper) {
 	})
 
 	t.Run("WithPagination", func(t *testing.T) {
-		defer helper.CleanDB(t)
-		ctx := context.Background()
+		ctx := t.Context()
 		domain := helper.CreateDomain(t)
 
 		// Create 5 keys
