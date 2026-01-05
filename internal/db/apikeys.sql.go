@@ -11,6 +11,25 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countAPIKeysByDomain = `-- name: CountAPIKeysByDomain :one
+SELECT COUNT(*)
+FROM api_keys
+WHERE domain = $1
+    AND (CASE WHEN $2::boolean THEN is_active = TRUE ELSE TRUE END)
+`
+
+type CountAPIKeysByDomainParams struct {
+	Domain  string
+	Column2 bool
+}
+
+func (q *Queries) CountAPIKeysByDomain(ctx context.Context, arg CountAPIKeysByDomainParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countAPIKeysByDomain, arg.Domain, arg.Column2)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createAPIKey = `-- name: CreateAPIKey :one
 INSERT INTO api_keys (id, domain, key, name, expires_at)
 VALUES ($1, $2, $3, $4, $5)
@@ -207,36 +226,6 @@ func (q *Queries) UpdateAPIKey(ctx context.Context, arg UpdateAPIKeyParams) (Api
 		arg.IsActive,
 		arg.DeactivatedAt,
 	)
-	var i ApiKey
-	err := row.Scan(
-		&i.ID,
-		&i.Key,
-		&i.Name,
-		&i.Domain,
-		&i.CreatedAt,
-		&i.ExpiresAt,
-		&i.IsActive,
-		&i.DeactivatedAt,
-	)
-	return i, err
-}
-
-const validateAPIKeyForAuth = `-- name: ValidateAPIKeyForAuth :one
-SELECT id, key, name, domain, created_at, expires_at, is_active, deactivated_at
-FROM api_keys
-WHERE domain = $1
-    AND key = $2
-    AND is_active = TRUE
-    AND (expires_at IS NULL OR expires_at > NOW())
-`
-
-type ValidateAPIKeyForAuthParams struct {
-	Domain string
-	Key    string
-}
-
-func (q *Queries) ValidateAPIKeyForAuth(ctx context.Context, arg ValidateAPIKeyForAuthParams) (ApiKey, error) {
-	row := q.db.QueryRow(ctx, validateAPIKeyForAuth, arg.Domain, arg.Key)
 	var i ApiKey
 	err := row.Scan(
 		&i.ID,

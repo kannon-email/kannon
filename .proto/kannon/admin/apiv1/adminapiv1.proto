@@ -131,6 +131,7 @@ message ListAPIKeysRequest {
 
 message ListAPIKeysResponse {
   repeated APIKey api_keys = 1;
+  int32 total = 2;
 }
 
 message GetAPIKeyRequest {

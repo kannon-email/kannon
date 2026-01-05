@@ -82,11 +82,6 @@ func (r *InMemoryRepository) Update(ctx context.Context, ref apikeys.KeyRef, upd
 
 // GetByKey finds an API key by its full key value for a specific domain
 func (r *InMemoryRepository) GetByKey(ctx context.Context, domain, key string) (*apikeys.APIKey, error) {
-	// Validate key format
-	if len(key) < 32 || key[:2] != "k_" {
-		return nil, apikeys.ErrInvalidKey
-	}
-
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -97,39 +92,6 @@ func (r *InMemoryRepository) GetByKey(ctx context.Context, domain, key string) (
 
 	apiKey, exists := domainKeys[key]
 	if !exists {
-		return nil, apikeys.ErrKeyNotFound
-	}
-
-	return r.cloneKey(apiKey), nil
-}
-
-// ValidateKeyForAuth finds and validates an API key for authentication
-func (r *InMemoryRepository) ValidateKeyForAuth(ctx context.Context, domain, key string) (*apikeys.APIKey, error) {
-	// Validate key format
-	if len(key) < 32 || key[:2] != "k_" {
-		return nil, apikeys.ErrInvalidKey
-	}
-
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	domainKeys, exists := r.byKeyValue[domain]
-	if !exists {
-		return nil, apikeys.ErrKeyNotFound
-	}
-
-	apiKey, exists := domainKeys[key]
-	if !exists {
-		return nil, apikeys.ErrKeyNotFound
-	}
-
-	// Check if key is active
-	if !apiKey.IsActiveStatus() {
-		return nil, apikeys.ErrKeyNotFound
-	}
-
-	// Check if key is expired
-	if apiKey.IsExpired() {
 		return nil, apikeys.ErrKeyNotFound
 	}
 
@@ -194,6 +156,28 @@ func (r *InMemoryRepository) List(ctx context.Context, domain string, filters ap
 	}
 
 	return result, nil
+}
+
+// Count returns the total number of API keys for a domain with filters
+func (r *InMemoryRepository) Count(ctx context.Context, domain string, filters apikeys.ListFilters) (int, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	domainKeys, exists := r.byID[domain]
+	if !exists {
+		return 0, nil
+	}
+
+	count := 0
+	for _, key := range domainKeys {
+		// Apply active filter
+		if filters.OnlyActive && !key.IsActiveStatus() {
+			continue
+		}
+		count++
+	}
+
+	return count, nil
 }
 
 // cloneKey creates a copy of an API key to prevent external mutation

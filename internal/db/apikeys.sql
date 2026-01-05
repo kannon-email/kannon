@@ -36,10 +36,8 @@ WHERE domain = $1
 ORDER BY created_at DESC
 LIMIT $3 OFFSET $4;
 
--- name: ValidateAPIKeyForAuth :one
-SELECT *
+-- name: CountAPIKeysByDomain :one
+SELECT COUNT(*)
 FROM api_keys
 WHERE domain = $1
-    AND key = $2
-    AND is_active = TRUE
-    AND (expires_at IS NULL OR expires_at > NOW());
+    AND (CASE WHEN $2::boolean THEN is_active = TRUE ELSE TRUE END);

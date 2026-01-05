@@ -46,7 +46,7 @@ func (s *adminAPIService) ListAPIKeys(ctx context.Context, in *pb.ListAPIKeysReq
 	}
 
 	// List keys via service
-	keys, err := s.apiKeys.ListKeys(ctx, in.Domain, in.OnlyActive, page)
+	keys, total, err := s.apiKeys.ListKeys(ctx, in.Domain, in.OnlyActive, page)
 	if err != nil {
 		return nil, err
 	}
@@ -59,6 +59,7 @@ func (s *adminAPIService) ListAPIKeys(ctx context.Context, in *pb.ListAPIKeysReq
 
 	return &pb.ListAPIKeysResponse{
 		ApiKeys: protoKeys,
+		Total:   int32(total),
 	}, nil
 }
 

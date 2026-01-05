@@ -33,16 +33,26 @@ func (s *Service) GetKey(ctx context.Context, ref KeyRef) (*APIKey, error) {
 	return s.repo.GetByID(ctx, ref)
 }
 
-func (s *Service) ListKeys(ctx context.Context, domain string, onlyActive bool, page Pagination) ([]*APIKey, error) {
+func (s *Service) ListKeys(ctx context.Context, domain string, onlyActive bool, page Pagination) ([]*APIKey, int, error) {
 	if err := validateDomain(domain); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	filters := ListFilters{
 		OnlyActive: onlyActive,
 	}
 
-	return s.repo.List(ctx, domain, filters, page)
+	keys, err := s.repo.List(ctx, domain, filters, page)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	total, err := s.repo.Count(ctx, domain, filters)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return keys, total, nil
 }
 
 func (s *Service) DeactivateKey(ctx context.Context, ref KeyRef) (*APIKey, error) {
@@ -53,10 +63,15 @@ func (s *Service) DeactivateKey(ctx context.Context, ref KeyRef) (*APIKey, error
 }
 
 func (s *Service) ValidateForAuth(ctx context.Context, domain, key string) (*APIKey, error) {
-	// Use optimized repository method that validates in database
-	apiKey, err := s.repo.ValidateKeyForAuth(ctx, domain, key)
+	// Get the key from repository
+	apiKey, err := s.repo.GetByKey(ctx, domain, key)
 	if err != nil {
-		// Always return generic error for security
+		// Always return generic error for security (don't leak if key exists)
+		return nil, ErrKeyNotFound
+	}
+
+	// Validate key is active
+	if !apiKey.IsValid() {
 		return nil, ErrKeyNotFound
 	}
 

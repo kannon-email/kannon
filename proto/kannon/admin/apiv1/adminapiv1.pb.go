@@ -1133,6 +1133,7 @@ func (x *ListAPIKeysRequest) GetOffset() int32 {
 type ListAPIKeysResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ApiKeys       []*APIKey              `protobuf:"bytes,1,rep,name=api_keys,json=apiKeys,proto3" json:"api_keys,omitempty"`
+	Total         int32                  `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1172,6 +1173,13 @@ func (x *ListAPIKeysResponse) GetApiKeys() []*APIKey {
 		return x.ApiKeys
 	}
 	return nil
+}
+
+func (x *ListAPIKeysResponse) GetTotal() int32 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
 }
 
 type GetAPIKeyRequest struct {
@@ -1444,9 +1452,10 @@ const file_kannon_admin_apiv1_adminapiv1_proto_rawDesc = "" +
 	"\vonly_active\x18\x02 \x01(\bR\n" +
 	"onlyActive\x12\x14\n" +
 	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12\x16\n" +
-	"\x06offset\x18\x04 \x01(\x05R\x06offset\"P\n" +
+	"\x06offset\x18\x04 \x01(\x05R\x06offset\"f\n" +
 	"\x13ListAPIKeysResponse\x129\n" +
-	"\bapi_keys\x18\x01 \x03(\v2\x1e.pkg.kannon.admin.apiv1.APIKeyR\aapiKeys\":\n" +
+	"\bapi_keys\x18\x01 \x03(\v2\x1e.pkg.kannon.admin.apiv1.APIKeyR\aapiKeys\x12\x14\n" +
+	"\x05total\x18\x02 \x01(\x05R\x05total\":\n" +
 	"\x10GetAPIKeyRequest\x12\x16\n" +
 	"\x06domain\x18\x01 \x01(\tR\x06domain\x12\x0e\n" +
 	"\x02id\x18\x02 \x01(\tR\x02id\"L\n" +

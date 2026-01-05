@@ -109,9 +109,10 @@ func TestService_ListKeys(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		keys, err := service.ListKeys(ctx, domain, false, apikeys.Pagination{Limit: 10, Offset: 0})
+		keys, total, err := service.ListKeys(ctx, domain, false, apikeys.Pagination{Limit: 10, Offset: 0})
 		require.NoError(t, err)
 		assert.Len(t, keys, 3)
+		assert.Equal(t, 3, total)
 	})
 
 	t.Run("WithActiveFilter", func(t *testing.T) {
@@ -136,17 +137,19 @@ func TestService_ListKeys(t *testing.T) {
 		require.NoError(t, err)
 
 		// List only active
-		activeKeys, err := service.ListKeys(ctx, domain, true, apikeys.Pagination{Limit: 10, Offset: 0})
+		activeKeys, activeTotal, err := service.ListKeys(ctx, domain, true, apikeys.Pagination{Limit: 10, Offset: 0})
 		require.NoError(t, err)
 		assert.Len(t, activeKeys, 2)
+		assert.Equal(t, 2, activeTotal)
 		for _, k := range activeKeys {
 			assert.True(t, k.IsActiveStatus())
 		}
 
 		// List all (including inactive)
-		allKeys, err := service.ListKeys(ctx, domain, false, apikeys.Pagination{Limit: 10, Offset: 0})
+		allKeys, allTotal, err := service.ListKeys(ctx, domain, false, apikeys.Pagination{Limit: 10, Offset: 0})
 		require.NoError(t, err)
 		assert.Len(t, allKeys, 3)
+		assert.Equal(t, 3, allTotal)
 	})
 
 	t.Run("WithPagination", func(t *testing.T) {
@@ -163,19 +166,22 @@ func TestService_ListKeys(t *testing.T) {
 		}
 
 		// Get first 2
-		page1, err := service.ListKeys(ctx, domain, false, apikeys.Pagination{Limit: 2, Offset: 0})
+		page1, total1, err := service.ListKeys(ctx, domain, false, apikeys.Pagination{Limit: 2, Offset: 0})
 		require.NoError(t, err)
 		assert.Len(t, page1, 2)
+		assert.Equal(t, 5, total1)
 
 		// Get next 2
-		page2, err := service.ListKeys(ctx, domain, false, apikeys.Pagination{Limit: 2, Offset: 2})
+		page2, total2, err := service.ListKeys(ctx, domain, false, apikeys.Pagination{Limit: 2, Offset: 2})
 		require.NoError(t, err)
 		assert.Len(t, page2, 2)
+		assert.Equal(t, 5, total2)
 
 		// Get last 1
-		page3, err := service.ListKeys(ctx, domain, false, apikeys.Pagination{Limit: 2, Offset: 4})
+		page3, total3, err := service.ListKeys(ctx, domain, false, apikeys.Pagination{Limit: 2, Offset: 4})
 		require.NoError(t, err)
 		assert.Len(t, page3, 1)
+		assert.Equal(t, 5, total3)
 	})
 
 	t.Run("InvalidDomain", func(t *testing.T) {
@@ -183,7 +189,7 @@ func TestService_ListKeys(t *testing.T) {
 		repo := apikeyshelpers.NewInMemoryRepository()
 		service := apikeys.NewService(repo)
 
-		_, err := service.ListKeys(ctx, "", false, apikeys.Pagination{Limit: 10, Offset: 0})
+		_, _, err := service.ListKeys(ctx, "", false, apikeys.Pagination{Limit: 10, Offset: 0})
 		assert.Error(t, err)
 	})
 }

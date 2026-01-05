@@ -10,10 +10,6 @@ import (
 	"github.com/kannon-email/kannon/internal/apikeys"
 )
 
-const (
-	apiKeyPrefix = "k_"
-)
-
 type apiKeysRepository struct {
 	q    *Queries
 	pool *pgxpool.Pool
@@ -110,40 +106,14 @@ func (r *apiKeysRepository) Update(ctx context.Context, ref apikeys.KeyRef, upda
 }
 
 func (r *apiKeysRepository) GetByKey(ctx context.Context, domain, key string) (*apikeys.APIKey, error) {
-	// Note: ValidateKeyFormat is now unexported, but we need it here
-	// We'll check the key format inline
-	if len(key) < 2+30 || key[:2] != apiKeyPrefix {
-		return nil, apikeys.ErrInvalidKey
-	}
-
+	// Always perform database lookup to prevent timing attacks
 	row, err := r.q.GetAPIKeyByKey(ctx, GetAPIKeyByKeyParams{
 		Key:    key,
 		Domain: domain,
 	})
+
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, apikeys.ErrKeyNotFound
-		}
-		return nil, err
-	}
-
-	return rowToAPIKey(row), nil
-}
-
-func (r *apiKeysRepository) ValidateKeyForAuth(ctx context.Context, domain, key string) (*apikeys.APIKey, error) {
-	// Validate key format first
-	if len(key) < 2+30 || key[:2] != apiKeyPrefix {
-		return nil, apikeys.ErrInvalidKey
-	}
-
-	// Use optimized query that checks active status and expiration in database
-	row, err := r.q.ValidateAPIKeyForAuth(ctx, ValidateAPIKeyForAuthParams{
-		Domain: domain,
-		Key:    key,
-	})
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			// Key doesn't exist, is inactive, or is expired - return generic error
 			return nil, apikeys.ErrKeyNotFound
 		}
 		return nil, err
@@ -184,6 +154,18 @@ func (r *apiKeysRepository) List(ctx context.Context, domain string, filters api
 	}
 
 	return keys, nil
+}
+
+func (r *apiKeysRepository) Count(ctx context.Context, domain string, filters apikeys.ListFilters) (int, error) {
+	count, err := r.q.CountAPIKeysByDomain(ctx, CountAPIKeysByDomainParams{
+		Domain:  domain,
+		Column2: filters.OnlyActive,
+	})
+	if err != nil {
+		return 0, err
+	}
+
+	return int(count), nil
 }
 
 // Helper functions to convert sqlc rows to domain model

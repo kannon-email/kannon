@@ -123,8 +123,9 @@ func testGetByKey(t *testing.T, repo Repository, helper RepoTestHelper) {
 		ctx := t.Context()
 		domain := helper.CreateDomain(t)
 
+		// Returns ErrKeyNotFound instead of ErrInvalidKey to prevent timing attacks
 		_, err := repo.GetByKey(ctx, domain, "invalid-key")
-		assert.ErrorIs(t, err, ErrInvalidKey)
+		assert.ErrorIs(t, err, ErrKeyNotFound)
 	})
 }
 

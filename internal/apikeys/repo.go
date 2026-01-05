@@ -30,15 +30,9 @@ type Repository interface {
 	Update(ctx context.Context, ref KeyRef, updateFn UpdateFunc) (*APIKey, error)
 
 	// GetByKey finds an API key by its full key value for a specific domain
-	// Returns ErrKeyNotFound if the key doesn't exist for the domain
-	// Returns ErrInvalidKey if the key format is invalid
+	// Returns ErrKeyNotFound if the key doesn't exist or has invalid format
+	// Note: Invalid format returns ErrKeyNotFound to prevent timing attacks
 	GetByKey(ctx context.Context, domain, key string) (*APIKey, error)
-
-	// ValidateKeyForAuth finds and validates an API key for authentication
-	// This is an optimized query that checks active status and expiration in the database
-	// Returns ErrKeyNotFound if the key doesn't exist, is inactive, or is expired
-	// Returns ErrInvalidKey if the key format is invalid
-	ValidateKeyForAuth(ctx context.Context, domain, key string) (*APIKey, error)
 
 	// GetByID finds an API key by its ID for a specific domain
 	// Returns ErrKeyNotFound if the key doesn't exist for the domain
@@ -46,4 +40,7 @@ type Repository interface {
 
 	// List returns API keys for a domain with filters and pagination
 	List(ctx context.Context, domain string, filters ListFilters, page Pagination) ([]*APIKey, error)
+
+	// Count returns the total number of API keys for a domain with filters
+	Count(ctx context.Context, domain string, filters ListFilters) (int, error)
 }
