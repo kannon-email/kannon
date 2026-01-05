@@ -63,31 +63,6 @@ func (q *Queries) FindDomain(ctx context.Context, domain string) (Domain, error)
 	return i, err
 }
 
-const findDomainWithKey = `-- name: FindDomainWithKey :one
-SELECT id, domain, created_at, key, dkim_private_key, dkim_public_key FROM domains
-WHERE domain = $1
-AND key = $2
-`
-
-type FindDomainWithKeyParams struct {
-	Domain string
-	Key    string
-}
-
-func (q *Queries) FindDomainWithKey(ctx context.Context, arg FindDomainWithKeyParams) (Domain, error) {
-	row := q.db.QueryRow(ctx, findDomainWithKey, arg.Domain, arg.Key)
-	var i Domain
-	err := row.Scan(
-		&i.ID,
-		&i.Domain,
-		&i.CreatedAt,
-		&i.Key,
-		&i.DkimPrivateKey,
-		&i.DkimPublicKey,
-	)
-	return i, err
-}
-
 const findTemplate = `-- name: FindTemplate :one
 SELECT id, template_id, html, domain, type, title, created_at, updated_at FROM templates
 WHERE template_id = $1
@@ -177,27 +152,4 @@ func (q *Queries) GetDomains(ctx context.Context) ([]Domain, error) {
 		return nil, err
 	}
 	return items, nil
-}
-
-const setDomainKey = `-- name: SetDomainKey :one
-UPDATE domains SET key = $1 WHERE domain = $2 RETURNING id, domain, created_at, key, dkim_private_key, dkim_public_key
-`
-
-type SetDomainKeyParams struct {
-	Key    string
-	Domain string
-}
-
-func (q *Queries) SetDomainKey(ctx context.Context, arg SetDomainKeyParams) (Domain, error) {
-	row := q.db.QueryRow(ctx, setDomainKey, arg.Key, arg.Domain)
-	var i Domain
-	err := row.Scan(
-		&i.ID,
-		&i.Domain,
-		&i.CreatedAt,
-		&i.Key,
-		&i.DkimPrivateKey,
-		&i.DkimPublicKey,
-	)
-	return i, err
 }

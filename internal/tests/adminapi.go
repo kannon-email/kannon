@@ -35,6 +35,6 @@ func CreateTestDomain(t *testing.T, adminAPI apiv1connect.ApiHandler) *DomainWit
 
 	return &DomainWithKey{
 		Domain: res.Msg,
-		APIKey: keyRes.Msg.ApiKey.Key,
+		APIKey: keyRes.Msg.Key,
 	}
 }

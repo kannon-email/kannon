@@ -1,9 +1,10 @@
 syntax = "proto3";
-option go_package = "github.com/kannon-email/kannon/proto/kannon/admin/apiv1";
 
 package pkg.kannon.admin.apiv1;
 
 import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/kannon-email/kannon/proto/kannon/admin/apiv1";
 
 service Api {
   rpc GetDomains(GetDomainsReq) returns (GetDomainsResponse) {}
@@ -42,7 +43,6 @@ message CreateDomainRequest {
 
 message Domain {
   string domain = 1;
-  string key = 2;
   string dkim_pub_key = 3;
 }
 
@@ -119,6 +119,7 @@ message CreateAPIKeyRequest {
 
 message CreateAPIKeyResponse {
   APIKey api_key = 1;
+  string key = 2;
 }
 
 message ListAPIKeysRequest {

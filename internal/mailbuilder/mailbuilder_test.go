@@ -96,7 +96,7 @@ func TestPrepareMail(t *testing.T) {
 			},
 		},
 	})
-	authRequest(req, d.Msg, keyRes.Msg.ApiKey.Key)
+	authRequest(req, d.Msg, keyRes.Msg.Key)
 
 	res, err := ma.SendHTML(context.Background(), req)
 	assert.Nil(t, err)
@@ -185,7 +185,7 @@ func TestPrepareMailWithAttachments(t *testing.T) {
 			},
 		},
 	})
-	authRequest(req, d.Msg, keyRes.Msg.ApiKey.Key)
+	authRequest(req, d.Msg, keyRes.Msg.Key)
 
 	res, err := ma.SendHTML(context.Background(), req)
 	assert.Nil(t, err)

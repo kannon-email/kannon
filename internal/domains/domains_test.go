@@ -56,26 +56,8 @@ func TestCreateDomain(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, "example.com", domain.Domain)
-	assert.NotEmpty(t, domain.Key, "API key should be generated")
 	assert.NotEmpty(t, domain.DkimPrivateKey, "DKIM private key should be generated")
 	assert.NotEmpty(t, domain.DkimPublicKey, "DKIM public key should be generated")
-	assert.Equal(t, 30, len(domain.Key), "API key should be 30 characters")
-}
-
-func TestCreateDomain_GeneratesRandomKeys(t *testing.T) {
-	defer cleanDB(t)
-
-	ctx := context.Background()
-
-	// Create two domains and verify they have different keys
-	domain1, err := dm.CreateDomain(ctx, "example1.com")
-	require.NoError(t, err)
-
-	domain2, err := dm.CreateDomain(ctx, "example2.com")
-	require.NoError(t, err)
-
-	assert.NotEqual(t, domain1.Key, domain2.Key, "API keys should be randomly generated")
-	assert.NotEqual(t, domain1.DkimPrivateKey, domain2.DkimPrivateKey, "DKIM keys should be unique")
 }
 
 func TestFindDomain(t *testing.T) {
@@ -93,7 +75,6 @@ func TestFindDomain(t *testing.T) {
 
 	assert.Equal(t, created.ID, found.ID)
 	assert.Equal(t, created.Domain, found.Domain)
-	assert.Equal(t, created.Key, found.Key)
 }
 
 func TestFindDomain_NotFound(t *testing.T) {
@@ -103,37 +84,6 @@ func TestFindDomain_NotFound(t *testing.T) {
 
 	_, err := dm.FindDomain(ctx, "nonexistent.com")
 	assert.Error(t, err, "Should return error for nonexistent domain")
-}
-
-func TestFindDomainWithKey(t *testing.T) {
-	defer cleanDB(t)
-
-	ctx := context.Background()
-
-	// Create a domain
-	created, err := dm.CreateDomain(ctx, "auth-test.com")
-	require.NoError(t, err)
-
-	// Find with correct key
-	found, err := dm.FindDomainWithKey(ctx, "auth-test.com", created.Key)
-	require.NoError(t, err)
-
-	assert.Equal(t, created.ID, found.ID)
-	assert.Equal(t, created.Domain, found.Domain)
-}
-
-func TestFindDomainWithKey_WrongKey(t *testing.T) {
-	defer cleanDB(t)
-
-	ctx := context.Background()
-
-	// Create a domain
-	_, err := dm.CreateDomain(ctx, "auth-test.com")
-	require.NoError(t, err)
-
-	// Try to find with wrong key
-	_, err = dm.FindDomainWithKey(ctx, "auth-test.com", "wrong-key")
-	assert.Error(t, err, "Should return error for wrong API key")
 }
 
 func TestGetAllDomains(t *testing.T) {

@@ -48,23 +48,12 @@ func (s *adminAPIService) CreateDomain(ctx context.Context, in *pb.CreateDomainR
 		return nil, err
 	}
 
-	// Create a default API key for the domain
-	apiKey, err := s.apiKeys.CreateKey(ctx, domain.Domain, "default", nil)
-	if err != nil {
-		return nil, err
-	}
-
-	// Return domain with the API key
-	protoDomain := dbDomainToProtoDomain(domain)
-	protoDomain.Key = apiKey.Key()
-	return protoDomain, nil
+	return dbDomainToProtoDomain(domain), nil
 }
-
 
 func dbDomainToProtoDomain(in sqlc.Domain) *pb.Domain {
 	return &pb.Domain{
 		Domain:     in.Domain,
-		Key:        in.Key,
 		DkimPubKey: in.DkimPublicKey,
 	}
 }

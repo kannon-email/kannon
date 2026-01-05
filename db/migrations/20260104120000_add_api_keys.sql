@@ -27,7 +27,7 @@ ALTER TABLE ONLY api_keys
 INSERT INTO api_keys (id, key, name, domain, created_at, expires_at, is_active)
 SELECT
     'key_' || d.id::text,
-    'k_' || d.key,
+     d.key,
     'default',
     d.domain,
     d.created_at,

@@ -237,7 +237,6 @@ func (x *CreateDomainRequest) GetDomain() string {
 type Domain struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Domain        string                 `protobuf:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"`
-	Key           string                 `protobuf:"bytes,2,opt,name=key,proto3" json:"key,omitempty"`
 	DkimPubKey    string                 `protobuf:"bytes,3,opt,name=dkim_pub_key,json=dkimPubKey,proto3" json:"dkim_pub_key,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -276,13 +275,6 @@ func (*Domain) Descriptor() ([]byte, []int) {
 func (x *Domain) GetDomain() string {
 	if x != nil {
 		return x.Domain
-	}
-	return ""
-}
-
-func (x *Domain) GetKey() string {
-	if x != nil {
-		return x.Key
 	}
 	return ""
 }
@@ -1021,6 +1013,7 @@ func (x *CreateAPIKeyRequest) GetExpiresAt() *timestamppb.Timestamp {
 type CreateAPIKeyResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ApiKey        *APIKey                `protobuf:"bytes,1,opt,name=api_key,json=apiKey,proto3" json:"api_key,omitempty"`
+	Key           string                 `protobuf:"bytes,2,opt,name=key,proto3" json:"key,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1060,6 +1053,13 @@ func (x *CreateAPIKeyResponse) GetApiKey() *APIKey {
 		return x.ApiKey
 	}
 	return nil
+}
+
+func (x *CreateAPIKeyResponse) GetKey() string {
+	if x != nil {
+		return x.Key
+	}
+	return ""
 }
 
 type ListAPIKeysRequest struct {
@@ -1379,10 +1379,9 @@ const file_kannon_admin_apiv1_adminapiv1_proto_rawDesc = "" +
 	"\fGetDomainRes\x126\n" +
 	"\x06domain\x18\x01 \x01(\v2\x1e.pkg.kannon.admin.apiv1.DomainR\x06domain\"-\n" +
 	"\x13CreateDomainRequest\x12\x16\n" +
-	"\x06domain\x18\x01 \x01(\tR\x06domain\"T\n" +
+	"\x06domain\x18\x01 \x01(\tR\x06domain\"B\n" +
 	"\x06Domain\x12\x16\n" +
-	"\x06domain\x18\x01 \x01(\tR\x06domain\x12\x10\n" +
-	"\x03key\x18\x02 \x01(\tR\x03key\x12 \n" +
+	"\x06domain\x18\x01 \x01(\tR\x06domain\x12 \n" +
 	"\fdkim_pub_key\x18\x03 \x01(\tR\n" +
 	"dkimPubKey\"i\n" +
 	"\bTemplate\x12\x1f\n" +
@@ -1436,9 +1435,10 @@ const file_kannon_admin_apiv1_adminapiv1_proto_rawDesc = "" +
 	"\x06domain\x18\x01 \x01(\tR\x06domain\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x129\n" +
 	"\n" +
-	"expires_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"O\n" +
+	"expires_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"a\n" +
 	"\x14CreateAPIKeyResponse\x127\n" +
-	"\aapi_key\x18\x01 \x01(\v2\x1e.pkg.kannon.admin.apiv1.APIKeyR\x06apiKey\"{\n" +
+	"\aapi_key\x18\x01 \x01(\v2\x1e.pkg.kannon.admin.apiv1.APIKeyR\x06apiKey\x12\x10\n" +
+	"\x03key\x18\x02 \x01(\tR\x03key\"{\n" +
 	"\x12ListAPIKeysRequest\x12\x16\n" +
 	"\x06domain\x18\x01 \x01(\tR\x06domain\x12\x1f\n" +
 	"\vonly_active\x18\x02 \x01(\bR\n" +

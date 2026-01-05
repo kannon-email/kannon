@@ -65,7 +65,6 @@ func TestCreateANewDomain(t *testing.T) {
 		domain = res.Msg
 		assert.Nil(t, err)
 		assert.Equal(t, newDomain, domain.Domain)
-		assert.NotEmpty(t, domain.Key)
 		assert.NotEmpty(t, domain.DkimPubKey)
 	})
 

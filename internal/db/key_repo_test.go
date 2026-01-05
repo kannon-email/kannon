@@ -21,7 +21,7 @@ func TestAPIKeysRepository(t *testing.T) {
 			// Create domain directly using queries
 			_, err := q.CreateDomain(ctx, CreateDomainParams{
 				Domain:         domainName,
-				Key:            "test-key",
+				Key:            "",
 				DkimPrivateKey: "test-private",
 				DkimPublicKey:  "test-public",
 			})

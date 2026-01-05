@@ -26,7 +26,8 @@ func (s *adminAPIService) CreateAPIKey(ctx context.Context, in *pb.CreateAPIKeyR
 
 	// Return FULL key (only time it's shown)
 	return &pb.CreateAPIKeyResponse{
-		ApiKey: apiKeyToProto(key, false), // false = don't mask
+		ApiKey: apiKeyToProto(key),
+		Key:    key.Key(), // return full key in dedicated field
 	}, nil
 }
 
@@ -53,7 +54,7 @@ func (s *adminAPIService) ListAPIKeys(ctx context.Context, in *pb.ListAPIKeysReq
 	// Convert to proto (masked)
 	protoKeys := make([]*pb.APIKey, len(keys))
 	for i, key := range keys {
-		protoKeys[i] = apiKeyToProto(key, true) // true = mask
+		protoKeys[i] = apiKeyToProto(key)
 	}
 
 	return &pb.ListAPIKeysResponse{
@@ -75,7 +76,7 @@ func (s *adminAPIService) GetAPIKey(ctx context.Context, in *pb.GetAPIKeyRequest
 	}
 
 	return &pb.GetAPIKeyResponse{
-		ApiKey: apiKeyToProto(key, true), // true = mask
+		ApiKey: apiKeyToProto(key),
 	}, nil
 }
 
@@ -93,25 +94,18 @@ func (s *adminAPIService) DeactivateAPIKey(ctx context.Context, in *pb.Deactivat
 	}
 
 	return &pb.DeactivateAPIKeyResponse{
-		ApiKey: apiKeyToProto(key, true), // true = mask
+		ApiKey: apiKeyToProto(key),
 	}, nil
 }
 
 // apiKeyToProto converts domain APIKey to proto APIKey
-// If mask is true, only the first 8 characters of the key are shown
-func apiKeyToProto(key *apikeys.APIKey, mask bool) *pb.APIKey {
+func apiKeyToProto(key *apikeys.APIKey) *pb.APIKey {
 	apiKey := &pb.APIKey{
 		Id:       key.ID().String(),
 		Name:     key.Name(),
 		Domain:   key.Domain(),
 		IsActive: key.IsActiveStatus(),
-	}
-
-	// Set key (masked or full)
-	if mask {
-		apiKey.Key = key.MaskedKey()
-	} else {
-		apiKey.Key = key.Key()
+		Key:      key.MaskedKey(),
 	}
 
 	// Set timestamps

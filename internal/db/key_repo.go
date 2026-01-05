@@ -10,6 +10,10 @@ import (
 	"github.com/kannon-email/kannon/internal/apikeys"
 )
 
+const (
+	apiKeyPrefix = "k_"
+)
+
 type apiKeysRepository struct {
 	q    *Queries
 	pool *pgxpool.Pool
@@ -108,7 +112,7 @@ func (r *apiKeysRepository) Update(ctx context.Context, ref apikeys.KeyRef, upda
 func (r *apiKeysRepository) GetByKey(ctx context.Context, domain, key string) (*apikeys.APIKey, error) {
 	// Note: ValidateKeyFormat is now unexported, but we need it here
 	// We'll check the key format inline
-	if len(key) < 2+30 || key[:2] != "k_" {
+	if len(key) < 2+30 || key[:2] != apiKeyPrefix {
 		return nil, apikeys.ErrInvalidKey
 	}
 
@@ -128,7 +132,7 @@ func (r *apiKeysRepository) GetByKey(ctx context.Context, domain, key string) (*
 
 func (r *apiKeysRepository) ValidateKeyForAuth(ctx context.Context, domain, key string) (*apikeys.APIKey, error) {
 	// Validate key format first
-	if len(key) < 2+30 || key[:2] != "k_" {
+	if len(key) < 2+30 || key[:2] != apiKeyPrefix {
 		return nil, apikeys.ErrInvalidKey
 	}
 
