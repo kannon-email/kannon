@@ -11,13 +11,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testDomain = "test.example.com"
+
 func TestService_CreateKey(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		ctx := context.Background()
 		repo := apikeyshelpers.NewInMemoryRepository()
 		service := apikeys.NewService(repo)
 
-		domain := "test.example.com"
+		domain := testDomain
 		name := "test-key"
 
 		key, err := service.CreateKey(ctx, domain, name, nil)
@@ -35,7 +37,7 @@ func TestService_CreateKey(t *testing.T) {
 		repo := apikeyshelpers.NewInMemoryRepository()
 		service := apikeys.NewService(repo)
 
-		domain := "test.example.com"
+		domain := testDomain
 		name := "expiring-key"
 		expiresAt := time.Now().Add(24 * time.Hour)
 
@@ -58,7 +60,7 @@ func TestService_CreateKey(t *testing.T) {
 		repo := apikeyshelpers.NewInMemoryRepository()
 		service := apikeys.NewService(repo)
 
-		_, err := service.CreateKey(ctx, "test.example.com", "", nil)
+		_, err := service.CreateKey(ctx, testDomain, "", nil)
 		assert.Error(t, err)
 	})
 }
@@ -69,7 +71,7 @@ func TestService_GetKey(t *testing.T) {
 		repo := apikeyshelpers.NewInMemoryRepository()
 		service := apikeys.NewService(repo)
 
-		domain := "test.example.com"
+		domain := testDomain
 		created, err := service.CreateKey(ctx, domain, "test-key", nil)
 		require.NoError(t, err)
 
@@ -86,7 +88,7 @@ func TestService_GetKey(t *testing.T) {
 		repo := apikeyshelpers.NewInMemoryRepository()
 		service := apikeys.NewService(repo)
 
-		domain := "test.example.com"
+		domain := testDomain
 		nonExistentID, _ := apikeys.ParseID("key_nonexistent")
 		ref := apikeys.NewKeyRef(domain, nonExistentID)
 
@@ -101,7 +103,7 @@ func TestService_ListKeys(t *testing.T) {
 		repo := apikeyshelpers.NewInMemoryRepository()
 		service := apikeys.NewService(repo)
 
-		domain := "test.example.com"
+		domain := testDomain
 
 		// Create 3 keys
 		for i := 0; i < 3; i++ {
@@ -120,7 +122,7 @@ func TestService_ListKeys(t *testing.T) {
 		repo := apikeyshelpers.NewInMemoryRepository()
 		service := apikeys.NewService(repo)
 
-		domain := "test.example.com"
+		domain := testDomain
 
 		// Create 2 active keys
 		for i := 0; i < 2; i++ {
@@ -157,7 +159,7 @@ func TestService_ListKeys(t *testing.T) {
 		repo := apikeyshelpers.NewInMemoryRepository()
 		service := apikeys.NewService(repo)
 
-		domain := "test.example.com"
+		domain := testDomain
 
 		// Create 5 keys
 		for i := 0; i < 5; i++ {
@@ -200,7 +202,7 @@ func TestService_DeactivateKey(t *testing.T) {
 		repo := apikeyshelpers.NewInMemoryRepository()
 		service := apikeys.NewService(repo)
 
-		domain := "test.example.com"
+		domain := testDomain
 		created, err := service.CreateKey(ctx, domain, "test-key", nil)
 		require.NoError(t, err)
 		assert.True(t, created.IsActiveStatus())
@@ -223,7 +225,7 @@ func TestService_DeactivateKey(t *testing.T) {
 		repo := apikeyshelpers.NewInMemoryRepository()
 		service := apikeys.NewService(repo)
 
-		domain := "test.example.com"
+		domain := testDomain
 		nonExistentID, _ := apikeys.ParseID("key_nonexistent")
 		ref := apikeys.NewKeyRef(domain, nonExistentID)
 
@@ -238,7 +240,7 @@ func TestService_ValidateForAuth(t *testing.T) {
 		repo := apikeyshelpers.NewInMemoryRepository()
 		service := apikeys.NewService(repo)
 
-		domain := "test.example.com"
+		domain := testDomain
 		created, err := service.CreateKey(ctx, domain, "test-key", nil)
 		require.NoError(t, err)
 
@@ -253,7 +255,7 @@ func TestService_ValidateForAuth(t *testing.T) {
 		repo := apikeyshelpers.NewInMemoryRepository()
 		service := apikeys.NewService(repo)
 
-		domain := "test.example.com"
+		domain := testDomain
 		created, err := service.CreateKey(ctx, domain, "test-key", nil)
 		require.NoError(t, err)
 
@@ -271,7 +273,7 @@ func TestService_ValidateForAuth(t *testing.T) {
 		repo := apikeyshelpers.NewInMemoryRepository()
 		service := apikeys.NewService(repo)
 
-		domain := "test.example.com"
+		domain := testDomain
 		// Create a key first with valid expiration
 		futureTime := time.Now().Add(24 * time.Hour)
 		key, err := apikeys.NewAPIKey(domain, "expired-key", &futureTime)
@@ -311,7 +313,7 @@ func TestService_ValidateForAuth(t *testing.T) {
 		repo := apikeyshelpers.NewInMemoryRepository()
 		service := apikeys.NewService(repo)
 
-		domain := "test.example.com"
+		domain := testDomain
 
 		// Returns generic error for security
 		_, err := service.ValidateForAuth(ctx, domain, "k_nonexistent12345678901234567890")
@@ -323,7 +325,7 @@ func TestService_ValidateForAuth(t *testing.T) {
 		repo := apikeyshelpers.NewInMemoryRepository()
 		service := apikeys.NewService(repo)
 
-		domain := "test.example.com"
+		domain := testDomain
 
 		// Returns generic error for security
 		_, err := service.ValidateForAuth(ctx, domain, "invalid-key")
