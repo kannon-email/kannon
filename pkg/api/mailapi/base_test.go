@@ -19,8 +19,6 @@ import (
 	adminv1connect "github.com/kannon-email/kannon/proto/kannon/admin/apiv1/apiv1connect"
 	mailerv1connect "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1/apiv1connect"
 
-	adminv1 "github.com/kannon-email/kannon/proto/kannon/admin/apiv1"
-
 	_ "github.com/lib/pq"
 )
 
@@ -39,8 +37,8 @@ func TestMain(m *testing.M) {
 	}
 
 	q = sqlc.New(db)
-	ts = mailapi.NewMailerAPIV1(q)
-	adminAPI = adminapi.CreateAdminAPIService(q)
+	ts = mailapi.NewMailerAPIV1(q, db)
+	adminAPI = adminapi.CreateAdminAPIService(q, db)
 
 	code := m.Run()
 
@@ -52,13 +50,9 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func createTestDomain(t *testing.T) *adminv1.Domain {
+func createTestDomain(t *testing.T) *tests.DomainWithKey {
 	t.Helper()
-	res, err := adminAPI.CreateDomain(context.Background(), connect.NewRequest(&adminv1.CreateDomainRequest{
-		Domain: "test.test.test",
-	}))
-	assert.Nil(t, err)
-	return res.Msg
+	return tests.CreateTestDomain(t, adminAPI)
 }
 
 func cleanDB(t *testing.T) {
@@ -73,7 +67,7 @@ func cleanDB(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func authRequest[T any](req *connect.Request[T], d *adminv1.Domain) {
-	token := base64.StdEncoding.EncodeToString([]byte(d.Domain + ":" + d.Key))
+func authRequest[T any](req *connect.Request[T], d *tests.DomainWithKey) {
+	token := base64.StdEncoding.EncodeToString([]byte(d.Domain.Domain + ":" + d.APIKey))
 	req.Header().Set("Authorization", "Basic "+token)
 }

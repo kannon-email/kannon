@@ -16,7 +16,6 @@ import (
 	"github.com/kannon-email/kannon/pkg/api/adminapi"
 	"github.com/kannon-email/kannon/pkg/api/mailapi"
 	"github.com/kannon-email/kannon/pkg/validator"
-	adminapiv1 "github.com/kannon-email/kannon/proto/kannon/admin/apiv1"
 	adminv1connect "github.com/kannon-email/kannon/proto/kannon/admin/apiv1/apiv1connect"
 	mailerapiv1 "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1"
 	mailerv1connect "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1/apiv1connect"
@@ -50,8 +49,8 @@ func TestMain(m *testing.M) {
 	pm := pool.NewSendingPoolManager(q)
 	vt = validator.NewValidator(pm, &mp)
 
-	ts = mailapi.NewMailerAPIV1(q)
-	adminAPI = adminapi.CreateAdminAPIService(q)
+	ts = mailapi.NewMailerAPIV1(q, db)
+	adminAPI = adminapi.CreateAdminAPIService(q, db)
 
 	code := m.Run()
 
@@ -108,7 +107,7 @@ func runOneCycle(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func sendEmail(t *testing.T, domain *adminapiv1.Domain, email string) {
+func sendEmail(t *testing.T, domainWithKey *tests.DomainWithKey, email string) {
 	t.Helper()
 
 	req := connect.NewRequest(&mailerapiv1.SendHTMLReq{
@@ -126,19 +125,15 @@ func sendEmail(t *testing.T, domain *adminapiv1.Domain, email string) {
 		},
 	})
 
-	authRequest(req, domain)
+	authRequest(req, domainWithKey)
 
 	_, err := ts.SendHTML(context.Background(), req)
 	assert.Nil(t, err)
 }
 
-func createTestDomain(t *testing.T) *adminapiv1.Domain {
+func createTestDomain(t *testing.T) *tests.DomainWithKey {
 	t.Helper()
-	res, err := adminAPI.CreateDomain(context.Background(), connect.NewRequest(&adminapiv1.CreateDomainRequest{
-		Domain: "test.test.test",
-	}))
-	assert.Nil(t, err)
-	return res.Msg
+	return tests.CreateTestDomain(t, adminAPI)
 }
 
 func cleanDB(t *testing.T) {
@@ -153,8 +148,8 @@ func cleanDB(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func authRequest[T any](req *connect.Request[T], d *adminapiv1.Domain) {
-	token := base64.StdEncoding.EncodeToString([]byte(d.Domain + ":" + d.Key))
+func authRequest[T any](req *connect.Request[T], d *tests.DomainWithKey) {
+	token := base64.StdEncoding.EncodeToString([]byte(d.Domain.Domain + ":" + d.APIKey))
 	req.Header().Set("Authorization", "Basic "+token)
 }
 

@@ -46,8 +46,8 @@ func TestInsertMail(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotEmpty(t, res.Msg.MessageId)
 	assert.NotEmpty(t, res.Msg.TemplateId)
-	assert.True(t, strings.HasSuffix(res.Msg.MessageId, "@"+d.Domain))
-	assert.True(t, strings.HasSuffix(res.Msg.TemplateId, "@"+d.Domain))
+	assert.True(t, strings.HasSuffix(res.Msg.MessageId, "@"+d.Domain.Domain))
+	assert.True(t, strings.HasSuffix(res.Msg.TemplateId, "@"+d.Domain.Domain))
 
 	sp, err := q.GetSendingPoolsEmails(context.Background(), sqlc.GetSendingPoolsEmailsParams{
 		MessageID: res.Msg.MessageId,
@@ -106,7 +106,7 @@ func TestSendTemplateWithGlobalFields(t *testing.T) {
 		Html:       "Hello {{ name }}",
 		TemplateID: "test-template",
 		Title:      "Test",
-		Domain:     d.Domain,
+		Domain:     d.Domain.Domain,
 		Type:       sqlc.TemplateTypeTemplate,
 	})
 	assert.NoError(t, err)

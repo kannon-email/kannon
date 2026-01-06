@@ -52,8 +52,8 @@ func TestMain(m *testing.M) {
 	q = sqlc.New(db)
 
 	mb = mailbuilder.NewMailBuilder(q, statssec.NewStatsService(q))
-	ma = mailapi.NewMailerAPIV1(q)
-	adminAPI = adminapi.CreateAdminAPIService(q)
+	ma = mailapi.NewMailerAPIV1(q, db)
+	adminAPI = adminapi.CreateAdminAPIService(q, db)
 	pm = pool.NewSendingPoolManager(q)
 
 	code := m.Run()
@@ -69,6 +69,13 @@ func TestMain(m *testing.M) {
 func TestPrepareMail(t *testing.T) {
 	d, err := adminAPI.CreateDomain(context.Background(), connect.NewRequest(&adminapiv1.CreateDomainRequest{
 		Domain: "test.com",
+	}))
+	assert.Nil(t, err)
+
+	// Create an API key for authentication
+	keyRes, err := adminAPI.CreateAPIKey(context.Background(), connect.NewRequest(&adminapiv1.CreateAPIKeyRequest{
+		Domain: d.Msg.Domain,
+		Name:   "test-key",
 	}))
 	assert.Nil(t, err)
 
@@ -89,7 +96,7 @@ func TestPrepareMail(t *testing.T) {
 			},
 		},
 	})
-	authRequest(req, d.Msg)
+	authRequest(req, d.Msg, keyRes.Msg.Key)
 
 	res, err := ma.SendHTML(context.Background(), req)
 	assert.Nil(t, err)
@@ -148,6 +155,13 @@ func TestPrepareMailWithAttachments(t *testing.T) {
 	}))
 	assert.Nil(t, err)
 
+	// Create an API key for authentication
+	keyRes, err := adminAPI.CreateAPIKey(context.Background(), connect.NewRequest(&adminapiv1.CreateAPIKeyRequest{
+		Domain: d.Msg.Domain,
+		Name:   "test-key",
+	}))
+	assert.Nil(t, err)
+
 	req := connect.NewRequest(&mailerapiv1.SendHTMLReq{
 		Sender: &pb.Sender{
 			Email: "test@test.com",
@@ -171,7 +185,7 @@ func TestPrepareMailWithAttachments(t *testing.T) {
 			},
 		},
 	})
-	authRequest(req, d.Msg)
+	authRequest(req, d.Msg, keyRes.Msg.Key)
 
 	res, err := ma.SendHTML(context.Background(), req)
 	assert.Nil(t, err)
@@ -194,7 +208,7 @@ func TestPrepareMailWithAttachments(t *testing.T) {
 	assert.Equal(t, "multipart/mixed", strings.Split(parsed.Header.Get("Content-Type"), ";")[0])
 }
 
-func authRequest[T any](req *connect.Request[T], d *adminapiv1.Domain) {
-	token := base64.StdEncoding.EncodeToString([]byte(d.Domain + ":" + d.Key))
+func authRequest[T any](req *connect.Request[T], d *adminapiv1.Domain, apiKey string) {
+	token := base64.StdEncoding.EncodeToString([]byte(d.Domain + ":" + apiKey))
 	req.Header().Set("Authorization", "Basic "+token)
 }

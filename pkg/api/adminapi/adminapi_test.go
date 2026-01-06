@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
+	"github.com/go-faker/faker/v4"
 	"github.com/jackc/pgx/v5/pgxpool"
 	schema "github.com/kannon-email/kannon/db"
 	sqlc "github.com/kannon-email/kannon/internal/db"
@@ -33,7 +34,7 @@ func TestMain(m *testing.M) {
 	}
 
 	q = sqlc.New(db)
-	testservice = adminapi.CreateAdminAPIService(q)
+	testservice = adminapi.CreateAdminAPIService(q, db)
 
 	code := m.Run()
 
@@ -52,10 +53,9 @@ func TestEmptyDatabase(t *testing.T) {
 }
 
 func TestCreateANewDomain(t *testing.T) {
-	newDomain := "test.test.test"
+	newDomain := faker.DomainName()
 
 	var domain *pb.Domain
-	var domain2 *pb.Domain
 
 	// When I create a domain
 	t.Run("When I create a domain", func(t *testing.T) {
@@ -66,7 +66,6 @@ func TestCreateANewDomain(t *testing.T) {
 		domain = res.Msg
 		assert.Nil(t, err)
 		assert.Equal(t, newDomain, domain.Domain)
-		assert.NotEmpty(t, domain.Key)
 		assert.NotEmpty(t, domain.DkimPubKey)
 	})
 
@@ -84,21 +83,13 @@ func TestCreateANewDomain(t *testing.T) {
 		assert.Equal(t, newDomain, resGetDomain.Msg.Domain.Domain)
 	})
 
-	t.Run("I should be able to change the key", func(t *testing.T) {
-		res, err := testservice.RegenerateDomainKey(context.Background(), connect.NewRequest(&pb.RegenerateDomainKeyRequest{
-			Domain: newDomain,
-		}))
-		domain2 = res.Msg
-		assert.Nil(t, err)
-		assert.NotEqual(t, domain.Key, domain2.Key)
-	})
-
 	cleanDB(t)
 }
 
 func createTestDomain(t *testing.T) *pb.Domain {
+	domain := faker.DomainName()
 	res, err := testservice.CreateDomain(context.Background(), connect.NewRequest(&pb.CreateDomainRequest{
-		Domain: "test.test.test",
+		Domain: domain,
 	}))
 	assert.Nil(t, err)
 	return res.Msg

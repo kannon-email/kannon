@@ -1,6 +1,10 @@
+-- Dumped from database version 17.6 (Homebrew)
+-- Dumped by pg_dump version 17.6 (Homebrew)
+
 SET statement_timeout = 0;
 SET lock_timeout = 0;
 SET idle_in_transaction_session_timeout = 0;
+SET transaction_timeout = 0;
 SET client_encoding = 'UTF8';
 SET standard_conforming_strings = on;
 SELECT pg_catalog.set_config('search_path', '', false);
@@ -24,6 +28,112 @@ SET default_tablespace = '';
 SET default_table_access_method = heap;
 
 --
+-- Name: Account; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public."Account" (
+    id text NOT NULL,
+    "userId" text NOT NULL,
+    type text NOT NULL,
+    provider text NOT NULL,
+    "providerAccountId" text NOT NULL,
+    refresh_token text,
+    access_token text,
+    expires_at integer,
+    token_type text,
+    scope text,
+    id_token text,
+    session_state text
+);
+
+
+--
+-- Name: Example; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public."Example" (
+    id text NOT NULL,
+    "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp(3) without time zone NOT NULL
+);
+
+
+--
+-- Name: Session; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public."Session" (
+    id text NOT NULL,
+    "sessionToken" text NOT NULL,
+    "userId" text NOT NULL,
+    expires timestamp(3) without time zone NOT NULL
+);
+
+
+--
+-- Name: User; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public."User" (
+    id text NOT NULL,
+    name text NOT NULL,
+    email text NOT NULL,
+    "emailVerified" timestamp(3) without time zone,
+    image text NOT NULL,
+    "isAdmin" boolean DEFAULT false NOT NULL
+);
+
+
+--
+-- Name: VerificationToken; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public."VerificationToken" (
+    identifier text NOT NULL,
+    token text NOT NULL,
+    expires timestamp(3) without time zone NOT NULL
+);
+
+
+--
+-- Name: api_keys; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.api_keys (
+    id character varying(512) NOT NULL,
+    key character varying(512) NOT NULL,
+    name character varying(100) NOT NULL,
+    domain character varying(512) NOT NULL,
+    created_at timestamp without time zone DEFAULT now() NOT NULL,
+    expires_at timestamp without time zone,
+    is_active boolean DEFAULT true NOT NULL,
+    deactivated_at timestamp without time zone
+);
+
+
+--
+-- Name: domain_template; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.domain_template (
+    name text NOT NULL,
+    domain text NOT NULL,
+    "templateId" text NOT NULL,
+    source jsonb NOT NULL
+);
+
+
+--
+-- Name: domain_user; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.domain_user (
+    domain text NOT NULL,
+    "userId" text NOT NULL
+);
+
+
+--
 -- Name: domains; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -31,7 +141,6 @@ CREATE TABLE public.domains (
     id integer NOT NULL,
     domain character varying(254) NOT NULL,
     created_at timestamp without time zone DEFAULT now() NOT NULL,
-    key character varying NOT NULL,
     dkim_private_key character varying NOT NULL,
     dkim_public_key character varying NOT NULL
 );
@@ -77,7 +186,7 @@ CREATE TABLE public.messages (
 --
 
 CREATE TABLE public.schema_migrations (
-    version character varying(255) NOT NULL
+    version character varying NOT NULL
 );
 
 
@@ -232,6 +341,70 @@ ALTER TABLE ONLY public.templates ALTER COLUMN id SET DEFAULT nextval('public.te
 
 
 --
+-- Name: Account Account_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public."Account"
+    ADD CONSTRAINT "Account_pkey" PRIMARY KEY (id);
+
+
+--
+-- Name: Example Example_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public."Example"
+    ADD CONSTRAINT "Example_pkey" PRIMARY KEY (id);
+
+
+--
+-- Name: Session Session_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public."Session"
+    ADD CONSTRAINT "Session_pkey" PRIMARY KEY (id);
+
+
+--
+-- Name: User User_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public."User"
+    ADD CONSTRAINT "User_pkey" PRIMARY KEY (id);
+
+
+--
+-- Name: api_keys api_keys_key_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.api_keys
+    ADD CONSTRAINT api_keys_key_key UNIQUE (key);
+
+
+--
+-- Name: api_keys api_keys_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.api_keys
+    ADD CONSTRAINT api_keys_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: domain_template domain_template_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.domain_template
+    ADD CONSTRAINT domain_template_pkey PRIMARY KEY ("templateId");
+
+
+--
+-- Name: domain_user domain_user_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.domain_user
+    ADD CONSTRAINT domain_user_pkey PRIMARY KEY (domain, "userId");
+
+
+--
 -- Name: domains domains_domain_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -293,6 +466,83 @@ ALTER TABLE ONLY public.stats
 
 ALTER TABLE ONLY public.templates
     ADD CONSTRAINT templates_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: Account_provider_providerAccountId_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX "Account_provider_providerAccountId_key" ON public."Account" USING btree (provider, "providerAccountId");
+
+
+--
+-- Name: Session_sessionToken_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX "Session_sessionToken_key" ON public."Session" USING btree ("sessionToken");
+
+
+--
+-- Name: User_email_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX "User_email_key" ON public."User" USING btree (email);
+
+
+--
+-- Name: VerificationToken_identifier_token_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX "VerificationToken_identifier_token_key" ON public."VerificationToken" USING btree (identifier, token);
+
+
+--
+-- Name: VerificationToken_token_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX "VerificationToken_token_key" ON public."VerificationToken" USING btree (token);
+
+
+--
+-- Name: api_keys_domain_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX api_keys_domain_idx ON public.api_keys USING btree (domain);
+
+
+--
+-- Name: api_keys_expires_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX api_keys_expires_at_idx ON public.api_keys USING btree (expires_at) WHERE (expires_at IS NOT NULL);
+
+
+--
+-- Name: api_keys_key_active_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX api_keys_key_active_idx ON public.api_keys USING btree (key) WHERE (is_active = true);
+
+
+--
+-- Name: domain_template_domain_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX domain_template_domain_idx ON public.domain_template USING btree (domain);
+
+
+--
+-- Name: domain_template_templateId_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX "domain_template_templateId_key" ON public.domain_template USING btree ("templateId");
+
+
+--
+-- Name: domain_user_domain_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX domain_user_domain_idx ON public.domain_user USING btree (domain);
 
 
 --
@@ -366,6 +616,38 @@ CREATE UNIQUE INDEX unique_emails_message_id_idx ON public.sending_pool_emails U
 
 
 --
+-- Name: Account Account_userId_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public."Account"
+    ADD CONSTRAINT "Account_userId_fkey" FOREIGN KEY ("userId") REFERENCES public."User"(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: Session Session_userId_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public."Session"
+    ADD CONSTRAINT "Session_userId_fkey" FOREIGN KEY ("userId") REFERENCES public."User"(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: api_keys api_keys_domain_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.api_keys
+    ADD CONSTRAINT api_keys_domain_fkey FOREIGN KEY (domain) REFERENCES public.domains(domain) ON DELETE CASCADE;
+
+
+--
+-- Name: domain_user domain_user_userId_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.domain_user
+    ADD CONSTRAINT "domain_user_userId_fkey" FOREIGN KEY ("userId") REFERENCES public."User"(id) ON UPDATE CASCADE ON DELETE RESTRICT;
+
+
+--
 -- Name: sending_pool_emails sending_pool_emails_message_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -390,4 +672,6 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20220830073617'),
     ('20220904111715'),
     ('20240420090612'),
-    ('20240421080953');
+    ('20240421080953'),
+    ('20260104120000'),
+    ('20260106120000');

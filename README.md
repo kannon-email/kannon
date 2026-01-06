@@ -179,6 +179,7 @@ Kannon can be configured via YAML file, environment variables, or CLI flags. Pre
 Kannon requires a PostgreSQL database. Main tables:
 
 - **domains**: Registered sender domains, DKIM keys
+- **api_keys**: API keys for authentication (multiple keys per domain, expirable, revocable)
 - **messages**: Outgoing messages, subject, sender, template, attachments
 - **sending_pool_emails**: Email queue, status, scheduling, custom fields
 - **templates**: Email templates, type, metadata
@@ -197,8 +198,9 @@ Kannon exposes a gRPC API for sending mail, managing domains/templates, and retr
   - `SendHTML`: Send a raw HTML email
   - `SendTemplate`: Send an email using a stored template
 - **Admin API** ([proto](./proto/kannon/admin/apiv1/adminapiv1.proto))
-  - `GetDomains`, `GetDomain`, `CreateDomain`, `RegenerateDomainKey`
-  - `CreateTemplate`, `UpdateTemplate`, `DeleteTemplate`, `GetTemplate`, `GetTemplates`
+  - **Domains**: `GetDomains`, `GetDomain`, `CreateDomain`
+  - **Templates**: `CreateTemplate`, `UpdateTemplate`, `DeleteTemplate`, `GetTemplate`, `GetTemplates`
+  - **API Keys**: `CreateAPIKey`, `ListAPIKeys`, `GetAPIKey`, `DeactivateAPIKey`
 - **Stats API** ([proto](./proto/kannon/stats/apiv1/statsapiv1.proto))
   - `GetStats`, `GetStatsAggregated`
 
@@ -207,7 +209,7 @@ Kannon exposes a gRPC API for sending mail, managing domains/templates, and retr
 All gRPC APIs use Basic Auth with your domain and API key:
 
 ```
-token = base64(<your domain>:<your domain key>)
+token = base64(<your domain>:<your api key>)
 ```
 
 Pass this in the `Authorization` metadata for gRPC calls:
@@ -332,6 +334,12 @@ We welcome contributions! Please:
 - Follow the [pull request template](.github/PULL_REQUEST_TEMPLATE.md)
 - See the [Apache 2.0 License](./LICENSE)
 - **Read our [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines, code style, and the full contribution process.**
+
+### Developer Documentation
+
+- **[REPOSITORY_GUIDE.md](docs/REPOSITORY_GUIDE.md)** - PostgreSQL repository implementation patterns
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** - Detailed technical architecture
+- **[CLAUDE.md](CLAUDE.md)** - AI assistant guidance for working with the codebase
 
 ### Local Development
 

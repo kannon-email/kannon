@@ -39,8 +39,6 @@ const (
 	ApiGetDomainProcedure = "/pkg.kannon.admin.apiv1.Api/GetDomain"
 	// ApiCreateDomainProcedure is the fully-qualified name of the Api's CreateDomain RPC.
 	ApiCreateDomainProcedure = "/pkg.kannon.admin.apiv1.Api/CreateDomain"
-	// ApiRegenerateDomainKeyProcedure is the fully-qualified name of the Api's RegenerateDomainKey RPC.
-	ApiRegenerateDomainKeyProcedure = "/pkg.kannon.admin.apiv1.Api/RegenerateDomainKey"
 	// ApiCreateTemplateProcedure is the fully-qualified name of the Api's CreateTemplate RPC.
 	ApiCreateTemplateProcedure = "/pkg.kannon.admin.apiv1.Api/CreateTemplate"
 	// ApiUpdateTemplateProcedure is the fully-qualified name of the Api's UpdateTemplate RPC.
@@ -51,6 +49,14 @@ const (
 	ApiGetTemplateProcedure = "/pkg.kannon.admin.apiv1.Api/GetTemplate"
 	// ApiGetTemplatesProcedure is the fully-qualified name of the Api's GetTemplates RPC.
 	ApiGetTemplatesProcedure = "/pkg.kannon.admin.apiv1.Api/GetTemplates"
+	// ApiCreateAPIKeyProcedure is the fully-qualified name of the Api's CreateAPIKey RPC.
+	ApiCreateAPIKeyProcedure = "/pkg.kannon.admin.apiv1.Api/CreateAPIKey"
+	// ApiListAPIKeysProcedure is the fully-qualified name of the Api's ListAPIKeys RPC.
+	ApiListAPIKeysProcedure = "/pkg.kannon.admin.apiv1.Api/ListAPIKeys"
+	// ApiGetAPIKeyProcedure is the fully-qualified name of the Api's GetAPIKey RPC.
+	ApiGetAPIKeyProcedure = "/pkg.kannon.admin.apiv1.Api/GetAPIKey"
+	// ApiDeactivateAPIKeyProcedure is the fully-qualified name of the Api's DeactivateAPIKey RPC.
+	ApiDeactivateAPIKeyProcedure = "/pkg.kannon.admin.apiv1.Api/DeactivateAPIKey"
 )
 
 // ApiClient is a client for the pkg.kannon.admin.apiv1.Api service.
@@ -58,12 +64,15 @@ type ApiClient interface {
 	GetDomains(context.Context, *connect.Request[apiv1.GetDomainsReq]) (*connect.Response[apiv1.GetDomainsResponse], error)
 	GetDomain(context.Context, *connect.Request[apiv1.GetDomainReq]) (*connect.Response[apiv1.GetDomainRes], error)
 	CreateDomain(context.Context, *connect.Request[apiv1.CreateDomainRequest]) (*connect.Response[apiv1.Domain], error)
-	RegenerateDomainKey(context.Context, *connect.Request[apiv1.RegenerateDomainKeyRequest]) (*connect.Response[apiv1.Domain], error)
 	CreateTemplate(context.Context, *connect.Request[apiv1.CreateTemplateReq]) (*connect.Response[apiv1.CreateTemplateRes], error)
 	UpdateTemplate(context.Context, *connect.Request[apiv1.UpdateTemplateReq]) (*connect.Response[apiv1.UpdateTemplateRes], error)
 	DeleteTemplate(context.Context, *connect.Request[apiv1.DeleteTemplateReq]) (*connect.Response[apiv1.DeleteTemplateRes], error)
 	GetTemplate(context.Context, *connect.Request[apiv1.GetTemplateReq]) (*connect.Response[apiv1.GetTemplateRes], error)
 	GetTemplates(context.Context, *connect.Request[apiv1.GetTemplatesReq]) (*connect.Response[apiv1.GetTemplatesRes], error)
+	CreateAPIKey(context.Context, *connect.Request[apiv1.CreateAPIKeyRequest]) (*connect.Response[apiv1.CreateAPIKeyResponse], error)
+	ListAPIKeys(context.Context, *connect.Request[apiv1.ListAPIKeysRequest]) (*connect.Response[apiv1.ListAPIKeysResponse], error)
+	GetAPIKey(context.Context, *connect.Request[apiv1.GetAPIKeyRequest]) (*connect.Response[apiv1.GetAPIKeyResponse], error)
+	DeactivateAPIKey(context.Context, *connect.Request[apiv1.DeactivateAPIKeyRequest]) (*connect.Response[apiv1.DeactivateAPIKeyResponse], error)
 }
 
 // NewApiClient constructs a client for the pkg.kannon.admin.apiv1.Api service. By default, it uses
@@ -93,12 +102,6 @@ func NewApiClient(httpClient connect.HTTPClient, baseURL string, opts ...connect
 			httpClient,
 			baseURL+ApiCreateDomainProcedure,
 			connect.WithSchema(apiMethods.ByName("CreateDomain")),
-			connect.WithClientOptions(opts...),
-		),
-		regenerateDomainKey: connect.NewClient[apiv1.RegenerateDomainKeyRequest, apiv1.Domain](
-			httpClient,
-			baseURL+ApiRegenerateDomainKeyProcedure,
-			connect.WithSchema(apiMethods.ByName("RegenerateDomainKey")),
 			connect.WithClientOptions(opts...),
 		),
 		createTemplate: connect.NewClient[apiv1.CreateTemplateReq, apiv1.CreateTemplateRes](
@@ -131,20 +134,47 @@ func NewApiClient(httpClient connect.HTTPClient, baseURL string, opts ...connect
 			connect.WithSchema(apiMethods.ByName("GetTemplates")),
 			connect.WithClientOptions(opts...),
 		),
+		createAPIKey: connect.NewClient[apiv1.CreateAPIKeyRequest, apiv1.CreateAPIKeyResponse](
+			httpClient,
+			baseURL+ApiCreateAPIKeyProcedure,
+			connect.WithSchema(apiMethods.ByName("CreateAPIKey")),
+			connect.WithClientOptions(opts...),
+		),
+		listAPIKeys: connect.NewClient[apiv1.ListAPIKeysRequest, apiv1.ListAPIKeysResponse](
+			httpClient,
+			baseURL+ApiListAPIKeysProcedure,
+			connect.WithSchema(apiMethods.ByName("ListAPIKeys")),
+			connect.WithClientOptions(opts...),
+		),
+		getAPIKey: connect.NewClient[apiv1.GetAPIKeyRequest, apiv1.GetAPIKeyResponse](
+			httpClient,
+			baseURL+ApiGetAPIKeyProcedure,
+			connect.WithSchema(apiMethods.ByName("GetAPIKey")),
+			connect.WithClientOptions(opts...),
+		),
+		deactivateAPIKey: connect.NewClient[apiv1.DeactivateAPIKeyRequest, apiv1.DeactivateAPIKeyResponse](
+			httpClient,
+			baseURL+ApiDeactivateAPIKeyProcedure,
+			connect.WithSchema(apiMethods.ByName("DeactivateAPIKey")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // apiClient implements ApiClient.
 type apiClient struct {
-	getDomains          *connect.Client[apiv1.GetDomainsReq, apiv1.GetDomainsResponse]
-	getDomain           *connect.Client[apiv1.GetDomainReq, apiv1.GetDomainRes]
-	createDomain        *connect.Client[apiv1.CreateDomainRequest, apiv1.Domain]
-	regenerateDomainKey *connect.Client[apiv1.RegenerateDomainKeyRequest, apiv1.Domain]
-	createTemplate      *connect.Client[apiv1.CreateTemplateReq, apiv1.CreateTemplateRes]
-	updateTemplate      *connect.Client[apiv1.UpdateTemplateReq, apiv1.UpdateTemplateRes]
-	deleteTemplate      *connect.Client[apiv1.DeleteTemplateReq, apiv1.DeleteTemplateRes]
-	getTemplate         *connect.Client[apiv1.GetTemplateReq, apiv1.GetTemplateRes]
-	getTemplates        *connect.Client[apiv1.GetTemplatesReq, apiv1.GetTemplatesRes]
+	getDomains       *connect.Client[apiv1.GetDomainsReq, apiv1.GetDomainsResponse]
+	getDomain        *connect.Client[apiv1.GetDomainReq, apiv1.GetDomainRes]
+	createDomain     *connect.Client[apiv1.CreateDomainRequest, apiv1.Domain]
+	createTemplate   *connect.Client[apiv1.CreateTemplateReq, apiv1.CreateTemplateRes]
+	updateTemplate   *connect.Client[apiv1.UpdateTemplateReq, apiv1.UpdateTemplateRes]
+	deleteTemplate   *connect.Client[apiv1.DeleteTemplateReq, apiv1.DeleteTemplateRes]
+	getTemplate      *connect.Client[apiv1.GetTemplateReq, apiv1.GetTemplateRes]
+	getTemplates     *connect.Client[apiv1.GetTemplatesReq, apiv1.GetTemplatesRes]
+	createAPIKey     *connect.Client[apiv1.CreateAPIKeyRequest, apiv1.CreateAPIKeyResponse]
+	listAPIKeys      *connect.Client[apiv1.ListAPIKeysRequest, apiv1.ListAPIKeysResponse]
+	getAPIKey        *connect.Client[apiv1.GetAPIKeyRequest, apiv1.GetAPIKeyResponse]
+	deactivateAPIKey *connect.Client[apiv1.DeactivateAPIKeyRequest, apiv1.DeactivateAPIKeyResponse]
 }
 
 // GetDomains calls pkg.kannon.admin.apiv1.Api.GetDomains.
@@ -160,11 +190,6 @@ func (c *apiClient) GetDomain(ctx context.Context, req *connect.Request[apiv1.Ge
 // CreateDomain calls pkg.kannon.admin.apiv1.Api.CreateDomain.
 func (c *apiClient) CreateDomain(ctx context.Context, req *connect.Request[apiv1.CreateDomainRequest]) (*connect.Response[apiv1.Domain], error) {
 	return c.createDomain.CallUnary(ctx, req)
-}
-
-// RegenerateDomainKey calls pkg.kannon.admin.apiv1.Api.RegenerateDomainKey.
-func (c *apiClient) RegenerateDomainKey(ctx context.Context, req *connect.Request[apiv1.RegenerateDomainKeyRequest]) (*connect.Response[apiv1.Domain], error) {
-	return c.regenerateDomainKey.CallUnary(ctx, req)
 }
 
 // CreateTemplate calls pkg.kannon.admin.apiv1.Api.CreateTemplate.
@@ -192,17 +217,40 @@ func (c *apiClient) GetTemplates(ctx context.Context, req *connect.Request[apiv1
 	return c.getTemplates.CallUnary(ctx, req)
 }
 
+// CreateAPIKey calls pkg.kannon.admin.apiv1.Api.CreateAPIKey.
+func (c *apiClient) CreateAPIKey(ctx context.Context, req *connect.Request[apiv1.CreateAPIKeyRequest]) (*connect.Response[apiv1.CreateAPIKeyResponse], error) {
+	return c.createAPIKey.CallUnary(ctx, req)
+}
+
+// ListAPIKeys calls pkg.kannon.admin.apiv1.Api.ListAPIKeys.
+func (c *apiClient) ListAPIKeys(ctx context.Context, req *connect.Request[apiv1.ListAPIKeysRequest]) (*connect.Response[apiv1.ListAPIKeysResponse], error) {
+	return c.listAPIKeys.CallUnary(ctx, req)
+}
+
+// GetAPIKey calls pkg.kannon.admin.apiv1.Api.GetAPIKey.
+func (c *apiClient) GetAPIKey(ctx context.Context, req *connect.Request[apiv1.GetAPIKeyRequest]) (*connect.Response[apiv1.GetAPIKeyResponse], error) {
+	return c.getAPIKey.CallUnary(ctx, req)
+}
+
+// DeactivateAPIKey calls pkg.kannon.admin.apiv1.Api.DeactivateAPIKey.
+func (c *apiClient) DeactivateAPIKey(ctx context.Context, req *connect.Request[apiv1.DeactivateAPIKeyRequest]) (*connect.Response[apiv1.DeactivateAPIKeyResponse], error) {
+	return c.deactivateAPIKey.CallUnary(ctx, req)
+}
+
 // ApiHandler is an implementation of the pkg.kannon.admin.apiv1.Api service.
 type ApiHandler interface {
 	GetDomains(context.Context, *connect.Request[apiv1.GetDomainsReq]) (*connect.Response[apiv1.GetDomainsResponse], error)
 	GetDomain(context.Context, *connect.Request[apiv1.GetDomainReq]) (*connect.Response[apiv1.GetDomainRes], error)
 	CreateDomain(context.Context, *connect.Request[apiv1.CreateDomainRequest]) (*connect.Response[apiv1.Domain], error)
-	RegenerateDomainKey(context.Context, *connect.Request[apiv1.RegenerateDomainKeyRequest]) (*connect.Response[apiv1.Domain], error)
 	CreateTemplate(context.Context, *connect.Request[apiv1.CreateTemplateReq]) (*connect.Response[apiv1.CreateTemplateRes], error)
 	UpdateTemplate(context.Context, *connect.Request[apiv1.UpdateTemplateReq]) (*connect.Response[apiv1.UpdateTemplateRes], error)
 	DeleteTemplate(context.Context, *connect.Request[apiv1.DeleteTemplateReq]) (*connect.Response[apiv1.DeleteTemplateRes], error)
 	GetTemplate(context.Context, *connect.Request[apiv1.GetTemplateReq]) (*connect.Response[apiv1.GetTemplateRes], error)
 	GetTemplates(context.Context, *connect.Request[apiv1.GetTemplatesReq]) (*connect.Response[apiv1.GetTemplatesRes], error)
+	CreateAPIKey(context.Context, *connect.Request[apiv1.CreateAPIKeyRequest]) (*connect.Response[apiv1.CreateAPIKeyResponse], error)
+	ListAPIKeys(context.Context, *connect.Request[apiv1.ListAPIKeysRequest]) (*connect.Response[apiv1.ListAPIKeysResponse], error)
+	GetAPIKey(context.Context, *connect.Request[apiv1.GetAPIKeyRequest]) (*connect.Response[apiv1.GetAPIKeyResponse], error)
+	DeactivateAPIKey(context.Context, *connect.Request[apiv1.DeactivateAPIKeyRequest]) (*connect.Response[apiv1.DeactivateAPIKeyResponse], error)
 }
 
 // NewApiHandler builds an HTTP handler from the service implementation. It returns the path on
@@ -228,12 +276,6 @@ func NewApiHandler(svc ApiHandler, opts ...connect.HandlerOption) (string, http.
 		ApiCreateDomainProcedure,
 		svc.CreateDomain,
 		connect.WithSchema(apiMethods.ByName("CreateDomain")),
-		connect.WithHandlerOptions(opts...),
-	)
-	apiRegenerateDomainKeyHandler := connect.NewUnaryHandler(
-		ApiRegenerateDomainKeyProcedure,
-		svc.RegenerateDomainKey,
-		connect.WithSchema(apiMethods.ByName("RegenerateDomainKey")),
 		connect.WithHandlerOptions(opts...),
 	)
 	apiCreateTemplateHandler := connect.NewUnaryHandler(
@@ -266,6 +308,30 @@ func NewApiHandler(svc ApiHandler, opts ...connect.HandlerOption) (string, http.
 		connect.WithSchema(apiMethods.ByName("GetTemplates")),
 		connect.WithHandlerOptions(opts...),
 	)
+	apiCreateAPIKeyHandler := connect.NewUnaryHandler(
+		ApiCreateAPIKeyProcedure,
+		svc.CreateAPIKey,
+		connect.WithSchema(apiMethods.ByName("CreateAPIKey")),
+		connect.WithHandlerOptions(opts...),
+	)
+	apiListAPIKeysHandler := connect.NewUnaryHandler(
+		ApiListAPIKeysProcedure,
+		svc.ListAPIKeys,
+		connect.WithSchema(apiMethods.ByName("ListAPIKeys")),
+		connect.WithHandlerOptions(opts...),
+	)
+	apiGetAPIKeyHandler := connect.NewUnaryHandler(
+		ApiGetAPIKeyProcedure,
+		svc.GetAPIKey,
+		connect.WithSchema(apiMethods.ByName("GetAPIKey")),
+		connect.WithHandlerOptions(opts...),
+	)
+	apiDeactivateAPIKeyHandler := connect.NewUnaryHandler(
+		ApiDeactivateAPIKeyProcedure,
+		svc.DeactivateAPIKey,
+		connect.WithSchema(apiMethods.ByName("DeactivateAPIKey")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/pkg.kannon.admin.apiv1.Api/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ApiGetDomainsProcedure:
@@ -274,8 +340,6 @@ func NewApiHandler(svc ApiHandler, opts ...connect.HandlerOption) (string, http.
 			apiGetDomainHandler.ServeHTTP(w, r)
 		case ApiCreateDomainProcedure:
 			apiCreateDomainHandler.ServeHTTP(w, r)
-		case ApiRegenerateDomainKeyProcedure:
-			apiRegenerateDomainKeyHandler.ServeHTTP(w, r)
 		case ApiCreateTemplateProcedure:
 			apiCreateTemplateHandler.ServeHTTP(w, r)
 		case ApiUpdateTemplateProcedure:
@@ -286,6 +350,14 @@ func NewApiHandler(svc ApiHandler, opts ...connect.HandlerOption) (string, http.
 			apiGetTemplateHandler.ServeHTTP(w, r)
 		case ApiGetTemplatesProcedure:
 			apiGetTemplatesHandler.ServeHTTP(w, r)
+		case ApiCreateAPIKeyProcedure:
+			apiCreateAPIKeyHandler.ServeHTTP(w, r)
+		case ApiListAPIKeysProcedure:
+			apiListAPIKeysHandler.ServeHTTP(w, r)
+		case ApiGetAPIKeyProcedure:
+			apiGetAPIKeyHandler.ServeHTTP(w, r)
+		case ApiDeactivateAPIKeyProcedure:
+			apiDeactivateAPIKeyHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -307,10 +379,6 @@ func (UnimplementedApiHandler) CreateDomain(context.Context, *connect.Request[ap
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("pkg.kannon.admin.apiv1.Api.CreateDomain is not implemented"))
 }
 
-func (UnimplementedApiHandler) RegenerateDomainKey(context.Context, *connect.Request[apiv1.RegenerateDomainKeyRequest]) (*connect.Response[apiv1.Domain], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("pkg.kannon.admin.apiv1.Api.RegenerateDomainKey is not implemented"))
-}
-
 func (UnimplementedApiHandler) CreateTemplate(context.Context, *connect.Request[apiv1.CreateTemplateReq]) (*connect.Response[apiv1.CreateTemplateRes], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("pkg.kannon.admin.apiv1.Api.CreateTemplate is not implemented"))
 }
@@ -329,4 +397,20 @@ func (UnimplementedApiHandler) GetTemplate(context.Context, *connect.Request[api
 
 func (UnimplementedApiHandler) GetTemplates(context.Context, *connect.Request[apiv1.GetTemplatesReq]) (*connect.Response[apiv1.GetTemplatesRes], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("pkg.kannon.admin.apiv1.Api.GetTemplates is not implemented"))
+}
+
+func (UnimplementedApiHandler) CreateAPIKey(context.Context, *connect.Request[apiv1.CreateAPIKeyRequest]) (*connect.Response[apiv1.CreateAPIKeyResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("pkg.kannon.admin.apiv1.Api.CreateAPIKey is not implemented"))
+}
+
+func (UnimplementedApiHandler) ListAPIKeys(context.Context, *connect.Request[apiv1.ListAPIKeysRequest]) (*connect.Response[apiv1.ListAPIKeysResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("pkg.kannon.admin.apiv1.Api.ListAPIKeys is not implemented"))
+}
+
+func (UnimplementedApiHandler) GetAPIKey(context.Context, *connect.Request[apiv1.GetAPIKeyRequest]) (*connect.Response[apiv1.GetAPIKeyResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("pkg.kannon.admin.apiv1.Api.GetAPIKey is not implemented"))
+}
+
+func (UnimplementedApiHandler) DeactivateAPIKey(context.Context, *connect.Request[apiv1.DeactivateAPIKeyRequest]) (*connect.Response[apiv1.DeactivateAPIKeyResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("pkg.kannon.admin.apiv1.Api.DeactivateAPIKey is not implemented"))
 }

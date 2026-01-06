@@ -1,4 +1,5 @@
-version: "3.9"
+x-kannon-image: &kannon-image ${KANNON_IMAGE:-ghcr.io/kannon-email/kannon}
+
 services:
   db:
     image: postgres:17
@@ -10,7 +11,7 @@ services:
     image: nats:2.11.0
     command: "--js"
   migrator:
-    image: kannon
+    image: *kannon-image
     command: "migrate main --config /kannon.yaml"
     volumes:
       - ./kannon.yaml:/kannon.yaml
@@ -18,7 +19,7 @@ services:
     depends_on:
       - db
   kannon:
-    image: ghcr.io/kannon-email/kannon/kannon
+    image: *kannon-image
     restart: always
     command: "--config /kannon.yaml"
     volumes:

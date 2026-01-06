@@ -10,32 +10,25 @@ import (
 )
 
 const createDomain = `-- name: CreateDomain :one
-INSERT INTO domains 
-    (domain, key, dkim_private_key, dkim_public_key)
-    VALUES ($1, $2, $3, $4) 
-    RETURNING id, domain, created_at, key, dkim_private_key, dkim_public_key
+INSERT INTO domains
+    (domain, dkim_private_key, dkim_public_key)
+    VALUES ($1, $2, $3)
+    RETURNING id, domain, created_at, dkim_private_key, dkim_public_key
 `
 
 type CreateDomainParams struct {
 	Domain         string
-	Key            string
 	DkimPrivateKey string
 	DkimPublicKey  string
 }
 
 func (q *Queries) CreateDomain(ctx context.Context, arg CreateDomainParams) (Domain, error) {
-	row := q.db.QueryRow(ctx, createDomain,
-		arg.Domain,
-		arg.Key,
-		arg.DkimPrivateKey,
-		arg.DkimPublicKey,
-	)
+	row := q.db.QueryRow(ctx, createDomain, arg.Domain, arg.DkimPrivateKey, arg.DkimPublicKey)
 	var i Domain
 	err := row.Scan(
 		&i.ID,
 		&i.Domain,
 		&i.CreatedAt,
-		&i.Key,
 		&i.DkimPrivateKey,
 		&i.DkimPublicKey,
 	)
@@ -44,7 +37,7 @@ func (q *Queries) CreateDomain(ctx context.Context, arg CreateDomainParams) (Dom
 
 const findDomain = `-- name: FindDomain :one
 SELECT
-    id, domain, created_at, key, dkim_private_key, dkim_public_key
+    id, domain, created_at, dkim_private_key, dkim_public_key
 FROM domains
     WHERE domain = $1
 `
@@ -56,32 +49,6 @@ func (q *Queries) FindDomain(ctx context.Context, domain string) (Domain, error)
 		&i.ID,
 		&i.Domain,
 		&i.CreatedAt,
-		&i.Key,
-		&i.DkimPrivateKey,
-		&i.DkimPublicKey,
-	)
-	return i, err
-}
-
-const findDomainWithKey = `-- name: FindDomainWithKey :one
-SELECT id, domain, created_at, key, dkim_private_key, dkim_public_key FROM domains
-WHERE domain = $1
-AND key = $2
-`
-
-type FindDomainWithKeyParams struct {
-	Domain string
-	Key    string
-}
-
-func (q *Queries) FindDomainWithKey(ctx context.Context, arg FindDomainWithKeyParams) (Domain, error) {
-	row := q.db.QueryRow(ctx, findDomainWithKey, arg.Domain, arg.Key)
-	var i Domain
-	err := row.Scan(
-		&i.ID,
-		&i.Domain,
-		&i.CreatedAt,
-		&i.Key,
 		&i.DkimPrivateKey,
 		&i.DkimPublicKey,
 	)
@@ -117,7 +84,7 @@ func (q *Queries) FindTemplate(ctx context.Context, arg FindTemplateParams) (Tem
 
 const getAllDomains = `-- name: GetAllDomains :many
 SELECT
-    id, domain, created_at, key, dkim_private_key, dkim_public_key
+    id, domain, created_at, dkim_private_key, dkim_public_key
 FROM domains
 `
 
@@ -134,7 +101,6 @@ func (q *Queries) GetAllDomains(ctx context.Context) ([]Domain, error) {
 			&i.ID,
 			&i.Domain,
 			&i.CreatedAt,
-			&i.Key,
 			&i.DkimPrivateKey,
 			&i.DkimPublicKey,
 		); err != nil {
@@ -149,7 +115,7 @@ func (q *Queries) GetAllDomains(ctx context.Context) ([]Domain, error) {
 }
 
 const getDomains = `-- name: GetDomains :many
-SELECT id, domain, created_at, key, dkim_private_key, dkim_public_key FROM domains
+SELECT id, domain, created_at, dkim_private_key, dkim_public_key FROM domains
 `
 
 func (q *Queries) GetDomains(ctx context.Context) ([]Domain, error) {
@@ -165,7 +131,6 @@ func (q *Queries) GetDomains(ctx context.Context) ([]Domain, error) {
 			&i.ID,
 			&i.Domain,
 			&i.CreatedAt,
-			&i.Key,
 			&i.DkimPrivateKey,
 			&i.DkimPublicKey,
 		); err != nil {
@@ -177,27 +142,4 @@ func (q *Queries) GetDomains(ctx context.Context) ([]Domain, error) {
 		return nil, err
 	}
 	return items, nil
-}
-
-const setDomainKey = `-- name: SetDomainKey :one
-UPDATE domains SET key = $1 WHERE domain = $2 RETURNING id, domain, created_at, key, dkim_private_key, dkim_public_key
-`
-
-type SetDomainKeyParams struct {
-	Key    string
-	Domain string
-}
-
-func (q *Queries) SetDomainKey(ctx context.Context, arg SetDomainKeyParams) (Domain, error) {
-	row := q.db.QueryRow(ctx, setDomainKey, arg.Key, arg.Domain)
-	var i Domain
-	err := row.Scan(
-		&i.ID,
-		&i.Domain,
-		&i.CreatedAt,
-		&i.Key,
-		&i.DkimPrivateKey,
-		&i.DkimPublicKey,
-	)
-	return i, err
 }

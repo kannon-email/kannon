@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/kannon-email/kannon/internal/apikeys"
 	sqlc "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/domains"
 	"github.com/kannon-email/kannon/internal/pool"
@@ -22,6 +24,7 @@ import (
 
 type mailAPIService struct {
 	domains     domains.DomainManager
+	apiKeys     *apikeys.Service
 	templates   templates.Manager
 	sendingPool pool.SendingPoolManager
 }
@@ -125,39 +128,49 @@ func (s mailAPIService) getCallDomainFromHeaders(ctx context.Context, headers ht
 	auth := headers.Get("Authorization")
 
 	if !strings.HasPrefix(auth, "Basic ") {
-		return sqlc.Domain{}, fmt.Errorf("no prefix Basic in auth: %v", auth)
+		return sqlc.Domain{}, fmt.Errorf("invalid auth")
 	}
 
 	token := strings.Replace(auth, "Basic ", "", 1)
 	data, err := base64.StdEncoding.DecodeString(token)
 	if err != nil {
-		return sqlc.Domain{}, fmt.Errorf("decode token error: %v", token)
+		return sqlc.Domain{}, fmt.Errorf("invalid auth")
 	}
 
 	authData := string(data)
 
 	parts := strings.Split(authData, ":")
 	if len(parts) != 2 {
-		return sqlc.Domain{}, fmt.Errorf("invalid auth format, expected domain:key")
+		return sqlc.Domain{}, fmt.Errorf("invalid auth")
 	}
-	d, k := parts[0], parts[1]
+	domainName, key := parts[0], parts[1]
 
-	domain, err := s.domains.FindDomainWithKey(ctx, d, k)
+	// Use API key repository for authentication
+	apiKey, err := s.apiKeys.ValidateForAuth(ctx, domainName, key)
 	if err != nil {
-		return sqlc.Domain{}, fmt.Errorf("cannot find domain: %w", err)
+		// Always return generic error (security requirement)
+		return sqlc.Domain{}, fmt.Errorf("invalid auth")
+	}
+
+	// Fetch full domain info
+	domain, err := s.domains.FindDomain(ctx, apiKey.Domain())
+	if err != nil {
+		return sqlc.Domain{}, fmt.Errorf("invalid auth")
 	}
 
 	return domain, nil
 }
 
-func NewMailerAPIV1(q *sqlc.Queries) mailerv1connect.MailerHandler {
+func NewMailerAPIV1(q *sqlc.Queries, db *pgxpool.Pool) mailerv1connect.MailerHandler {
 	domainsCli := domains.NewDomainManager(q)
-
+	apiKeysRepo := sqlc.NewAPIKeysRepository(q, db)
+	apiKeysService := apikeys.NewService(apiKeysRepo)
 	sendingPoolCli := pool.NewSendingPoolManager(q)
 	templates := templates.NewTemplateManager(q)
 
 	return &mailAPIService{
 		domains:     domainsCli,
+		apiKeys:     apiKeysService,
 		sendingPool: sendingPoolCli,
 		templates:   templates,
 	}

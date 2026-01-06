@@ -145,6 +145,7 @@ func TestSingleton_PointerType(t *testing.T) {
 
 	if result == nil {
 		t.Fatal("Expected non-nil result")
+		return
 	}
 
 	if result.Name != expected.Name || result.ID != expected.ID {

@@ -3,6 +3,7 @@ package adminapi
 import (
 	"context"
 
+	"github.com/kannon-email/kannon/internal/apikeys"
 	sqlc "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/domains"
 	"github.com/kannon-email/kannon/internal/templates"
@@ -11,8 +12,10 @@ import (
 )
 
 type adminAPIService struct {
-	dm domains.DomainManager
-	tm templates.Manager
+	dm      domains.DomainManager
+	tm      templates.Manager
+	apiKeys *apikeys.Service
+	q       *sqlc.Queries
 }
 
 func (s *adminAPIService) GetDomains(ctx context.Context, in *pb.GetDomainsReq) (*pb.GetDomainsResponse, error) {
@@ -48,19 +51,9 @@ func (s *adminAPIService) CreateDomain(ctx context.Context, in *pb.CreateDomainR
 	return dbDomainToProtoDomain(domain), nil
 }
 
-func (s *adminAPIService) RegenerateDomainKey(ctx context.Context, in *pb.RegenerateDomainKeyRequest) (*pb.Domain, error) {
-	domain, err := s.dm.RegenerateDomainKey(ctx, in.Domain)
-	if err != nil {
-		return nil, err
-	}
-
-	return dbDomainToProtoDomain(domain), nil
-}
-
 func dbDomainToProtoDomain(in sqlc.Domain) *pb.Domain {
 	return &pb.Domain{
 		Domain:     in.Domain,
-		Key:        in.Key,
 		DkimPubKey: in.DkimPublicKey,
 	}
 }

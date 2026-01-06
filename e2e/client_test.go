@@ -63,10 +63,21 @@ type clientFactory struct {
 }
 
 func (f *clientFactory) NewClient(t *testing.T, infra *TestInfrastructure) *clientTest {
+	domain := faker.DomainName()
 	res, err := f.adminClient.CreateDomain(t.Context(), connect.NewRequest(&adminapiv1.CreateDomainRequest{
-		Domain: faker.DomainName(),
+		Domain: domain,
 	}))
 	require.NoError(t, err)
+
+	keyRes, err := f.adminClient.CreateAPIKey(t.Context(), connect.NewRequest(&adminapiv1.CreateAPIKeyRequest{
+		Domain: domain,
+		Name:   "test-key",
+	}))
+	require.NoError(t, err)
+
+	key := keyRes.Msg.Key
+
+	authToken := base64.StdEncoding.EncodeToString([]byte(domain + ":" + key))
 
 	msg := res.Msg
 
@@ -76,7 +87,7 @@ func (f *clientFactory) NewClient(t *testing.T, infra *TestInfrastructure) *clie
 		statsClient:  f.statsClient,
 		hzClient:     f.hzClient,
 		domain:       msg.Domain,
-		authToken:    base64.StdEncoding.EncodeToString([]byte(msg.Domain + ":" + msg.Key)),
+		authToken:    authToken,
 	}
 }
 

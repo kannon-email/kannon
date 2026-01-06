@@ -1,19 +1,26 @@
 syntax = "proto3";
-option go_package = "github.com/kannon-email/kannon/proto/kannon/admin/apiv1";
 
 package pkg.kannon.admin.apiv1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/kannon-email/kannon/proto/kannon/admin/apiv1";
 
 service Api {
   rpc GetDomains(GetDomainsReq) returns (GetDomainsResponse) {}
   rpc GetDomain(GetDomainReq) returns (GetDomainRes) {}
   rpc CreateDomain(CreateDomainRequest) returns (Domain) {}
-  rpc RegenerateDomainKey(RegenerateDomainKeyRequest) returns (Domain) {}
 
   rpc CreateTemplate(CreateTemplateReq) returns (CreateTemplateRes) {}
   rpc UpdateTemplate(UpdateTemplateReq) returns (UpdateTemplateRes) {}
   rpc DeleteTemplate(DeleteTemplateReq) returns (DeleteTemplateRes) {}
   rpc GetTemplate(GetTemplateReq) returns (GetTemplateRes) {}
   rpc GetTemplates(GetTemplatesReq) returns (GetTemplatesRes) {}
+
+  rpc CreateAPIKey(CreateAPIKeyRequest) returns (CreateAPIKeyResponse) {}
+  rpc ListAPIKeys(ListAPIKeysRequest) returns (ListAPIKeysResponse) {}
+  rpc GetAPIKey(GetAPIKeyRequest) returns (GetAPIKeyResponse) {}
+  rpc DeactivateAPIKey(DeactivateAPIKeyRequest) returns (DeactivateAPIKeyResponse) {}
 }
 
 message GetDomainsReq {}
@@ -34,13 +41,8 @@ message CreateDomainRequest {
   string domain = 1;
 }
 
-message RegenerateDomainKeyRequest {
-  string domain = 1;
-}
-
 message Domain {
   string domain = 1;
-  string key = 2;
   string dkim_pub_key = 3;
 }
 
@@ -96,4 +98,56 @@ message GetTemplatesReq {
 message GetTemplatesRes {
   repeated Template templates = 1;
   uint32 total = 2;
+}
+
+message APIKey {
+  string id = 1;
+  string key = 2;
+  string name = 3;
+  string domain = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp expires_at = 6;
+  bool is_active = 7;
+  google.protobuf.Timestamp deactivated_at = 8;
+}
+
+message CreateAPIKeyRequest {
+  string domain = 1;
+  string name = 2;
+  google.protobuf.Timestamp expires_at = 3;
+}
+
+message CreateAPIKeyResponse {
+  APIKey api_key = 1;
+  string key = 2;
+}
+
+message ListAPIKeysRequest {
+  string domain = 1;
+  bool only_active = 2;
+  int32 limit = 3;
+  int32 offset = 4;
+}
+
+message ListAPIKeysResponse {
+  repeated APIKey api_keys = 1;
+  int32 total = 2;
+}
+
+message GetAPIKeyRequest {
+  string domain = 1;
+  string id = 2;
+}
+
+message GetAPIKeyResponse {
+  APIKey api_key = 1;
+}
+
+message DeactivateAPIKeyRequest {
+  string domain = 1;
+  string id = 2;
+}
+
+message DeactivateAPIKeyResponse {
+  APIKey api_key = 1;
 }

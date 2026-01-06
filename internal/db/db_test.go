@@ -42,7 +42,6 @@ func TestDomains(t *testing.T) {
 	// when user create a domain
 	domain, err := q.CreateDomain(context.Background(), CreateDomainParams{
 		Domain:         "test@test.com",
-		Key:            "test",
 		DkimPrivateKey: "test",
 		DkimPublicKey:  "test",
 	})
@@ -59,23 +58,14 @@ func TestDomains(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, d.ID, domain.ID)
 
-	// can search a domain for domain key
-	d, err = q.FindDomainWithKey(context.Background(), FindDomainWithKeyParams{
-		Domain: "test@test.com",
-		Key:    "test",
-	})
-	assert.Nil(t, err)
-	assert.Equal(t, d.ID, domain.ID)
-
 	// cleanup
-	_, err = db.Exec(context.Background(), "TRUNCATE domains")
+	_, err = db.Exec(context.Background(), "DELETE FROM domains")
 	assert.Nil(t, err)
 }
 
 func TestTemplates(t *testing.T) {
 	domain, err := q.CreateDomain(context.Background(), CreateDomainParams{
 		Domain:         "test@test.com",
-		Key:            "test",
 		DkimPrivateKey: "test",
 		DkimPublicKey:  "test",
 	})
@@ -99,8 +89,8 @@ func TestTemplates(t *testing.T) {
 	assert.Equal(t, template, tmp)
 
 	// cleanup
-	_, err = db.Exec(context.Background(), "TRUNCATE templates")
+	_, err = db.Exec(context.Background(), "DELETE FROM templates")
 	assert.Nil(t, err)
-	_, err = db.Exec(context.Background(), "TRUNCATE domains")
+	_, err = db.Exec(context.Background(), "DELETE FROM domains")
 	assert.Nil(t, err)
 }
