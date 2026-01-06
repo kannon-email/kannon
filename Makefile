@@ -24,3 +24,7 @@ generate: generate-db generate-proto
 
 lint:
 	golangci-lint run --fix
+
+docker-up:
+	# KANNON_IMAGE default to ghcr.io/kannon-email/kannon:latest
+	docker compose -f examples/docker-compose/docker-compose.yaml up
