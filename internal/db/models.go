@@ -69,7 +69,6 @@ type Domain struct {
 	ID             int32
 	Domain         string
 	CreatedAt      pgtype.Timestamp
-	Key            string
 	DkimPrivateKey string
 	DkimPublicKey  string
 }

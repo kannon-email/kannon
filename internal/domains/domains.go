@@ -32,7 +32,6 @@ func (dm *domainManager) CreateDomain(ctx context.Context, domain string) (sqlc.
 
 	d, err := dm.q.CreateDomain(ctx, sqlc.CreateDomainParams{
 		Domain:         domain,
-		Key:            "",
 		DkimPrivateKey: keys.PrivateKey,
 		DkimPublicKey:  keys.PublicKey,
 	})

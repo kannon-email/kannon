@@ -18,7 +18,6 @@ func (h testHelper) CreateDomain(t *testing.T) string {
 	// Create domain directly using queries
 	_, err := q.CreateDomain(ctx, CreateDomainParams{
 		Domain:         domainName,
-		Key:            "",
 		DkimPrivateKey: "test-private",
 		DkimPublicKey:  "test-public",
 	})

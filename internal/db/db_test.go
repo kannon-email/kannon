@@ -42,7 +42,6 @@ func TestDomains(t *testing.T) {
 	// when user create a domain
 	domain, err := q.CreateDomain(context.Background(), CreateDomainParams{
 		Domain:         "test@test.com",
-		Key:            "",
 		DkimPrivateKey: "test",
 		DkimPublicKey:  "test",
 	})
@@ -67,7 +66,6 @@ func TestDomains(t *testing.T) {
 func TestTemplates(t *testing.T) {
 	domain, err := q.CreateDomain(context.Background(), CreateDomainParams{
 		Domain:         "test@test.com",
-		Key:            "",
 		DkimPrivateKey: "test",
 		DkimPublicKey:  "test",
 	})

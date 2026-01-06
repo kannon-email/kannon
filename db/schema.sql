@@ -141,7 +141,6 @@ CREATE TABLE public.domains (
     id integer NOT NULL,
     domain character varying(254) NOT NULL,
     created_at timestamp without time zone DEFAULT now() NOT NULL,
-    key character varying NOT NULL,
     dkim_private_key character varying NOT NULL,
     dkim_public_key character varying NOT NULL
 );
@@ -674,4 +673,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20220904111715'),
     ('20240420090612'),
     ('20240421080953'),
-    ('20260104120000');
+    ('20260104120000'),
+    ('20260106120000');

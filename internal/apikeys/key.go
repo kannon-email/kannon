@@ -62,8 +62,8 @@ func (k *APIKey) Domain() string {
 }
 
 // KeyID returns the key ID as a string (implements KeyRef interface)
-func (k *APIKey) KeyID() string {
-	return k.id.String()
+func (k *APIKey) KeyID() ID {
+	return k.id
 }
 
 // CreatedAt returns when the key was created
