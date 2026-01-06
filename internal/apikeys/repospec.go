@@ -89,6 +89,39 @@ func testUpdate(t *testing.T, repo Repository, helper RepoTestHelper) {
 		assert.False(t, fetched.IsActiveStatus())
 		assert.NotNil(t, fetched.DeactivatedAt())
 	})
+
+	t.Run("PreservesStateOnError", func(t *testing.T) {
+		ctx := t.Context()
+		domain := helper.CreateDomain(t)
+
+		// Create a key
+		key, err := NewAPIKey(domain, "test-key", nil)
+		require.NoError(t, err)
+
+		err = repo.Create(ctx, key)
+		require.NoError(t, err)
+
+		// Verify key is initially active
+		ref := NewKeyRef(domain, key.ID())
+		initial, err := repo.GetByID(ctx, ref)
+		require.NoError(t, err)
+		assert.True(t, initial.IsActiveStatus(), "key should be active initially")
+		assert.Nil(t, initial.DeactivatedAt(), "deactivatedAt should be nil initially")
+
+		// Attempt update that mutates key then returns error
+		testErr := fmt.Errorf("intentional test error")
+		_, err = repo.Update(ctx, ref, func(k *APIKey) error {
+			k.Deactivate() // Mutates the key
+			return testErr // But then fails
+		})
+		require.ErrorIs(t, err, testErr)
+
+		// Verify the stored key was NOT mutated
+		fetched, err := repo.GetByID(ctx, ref)
+		require.NoError(t, err)
+		assert.True(t, fetched.IsActiveStatus(), "key should still be active after failed update")
+		assert.Nil(t, fetched.DeactivatedAt(), "deactivatedAt should still be nil after failed update")
+	})
 }
 
 func testGetByKey(t *testing.T, repo Repository, helper RepoTestHelper) {

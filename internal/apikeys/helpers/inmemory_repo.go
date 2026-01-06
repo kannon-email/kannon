@@ -71,13 +71,20 @@ func (r *InMemoryRepository) Update(ctx context.Context, ref apikeys.KeyRef, upd
 		return nil, apikeys.ErrKeyNotFound
 	}
 
-	// Apply the update function
-	if err := updateFn(key); err != nil {
+	// Clone the key before applying update to prevent corruption on error
+	keyClone := r.cloneKey(key)
+
+	// Apply the update function to the clone
+	if err := updateFn(keyClone); err != nil {
 		return nil, err
 	}
 
+	// Success: update the stored key
+	r.byID[domain][keyID] = keyClone
+	r.byKeyValue[domain][key.Key()] = keyClone
+
 	// Return a clone to prevent external mutation
-	return r.cloneKey(key), nil
+	return r.cloneKey(keyClone), nil
 }
 
 // GetByKey finds an API key by its full key value for a specific domain
