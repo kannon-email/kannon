@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
+	"github.com/go-faker/faker/v4"
 	"github.com/jackc/pgx/v5/pgxpool"
 	schema "github.com/kannon-email/kannon/db"
 	sqlc "github.com/kannon-email/kannon/internal/db"
@@ -52,7 +53,7 @@ func TestEmptyDatabase(t *testing.T) {
 }
 
 func TestCreateANewDomain(t *testing.T) {
-	newDomain := "test.test.test"
+	newDomain := faker.DomainName()
 
 	var domain *pb.Domain
 
@@ -86,8 +87,9 @@ func TestCreateANewDomain(t *testing.T) {
 }
 
 func createTestDomain(t *testing.T) *pb.Domain {
+	domain := faker.DomainName()
 	res, err := testservice.CreateDomain(context.Background(), connect.NewRequest(&pb.CreateDomainRequest{
-		Domain: "test.test.test",
+		Domain: domain,
 	}))
 	assert.Nil(t, err)
 	return res.Msg

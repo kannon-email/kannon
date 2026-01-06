@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
+	"github.com/go-faker/faker/v4"
 	adminv1 "github.com/kannon-email/kannon/proto/kannon/admin/apiv1"
 	"github.com/kannon-email/kannon/proto/kannon/admin/apiv1/apiv1connect"
 	"github.com/stretchr/testify/assert"
@@ -20,9 +21,11 @@ type DomainWithKey struct {
 func CreateTestDomain(t *testing.T, adminAPI apiv1connect.ApiHandler) *DomainWithKey {
 	t.Helper()
 
+	domain := faker.DomainName()
+
 	// Create domain
 	res, err := adminAPI.CreateDomain(context.Background(), connect.NewRequest(&adminv1.CreateDomainRequest{
-		Domain: "test.test.test",
+		Domain: domain,
 	}))
 	assert.Nil(t, err)
 
