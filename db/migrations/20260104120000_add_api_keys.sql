@@ -1,9 +1,9 @@
 -- migrate:up
 CREATE TABLE api_keys (
-    id VARCHAR(30) PRIMARY KEY,
-    key VARCHAR(64) NOT NULL UNIQUE,
+    id VARCHAR(512) PRIMARY KEY,
+    key VARCHAR(512) NOT NULL UNIQUE,
     name VARCHAR(100) NOT NULL,
-    domain VARCHAR(254) NOT NULL,
+    domain VARCHAR(512) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     expires_at TIMESTAMP,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,

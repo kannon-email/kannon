@@ -21,7 +21,7 @@ const (
 	keyPrefix = "k_"
 
 	// keyLength is the length of the random part of the key
-	keyLength = 30
+	keyLength = 64
 
 	// maskedKeyLength is the number of characters shown in list operations
 	maskedKeyLength = 8
