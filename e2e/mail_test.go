@@ -18,6 +18,7 @@ import (
 type ParsedEmail struct {
 	From        string
 	To          string
+	Cc          string
 	Subject     string
 	Body        string
 	Attachments []Attachment
@@ -32,6 +33,7 @@ func parseEmail(t *assert.CollectT, body []byte) ParsedEmail {
 
 	from := msg.Header.Get("From")
 	to := msg.Header.Get("To")
+	cc := msg.Header.Get("Cc")
 	subject := msg.Header.Get("Subject")
 
 	if strings.HasPrefix(mediaType, "multipart/") {
@@ -39,6 +41,7 @@ func parseEmail(t *assert.CollectT, body []byte) ParsedEmail {
 		return ParsedEmail{
 			From:        from,
 			To:          to,
+			Cc:          cc,
 			Subject:     subject,
 			Body:        emailBody,
 			Attachments: attachments,
@@ -49,6 +52,7 @@ func parseEmail(t *assert.CollectT, body []byte) ParsedEmail {
 	return ParsedEmail{
 		From:        from,
 		To:          to,
+		Cc:          cc,
 		Subject:     subject,
 		Body:        emailBody,
 		Attachments: nil,

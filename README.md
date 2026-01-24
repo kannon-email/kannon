@@ -180,7 +180,7 @@ Kannon requires a PostgreSQL database. Main tables:
 
 - **domains**: Registered sender domains, DKIM keys
 - **api_keys**: API keys for authentication (multiple keys per domain, expirable, revocable)
-- **messages**: Outgoing messages, subject, sender, template, attachments
+- **messages**: Outgoing messages, subject, sender, template, attachments, custom headers
 - **sending_pool_emails**: Email queue, status, scheduling, custom fields
 - **templates**: Email templates, type, metadata
 - **stats**: Delivery and open/click statistics
@@ -234,9 +234,22 @@ Pass this in the `Authorization` metadata for gRPC calls:
   "attachments": [
     { "filename": "file.txt", "content": "base64-encoded-content" }
   ],
-  "fields": { "custom": "value" }
+  "fields": { "custom": "value" },
+  "headers": {
+    "to": ["visible-recipient@example.com"],
+    "cc": ["cc@example.com"]
+  }
 }
 ```
+
+#### Headers
+
+The optional `headers` field allows overriding the `To` and adding a `Cc` header on sent emails. The SMTP envelope recipient (actual delivery target) remains the pool recipient, but the visible mail headers will use the values from `headers`:
+
+- **`to`**: Overrides the `To` header displayed in the email client
+- **`cc`**: Adds a `Cc` header to the email
+
+This is useful for scenarios where you want the email to appear addressed to a group or alias while delivering to individual recipients.
 
 See the [proto files](./proto/kannon/) for all fields and options.
 

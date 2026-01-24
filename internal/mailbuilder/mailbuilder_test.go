@@ -208,6 +208,62 @@ func TestPrepareMailWithAttachments(t *testing.T) {
 	assert.Equal(t, "multipart/mixed", strings.Split(parsed.Header.Get("Content-Type"), ";")[0])
 }
 
+func TestPrepareMailWithHeaders(t *testing.T) {
+	d, err := adminAPI.CreateDomain(context.Background(), connect.NewRequest(&adminapiv1.CreateDomainRequest{
+		Domain: "test-ch.com",
+	}))
+	assert.Nil(t, err)
+
+	keyRes, err := adminAPI.CreateAPIKey(context.Background(), connect.NewRequest(&adminapiv1.CreateAPIKeyRequest{
+		Domain: d.Msg.Domain,
+		Name:   "test-key-ch",
+	}))
+	assert.Nil(t, err)
+
+	req := connect.NewRequest(&mailerapiv1.SendHTMLReq{
+		Sender: &pb.Sender{
+			Email: "test@test-ch.com",
+			Alias: "Test",
+		},
+		Subject:       "Test Control Headers",
+		Html:          "<html><body>hello</body></html>",
+		ScheduledTime: timestamppb.Now(),
+		Recipients: []*pb.Recipient{
+			{
+				Email: "actual-recipient@emailtest.com",
+			},
+		},
+		Headers: &pb.Headers{
+			To: []string{"visible@example.com"},
+			Cc: []string{"cc1@example.com", "cc2@example.com"},
+		},
+	})
+	authRequest(req, d.Msg, keyRes.Msg.Key)
+
+	res, err := ma.SendHTML(context.Background(), req)
+	assert.Nil(t, err)
+
+	err = pm.SetScheduled(context.Background(), res.Msg.MessageId, "actual-recipient@emailtest.com")
+	assert.Nil(t, err)
+
+	emails, err := pm.PrepareForSend(context.Background(), 1)
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(emails))
+
+	m, err := mb.BuildEmail(context.Background(), emails[0])
+	assert.Nil(t, err)
+
+	// SMTP envelope To should still be the actual recipient
+	assert.Equal(t, "actual-recipient@emailtest.com", m.To)
+
+	parsed, err := mail.ReadMessage(bytes.NewReader(m.Body))
+	assert.Nil(t, err)
+
+	// Mail headers should use the control headers
+	assert.Equal(t, "visible@example.com", parsed.Header.Get("To"))
+	assert.Equal(t, "cc1@example.com, cc2@example.com", parsed.Header.Get("Cc"))
+}
+
 func authRequest[T any](req *connect.Request[T], d *adminapiv1.Domain, apiKey string) {
 	token := base64.StdEncoding.EncodeToString([]byte(d.Domain + ":" + apiKey))
 	req.Header().Set("Authorization", "Basic "+token)

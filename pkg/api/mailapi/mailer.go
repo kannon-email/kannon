@@ -51,6 +51,7 @@ func (s mailAPIService) SendHTML(ctx context.Context, req *connect.Request[pb.Se
 		Recipients:    req.Msg.Recipients,
 		Attachments:   req.Msg.Attachments,
 		GlobalFields:  nil,
+		Headers:       req.Msg.Headers,
 	}
 
 	return s.sendTemplate(ctx, domain, connect.NewRequest(res))
@@ -93,7 +94,15 @@ func (s mailAPIService) sendTemplate(ctx context.Context, domain sqlc.Domain, re
 		attachments[r.Filename] = r.Content
 	}
 
-	pool, err := s.sendingPool.AddRecipientsPool(ctx, template, req.Msg.Recipients, sender, scheduled, req.Msg.Subject, domain.Domain, attachments)
+	var customHeaders sqlc.Headers
+	if req.Msg.Headers != nil {
+		customHeaders = sqlc.Headers{
+			To: req.Msg.Headers.To,
+			Cc: req.Msg.Headers.Cc,
+		}
+	}
+
+	pool, err := s.sendingPool.AddRecipientsPool(ctx, template, req.Msg.Recipients, sender, scheduled, req.Msg.Subject, domain.Domain, attachments, customHeaders)
 
 	if err != nil {
 		logrus.Errorf("cannot create pool %v\n", err)

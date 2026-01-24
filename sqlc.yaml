@@ -23,6 +23,9 @@ sql:
           - column: "messages.attachments"
             go_type:
               type: "Attachments"
+          - column: "messages.headers"
+            go_type:
+              type: "Headers"
           - column: "stats.type"
             go_type:
               type: "StatsType"

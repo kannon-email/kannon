@@ -13,3 +13,8 @@ message Recipient {
   string email = 1;
   map<string, string> fields = 2;
 }
+
+message Headers {
+  repeated string to = 1;
+  repeated string cc = 2;
+}
