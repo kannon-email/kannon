@@ -18,8 +18,8 @@ import (
 	"github.com/kannon-email/kannon/internal/templates"
 	"github.com/kannon-email/kannon/internal/utils"
 	pb "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1"
-	mailertypes "github.com/kannon-email/kannon/proto/kannon/mailer/types"
 	mailerv1connect "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1/apiv1connect"
+	mailertypes "github.com/kannon-email/kannon/proto/kannon/mailer/types"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
