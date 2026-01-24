@@ -14,9 +14,11 @@ import (
 	sqlc "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/domains"
 	"github.com/kannon-email/kannon/internal/pool"
+	smtputils "github.com/kannon-email/kannon/internal/smtp"
 	"github.com/kannon-email/kannon/internal/templates"
 	"github.com/kannon-email/kannon/internal/utils"
 	pb "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1"
+	mailertypes "github.com/kannon-email/kannon/proto/kannon/mailer/types"
 	mailerv1connect "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1/apiv1connect"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -94,12 +96,9 @@ func (s mailAPIService) sendTemplate(ctx context.Context, domain sqlc.Domain, re
 		attachments[r.Filename] = r.Content
 	}
 
-	var customHeaders sqlc.Headers
-	if req.Msg.Headers != nil {
-		customHeaders = sqlc.Headers{
-			To: req.Msg.Headers.To,
-			Cc: req.Msg.Headers.Cc,
-		}
+	customHeaders, err := validateHeaders(req.Msg.Headers)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 
 	pool, err := s.sendingPool.AddRecipientsPool(ctx, template, req.Msg.Recipients, sender, scheduled, req.Msg.Subject, domain.Domain, attachments, customHeaders)
@@ -168,6 +167,23 @@ func (s mailAPIService) getCallDomainFromHeaders(ctx context.Context, headers ht
 	}
 
 	return domain, nil
+}
+
+func validateHeaders(h *mailertypes.Headers) (sqlc.Headers, error) {
+	if h == nil {
+		return sqlc.Headers{}, nil
+	}
+	for _, email := range h.To {
+		if !smtputils.Validate(email) {
+			return sqlc.Headers{}, fmt.Errorf("invalid To header: %q is not a valid email address", email)
+		}
+	}
+	for _, email := range h.Cc {
+		if !smtputils.Validate(email) {
+			return sqlc.Headers{}, fmt.Errorf("invalid Cc header: %q is not a valid email address", email)
+		}
+	}
+	return sqlc.Headers{To: h.To, Cc: h.Cc}, nil
 }
 
 func NewMailerAPIV1(q *sqlc.Queries, db *pgxpool.Pool) mailerv1connect.MailerHandler {
