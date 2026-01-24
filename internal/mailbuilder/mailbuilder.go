@@ -63,7 +63,8 @@ func (m *mailBuilder) BuildEmail(ctx context.Context, email sqlc.SendingPoolEmai
 		return nil, err
 	}
 
-	signedMsg, err := signMessage(emailData.Domain, emailData.DkimPrivateKey, msg)
+	hasCc := len(emailData.Headers.Cc) > 0
+	signedMsg, err := signMessage(emailData.Domain, emailData.DkimPrivateKey, msg, hasCc)
 	if err != nil {
 		return nil, err
 	}
@@ -90,8 +91,11 @@ func (m *mailBuilder) prepareMessage(ctx context.Context, sender pool.Sender, su
 	return renderMsg(html, h, attachments)
 }
 
-func signMessage(domain string, dkimPrivateKey string, msg []byte) ([]byte, error) {
-	dkimHeaders := []string{"From", "To", "Subject", "Message-ID", "Cc"}
+func signMessage(domain string, dkimPrivateKey string, msg []byte, hasCc bool) ([]byte, error) {
+	dkimHeaders := []string{"From", "To", "Subject", "Message-ID"}
+	if hasCc {
+		dkimHeaders = append(dkimHeaders, "Cc")
+	}
 
 	signData := dkim.SignData{
 		PrivateKey: dkimPrivateKey,

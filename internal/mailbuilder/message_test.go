@@ -65,8 +65,8 @@ func TestBuildHeadersCustomTo(t *testing.T) {
 	h := buildHeaders("test subject", sender, "to@email.com", "132@email.com", "<msg-123@email.com>", headers{}, ch)
 
 	assert.Equal(t, []string{"visible@example.com"}, h["To"])
-	value := h["Cc"]
-	assert.Equal(t, []string{}, value)
+	_, hasCC := h["Cc"]
+	assert.False(t, hasCC)
 }
 
 func TestBuildHeadersWithCC(t *testing.T) {

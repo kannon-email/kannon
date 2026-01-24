@@ -31,7 +31,6 @@ func buildHeaders(subject string, sender pool.Sender, to string, poolMessageID s
 	h["X-Pool-Message-ID"] = []string{poolMessageID}
 	h["Reply-To"] = []string{fmt.Sprintf("%v <%v>", sender.Alias, sender.Email)}
 	h["To"] = []string{to}
-	h["Cc"] = []string{}
 
 	if len(customHeaders.To) > 0 {
 		h["To"] = customHeaders.To
