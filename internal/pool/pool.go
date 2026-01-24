@@ -17,7 +17,7 @@ type Sender struct {
 
 // SendingPoolManager is a manger for sending pool
 type SendingPoolManager interface {
-	AddRecipientsPool(ctx context.Context, template sqlc.Template, recipents []*pb.Recipient, from Sender, scheduled time.Time, subject string, domain string, attachments sqlc.Attachments) (sqlc.Message, error)
+	AddRecipientsPool(ctx context.Context, template sqlc.Template, recipents []*pb.Recipient, from Sender, scheduled time.Time, subject string, domain string, attachments sqlc.Attachments, customHeaders sqlc.Headers) (sqlc.Message, error)
 	PrepareForSend(ctx context.Context, max uint) ([]sqlc.SendingPoolEmail, error)
 	PrepareForValidate(ctx context.Context, max uint) ([]sqlc.SendingPoolEmail, error)
 	SetScheduled(ctx context.Context, messageID string, email string) error
@@ -30,7 +30,7 @@ type sendingPoolManager struct {
 }
 
 // AddPool starts a new schedule in the pool
-func (m *sendingPoolManager) AddRecipientsPool(ctx context.Context, template sqlc.Template, recipents []*pb.Recipient, from Sender, scheduled time.Time, subject string, domain string, attachments sqlc.Attachments) (sqlc.Message, error) {
+func (m *sendingPoolManager) AddRecipientsPool(ctx context.Context, template sqlc.Template, recipents []*pb.Recipient, from Sender, scheduled time.Time, subject string, domain string, attachments sqlc.Attachments, customHeaders sqlc.Headers) (sqlc.Message, error) {
 	msg, err := m.db.CreateMessage(ctx, sqlc.CreateMessageParams{
 		TemplateID:  template.TemplateID,
 		Domain:      domain,
@@ -39,6 +39,7 @@ func (m *sendingPoolManager) AddRecipientsPool(ctx context.Context, template sql
 		SenderAlias: from.Alias,
 		MessageID:   utils.CreateMessageID(domain),
 		Attachments: attachments,
+		Headers:     customHeaders,
 	})
 	if err != nil {
 		return sqlc.Message{}, err

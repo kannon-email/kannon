@@ -67,6 +67,10 @@ func TestE2EEmailSending(t *testing.T) {
 		testEmailWithAttachments(t, factory, senderMock, infra)
 	})
 
+	t.Run("EmailWithHeaders", func(t *testing.T) {
+		testEmailWithHeaders(t, factory, senderMock, infra)
+	})
+
 	t.Log("🎉 E2E email sending test completed successfully!")
 }
 
@@ -301,6 +305,59 @@ func testEmailWithAttachments(t *testing.T, clientFactory *clientFactory, smtpSe
 		assert.Equal(t, "test-document.txt", att.Filename)
 		assert.Equal(t, attachmentData, att.Content)
 	})
+}
+
+func testEmailWithHeaders(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
+	client := clientFactory.NewClient(t, infra)
+
+	testEmail := makeFakeEmail()
+	sendReq := &mailerapiv1.SendHTMLReq{
+		Sender: &mailertypes.Sender{
+			Email: "sender@test.example.com",
+			Alias: "Test Sender",
+		},
+		Recipients: []*mailertypes.Recipient{
+			{
+				Email: testEmail,
+				Fields: map[string]string{
+					"name":    "Test User",
+					"company": "Test Corp",
+				},
+			},
+		},
+		Subject:       "Test Email with Headers",
+		Html:          "<h1>Hello {{name}}!</h1><p>This is a test email from {{company}}.</p>",
+		ScheduledTime: timestamppb.Now(),
+		Headers: &mailertypes.Headers{
+			To: []string{"visible-to@example.com"},
+			Cc: []string{"cc1@example.com", "cc2@example.com"},
+		},
+	}
+
+	client.SendEmail(t, sendReq)
+
+	// The email should still be delivered to the actual recipient
+	msg := requireGetEmail(t, senderMock, testEmail)
+
+	t.Run("EmailContent", func(t *testing.T) {
+		assert.Contains(t, msg.Body, "Hello Test User!")
+		assert.Contains(t, msg.Body, "This is a test email from Test Corp.")
+		assert.Equal(t, "Test Sender <sender@test.example.com>", msg.From)
+		// The visible To header should be the control header value, not the actual recipient
+		assert.Equal(t, "visible-to@example.com", msg.To)
+		// The Cc header should contain the control header cc values
+		assert.Equal(t, "cc1@example.com, cc2@example.com", msg.Cc)
+		assert.Equal(t, "Test Email with Headers", msg.Subject)
+	})
+
+	assert.EventuallyWithT(t, func(tt *assert.CollectT) {
+		stats := client.GetStats(t)
+		require.EqualValues(tt, 2, stats.Total)
+		require.EqualValues(tt, 2, len(stats.Stats))
+
+		require.EqualValues(tt, testEmail, stats.Stats[0].Email)
+		require.Equal(tt, testEmail, stats.Stats[1].Email)
+	}, 10*time.Second, 1*time.Second, "Stats should be available within 60 seconds")
 }
 
 func waitHZ(t *testing.T, clientFactory *clientFactory, infra *TestInfrastructure) {

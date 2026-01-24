@@ -84,6 +84,7 @@ type SendHTMLReq struct {
 	Recipients    []*types.Recipient     `protobuf:"bytes,6,rep,name=recipients,proto3" json:"recipients,omitempty"`
 	Attachments   []*Attachment          `protobuf:"bytes,7,rep,name=attachments,proto3" json:"attachments,omitempty"`
 	GlobalFields  map[string]string      `protobuf:"bytes,8,rep,name=global_fields,json=globalFields,proto3" json:"global_fields,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Headers       *types.Headers         `protobuf:"bytes,9,opt,name=headers,proto3,oneof" json:"headers,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -167,6 +168,13 @@ func (x *SendHTMLReq) GetGlobalFields() map[string]string {
 	return nil
 }
 
+func (x *SendHTMLReq) GetHeaders() *types.Headers {
+	if x != nil {
+		return x.Headers
+	}
+	return nil
+}
+
 type SendTemplateReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Sender        *types.Sender          `protobuf:"bytes,1,opt,name=sender,proto3" json:"sender,omitempty"`
@@ -176,6 +184,7 @@ type SendTemplateReq struct {
 	Recipients    []*types.Recipient     `protobuf:"bytes,6,rep,name=recipients,proto3" json:"recipients,omitempty"`
 	Attachments   []*Attachment          `protobuf:"bytes,7,rep,name=attachments,proto3" json:"attachments,omitempty"`
 	GlobalFields  map[string]string      `protobuf:"bytes,8,rep,name=global_fields,json=globalFields,proto3" json:"global_fields,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Headers       *types.Headers         `protobuf:"bytes,9,opt,name=headers,proto3,oneof" json:"headers,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -259,6 +268,13 @@ func (x *SendTemplateReq) GetGlobalFields() map[string]string {
 	return nil
 }
 
+func (x *SendTemplateReq) GetHeaders() *types.Headers {
+	if x != nil {
+		return x.Headers
+	}
+	return nil
+}
+
 type SendRes struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	MessageId     string                 `protobuf:"bytes,1,opt,name=message_id,json=messageId,proto3" json:"message_id,omitempty"`
@@ -327,7 +343,7 @@ const file_kannon_mailer_apiv1_mailerapiv1_proto_rawDesc = "" +
 	"\n" +
 	"Attachment\x12\x1a\n" +
 	"\bfilename\x18\x01 \x01(\tR\bfilename\x12\x18\n" +
-	"\acontent\x18\x02 \x01(\fR\acontent\"\xf8\x03\n" +
+	"\acontent\x18\x02 \x01(\fR\acontent\"\xc5\x04\n" +
 	"\vSendHTMLReq\x127\n" +
 	"\x06sender\x18\x01 \x01(\v2\x1f.pkg.kannon.mailer.types.SenderR\x06sender\x12\x18\n" +
 	"\asubject\x18\x03 \x01(\tR\asubject\x12\x12\n" +
@@ -337,11 +353,14 @@ const file_kannon_mailer_apiv1_mailerapiv1_proto_rawDesc = "" +
 	"recipients\x18\x06 \x03(\v2\".pkg.kannon.mailer.types.RecipientR\n" +
 	"recipients\x12E\n" +
 	"\vattachments\x18\a \x03(\v2#.pkg.kannon.mailer.apiv1.AttachmentR\vattachments\x12[\n" +
-	"\rglobal_fields\x18\b \x03(\v26.pkg.kannon.mailer.apiv1.SendHTMLReq.GlobalFieldsEntryR\fglobalFields\x1a?\n" +
+	"\rglobal_fields\x18\b \x03(\v26.pkg.kannon.mailer.apiv1.SendHTMLReq.GlobalFieldsEntryR\fglobalFields\x12?\n" +
+	"\aheaders\x18\t \x01(\v2 .pkg.kannon.mailer.types.HeadersH\x01R\aheaders\x88\x01\x01\x1a?\n" +
 	"\x11GlobalFieldsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\x11\n" +
-	"\x0f_scheduled_time\"\x8d\x04\n" +
+	"\x0f_scheduled_timeB\n" +
+	"\n" +
+	"\b_headers\"\xda\x04\n" +
 	"\x0fSendTemplateReq\x127\n" +
 	"\x06sender\x18\x01 \x01(\v2\x1f.pkg.kannon.mailer.types.SenderR\x06sender\x12\x18\n" +
 	"\asubject\x18\x03 \x01(\tR\asubject\x12\x1f\n" +
@@ -352,11 +371,14 @@ const file_kannon_mailer_apiv1_mailerapiv1_proto_rawDesc = "" +
 	"recipients\x18\x06 \x03(\v2\".pkg.kannon.mailer.types.RecipientR\n" +
 	"recipients\x12E\n" +
 	"\vattachments\x18\a \x03(\v2#.pkg.kannon.mailer.apiv1.AttachmentR\vattachments\x12_\n" +
-	"\rglobal_fields\x18\b \x03(\v2:.pkg.kannon.mailer.apiv1.SendTemplateReq.GlobalFieldsEntryR\fglobalFields\x1a?\n" +
+	"\rglobal_fields\x18\b \x03(\v2:.pkg.kannon.mailer.apiv1.SendTemplateReq.GlobalFieldsEntryR\fglobalFields\x12?\n" +
+	"\aheaders\x18\t \x01(\v2 .pkg.kannon.mailer.types.HeadersH\x01R\aheaders\x88\x01\x01\x1a?\n" +
 	"\x11GlobalFieldsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\x11\n" +
-	"\x0f_scheduled_time\"\x8c\x01\n" +
+	"\x0f_scheduled_timeB\n" +
+	"\n" +
+	"\b_headers\"\x8c\x01\n" +
 	"\aSendRes\x12\x1d\n" +
 	"\n" +
 	"message_id\x18\x01 \x01(\tR\tmessageId\x12\x1f\n" +
@@ -391,6 +413,7 @@ var file_kannon_mailer_apiv1_mailerapiv1_proto_goTypes = []any{
 	(*types.Sender)(nil),          // 6: pkg.kannon.mailer.types.Sender
 	(*timestamppb.Timestamp)(nil), // 7: google.protobuf.Timestamp
 	(*types.Recipient)(nil),       // 8: pkg.kannon.mailer.types.Recipient
+	(*types.Headers)(nil),         // 9: pkg.kannon.mailer.types.Headers
 }
 var file_kannon_mailer_apiv1_mailerapiv1_proto_depIdxs = []int32{
 	6,  // 0: pkg.kannon.mailer.apiv1.SendHTMLReq.sender:type_name -> pkg.kannon.mailer.types.Sender
@@ -398,21 +421,23 @@ var file_kannon_mailer_apiv1_mailerapiv1_proto_depIdxs = []int32{
 	8,  // 2: pkg.kannon.mailer.apiv1.SendHTMLReq.recipients:type_name -> pkg.kannon.mailer.types.Recipient
 	0,  // 3: pkg.kannon.mailer.apiv1.SendHTMLReq.attachments:type_name -> pkg.kannon.mailer.apiv1.Attachment
 	4,  // 4: pkg.kannon.mailer.apiv1.SendHTMLReq.global_fields:type_name -> pkg.kannon.mailer.apiv1.SendHTMLReq.GlobalFieldsEntry
-	6,  // 5: pkg.kannon.mailer.apiv1.SendTemplateReq.sender:type_name -> pkg.kannon.mailer.types.Sender
-	7,  // 6: pkg.kannon.mailer.apiv1.SendTemplateReq.scheduled_time:type_name -> google.protobuf.Timestamp
-	8,  // 7: pkg.kannon.mailer.apiv1.SendTemplateReq.recipients:type_name -> pkg.kannon.mailer.types.Recipient
-	0,  // 8: pkg.kannon.mailer.apiv1.SendTemplateReq.attachments:type_name -> pkg.kannon.mailer.apiv1.Attachment
-	5,  // 9: pkg.kannon.mailer.apiv1.SendTemplateReq.global_fields:type_name -> pkg.kannon.mailer.apiv1.SendTemplateReq.GlobalFieldsEntry
-	7,  // 10: pkg.kannon.mailer.apiv1.SendRes.scheduled_time:type_name -> google.protobuf.Timestamp
-	1,  // 11: pkg.kannon.mailer.apiv1.Mailer.SendHTML:input_type -> pkg.kannon.mailer.apiv1.SendHTMLReq
-	2,  // 12: pkg.kannon.mailer.apiv1.Mailer.SendTemplate:input_type -> pkg.kannon.mailer.apiv1.SendTemplateReq
-	3,  // 13: pkg.kannon.mailer.apiv1.Mailer.SendHTML:output_type -> pkg.kannon.mailer.apiv1.SendRes
-	3,  // 14: pkg.kannon.mailer.apiv1.Mailer.SendTemplate:output_type -> pkg.kannon.mailer.apiv1.SendRes
-	13, // [13:15] is the sub-list for method output_type
-	11, // [11:13] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	9,  // 5: pkg.kannon.mailer.apiv1.SendHTMLReq.headers:type_name -> pkg.kannon.mailer.types.Headers
+	6,  // 6: pkg.kannon.mailer.apiv1.SendTemplateReq.sender:type_name -> pkg.kannon.mailer.types.Sender
+	7,  // 7: pkg.kannon.mailer.apiv1.SendTemplateReq.scheduled_time:type_name -> google.protobuf.Timestamp
+	8,  // 8: pkg.kannon.mailer.apiv1.SendTemplateReq.recipients:type_name -> pkg.kannon.mailer.types.Recipient
+	0,  // 9: pkg.kannon.mailer.apiv1.SendTemplateReq.attachments:type_name -> pkg.kannon.mailer.apiv1.Attachment
+	5,  // 10: pkg.kannon.mailer.apiv1.SendTemplateReq.global_fields:type_name -> pkg.kannon.mailer.apiv1.SendTemplateReq.GlobalFieldsEntry
+	9,  // 11: pkg.kannon.mailer.apiv1.SendTemplateReq.headers:type_name -> pkg.kannon.mailer.types.Headers
+	7,  // 12: pkg.kannon.mailer.apiv1.SendRes.scheduled_time:type_name -> google.protobuf.Timestamp
+	1,  // 13: pkg.kannon.mailer.apiv1.Mailer.SendHTML:input_type -> pkg.kannon.mailer.apiv1.SendHTMLReq
+	2,  // 14: pkg.kannon.mailer.apiv1.Mailer.SendTemplate:input_type -> pkg.kannon.mailer.apiv1.SendTemplateReq
+	3,  // 15: pkg.kannon.mailer.apiv1.Mailer.SendHTML:output_type -> pkg.kannon.mailer.apiv1.SendRes
+	3,  // 16: pkg.kannon.mailer.apiv1.Mailer.SendTemplate:output_type -> pkg.kannon.mailer.apiv1.SendRes
+	15, // [15:17] is the sub-list for method output_type
+	13, // [13:15] is the sub-list for method input_type
+	13, // [13:13] is the sub-list for extension type_name
+	13, // [13:13] is the sub-list for extension extendee
+	0,  // [0:13] is the sub-list for field type_name
 }
 
 func init() { file_kannon_mailer_apiv1_mailerapiv1_proto_init() }

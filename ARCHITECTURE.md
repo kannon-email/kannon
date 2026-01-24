@@ -22,7 +22,7 @@ Kannon is a cloud-native, scalable SMTP mail sender designed for Kubernetes and 
 
 #### `internal/mailbuilder/`
 
-- Responsible for building and signing emails (DKIM), rendering templates, and preparing messages for sending. Adds tracking links and pixels.
+- Responsible for building and signing emails (DKIM), rendering templates, and preparing messages for sending. Adds tracking links and pixels. Supports custom headers for overriding the visible To/Cc mail headers independently of the SMTP envelope recipient.
 
 #### `internal/pool/`
 

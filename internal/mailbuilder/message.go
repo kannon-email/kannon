@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 
+	sqlc "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/pool"
 )
 
@@ -18,16 +19,26 @@ func buildReturnPath(to string, messageID string) string {
 }
 
 // buildHeaders for a message
-func buildHeaders(subject string, sender pool.Sender, to string, poolMessageID string, messageID string, baseHeaders headers) headers {
+func buildHeaders(subject string, sender pool.Sender, to string, poolMessageID string, messageID string, baseHeaders headers, customHeaders sqlc.Headers) headers {
 	h := make(headers)
 	for k, v := range baseHeaders {
-		h[k] = v
+		h[k] = make([]string, len(v))
+		copy(h[k], v)
 	}
-	h["Subject"] = subject
-	h["From"] = fmt.Sprintf("%v <%v>", sender.Alias, sender.Email)
-	h["To"] = to
-	h["Message-ID"] = messageID
-	h["X-Pool-Message-ID"] = poolMessageID
-	h["Reply-To"] = fmt.Sprintf("%v <%v>", sender.Alias, sender.Email)
+	h["Subject"] = []string{subject}
+	h["From"] = []string{fmt.Sprintf("%v <%v>", sender.Alias, sender.Email)}
+	h["Message-ID"] = []string{messageID}
+	h["X-Pool-Message-ID"] = []string{poolMessageID}
+	h["Reply-To"] = []string{fmt.Sprintf("%v <%v>", sender.Alias, sender.Email)}
+	h["To"] = []string{to}
+
+	if len(customHeaders.To) > 0 {
+		h["To"] = customHeaders.To
+	}
+
+	if len(customHeaders.Cc) > 0 {
+		h["Cc"] = customHeaders.Cc
+	}
+
 	return h
 }

@@ -177,7 +177,8 @@ CREATE TABLE public.messages (
     sender_alias character varying(100) NOT NULL,
     template_id character varying NOT NULL,
     domain character varying(254) NOT NULL,
-    attachments jsonb
+    attachments jsonb,
+    headers jsonb
 );
 
 
@@ -674,4 +675,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20240420090612'),
     ('20240421080953'),
     ('20260104120000'),
-    ('20260106120000');
+    ('20260106120000'),
+    ('20260124120000');

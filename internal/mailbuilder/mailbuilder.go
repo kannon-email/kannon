@@ -30,7 +30,7 @@ func NewMailBuilder(q *sqlc.Queries, st statssec.StatsService) MailBuilder {
 		db: q,
 		st: st,
 		headers: headers{
-			"X-Mailer": "SMTP Mailer",
+			"X-Mailer": {"SMTP Mailer"},
 		},
 	}
 }
@@ -58,12 +58,13 @@ func (m *mailBuilder) BuildEmail(ctx context.Context, email sqlc.SendingPoolEmai
 	}
 
 	returnPath := buildReturnPath(email.Email, emailData.MessageID)
-	msg, err := m.prepareMessage(ctx, sender, emailData.Subject, email.Email, emailData.Domain, emailData.MessageID, emailData.Html, m.headers, email.Fields, attachments)
+	msg, err := m.prepareMessage(ctx, sender, emailData.Subject, email.Email, emailData.Domain, emailData.MessageID, emailData.Html, m.headers, email.Fields, attachments, emailData.Headers)
 	if err != nil {
 		return nil, err
 	}
 
-	signedMsg, err := signMessage(emailData.Domain, emailData.DkimPrivateKey, msg)
+	hasCc := len(emailData.Headers.Cc) > 0
+	signedMsg, err := signMessage(emailData.Domain, emailData.DkimPrivateKey, msg, hasCc)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +79,7 @@ func (m *mailBuilder) BuildEmail(ctx context.Context, email sqlc.SendingPoolEmai
 	}, nil
 }
 
-func (m *mailBuilder) prepareMessage(ctx context.Context, sender pool.Sender, subject string, to string, domain string, messageID string, html string, baseHeaders headers, fields map[string]string, attachments Attachments) ([]byte, error) {
+func (m *mailBuilder) prepareMessage(ctx context.Context, sender pool.Sender, subject string, to string, domain string, messageID string, html string, baseHeaders headers, fields map[string]string, attachments Attachments, customHeaders sqlc.Headers) ([]byte, error) {
 	emailMessageID := buildEmailID(to, messageID)
 	html, err := m.preparedHTML(ctx, html, to, domain, messageID, fields)
 	if err != nil {
@@ -86,16 +87,21 @@ func (m *mailBuilder) prepareMessage(ctx context.Context, sender pool.Sender, su
 	}
 	subject = utils.ReplaceCustomFields(subject, fields)
 
-	h := buildHeaders(subject, sender, to, messageID, emailMessageID, baseHeaders)
+	h := buildHeaders(subject, sender, to, messageID, emailMessageID, baseHeaders, customHeaders)
 	return renderMsg(html, h, attachments)
 }
 
-func signMessage(domain string, dkimPrivateKey string, msg []byte) ([]byte, error) {
+func signMessage(domain string, dkimPrivateKey string, msg []byte, hasCc bool) ([]byte, error) {
+	dkimHeaders := []string{"From", "To", "Subject", "Message-ID"}
+	if hasCc {
+		dkimHeaders = append(dkimHeaders, "Cc")
+	}
+
 	signData := dkim.SignData{
 		PrivateKey: dkimPrivateKey,
 		Domain:     domain,
 		Selector:   "kannon",
-		Headers:    []string{"From", "To", "Subject", "Message-ID"},
+		Headers:    dkimHeaders,
 	}
 
 	return dkim.SignMessage(signData, bytes.NewReader(msg))
@@ -139,8 +145,8 @@ func (m *mailBuilder) addTrackPixel(ctx context.Context, html string, email stri
 func renderMsg(html string, headers headers, attachments Attachments) ([]byte, error) {
 	msg := mail.NewMessage()
 
-	for key, value := range headers {
-		msg.SetHeader(key, value)
+	for key, values := range headers {
+		msg.SetHeader(key, values...)
 	}
 	msg.SetDateHeader("Date", time.Now())
 	msg.SetBody("text/html", html)

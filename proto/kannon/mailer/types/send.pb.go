@@ -125,6 +125,58 @@ func (x *Recipient) GetFields() map[string]string {
 	return nil
 }
 
+type Headers struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	To            []string               `protobuf:"bytes,1,rep,name=to,proto3" json:"to,omitempty"`
+	Cc            []string               `protobuf:"bytes,2,rep,name=cc,proto3" json:"cc,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Headers) Reset() {
+	*x = Headers{}
+	mi := &file_kannon_mailer_types_send_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Headers) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Headers) ProtoMessage() {}
+
+func (x *Headers) ProtoReflect() protoreflect.Message {
+	mi := &file_kannon_mailer_types_send_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Headers.ProtoReflect.Descriptor instead.
+func (*Headers) Descriptor() ([]byte, []int) {
+	return file_kannon_mailer_types_send_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *Headers) GetTo() []string {
+	if x != nil {
+		return x.To
+	}
+	return nil
+}
+
+func (x *Headers) GetCc() []string {
+	if x != nil {
+		return x.Cc
+	}
+	return nil
+}
+
 var File_kannon_mailer_types_send_proto protoreflect.FileDescriptor
 
 const file_kannon_mailer_types_send_proto_rawDesc = "" +
@@ -138,7 +190,10 @@ const file_kannon_mailer_types_send_proto_rawDesc = "" +
 	"\x06fields\x18\x02 \x03(\v2..pkg.kannon.mailer.types.Recipient.FieldsEntryR\x06fields\x1a9\n" +
 	"\vFieldsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\xe2\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\")\n" +
+	"\aHeaders\x12\x0e\n" +
+	"\x02to\x18\x01 \x03(\tR\x02to\x12\x0e\n" +
+	"\x02cc\x18\x02 \x03(\tR\x02ccB\xe2\x01\n" +
 	"\x1bcom.pkg.kannon.mailer.typesB\tSendProtoP\x01Z8github.com/kannon-email/kannon/proto/kannon/mailer/types\xa2\x02\x04PKMT\xaa\x02\x17Pkg.Kannon.Mailer.Types\xca\x02\x17Pkg\\Kannon\\Mailer\\Types\xe2\x02#Pkg\\Kannon\\Mailer\\Types\\GPBMetadata\xea\x02\x1aPkg::Kannon::Mailer::Typesb\x06proto3"
 
 var (
@@ -153,14 +208,15 @@ func file_kannon_mailer_types_send_proto_rawDescGZIP() []byte {
 	return file_kannon_mailer_types_send_proto_rawDescData
 }
 
-var file_kannon_mailer_types_send_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_kannon_mailer_types_send_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_kannon_mailer_types_send_proto_goTypes = []any{
 	(*Sender)(nil),    // 0: pkg.kannon.mailer.types.Sender
 	(*Recipient)(nil), // 1: pkg.kannon.mailer.types.Recipient
-	nil,               // 2: pkg.kannon.mailer.types.Recipient.FieldsEntry
+	(*Headers)(nil),   // 2: pkg.kannon.mailer.types.Headers
+	nil,               // 3: pkg.kannon.mailer.types.Recipient.FieldsEntry
 }
 var file_kannon_mailer_types_send_proto_depIdxs = []int32{
-	2, // 0: pkg.kannon.mailer.types.Recipient.fields:type_name -> pkg.kannon.mailer.types.Recipient.FieldsEntry
+	3, // 0: pkg.kannon.mailer.types.Recipient.fields:type_name -> pkg.kannon.mailer.types.Recipient.FieldsEntry
 	1, // [1:1] is the sub-list for method output_type
 	1, // [1:1] is the sub-list for method input_type
 	1, // [1:1] is the sub-list for extension type_name
@@ -179,7 +235,7 @@ func file_kannon_mailer_types_send_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_kannon_mailer_types_send_proto_rawDesc), len(file_kannon_mailer_types_send_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   3,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

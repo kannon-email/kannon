@@ -63,6 +63,64 @@ func TestInsertMail(t *testing.T) {
 	assert.Equal(t, schedTime.UTC(), sp[0].ScheduledTime.Time.UTC())
 }
 
+func TestSendMailWithInvalidHeaders(t *testing.T) {
+	defer cleanDB(t)
+
+	d := createTestDomain(t)
+
+	tests := []struct {
+		name    string
+		headers *types.Headers
+		errMsg  string
+	}{
+		{
+			name: "invalid To header",
+			headers: &types.Headers{
+				To: []string{"not-an-email"},
+			},
+			errMsg: "invalid To header",
+		},
+		{
+			name: "invalid Cc header",
+			headers: &types.Headers{
+				Cc: []string{"also-not-valid"},
+			},
+			errMsg: "invalid Cc header",
+		},
+		{
+			name: "mixed valid and invalid To",
+			headers: &types.Headers{
+				To: []string{"valid@example.com", "bad"},
+			},
+			errMsg: "invalid To header",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := connect.NewRequest(&mailerv1.SendHTMLReq{
+				Sender: &types.Sender{
+					Email: "test@test.com",
+					Alias: "Test",
+				},
+				Recipients: []*types.Recipient{
+					{Email: "recipient@example.com"},
+				},
+				Subject:       "Test",
+				Html:          "<p>Hello</p>",
+				ScheduledTime: timestamppb.Now(),
+				Headers:       tc.headers,
+			})
+			authRequest(req, d)
+
+			_, err := ts.SendHTML(context.Background(), req)
+			assert.NotNil(t, err)
+			assert.Contains(t, err.Error(), tc.errMsg)
+			assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
+		})
+	}
+}
+
 func TestSendMailWithGlobalFields(t *testing.T) {
 	defer cleanDB(t)
 
