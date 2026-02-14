@@ -98,6 +98,52 @@ Kannon is a cloud-native, scalable SMTP mail sender designed for Kubernetes and 
 
 - Worker that validates emails in the pool before scheduling for sending. Publishes accepted/rejected stats to NATS.
 
+## API Key Security
+
+### Storage Model
+
+API keys are stored securely: only a SHA-256 hash and an 8-character prefix are persisted. The plaintext key is returned once at creation time and never stored.
+
+The `api_keys` table contains:
+
+| Column          | Description                                      |
+| --------------- | ------------------------------------------------ |
+| `id`            | Unique key identifier (prefixed with `key_`)     |
+| `key_hash`      | SHA-256 hash of the full plaintext key            |
+| `key_prefix`    | First 8 characters for display/identification     |
+| `domain`        | Associated sender domain                         |
+| `name`          | Human-readable key name                          |
+| `is_active`     | Whether the key can be used for authentication    |
+| `expires_at`    | Optional expiration timestamp                    |
+| `deactivated_at`| Timestamp when the key was deactivated            |
+| `created_at`    | Timestamp when the key was created                |
+
+### Hashing
+
+Keys are hashed at the application level using SHA-256 (`internal/apikeys/key.go:HashKey`). The hash is computed once during key creation and stored in `key_hash`. During authentication, the service layer hashes the incoming plaintext key and passes the hash to the repository for lookup.
+
+### Authentication Flow
+
+1. Client sends a request to the Mailer gRPC API with Basic auth credentials (domain + API key)
+2. The service layer hashes the plaintext key with `HashKey()`
+3. The repository looks up the key by domain and hash
+4. The service validates that the key is active and not expired
+
+### Security Measures
+
+- **Timing-attack prevention**: The database lookup is always performed, even for invalid key formats, to avoid leaking whether a key exists
+- **Generic error messages**: Authentication failures return the same error regardless of the reason (key not found, inactive, or expired)
+- **Key masking**: Only the 8-character prefix is exposed in API responses; the full key and hash are never returned
+- **Optional expiration**: Keys can have an expiration date, after which they are no longer valid
+- **Irreversible deactivation**: Once deactivated, a key cannot be re-activated
+
+### Key Lifecycle
+
+1. **Generation**: `NewAPIKey()` generates a random key, computes its SHA-256 hash and prefix
+2. **Storage**: The hash and prefix are persisted; the plaintext key is returned to the caller once
+3. **Authentication**: Incoming keys are hashed by the service and matched against stored hashes
+4. **Deactivation**: Keys can be deactivated via the Admin API (irreversible)
+
 ## NATS Streams, Topics, and Consumers
 
 Kannon uses NATS JetStream for reliable, decoupled messaging between its modules. The main streams and topics are:

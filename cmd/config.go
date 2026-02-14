@@ -125,11 +125,8 @@ func readConfig() (Config, error) {
 	}
 
 	if config.Debug {
-		logrus.Infof("setting debug mode")
 		logrus.SetLevel(logrus.DebugLevel)
 	}
-
-	logrus.Debugf("config: %+v", config)
 
 	return config, nil
 }

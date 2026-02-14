@@ -19,7 +19,6 @@ var migrateMainCmd = &cobra.Command{
 			logrus.Fatalf("error in reading config: %v", err)
 		}
 
-		logrus.Infof("migrating database to last version %s", config.DatabaseURL)
 		err = dbschema.Migrate(config.DatabaseURL)
 		if err != nil {
 			logrus.Fatalf("error in migration: %v", err)

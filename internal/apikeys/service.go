@@ -14,19 +14,19 @@ func NewService(repo Repository) *Service {
 	return &Service{repo: repo}
 }
 
-func (s *Service) CreateKey(ctx context.Context, domain, name string, expiresAt *time.Time) (*APIKey, error) {
+func (s *Service) CreateKey(ctx context.Context, domain, name string, expiresAt *time.Time) (*CreateResult, error) {
 	// Create key entity (validation happens in NewAPIKey)
-	key, err := NewAPIKey(domain, name, expiresAt)
+	result, err := NewAPIKey(domain, name, expiresAt)
 	if err != nil {
 		return nil, err
 	}
 
 	// Persist to repository
-	if err := s.repo.Create(ctx, key); err != nil {
+	if err := s.repo.Create(ctx, result.Key); err != nil {
 		return nil, err
 	}
 
-	return key, nil
+	return result, nil
 }
 
 func (s *Service) GetKey(ctx context.Context, ref KeyRef) (*APIKey, error) {
@@ -63,8 +63,11 @@ func (s *Service) DeactivateKey(ctx context.Context, ref KeyRef) (*APIKey, error
 }
 
 func (s *Service) ValidateForAuth(ctx context.Context, domain, key string) (*APIKey, error) {
+	// Hash the plaintext key before repo lookup
+	keyHash := HashKey(key)
+
 	// Get the key from repository
-	apiKey, err := s.repo.GetByKey(ctx, domain, key)
+	apiKey, err := s.repo.GetByKeyHash(ctx, domain, keyHash)
 	if err != nil {
 		// Always return generic error for security (don't leak if key exists)
 		return nil, ErrKeyNotFound

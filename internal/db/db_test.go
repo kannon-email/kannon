@@ -2,14 +2,17 @@ package sqlc
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	schema "github.com/kannon-email/kannon/db"
+	"github.com/kannon-email/kannon/internal/apikeys"
 	"github.com/kannon-email/kannon/internal/tests"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	_ "github.com/lib/pq"
 )
@@ -61,6 +64,28 @@ func TestDomains(t *testing.T) {
 	// cleanup
 	_, err = db.Exec(context.Background(), "DELETE FROM domains")
 	assert.Nil(t, err)
+}
+
+func TestHashKeyMatchesPostgres(t *testing.T) {
+	inputs := []string{
+		"k_aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789abcdefghijklmnopqrstuvwxyz01",
+		"hello-world",
+		"",
+	}
+
+	for _, input := range inputs {
+		t.Run(fmt.Sprintf("input=%q", input), func(t *testing.T) {
+			goHash := apikeys.HashKey(input)
+
+			var pgHash string
+			err := db.QueryRow(context.Background(),
+				"SELECT encode(digest($1, 'sha256'), 'hex')", input,
+			).Scan(&pgHash)
+			require.NoError(t, err)
+
+			assert.Equal(t, goHash, pgHash)
+		})
+	}
 }
 
 func TestTemplates(t *testing.T) {

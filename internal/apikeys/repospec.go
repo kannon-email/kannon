@@ -22,8 +22,8 @@ func RunRepoSpec(t *testing.T, repo Repository, helper RepoTestHelper) {
 	t.Run("Update", func(t *testing.T) {
 		testUpdate(t, repo, helper)
 	})
-	t.Run("GetByKey", func(t *testing.T) {
-		testGetByKey(t, repo, helper)
+	t.Run("GetByKeyHash", func(t *testing.T) {
+		testGetByKeyHash(t, repo, helper)
 	})
 	t.Run("GetByID", func(t *testing.T) {
 		testGetByID(t, repo, helper)
@@ -38,13 +38,13 @@ func testCreate(t *testing.T, repo Repository, helper RepoTestHelper) {
 		ctx := t.Context()
 		domain := helper.CreateDomain(t)
 
-		key, err := NewAPIKey(domain, "test-key", nil)
+		result, err := NewAPIKey(domain, "test-key", nil)
 		require.NoError(t, err)
 
-		err = repo.Create(ctx, key)
+		err = repo.Create(ctx, result.Key)
 		require.NoError(t, err)
-		assert.False(t, key.ID().IsZero(), "ID should be populated after create")
-		assert.NotZero(t, key.CreatedAt(), "CreatedAt should be populated")
+		assert.False(t, result.Key.ID().IsZero(), "ID should be populated after create")
+		assert.NotZero(t, result.Key.CreatedAt(), "CreatedAt should be populated")
 	})
 
 	t.Run("WithExpiration", func(t *testing.T) {
@@ -52,12 +52,12 @@ func testCreate(t *testing.T, repo Repository, helper RepoTestHelper) {
 		domain := helper.CreateDomain(t)
 
 		expiresAt := time.Now().Add(24 * time.Hour)
-		key, err := NewAPIKey(domain, "expiring-key", &expiresAt)
+		result, err := NewAPIKey(domain, "expiring-key", &expiresAt)
 		require.NoError(t, err)
 
-		err = repo.Create(ctx, key)
+		err = repo.Create(ctx, result.Key)
 		require.NoError(t, err)
-		assert.NotNil(t, key.ExpiresAt())
+		assert.NotNil(t, result.Key.ExpiresAt())
 	})
 }
 
@@ -67,14 +67,14 @@ func testUpdate(t *testing.T, repo Repository, helper RepoTestHelper) {
 		domain := helper.CreateDomain(t)
 
 		// Create a key
-		key, err := NewAPIKey(domain, "to-deactivate", nil)
+		result, err := NewAPIKey(domain, "to-deactivate", nil)
 		require.NoError(t, err)
 
-		err = repo.Create(ctx, key)
+		err = repo.Create(ctx, result.Key)
 		require.NoError(t, err)
 
 		// Deactivate using transactional update
-		ref := NewKeyRef(domain, key.ID())
+		ref := NewKeyRef(domain, result.Key.ID())
 		updated, err := repo.Update(ctx, ref, func(k *APIKey) error {
 			k.Deactivate()
 			return nil
@@ -95,14 +95,14 @@ func testUpdate(t *testing.T, repo Repository, helper RepoTestHelper) {
 		domain := helper.CreateDomain(t)
 
 		// Create a key
-		key, err := NewAPIKey(domain, "test-key", nil)
+		result, err := NewAPIKey(domain, "test-key", nil)
 		require.NoError(t, err)
 
-		err = repo.Create(ctx, key)
+		err = repo.Create(ctx, result.Key)
 		require.NoError(t, err)
 
 		// Verify key is initially active
-		ref := NewKeyRef(domain, key.ID())
+		ref := NewKeyRef(domain, result.Key.ID())
 		initial, err := repo.GetByID(ctx, ref)
 		require.NoError(t, err)
 		assert.True(t, initial.IsActiveStatus(), "key should be active initially")
@@ -124,23 +124,22 @@ func testUpdate(t *testing.T, repo Repository, helper RepoTestHelper) {
 	})
 }
 
-func testGetByKey(t *testing.T, repo Repository, helper RepoTestHelper) {
+func testGetByKeyHash(t *testing.T, repo Repository, helper RepoTestHelper) {
 	t.Run("Success", func(t *testing.T) {
 		ctx := t.Context()
 		domain := helper.CreateDomain(t)
 
-		created, err := NewAPIKey(domain, "test-key", nil)
+		result, err := NewAPIKey(domain, "test-key", nil)
 		require.NoError(t, err)
 
-		keyValue := created.Key()
-
-		err = repo.Create(ctx, created)
+		err = repo.Create(ctx, result.Key)
 		require.NoError(t, err)
 
-		found, err := repo.GetByKey(ctx, domain, keyValue)
+		keyHash := HashKey(result.PlaintextKey)
+		found, err := repo.GetByKeyHash(ctx, domain, keyHash)
 		require.NoError(t, err)
-		assert.Equal(t, created.ID(), found.ID())
-		assert.Equal(t, keyValue, found.Key())
+		assert.Equal(t, result.Key.ID(), found.ID())
+		assert.Equal(t, result.Key.KeyHash(), found.KeyHash())
 		assert.Equal(t, domain, found.Domain())
 	})
 
@@ -148,7 +147,8 @@ func testGetByKey(t *testing.T, repo Repository, helper RepoTestHelper) {
 		ctx := t.Context()
 		domain := helper.CreateDomain(t)
 
-		_, err := repo.GetByKey(ctx, domain, "k_nonexistent12345678901234567890")
+		keyHash := HashKey("k_nonexistent12345678901234567890")
+		_, err := repo.GetByKeyHash(ctx, domain, keyHash)
 		assert.ErrorIs(t, err, ErrKeyNotFound)
 	})
 
@@ -156,8 +156,9 @@ func testGetByKey(t *testing.T, repo Repository, helper RepoTestHelper) {
 		ctx := t.Context()
 		domain := helper.CreateDomain(t)
 
-		// Returns ErrKeyNotFound instead of ErrInvalidKey to prevent timing attacks
-		_, err := repo.GetByKey(ctx, domain, "invalid-key")
+		// Hash even invalid-format keys — the repo only sees hashes
+		keyHash := HashKey("invalid-key")
+		_, err := repo.GetByKeyHash(ctx, domain, keyHash)
 		assert.ErrorIs(t, err, ErrKeyNotFound)
 	})
 }
@@ -167,17 +168,17 @@ func testGetByID(t *testing.T, repo Repository, helper RepoTestHelper) {
 		ctx := t.Context()
 		domain := helper.CreateDomain(t)
 
-		created, err := NewAPIKey(domain, "test-key", nil)
+		result, err := NewAPIKey(domain, "test-key", nil)
 		require.NoError(t, err)
 
-		err = repo.Create(ctx, created)
+		err = repo.Create(ctx, result.Key)
 		require.NoError(t, err)
 
-		ref := NewKeyRef(domain, created.ID())
+		ref := NewKeyRef(domain, result.Key.ID())
 		found, err := repo.GetByID(ctx, ref)
 		require.NoError(t, err)
-		assert.Equal(t, created.ID(), found.ID())
-		assert.Equal(t, created.Key(), found.Key())
+		assert.Equal(t, result.Key.ID(), found.ID())
+		assert.Equal(t, result.Key.KeyHash(), found.KeyHash())
 	})
 
 	t.Run("NotFound", func(t *testing.T) {
@@ -198,10 +199,10 @@ func testList(t *testing.T, repo Repository, helper RepoTestHelper) {
 
 		// Create multiple keys
 		for i := range 3 {
-			key, err := NewAPIKey(domain, fmt.Sprintf("key-%d", i), nil)
+			result, err := NewAPIKey(domain, fmt.Sprintf("key-%d", i), nil)
 			require.NoError(t, err)
 
-			err = repo.Create(ctx, key)
+			err = repo.Create(ctx, result.Key)
 			require.NoError(t, err)
 		}
 
@@ -216,21 +217,21 @@ func testList(t *testing.T, repo Repository, helper RepoTestHelper) {
 
 		// Create 2 active keys
 		for i := range 2 {
-			key, err := NewAPIKey(domain, fmt.Sprintf("active-key-%d", i), nil)
+			result, err := NewAPIKey(domain, fmt.Sprintf("active-key-%d", i), nil)
 			require.NoError(t, err)
 
-			err = repo.Create(ctx, key)
+			err = repo.Create(ctx, result.Key)
 			require.NoError(t, err)
 		}
 
 		// Create 1 inactive key
-		inactiveKey, err := NewAPIKey(domain, "inactive-key", nil)
+		inactiveResult, err := NewAPIKey(domain, "inactive-key", nil)
 		require.NoError(t, err)
 
-		err = repo.Create(ctx, inactiveKey)
+		err = repo.Create(ctx, inactiveResult.Key)
 		require.NoError(t, err)
 
-		ref := NewKeyRef(domain, inactiveKey.ID())
+		ref := NewKeyRef(domain, inactiveResult.Key.ID())
 		_, err = repo.Update(ctx, ref, func(k *APIKey) error {
 			k.Deactivate()
 			return nil
@@ -257,10 +258,10 @@ func testList(t *testing.T, repo Repository, helper RepoTestHelper) {
 
 		// Create 5 keys
 		for i := range 5 {
-			key, err := NewAPIKey(domain, fmt.Sprintf("key-%d", i), nil)
+			result, err := NewAPIKey(domain, fmt.Sprintf("key-%d", i), nil)
 			require.NoError(t, err)
 
-			err = repo.Create(ctx, key)
+			err = repo.Create(ctx, result.Key)
 			require.NoError(t, err)
 		}
 

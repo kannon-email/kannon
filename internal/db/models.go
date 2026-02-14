@@ -56,13 +56,14 @@ func (ns NullTemplateType) Value() (driver.Value, error) {
 
 type ApiKey struct {
 	ID            string
-	Key           string
 	Name          string
 	Domain        string
 	CreatedAt     pgtype.Timestamp
 	ExpiresAt     pgtype.Timestamp
 	IsActive      bool
 	DeactivatedAt pgtype.Timestamp
+	KeyHash       string
+	KeyPrefix     string
 }
 
 type Domain struct {

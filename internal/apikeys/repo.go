@@ -29,10 +29,10 @@ type Repository interface {
 	// Returns ErrKeyNotFound if the key doesn't exist for the domain
 	Update(ctx context.Context, ref KeyRef, updateFn UpdateFunc) (*APIKey, error)
 
-	// GetByKey finds an API key by its full key value for a specific domain
-	// Returns ErrKeyNotFound if the key doesn't exist or has invalid format
-	// Note: Invalid format returns ErrKeyNotFound to prevent timing attacks
-	GetByKey(ctx context.Context, domain, key string) (*APIKey, error)
+	// GetByKeyHash finds an API key by its SHA-256 hash for a specific domain
+	// The caller is responsible for hashing the plaintext key before calling this method
+	// Returns ErrKeyNotFound if the key doesn't exist
+	GetByKeyHash(ctx context.Context, domain, keyHash string) (*APIKey, error)
 
 	// GetByID finds an API key by its ID for a specific domain
 	// Returns ErrKeyNotFound if the key doesn't exist for the domain
