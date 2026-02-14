@@ -13,9 +13,11 @@ import (
 	"github.com/kannon-email/kannon/pkg/api/hzapi"
 	"github.com/kannon-email/kannon/pkg/api/mailapi"
 	"github.com/kannon-email/kannon/pkg/statsapi/statsv1"
+	"github.com/kannon-email/kannon/pkg/statsapi/statsv2"
 	adminv1connect "github.com/kannon-email/kannon/proto/kannon/admin/apiv1/apiv1connect"
 	mailerv1connect "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1/apiv1connect"
 	statsv1connect "github.com/kannon-email/kannon/proto/kannon/stats/apiv1/apiv1connect"
+	statsv2connect "github.com/kannon-email/kannon/proto/kannon/stats/apiv2/apiv2connect"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
@@ -40,17 +42,19 @@ func Run(ctx context.Context, config Config, cnt *container.Container) error {
 	q := cnt.Queries()
 
 	statsRepo := sq.NewStatsRepository(q)
-	statsService := stats.NewService(statsRepo)
+	aggregatedRepo := sq.NewAggregatedStatsRepository(q)
+	statsService := stats.NewService(statsRepo, stats.WithAggregatedStatsRepository(aggregatedRepo))
 
 	adminAPIService := adminapi.CreateAdminAPIService(q, cnt.DB())
 	mailAPIService := mailapi.NewMailerAPIV1(q, cnt.DB())
 	statsAPIService := statsv1.NewStatsAPIService(statsService)
+	statsV2APIService := statsv2.NewStatsAPIService(statsService)
 	hzAPIService := hzapi.CreateHZAPIService(cnt)
 
-	return startAPIServer(ctx, port, adminAPIService, mailAPIService, statsAPIService, hzAPIService)
+	return startAPIServer(ctx, port, adminAPIService, mailAPIService, statsAPIService, statsV2APIService, hzAPIService)
 }
 
-func startAPIServer(ctx context.Context, port uint, adminServer adminv1connect.ApiHandler, mailerServer mailerv1connect.MailerHandler, statsServer statsv1connect.StatsApiV1Handler, hzServer adminv1connect.HZServiceHandler) error {
+func startAPIServer(ctx context.Context, port uint, adminServer adminv1connect.ApiHandler, mailerServer mailerv1connect.MailerHandler, statsServer statsv1connect.StatsApiV1Handler, statsV2Server statsv2connect.StatsApiV2Handler, hzServer adminv1connect.HZServiceHandler) error {
 	addr := fmt.Sprintf("0.0.0.0:%d", port)
 	mux := http.NewServeMux()
 
@@ -58,11 +62,13 @@ func startAPIServer(ctx context.Context, port uint, adminServer adminv1connect.A
 	adminPath, adminHandler := adminv1connect.NewApiHandler(adminServer)
 	mailerPath, mailerHandler := mailerv1connect.NewMailerHandler(mailerServer)
 	statsPath, statsHandler := statsv1connect.NewStatsApiV1Handler(statsServer)
+	statsV2Path, statsV2Handler := statsv2connect.NewStatsApiV2Handler(statsV2Server)
 	hzPath, hzHandler := adminv1connect.NewHZServiceHandler(hzServer)
 
 	mux.Handle(adminPath, adminHandler)
 	mux.Handle(mailerPath, mailerHandler)
 	mux.Handle(statsPath, statsHandler)
+	mux.Handle(statsV2Path, statsV2Handler)
 	mux.Handle(hzPath, hzHandler)
 
 	handler := h2c.NewHandler(mux, &http2.Server{})
