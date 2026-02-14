@@ -31,15 +31,16 @@ func (q *Queries) CountAPIKeysByDomain(ctx context.Context, arg CountAPIKeysByDo
 }
 
 const createAPIKey = `-- name: CreateAPIKey :one
-INSERT INTO api_keys (id, domain, key, name, expires_at)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, key, name, domain, created_at, expires_at, is_active, deactivated_at
+INSERT INTO api_keys (id, domain, key_hash, key_prefix, name, expires_at)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, name, domain, created_at, expires_at, is_active, deactivated_at, key_hash, key_prefix
 `
 
 type CreateAPIKeyParams struct {
 	ID        string
 	Domain    string
-	Key       string
+	KeyHash   string
+	KeyPrefix string
 	Name      string
 	ExpiresAt pgtype.Timestamp
 }
@@ -48,26 +49,56 @@ func (q *Queries) CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (Api
 	row := q.db.QueryRow(ctx, createAPIKey,
 		arg.ID,
 		arg.Domain,
-		arg.Key,
+		arg.KeyHash,
+		arg.KeyPrefix,
 		arg.Name,
 		arg.ExpiresAt,
 	)
 	var i ApiKey
 	err := row.Scan(
 		&i.ID,
-		&i.Key,
 		&i.Name,
 		&i.Domain,
 		&i.CreatedAt,
 		&i.ExpiresAt,
 		&i.IsActive,
 		&i.DeactivatedAt,
+		&i.KeyHash,
+		&i.KeyPrefix,
+	)
+	return i, err
+}
+
+const getAPIKeyByHash = `-- name: GetAPIKeyByHash :one
+SELECT id, name, domain, created_at, expires_at, is_active, deactivated_at, key_hash, key_prefix
+FROM api_keys
+WHERE key_hash = $1 AND domain = $2
+`
+
+type GetAPIKeyByHashParams struct {
+	KeyHash string
+	Domain  string
+}
+
+func (q *Queries) GetAPIKeyByHash(ctx context.Context, arg GetAPIKeyByHashParams) (ApiKey, error) {
+	row := q.db.QueryRow(ctx, getAPIKeyByHash, arg.KeyHash, arg.Domain)
+	var i ApiKey
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Domain,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.IsActive,
+		&i.DeactivatedAt,
+		&i.KeyHash,
+		&i.KeyPrefix,
 	)
 	return i, err
 }
 
 const getAPIKeyByID = `-- name: GetAPIKeyByID :one
-SELECT id, key, name, domain, created_at, expires_at, is_active, deactivated_at
+SELECT id, name, domain, created_at, expires_at, is_active, deactivated_at, key_hash, key_prefix
 FROM api_keys
 WHERE id = $1 AND domain = $2
 `
@@ -82,19 +113,20 @@ func (q *Queries) GetAPIKeyByID(ctx context.Context, arg GetAPIKeyByIDParams) (A
 	var i ApiKey
 	err := row.Scan(
 		&i.ID,
-		&i.Key,
 		&i.Name,
 		&i.Domain,
 		&i.CreatedAt,
 		&i.ExpiresAt,
 		&i.IsActive,
 		&i.DeactivatedAt,
+		&i.KeyHash,
+		&i.KeyPrefix,
 	)
 	return i, err
 }
 
 const getAPIKeyByIDForUpdate = `-- name: GetAPIKeyByIDForUpdate :one
-SELECT id, key, name, domain, created_at, expires_at, is_active, deactivated_at
+SELECT id, name, domain, created_at, expires_at, is_active, deactivated_at, key_hash, key_prefix
 FROM api_keys
 WHERE id = $1 AND domain = $2
 FOR UPDATE
@@ -110,46 +142,20 @@ func (q *Queries) GetAPIKeyByIDForUpdate(ctx context.Context, arg GetAPIKeyByIDF
 	var i ApiKey
 	err := row.Scan(
 		&i.ID,
-		&i.Key,
 		&i.Name,
 		&i.Domain,
 		&i.CreatedAt,
 		&i.ExpiresAt,
 		&i.IsActive,
 		&i.DeactivatedAt,
-	)
-	return i, err
-}
-
-const getAPIKeyByKey = `-- name: GetAPIKeyByKey :one
-SELECT id, key, name, domain, created_at, expires_at, is_active, deactivated_at
-FROM api_keys
-WHERE key = $1 AND domain = $2
-`
-
-type GetAPIKeyByKeyParams struct {
-	Key    string
-	Domain string
-}
-
-func (q *Queries) GetAPIKeyByKey(ctx context.Context, arg GetAPIKeyByKeyParams) (ApiKey, error) {
-	row := q.db.QueryRow(ctx, getAPIKeyByKey, arg.Key, arg.Domain)
-	var i ApiKey
-	err := row.Scan(
-		&i.ID,
-		&i.Key,
-		&i.Name,
-		&i.Domain,
-		&i.CreatedAt,
-		&i.ExpiresAt,
-		&i.IsActive,
-		&i.DeactivatedAt,
+		&i.KeyHash,
+		&i.KeyPrefix,
 	)
 	return i, err
 }
 
 const listAPIKeysByDomain = `-- name: ListAPIKeysByDomain :many
-SELECT id, key, name, domain, created_at, expires_at, is_active, deactivated_at
+SELECT id, name, domain, created_at, expires_at, is_active, deactivated_at, key_hash, key_prefix
 FROM api_keys
 WHERE domain = $1
     AND (CASE WHEN $2::boolean THEN is_active = TRUE ELSE TRUE END)
@@ -180,13 +186,14 @@ func (q *Queries) ListAPIKeysByDomain(ctx context.Context, arg ListAPIKeysByDoma
 		var i ApiKey
 		if err := rows.Scan(
 			&i.ID,
-			&i.Key,
 			&i.Name,
 			&i.Domain,
 			&i.CreatedAt,
 			&i.ExpiresAt,
 			&i.IsActive,
 			&i.DeactivatedAt,
+			&i.KeyHash,
+			&i.KeyPrefix,
 		); err != nil {
 			return nil, err
 		}
@@ -205,7 +212,7 @@ SET name = $3,
     is_active = $5,
     deactivated_at = $6
 WHERE id = $1 AND domain = $2
-RETURNING id, key, name, domain, created_at, expires_at, is_active, deactivated_at
+RETURNING id, name, domain, created_at, expires_at, is_active, deactivated_at, key_hash, key_prefix
 `
 
 type UpdateAPIKeyParams struct {
@@ -229,13 +236,14 @@ func (q *Queries) UpdateAPIKey(ctx context.Context, arg UpdateAPIKeyParams) (Api
 	var i ApiKey
 	err := row.Scan(
 		&i.ID,
-		&i.Key,
 		&i.Name,
 		&i.Domain,
 		&i.CreatedAt,
 		&i.ExpiresAt,
 		&i.IsActive,
 		&i.DeactivatedAt,
+		&i.KeyHash,
+		&i.KeyPrefix,
 	)
 	return i, err
 }

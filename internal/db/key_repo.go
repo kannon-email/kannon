@@ -29,7 +29,8 @@ func (r *apiKeysRepository) Create(ctx context.Context, key *apikeys.APIKey) err
 	_, err := r.q.CreateAPIKey(ctx, CreateAPIKeyParams{
 		ID:        key.ID().String(),
 		Domain:    key.Domain(),
-		Key:       key.Key(),
+		KeyHash:   key.KeyHash(),
+		KeyPrefix: key.KeyPrefix(),
 		Name:      key.Name(),
 		ExpiresAt: expiresAt,
 	})
@@ -106,10 +107,13 @@ func (r *apiKeysRepository) Update(ctx context.Context, ref apikeys.KeyRef, upda
 }
 
 func (r *apiKeysRepository) GetByKey(ctx context.Context, domain, key string) (*apikeys.APIKey, error) {
+	// Hash the plaintext key for lookup
+	hash := apikeys.HashKey(key)
+
 	// Always perform database lookup to prevent timing attacks
-	row, err := r.q.GetAPIKeyByKey(ctx, GetAPIKeyByKeyParams{
-		Key:    key,
-		Domain: domain,
+	row, err := r.q.GetAPIKeyByHash(ctx, GetAPIKeyByHashParams{
+		KeyHash: hash,
+		Domain:  domain,
 	})
 
 	if err != nil {
@@ -174,11 +178,12 @@ func (r *apiKeysRepository) Count(ctx context.Context, domain string, filters ap
 // Works with all query result types since they all use SELECT *
 func rowToAPIKey(row ApiKey) *apikeys.APIKey {
 	params := apikeys.LoadAPIKeyParams{
-		ID:       apikeys.ID(row.ID),
-		Key:      row.Key,
-		Name:     row.Name,
-		Domain:   row.Domain,
-		IsActive: row.IsActive,
+		ID:        apikeys.ID(row.ID),
+		KeyHash:   row.KeyHash,
+		KeyPrefix: row.KeyPrefix,
+		Name:      row.Name,
+		Domain:    row.Domain,
+		IsActive:  row.IsActive,
 	}
 
 	if row.CreatedAt.Valid {

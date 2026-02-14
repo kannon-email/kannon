@@ -10,16 +10,16 @@ import (
 
 // InMemoryRepository is a thread-safe in-memory implementation of apikeys.Repository
 type InMemoryRepository struct {
-	mu         sync.RWMutex
-	byID       map[string]map[apikeys.ID]*apikeys.APIKey // domain -> id -> key
-	byKeyValue map[string]map[string]*apikeys.APIKey     // domain -> keyValue -> key
+	mu        sync.RWMutex
+	byID      map[string]map[apikeys.ID]*apikeys.APIKey // domain -> id -> key
+	byKeyHash map[string]map[string]*apikeys.APIKey     // domain -> keyHash -> key
 }
 
 // NewInMemoryRepository creates a new in-memory repository
 func NewInMemoryRepository() *InMemoryRepository {
 	return &InMemoryRepository{
-		byID:       make(map[string]map[apikeys.ID]*apikeys.APIKey),
-		byKeyValue: make(map[string]map[string]*apikeys.APIKey),
+		byID:      make(map[string]map[apikeys.ID]*apikeys.APIKey),
+		byKeyHash: make(map[string]map[string]*apikeys.APIKey),
 	}
 }
 
@@ -31,8 +31,8 @@ func (r *InMemoryRepository) Create(ctx context.Context, key *apikeys.APIKey) er
 	domain := key.Domain()
 
 	// Check if key already exists
-	if domainKeys, exists := r.byKeyValue[domain]; exists {
-		if _, exists := domainKeys[key.Key()]; exists {
+	if domainKeys, exists := r.byKeyHash[domain]; exists {
+		if _, exists := domainKeys[key.KeyHash()]; exists {
 			return apikeys.ErrKeyAlreadyExists
 		}
 	}
@@ -41,13 +41,13 @@ func (r *InMemoryRepository) Create(ctx context.Context, key *apikeys.APIKey) er
 	if _, exists := r.byID[domain]; !exists {
 		r.byID[domain] = make(map[apikeys.ID]*apikeys.APIKey)
 	}
-	if _, exists := r.byKeyValue[domain]; !exists {
-		r.byKeyValue[domain] = make(map[string]*apikeys.APIKey)
+	if _, exists := r.byKeyHash[domain]; !exists {
+		r.byKeyHash[domain] = make(map[string]*apikeys.APIKey)
 	}
 
 	// Store in both indexes
 	r.byID[domain][key.ID()] = key
-	r.byKeyValue[domain][key.Key()] = key
+	r.byKeyHash[domain][key.KeyHash()] = key
 
 	return nil
 }
@@ -81,7 +81,7 @@ func (r *InMemoryRepository) Update(ctx context.Context, ref apikeys.KeyRef, upd
 
 	// Success: update the stored key
 	r.byID[domain][keyID] = keyClone
-	r.byKeyValue[domain][key.Key()] = keyClone
+	r.byKeyHash[domain][key.KeyHash()] = keyClone
 
 	// Return a clone to prevent external mutation
 	return r.cloneKey(keyClone), nil
@@ -92,12 +92,14 @@ func (r *InMemoryRepository) GetByKey(ctx context.Context, domain, key string) (
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	domainKeys, exists := r.byKeyValue[domain]
+	hash := apikeys.HashKey(key)
+
+	domainKeys, exists := r.byKeyHash[domain]
 	if !exists {
 		return nil, apikeys.ErrKeyNotFound
 	}
 
-	apiKey, exists := domainKeys[key]
+	apiKey, exists := domainKeys[hash]
 	if !exists {
 		return nil, apikeys.ErrKeyNotFound
 	}
@@ -191,7 +193,8 @@ func (r *InMemoryRepository) Count(ctx context.Context, domain string, filters a
 func (r *InMemoryRepository) cloneKey(key *apikeys.APIKey) *apikeys.APIKey {
 	return apikeys.LoadAPIKey(apikeys.LoadAPIKeyParams{
 		ID:            key.ID(),
-		Key:           key.Key(),
+		KeyHash:       key.KeyHash(),
+		KeyPrefix:     key.KeyPrefix(),
 		Name:          key.Name(),
 		Domain:        key.Domain(),
 		CreatedAt:     key.CreatedAt(),

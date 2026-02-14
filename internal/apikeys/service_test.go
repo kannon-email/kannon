@@ -22,14 +22,15 @@ func TestService_CreateKey(t *testing.T) {
 		domain := testDomain
 		name := "test-key"
 
-		key, err := service.CreateKey(ctx, domain, name, nil)
+		result, err := service.CreateKey(ctx, domain, name, nil)
 		require.NoError(t, err)
-		assert.NotNil(t, key)
-		assert.Equal(t, domain, key.Domain())
-		assert.Equal(t, name, key.Name())
-		assert.False(t, key.ID().IsZero())
-		assert.NotZero(t, key.CreatedAt())
-		assert.True(t, key.IsActiveStatus())
+		assert.NotNil(t, result.Key)
+		assert.NotEmpty(t, result.PlaintextKey)
+		assert.Equal(t, domain, result.Key.Domain())
+		assert.Equal(t, name, result.Key.Name())
+		assert.False(t, result.Key.ID().IsZero())
+		assert.NotZero(t, result.Key.CreatedAt())
+		assert.True(t, result.Key.IsActiveStatus())
 	})
 
 	t.Run("WithExpiration", func(t *testing.T) {
@@ -41,9 +42,9 @@ func TestService_CreateKey(t *testing.T) {
 		name := "expiring-key"
 		expiresAt := time.Now().Add(24 * time.Hour)
 
-		key, err := service.CreateKey(ctx, domain, name, &expiresAt)
+		result, err := service.CreateKey(ctx, domain, name, &expiresAt)
 		require.NoError(t, err)
-		assert.NotNil(t, key.ExpiresAt())
+		assert.NotNil(t, result.Key.ExpiresAt())
 	})
 
 	t.Run("InvalidDomain", func(t *testing.T) {
@@ -75,12 +76,12 @@ func TestService_GetKey(t *testing.T) {
 		created, err := service.CreateKey(ctx, domain, "test-key", nil)
 		require.NoError(t, err)
 
-		ref := apikeys.NewKeyRef(domain, created.ID())
+		ref := apikeys.NewKeyRef(domain, created.Key.ID())
 		found, err := service.GetKey(ctx, ref)
 		require.NoError(t, err)
-		assert.Equal(t, created.ID(), found.ID())
-		assert.Equal(t, created.Key(), found.Key())
-		assert.Equal(t, created.Name(), found.Name())
+		assert.Equal(t, created.Key.ID(), found.ID())
+		assert.Equal(t, created.Key.KeyHash(), found.KeyHash())
+		assert.Equal(t, created.Key.Name(), found.Name())
 	})
 
 	t.Run("NotFound", func(t *testing.T) {
@@ -131,10 +132,10 @@ func TestService_ListKeys(t *testing.T) {
 		}
 
 		// Create 1 inactive key
-		inactiveKey, err := service.CreateKey(ctx, domain, "inactive-key", nil)
+		inactiveResult, err := service.CreateKey(ctx, domain, "inactive-key", nil)
 		require.NoError(t, err)
 
-		ref := apikeys.NewKeyRef(domain, inactiveKey.ID())
+		ref := apikeys.NewKeyRef(domain, inactiveResult.Key.ID())
 		_, err = service.DeactivateKey(ctx, ref)
 		require.NoError(t, err)
 
@@ -205,9 +206,9 @@ func TestService_DeactivateKey(t *testing.T) {
 		domain := testDomain
 		created, err := service.CreateKey(ctx, domain, "test-key", nil)
 		require.NoError(t, err)
-		assert.True(t, created.IsActiveStatus())
+		assert.True(t, created.Key.IsActiveStatus())
 
-		ref := apikeys.NewKeyRef(domain, created.ID())
+		ref := apikeys.NewKeyRef(domain, created.Key.ID())
 		deactivated, err := service.DeactivateKey(ctx, ref)
 		require.NoError(t, err)
 		assert.False(t, deactivated.IsActiveStatus())
@@ -244,9 +245,9 @@ func TestService_ValidateForAuth(t *testing.T) {
 		created, err := service.CreateKey(ctx, domain, "test-key", nil)
 		require.NoError(t, err)
 
-		validated, err := service.ValidateForAuth(ctx, domain, created.Key())
+		validated, err := service.ValidateForAuth(ctx, domain, created.PlaintextKey)
 		require.NoError(t, err)
-		assert.Equal(t, created.ID(), validated.ID())
+		assert.Equal(t, created.Key.ID(), validated.ID())
 		assert.True(t, validated.IsActiveStatus())
 	})
 
@@ -259,12 +260,12 @@ func TestService_ValidateForAuth(t *testing.T) {
 		created, err := service.CreateKey(ctx, domain, "test-key", nil)
 		require.NoError(t, err)
 
-		ref := apikeys.NewKeyRef(domain, created.ID())
+		ref := apikeys.NewKeyRef(domain, created.Key.ID())
 		_, err = service.DeactivateKey(ctx, ref)
 		require.NoError(t, err)
 
 		// Validation should fail for inactive key (returns generic error for security)
-		_, err = service.ValidateForAuth(ctx, domain, created.Key())
+		_, err = service.ValidateForAuth(ctx, domain, created.PlaintextKey)
 		assert.ErrorIs(t, err, apikeys.ErrKeyNotFound)
 	})
 
@@ -276,27 +277,28 @@ func TestService_ValidateForAuth(t *testing.T) {
 		domain := testDomain
 		// Create a key first with valid expiration
 		futureTime := time.Now().Add(24 * time.Hour)
-		key, err := apikeys.NewAPIKey(domain, "expired-key", &futureTime)
+		result, err := apikeys.NewAPIKey(domain, "expired-key", &futureTime)
 		require.NoError(t, err)
 
-		err = repo.Create(ctx, key)
+		err = repo.Create(ctx, result.Key)
 		require.NoError(t, err)
 
 		// Now create an expired version using LoadAPIKey to bypass validation
 		pastTime := time.Now().Add(-24 * time.Hour)
 		expiredKey := apikeys.LoadAPIKey(apikeys.LoadAPIKeyParams{
-			ID:            key.ID(),
-			Key:           key.Key(),
-			Name:          key.Name(),
-			Domain:        key.Domain(),
-			CreatedAt:     key.CreatedAt(),
+			ID:            result.Key.ID(),
+			KeyHash:       result.Key.KeyHash(),
+			KeyPrefix:     result.Key.KeyPrefix(),
+			Name:          result.Key.Name(),
+			Domain:        result.Key.Domain(),
+			CreatedAt:     result.Key.CreatedAt(),
 			ExpiresAt:     &pastTime,
 			IsActive:      true,
 			DeactivatedAt: nil,
 		})
 
 		// Update the repository with the expired key
-		ref := apikeys.NewKeyRef(domain, key.ID())
+		ref := apikeys.NewKeyRef(domain, result.Key.ID())
 		_, err = repo.Update(ctx, ref, func(k *apikeys.APIKey) error {
 			*k = *expiredKey
 			return nil
@@ -304,7 +306,7 @@ func TestService_ValidateForAuth(t *testing.T) {
 		require.NoError(t, err)
 
 		// Validation should fail for expired key (returns generic error for security)
-		_, err = service.ValidateForAuth(ctx, domain, key.Key())
+		_, err = service.ValidateForAuth(ctx, domain, result.PlaintextKey)
 		assert.ErrorIs(t, err, apikeys.ErrKeyNotFound)
 	})
 

@@ -2,6 +2,8 @@ package apikeys
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"time"
@@ -27,16 +29,30 @@ const (
 	maskedKeyLength = 8
 )
 
+// HashKey computes the SHA-256 hash of a plaintext API key and returns it as a hex string.
+func HashKey(plaintext string) string {
+	h := sha256.Sum256([]byte(plaintext))
+	return hex.EncodeToString(h[:])
+}
+
 // APIKey represents a domain API key in the system
 type APIKey struct {
 	id            ID
-	key           string
+	keyHash       string
+	keyPrefix     string
 	name          string
 	domain        string
 	createdAt     time.Time
 	expiresAt     *time.Time
 	isActive      bool
 	deactivatedAt *time.Time
+}
+
+// CreateResult holds the result of creating a new API key.
+// PlaintextKey is the raw key value, available only at creation time.
+type CreateResult struct {
+	Key          *APIKey
+	PlaintextKey string
 }
 
 // Getters
@@ -46,9 +62,14 @@ func (k *APIKey) ID() ID {
 	return k.id
 }
 
-// Key returns the full API key value
-func (k *APIKey) Key() string {
-	return k.key
+// KeyHash returns the SHA-256 hash of the API key
+func (k *APIKey) KeyHash() string {
+	return k.keyHash
+}
+
+// KeyPrefix returns the first 8 characters of the original key
+func (k *APIKey) KeyPrefix() string {
+	return k.keyPrefix
 }
 
 // Name returns the API key name
@@ -86,8 +107,9 @@ func (k *APIKey) DeactivatedAt() *time.Time {
 	return k.deactivatedAt
 }
 
-// NewAPIKey creates a new API key with generated key value and creation time set
-func NewAPIKey(domain, name string, expiresAt *time.Time) (*APIKey, error) {
+// NewAPIKey creates a new API key with generated key value and creation time set.
+// Returns a CreateResult containing the APIKey (with hashed key) and the plaintext key.
+func NewAPIKey(domain, name string, expiresAt *time.Time) (*CreateResult, error) {
 	if err := validateDomain(domain); err != nil {
 		return nil, err
 	}
@@ -103,26 +125,31 @@ func NewAPIKey(domain, name string, expiresAt *time.Time) (*APIKey, error) {
 		return nil, err
 	}
 
-	keyValue, err := generateKey()
+	plaintext, err := generateKey()
 	if err != nil {
 		return nil, err
 	}
 
-	return &APIKey{
-		id:        id,
-		key:       keyValue,
-		name:      name,
-		domain:    domain,
-		createdAt: time.Now(),
-		expiresAt: expiresAt,
-		isActive:  true,
+	return &CreateResult{
+		Key: &APIKey{
+			id:        id,
+			keyHash:   HashKey(plaintext),
+			keyPrefix: plaintext[:maskedKeyLength],
+			name:      name,
+			domain:    domain,
+			createdAt: time.Now(),
+			expiresAt: expiresAt,
+			isActive:  true,
+		},
+		PlaintextKey: plaintext,
 	}, nil
 }
 
 // LoadAPIKeyParams contains all parameters needed to load an APIKey from storage
 type LoadAPIKeyParams struct {
 	ID            ID
-	Key           string
+	KeyHash       string
+	KeyPrefix     string
 	Name          string
 	Domain        string
 	CreatedAt     time.Time
@@ -135,7 +162,8 @@ type LoadAPIKeyParams struct {
 func LoadAPIKey(p LoadAPIKeyParams) *APIKey {
 	return &APIKey{
 		id:            p.ID,
-		key:           p.Key,
+		keyHash:       p.KeyHash,
+		keyPrefix:     p.KeyPrefix,
 		name:          p.Name,
 		domain:        p.Domain,
 		createdAt:     p.CreatedAt,
@@ -147,13 +175,10 @@ func LoadAPIKey(p LoadAPIKeyParams) *APIKey {
 
 // Methods
 
-// MaskedKey returns the key with only the first 8 characters visible
-// Example: "k_abc123..." from "k_abc123defghij..."
+// MaskedKey returns the key prefix with ellipsis
+// Example: "k_abc123..." from prefix "k_abc123"
 func (k *APIKey) MaskedKey() string {
-	if len(k.key) <= maskedKeyLength {
-		return k.key
-	}
-	return k.key[:maskedKeyLength] + "..."
+	return k.keyPrefix + "..."
 }
 
 // IsValid checks if the key is both active and not expired

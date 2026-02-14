@@ -1,6 +1,6 @@
 -- name: CreateAPIKey :one
-INSERT INTO api_keys (id, domain, key, name, expires_at)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO api_keys (id, domain, key_hash, key_prefix, name, expires_at)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING *;
 
 -- name: UpdateAPIKey :one
@@ -12,10 +12,10 @@ SET name = $3,
 WHERE id = $1 AND domain = $2
 RETURNING *;
 
--- name: GetAPIKeyByKey :one
+-- name: GetAPIKeyByHash :one
 SELECT *
 FROM api_keys
-WHERE key = $1 AND domain = $2;
+WHERE key_hash = $1 AND domain = $2;
 
 -- name: GetAPIKeyByID :one
 SELECT *

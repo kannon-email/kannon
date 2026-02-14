@@ -14,6 +14,20 @@ SET client_min_messages = warning;
 SET row_security = off;
 
 --
+-- Name: pgcrypto; Type: EXTENSION; Schema: -; Owner: -
+--
+
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public;
+
+
+--
+-- Name: EXTENSION pgcrypto; Type: COMMENT; Schema: -; Owner: -
+--
+
+COMMENT ON EXTENSION pgcrypto IS 'cryptographic functions';
+
+
+--
 -- Name: template_type; Type: TYPE; Schema: public; Owner: -
 --
 
@@ -101,13 +115,14 @@ CREATE TABLE public."VerificationToken" (
 
 CREATE TABLE public.api_keys (
     id character varying(512) NOT NULL,
-    key character varying(512) NOT NULL,
     name character varying(100) NOT NULL,
     domain character varying(512) NOT NULL,
     created_at timestamp without time zone DEFAULT now() NOT NULL,
     expires_at timestamp without time zone,
     is_active boolean DEFAULT true NOT NULL,
-    deactivated_at timestamp without time zone
+    deactivated_at timestamp without time zone,
+    key_hash character varying(64) NOT NULL,
+    key_prefix character varying(10) NOT NULL
 );
 
 
@@ -178,7 +193,7 @@ CREATE TABLE public.messages (
     template_id character varying NOT NULL,
     domain character varying(254) NOT NULL,
     attachments jsonb,
-    headers jsonb
+    headers jsonb DEFAULT '{}'::jsonb NOT NULL
 );
 
 
@@ -374,11 +389,11 @@ ALTER TABLE ONLY public."User"
 
 
 --
--- Name: api_keys api_keys_key_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: api_keys api_keys_key_hash_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.api_keys
-    ADD CONSTRAINT api_keys_key_key UNIQUE (key);
+    ADD CONSTRAINT api_keys_key_hash_key UNIQUE (key_hash);
 
 
 --
@@ -519,10 +534,10 @@ CREATE INDEX api_keys_expires_at_idx ON public.api_keys USING btree (expires_at)
 
 
 --
--- Name: api_keys_key_active_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: api_keys_key_hash_active_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX api_keys_key_active_idx ON public.api_keys USING btree (key) WHERE (is_active = true);
+CREATE INDEX api_keys_key_hash_active_idx ON public.api_keys USING btree (key_hash) WHERE (is_active = true);
 
 
 --
@@ -676,4 +691,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20240421080953'),
     ('20260104120000'),
     ('20260106120000'),
-    ('20260124120000');
+    ('20260124120000'),
+    ('20260214120000');

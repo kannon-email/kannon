@@ -19,15 +19,15 @@ func (s *adminAPIService) CreateAPIKey(ctx context.Context, in *pb.CreateAPIKeyR
 	}
 
 	// Create the key via service
-	key, err := s.apiKeys.CreateKey(ctx, in.Domain, in.Name, expiresAt)
+	result, err := s.apiKeys.CreateKey(ctx, in.Domain, in.Name, expiresAt)
 	if err != nil {
 		return nil, err
 	}
 
 	// Return FULL key (only time it's shown)
 	return &pb.CreateAPIKeyResponse{
-		ApiKey: apiKeyToProto(key),
-		Key:    key.Key(), // return full key in dedicated field
+		ApiKey: apiKeyToProto(result.Key),
+		Key:    result.PlaintextKey, // return full key in dedicated field
 	}, nil
 }
 
