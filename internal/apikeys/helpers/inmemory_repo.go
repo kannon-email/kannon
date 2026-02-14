@@ -87,19 +87,17 @@ func (r *InMemoryRepository) Update(ctx context.Context, ref apikeys.KeyRef, upd
 	return r.cloneKey(keyClone), nil
 }
 
-// GetByKey finds an API key by its full key value for a specific domain
-func (r *InMemoryRepository) GetByKey(ctx context.Context, domain, key string) (*apikeys.APIKey, error) {
+// GetByKeyHash finds an API key by its SHA-256 hash for a specific domain
+func (r *InMemoryRepository) GetByKeyHash(ctx context.Context, domain, keyHash string) (*apikeys.APIKey, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-
-	hash := apikeys.HashKey(key)
 
 	domainKeys, exists := r.byKeyHash[domain]
 	if !exists {
 		return nil, apikeys.ErrKeyNotFound
 	}
 
-	apiKey, exists := domainKeys[hash]
+	apiKey, exists := domainKeys[keyHash]
 	if !exists {
 		return nil, apikeys.ErrKeyNotFound
 	}

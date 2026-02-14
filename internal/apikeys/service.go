@@ -63,8 +63,11 @@ func (s *Service) DeactivateKey(ctx context.Context, ref KeyRef) (*APIKey, error
 }
 
 func (s *Service) ValidateForAuth(ctx context.Context, domain, key string) (*APIKey, error) {
+	// Hash the plaintext key before repo lookup
+	keyHash := HashKey(key)
+
 	// Get the key from repository
-	apiKey, err := s.repo.GetByKey(ctx, domain, key)
+	apiKey, err := s.repo.GetByKeyHash(ctx, domain, keyHash)
 	if err != nil {
 		// Always return generic error for security (don't leak if key exists)
 		return nil, ErrKeyNotFound

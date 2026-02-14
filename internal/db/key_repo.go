@@ -7,6 +7,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/kannon-email/kannon/internal/apikeys"
 )
 
@@ -106,13 +107,10 @@ func (r *apiKeysRepository) Update(ctx context.Context, ref apikeys.KeyRef, upda
 	return key, nil
 }
 
-func (r *apiKeysRepository) GetByKey(ctx context.Context, domain, key string) (*apikeys.APIKey, error) {
-	// Hash the plaintext key for lookup
-	hash := apikeys.HashKey(key)
-
+func (r *apiKeysRepository) GetByKeyHash(ctx context.Context, domain, keyHash string) (*apikeys.APIKey, error) {
 	// Always perform database lookup to prevent timing attacks
 	row, err := r.q.GetAPIKeyByHash(ctx, GetAPIKeyByHashParams{
-		KeyHash: hash,
+		KeyHash: keyHash,
 		Domain:  domain,
 	})
 

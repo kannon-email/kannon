@@ -22,8 +22,8 @@ func RunRepoSpec(t *testing.T, repo Repository, helper RepoTestHelper) {
 	t.Run("Update", func(t *testing.T) {
 		testUpdate(t, repo, helper)
 	})
-	t.Run("GetByKey", func(t *testing.T) {
-		testGetByKey(t, repo, helper)
+	t.Run("GetByKeyHash", func(t *testing.T) {
+		testGetByKeyHash(t, repo, helper)
 	})
 	t.Run("GetByID", func(t *testing.T) {
 		testGetByID(t, repo, helper)
@@ -124,7 +124,7 @@ func testUpdate(t *testing.T, repo Repository, helper RepoTestHelper) {
 	})
 }
 
-func testGetByKey(t *testing.T, repo Repository, helper RepoTestHelper) {
+func testGetByKeyHash(t *testing.T, repo Repository, helper RepoTestHelper) {
 	t.Run("Success", func(t *testing.T) {
 		ctx := t.Context()
 		domain := helper.CreateDomain(t)
@@ -135,7 +135,8 @@ func testGetByKey(t *testing.T, repo Repository, helper RepoTestHelper) {
 		err = repo.Create(ctx, result.Key)
 		require.NoError(t, err)
 
-		found, err := repo.GetByKey(ctx, domain, result.PlaintextKey)
+		keyHash := HashKey(result.PlaintextKey)
+		found, err := repo.GetByKeyHash(ctx, domain, keyHash)
 		require.NoError(t, err)
 		assert.Equal(t, result.Key.ID(), found.ID())
 		assert.Equal(t, result.Key.KeyHash(), found.KeyHash())
@@ -146,7 +147,8 @@ func testGetByKey(t *testing.T, repo Repository, helper RepoTestHelper) {
 		ctx := t.Context()
 		domain := helper.CreateDomain(t)
 
-		_, err := repo.GetByKey(ctx, domain, "k_nonexistent12345678901234567890")
+		keyHash := HashKey("k_nonexistent12345678901234567890")
+		_, err := repo.GetByKeyHash(ctx, domain, keyHash)
 		assert.ErrorIs(t, err, ErrKeyNotFound)
 	})
 
@@ -154,8 +156,9 @@ func testGetByKey(t *testing.T, repo Repository, helper RepoTestHelper) {
 		ctx := t.Context()
 		domain := helper.CreateDomain(t)
 
-		// Returns ErrKeyNotFound instead of ErrInvalidKey to prevent timing attacks
-		_, err := repo.GetByKey(ctx, domain, "invalid-key")
+		// Hash even invalid-format keys — the repo only sees hashes
+		keyHash := HashKey("invalid-key")
+		_, err := repo.GetByKeyHash(ctx, domain, keyHash)
 		assert.ErrorIs(t, err, ErrKeyNotFound)
 	})
 }
