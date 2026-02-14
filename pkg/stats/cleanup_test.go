@@ -167,12 +167,16 @@ func TestCleanupCycle_DeletesExpiredStatsKeys(t *testing.T) {
 	require.NoError(t, err)
 
 	// Valid key should still exist
-	_, err = q.GetValidPublicStatsKeyByKid(ctx, "valid-key")
-	assert.NoError(t, err)
+	var validCount int
+	err = db.QueryRow(ctx, "SELECT COUNT(*) FROM stats_keys WHERE id = $1", "valid-key").Scan(&validCount)
+	require.NoError(t, err)
+	assert.Equal(t, 1, validCount)
 
-	// Expired key should be gone
-	_, err = q.GetValidPublicStatsKeyByKid(ctx, "expired-key")
-	assert.Error(t, err)
+	// Expired key should be deleted from the table
+	var expiredCount int
+	err = db.QueryRow(ctx, "SELECT COUNT(*) FROM stats_keys WHERE id = $1", "expired-key").Scan(&expiredCount)
+	require.NoError(t, err)
+	assert.Equal(t, 0, expiredCount)
 }
 
 func TestCleanupCycle_NoRowsToDelete(t *testing.T) {
