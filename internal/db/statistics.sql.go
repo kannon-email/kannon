@@ -31,6 +31,18 @@ func (q *Queries) CountQueryStats(ctx context.Context, arg CountQueryStatsParams
 	return count, err
 }
 
+const deleteStatsOlderThan = `-- name: DeleteStatsOlderThan :execrows
+DELETE FROM stats WHERE timestamp < $1
+`
+
+func (q *Queries) DeleteStatsOlderThan(ctx context.Context, before pgtype.Timestamp) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteStatsOlderThan, before)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const insertStat = `-- name: InsertStat :exec
 INSERT INTO stats (email, message_id, type, timestamp, domain, data) VALUES  ($1, $2, $3, $4, $5, $6)
 `

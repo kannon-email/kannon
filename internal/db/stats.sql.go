@@ -42,6 +42,18 @@ func (q *Queries) CreateStatsKeys(ctx context.Context, arg CreateStatsKeysParams
 	return i, err
 }
 
+const deleteExpiredStatsKeys = `-- name: DeleteExpiredStatsKeys :execrows
+DELETE FROM stats_keys WHERE expiration_time < NOW()
+`
+
+func (q *Queries) DeleteExpiredStatsKeys(ctx context.Context) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteExpiredStatsKeys)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getValidPublicStatsKeyByKid = `-- name: GetValidPublicStatsKeyByKid :one
 SELECT id, public_key, expiration_time FROM stats_keys WHERE expiration_time > NOW() AND id=$1
 `

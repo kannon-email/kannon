@@ -23,3 +23,6 @@ WHERE domain = @domain
 AND timestamp BETWEEN @start AND @stop
 GROUP BY type, ts
 ORDER BY ts DESC, type;
+
+-- name: DeleteStatsOlderThan :execrows
+DELETE FROM stats WHERE timestamp < @before;

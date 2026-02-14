@@ -2,11 +2,14 @@ package stats
 
 import (
 	"context"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	_ "github.com/lib/pq"
+	"golang.org/x/sync/errgroup"
 
 	sq "github.com/kannon-email/kannon/internal/db"
+	"github.com/kannon-email/kannon/internal/runner"
 	"github.com/kannon-email/kannon/internal/utils"
 	"github.com/kannon-email/kannon/internal/x/container"
 	"github.com/kannon-email/kannon/proto/kannon/stats/types"
@@ -16,20 +19,37 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 )
 
-type statsHandler struct {
-	js jetstream.JetStream
-	q  *sq.Queries
+type Config struct {
+	Retention time.Duration
 }
 
-func Run(ctx context.Context, cnt *container.Container) error {
+type statsHandler struct {
+	js        jetstream.JetStream
+	q         *sq.Queries
+	retention time.Duration
+}
+
+func Run(ctx context.Context, cnt *container.Container, cfg Config) error {
 	q := cnt.Queries()
 	js := cnt.NatsJetStream()
 
-	statsHandler := statsHandler{
-		js: js,
-		q:  q,
+	h := statsHandler{
+		js:        js,
+		q:         q,
+		retention: cfg.Retention,
 	}
-	return statsHandler.handleStats(ctx)
+
+	eg, ctx := errgroup.WithContext(ctx)
+
+	eg.Go(func() error {
+		return h.handleStats(ctx)
+	})
+
+	eg.Go(func() error {
+		return runner.Run(ctx, h.cleanupCycle, runner.WaitLoop(10*time.Minute))
+	})
+
+	return eg.Wait()
 }
 
 func (h *statsHandler) handleStats(ctx context.Context) error {
@@ -46,6 +66,29 @@ func (h *statsHandler) handleStats(ctx context.Context) error {
 	defer c.Drain()
 
 	<-ctx.Done()
+	return nil
+}
+
+func (h *statsHandler) cleanupCycle(ctx context.Context) error {
+	before := pgtype.Timestamp{
+		Time:  time.Now().Add(-h.retention),
+		Valid: true,
+	}
+
+	deletedStats, err := h.q.DeleteStatsOlderThan(ctx, before)
+	if err != nil {
+		return err
+	}
+
+	deletedKeys, err := h.q.DeleteExpiredStatsKeys(ctx)
+	if err != nil {
+		return err
+	}
+
+	if deletedStats > 0 || deletedKeys > 0 {
+		logrus.Infof("stats cleanup: deleted %d stats and %d expired keys", deletedStats, deletedKeys)
+	}
+
 	return nil
 }
 

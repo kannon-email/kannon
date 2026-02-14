@@ -115,7 +115,7 @@ func runKannon(t *testing.T, infra *TestInfrastructure, senderMock *senderMock) 
 
 	// Start stats
 	wg.Go(func() error {
-		return stats.Run(ctx, cnt)
+		return stats.Run(ctx, cnt, stats.Config{Retention: 8760 * time.Hour})
 	})
 
 	go func() {

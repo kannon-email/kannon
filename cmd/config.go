@@ -10,6 +10,7 @@ import (
 	"github.com/kannon-email/kannon/pkg/bump"
 	"github.com/kannon-email/kannon/pkg/sender"
 	"github.com/kannon-email/kannon/pkg/smtp"
+	"github.com/kannon-email/kannon/pkg/stats"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -24,6 +25,7 @@ type Config struct {
 	Sender        SenderConfig `mapstructure:"sender"`
 	SMTP          SMTPConfig   `mapstructure:"smtp"`
 	Bump          BumpConfig   `mapstructure:"bump"`
+	Stats         StatsConfig  `mapstructure:"stats"`
 	RunAPI        bool         `mapstructure:"run-api"`
 	RunSMTP       bool         `mapstructure:"run-smtp"`
 	RunSender     bool         `mapstructure:"run-sender"`
@@ -86,6 +88,16 @@ func (c SMTPConfig) ToSMTPConfig() smtp.Config {
 	}
 }
 
+type StatsConfig struct {
+	Retention time.Duration `mapstructure:"retention"`
+}
+
+func (c StatsConfig) ToStatsConfig() stats.Config {
+	return stats.Config{
+		Retention: c.Retention,
+	}
+}
+
 const envPrefix = "K"
 
 func prepareConfig() {
@@ -112,6 +124,8 @@ func readConfig() (Config, error) {
 	viper.BindEnv("nats_url")
 	//nolint:errcheck
 	viper.BindEnv("debug")
+
+	viper.SetDefault("stats.retention", "8760h") // 1 year
 
 	var config Config
 	if err := viper.ReadInConfig(); err != nil {
