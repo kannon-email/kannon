@@ -9,5 +9,6 @@ INSERT INTO stats_keys
 -- name: GetValidPublicStatsKeyByKid :one
 SELECT id, public_key, expiration_time FROM stats_keys WHERE expiration_time > NOW() AND id=$1;
 
-
+-- name: DeleteExpiredStatsKeys :execrows
+DELETE FROM stats_keys WHERE expiration_time < NOW();
 

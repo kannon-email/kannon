@@ -86,7 +86,7 @@ func run(cmd *cobra.Command, args []string) {
 
 	if config.RunStats {
 		g.Go(func() error {
-			err := stats.Run(ctx, cnt)
+			err := stats.Run(ctx, cnt, config.Stats.ToStatsConfig())
 			if err != nil {
 				return fmt.Errorf("error in stats: %v", err)
 			}

@@ -110,6 +110,18 @@ CREATE TABLE public."VerificationToken" (
 
 
 --
+-- Name: aggregated_stats; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.aggregated_stats (
+    domain character varying NOT NULL,
+    "timestamp" timestamp without time zone NOT NULL,
+    type character varying NOT NULL,
+    count bigint DEFAULT 0 NOT NULL
+);
+
+
+--
 -- Name: api_keys; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -389,6 +401,14 @@ ALTER TABLE ONLY public."User"
 
 
 --
+-- Name: aggregated_stats aggregated_stats_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.aggregated_stats
+    ADD CONSTRAINT aggregated_stats_pkey PRIMARY KEY (domain, "timestamp", type);
+
+
+--
 -- Name: api_keys api_keys_key_hash_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -590,6 +610,13 @@ CREATE UNIQUE INDEX stats_email_message_id_type_timestamp_idx ON public.stats US
 
 
 --
+-- Name: stats_timestamp_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX stats_timestamp_idx ON public.stats USING btree ("timestamp");
+
+
+--
 -- Name: stats_type_message_id_type_timestamp_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -692,4 +719,6 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20260104120000'),
     ('20260106120000'),
     ('20260124120000'),
-    ('20260214120000');
+    ('20260214120000'),
+    ('20260214120001'),
+    ('20260214120002');

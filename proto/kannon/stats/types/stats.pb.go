@@ -26,7 +26,7 @@ type StatsAggregated struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Type          string                 `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
 	Timestamp     *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
-	Count         uint32                 `protobuf:"varint,3,opt,name=count,proto3" json:"count,omitempty"`
+	Count         int64                  `protobuf:"varint,3,opt,name=count,proto3" json:"count,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -75,7 +75,7 @@ func (x *StatsAggregated) GetTimestamp() *timestamppb.Timestamp {
 	return nil
 }
 
-func (x *StatsAggregated) GetCount() uint32 {
+func (x *StatsAggregated) GetCount() int64 {
 	if x != nil {
 		return x.Count
 	}
@@ -728,7 +728,7 @@ const file_kannon_stats_types_stats_proto_rawDesc = "" +
 	"\x0fStatsAggregated\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\tR\x04type\x128\n" +
 	"\ttimestamp\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12\x14\n" +
-	"\x05count\x18\x03 \x01(\rR\x05count\"\xd9\x01\n" +
+	"\x05count\x18\x03 \x01(\x03R\x05count\"\xd9\x01\n" +
 	"\x05Stats\x12\x1d\n" +
 	"\n" +
 	"message_id\x18\x01 \x01(\tR\tmessageId\x12\x16\n" +

@@ -71,6 +71,10 @@ func TestE2EEmailSending(t *testing.T) {
 		testEmailWithHeaders(t, factory, senderMock, infra)
 	})
 
+	t.Run("AggregatedStats", func(t *testing.T) {
+		testAggregatedStats(t, factory, senderMock, infra)
+	})
+
 	t.Log("🎉 E2E email sending test completed successfully!")
 }
 
@@ -115,7 +119,7 @@ func runKannon(t *testing.T, infra *TestInfrastructure, senderMock *senderMock) 
 
 	// Start stats
 	wg.Go(func() error {
-		return stats.Run(ctx, cnt)
+		return stats.Run(ctx, cnt, stats.Config{Retention: 8760 * time.Hour})
 	})
 
 	go func() {
@@ -399,6 +403,48 @@ func waitForAPIServer(t *testing.T, infra *TestInfrastructure) {
 
 func makeFakeEmail() string {
 	return strings.ToLower(faker.Email())
+}
+
+func testAggregatedStats(t *testing.T, clientFactory *clientFactory, _ *senderMock, infra *TestInfrastructure) {
+	client := clientFactory.NewClient(t, infra)
+
+	testEmail := makeFakeEmail()
+	sendReq := &mailerapiv1.SendHTMLReq{
+		Sender: &mailertypes.Sender{
+			Email: "sender@test.example.com",
+			Alias: "Test Sender",
+		},
+		Recipients: []*mailertypes.Recipient{
+			{
+				Email: testEmail,
+			},
+		},
+		Subject:       "Aggregated Stats Test",
+		Html:          "<h1>Hello!</h1>",
+		ScheduledTime: timestamppb.Now(),
+	}
+
+	client.SendEmail(t, sendReq)
+
+	// Wait for raw stats to appear first
+	assert.EventuallyWithT(t, func(tt *assert.CollectT) {
+		stats := client.GetStats(t)
+		require.EqualValues(tt, 2, stats.Total)
+	}, 10*time.Second, 1*time.Second, "Raw stats should be available")
+
+	// Then check aggregated stats
+	assert.EventuallyWithT(t, func(tt *assert.CollectT) {
+		aggStats := client.GetAggregatedStats(t)
+		require.NotEmpty(tt, aggStats.Stats)
+
+		typeMap := make(map[string]int64)
+		for _, s := range aggStats.Stats {
+			typeMap[s.Type] += s.Count
+		}
+
+		require.Greater(tt, typeMap["accepted"], int64(0))
+		require.Greater(tt, typeMap["delivered"], int64(0))
+	}, 10*time.Second, 1*time.Second, "Aggregated stats should be available")
 }
 
 func requireGetEmail(t *testing.T, s *senderMock, email string) ParsedEmail {

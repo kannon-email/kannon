@@ -2,11 +2,14 @@ package stats
 
 import (
 	"context"
+	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	_ "github.com/lib/pq"
+	"golang.org/x/sync/errgroup"
 
 	sq "github.com/kannon-email/kannon/internal/db"
+	"github.com/kannon-email/kannon/internal/runner"
+	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/internal/utils"
 	"github.com/kannon-email/kannon/internal/x/container"
 	"github.com/kannon-email/kannon/proto/kannon/stats/types"
@@ -16,22 +19,52 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 )
 
-type statsHandler struct {
-	js jetstream.JetStream
-	q  *sq.Queries
+type Config struct {
+	Retention time.Duration
 }
 
-func Run(ctx context.Context, cnt *container.Container) error {
+type statsHandler struct {
+	js        jetstream.JetStream
+	service   *stats.Service
+	q         *sq.Queries
+	retention time.Duration
+}
+
+func Run(ctx context.Context, cnt *container.Container, cfg Config) error {
 	q := cnt.Queries()
 	js := cnt.NatsJetStream()
 
-	statsHandler := statsHandler{
-		js: js,
-		q:  q,
+	repo := sq.NewStatsRepository(q)
+	aggregatedRepo := sq.NewAggregatedStatsRepository(q)
+	service := stats.NewService(repo, stats.WithAggregatedStatsRepository(aggregatedRepo))
+
+	h := statsHandler{
+		js:        js,
+		service:   service,
+		q:         q,
+		retention: cfg.Retention,
 	}
-	return statsHandler.handleStats(ctx)
+
+	eg, ctx := errgroup.WithContext(ctx)
+
+	eg.Go(func() error {
+		return h.handleStats(ctx)
+	})
+
+	eg.Go(func() error {
+		return h.handleAggregatedStats(ctx)
+	})
+
+	eg.Go(func() error {
+		return runner.Run(ctx, h.cleanupCycle, runner.WaitLoop(10*time.Minute))
+	})
+
+	return eg.Wait()
 }
 
+// handleStats consumes kannon.stats.* messages to persist individual stat records.
+// This is intentionally a separate consumer from handleAggregatedStats so both
+// can independently process the same messages for different purposes.
 func (h *statsHandler) handleStats(ctx context.Context) error {
 	con := utils.MustGetPullSubscriber(ctx, h.js, "kannon-stats", "kannon.stats.*", "kannon-stats-logs")
 	c, err := con.Consume(func(msg jetstream.Msg) {
@@ -49,6 +82,59 @@ func (h *statsHandler) handleStats(ctx context.Context) error {
 	return nil
 }
 
+func (h *statsHandler) cleanupCycle(ctx context.Context) error {
+	deletedStats, err := h.service.Cleanup(ctx, h.retention)
+	if err != nil {
+		return err
+	}
+
+	deletedKeys, err := h.q.DeleteExpiredStatsKeys(ctx)
+	if err != nil {
+		return err
+	}
+
+	if deletedStats > 0 || deletedKeys > 0 {
+		logrus.Infof("stats cleanup: deleted %d stats and %d expired keys", deletedStats, deletedKeys)
+	}
+
+	return nil
+}
+
+// handleAggregatedStats consumes kannon.stats.* messages to update daily aggregated counters.
+// Uses a separate consumer name ("kannon-aggregated-stats") from handleStats so both
+// receive all messages independently.
+func (h *statsHandler) handleAggregatedStats(ctx context.Context) error {
+	con := utils.MustGetPullSubscriber(ctx, h.js, "kannon-stats", "kannon.stats.*", "kannon-aggregated-stats")
+	c, err := con.Consume(func(msg jetstream.Msg) {
+		if err := h.handleAggregatedStatsMsg(ctx, msg); err != nil {
+			logrus.Errorf("Cannot handle aggregated stats msg: %v", err)
+		}
+	})
+	if err != nil {
+		return err
+	}
+
+	defer c.Drain()
+
+	<-ctx.Done()
+	return nil
+}
+
+func (h *statsHandler) handleAggregatedStatsMsg(ctx context.Context, msg jetstream.Msg) error {
+	data := &types.Stats{}
+	if err := proto.Unmarshal(msg.Data(), data); err != nil {
+		return msg.Term()
+	}
+
+	statType := stats.DetermineTypeFromStats(data)
+	if err := h.service.IncrementAggregatedStat(ctx, data.Domain, data.Timestamp.AsTime(), statType); err != nil {
+		logrus.Errorf("cannot increment aggregated stat: %v", err)
+		return msg.Nak()
+	}
+
+	return msg.Ack()
+}
+
 func (h *statsHandler) handleStatsMsg(ctx context.Context, msg jetstream.Msg) error {
 	data := &types.Stats{}
 	err := proto.Unmarshal(msg.Data(), data)
@@ -56,40 +142,14 @@ func (h *statsHandler) handleStatsMsg(ctx context.Context, msg jetstream.Msg) er
 		return msg.Term()
 	}
 
-	stype := sq.GetStatsType(data)
+	stat := stats.NewStat(data.Email, data.MessageId, data.Domain, data.Timestamp.AsTime(), data.Data)
 
-	logrus.Printf("[%s] %s %s", StatsShow[stype], utils.ObfuscateEmail(data.Email), data.MessageId)
-	err = h.insertStat(ctx, data)
+	logrus.Printf("[%s] %s %s", stats.DisplayName[stat.Type], utils.ObfuscateEmail(data.Email), data.MessageId)
+	err = h.service.InsertStat(ctx, stat)
 	if err != nil {
-		logrus.Errorf("cannot insert %v stat: %v", stype, err)
+		logrus.Errorf("cannot insert %v stat: %v", stat.Type, err)
 		return msg.Nak()
 	}
 
 	return msg.Ack()
-}
-
-func (h *statsHandler) insertStat(ctx context.Context, data *types.Stats) error {
-	stype := sq.GetStatsType(data)
-	return h.q.InsertStat(ctx, sq.InsertStatParams{
-		Email:     data.Email,
-		MessageID: data.MessageId,
-		Timestamp: pgtype.Timestamp{
-			Time:  data.Timestamp.AsTime(),
-			Valid: true,
-		},
-		Domain: data.Domain,
-		Type:   stype,
-		Data:   data.Data,
-	})
-}
-
-var StatsShow = map[sq.StatsType]string{
-	sq.StatsTypeAccepted:  "✅ Accepted",
-	sq.StatsTypeRejected:  "🛑 Rejected",
-	sq.StatsTypeBounce:    "💥 Bounced",
-	sq.StatsTypeClicked:   "🔗 Clicked",
-	sq.StatsTypeDelivered: "🚀 Delivered",
-	sq.StatsTypeError:     "😡 Send Error",
-	sq.StatsTypeOpened:    "👀 Opened",
-	sq.StatsTypeUnknown:   "😅 Unknown",
 }

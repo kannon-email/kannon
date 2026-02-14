@@ -3,7 +3,7 @@ package publisher
 import (
 	"fmt"
 
-	sq "github.com/kannon-email/kannon/internal/db"
+	"github.com/kannon-email/kannon/internal/stats"
 	mailertypes "github.com/kannon-email/kannon/proto/kannon/mailer/types"
 	"github.com/kannon-email/kannon/proto/kannon/stats/types"
 	"github.com/sirupsen/logrus"
@@ -27,11 +27,11 @@ func SendEmail(p Publisher, email *mailertypes.EmailToSend) error {
 	return nil
 }
 
-func PublishStat(p Publisher, stats *types.Stats) error {
-	stype := sq.GetStatsType(stats)
+func PublishStat(p Publisher, s *types.Stats) error {
+	stype := stats.DetermineTypeFromStats(s)
 	subj := fmt.Sprintf("kannon.stats.%s", stype)
 
-	data, err := proto.Marshal(stats)
+	data, err := proto.Marshal(s)
 	if err != nil {
 		return fmt.Errorf("cannot marshal protoc: %v", err)
 	}

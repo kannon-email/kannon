@@ -101,7 +101,7 @@ func (x *GetStatsReq) GetTake() uint32 {
 
 type GetStatsRes struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Total         uint32                 `protobuf:"varint,1,opt,name=total,proto3" json:"total,omitempty"`
+	Total         int64                  `protobuf:"varint,1,opt,name=total,proto3" json:"total,omitempty"`
 	Stats         []*types.Stats         `protobuf:"bytes,2,rep,name=stats,proto3" json:"stats,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -137,7 +137,7 @@ func (*GetStatsRes) Descriptor() ([]byte, []int) {
 	return file_kannon_stats_apiv1_statsapiv1_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *GetStatsRes) GetTotal() uint32 {
+func (x *GetStatsRes) GetTotal() int64 {
 	if x != nil {
 		return x.Total
 	}
@@ -267,7 +267,7 @@ const file_kannon_stats_apiv1_statsapiv1_proto_rawDesc = "" +
 	"\x04skip\x18\x04 \x01(\rR\x04skip\x12\x12\n" +
 	"\x04take\x18\x05 \x01(\rR\x04take\"X\n" +
 	"\vGetStatsRes\x12\x14\n" +
-	"\x05total\x18\x01 \x01(\rR\x05total\x123\n" +
+	"\x05total\x18\x01 \x01(\x03R\x05total\x123\n" +
 	"\x05stats\x18\x02 \x03(\v2\x1d.pkg.kannon.stats.types.StatsR\x05stats\"\x9d\x01\n" +
 	"\x15GetStatsAggregatedReq\x12\x16\n" +
 	"\x06domain\x18\x01 \x01(\tR\x06domain\x127\n" +

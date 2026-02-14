@@ -13,9 +13,9 @@ import (
 )
 
 const countQueryStats = `-- name: CountQueryStats :one
-SELECT COUNT(*) FROM stats 
-WHERE domain = $1 
-AND timestamp BETWEEN $2 AND $3
+SELECT COUNT(*) FROM stats
+WHERE domain = $1
+AND timestamp >= $2 AND timestamp < $3
 `
 
 type CountQueryStatsParams struct {
@@ -29,6 +29,18 @@ func (q *Queries) CountQueryStats(ctx context.Context, arg CountQueryStatsParams
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const deleteStatsOlderThan = `-- name: DeleteStatsOlderThan :execrows
+DELETE FROM stats WHERE timestamp < $1
+`
+
+func (q *Queries) DeleteStatsOlderThan(ctx context.Context, before pgtype.Timestamp) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteStatsOlderThan, before)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const insertStat = `-- name: InsertStat :exec
@@ -57,9 +69,9 @@ func (q *Queries) InsertStat(ctx context.Context, arg InsertStatParams) error {
 }
 
 const queryStats = `-- name: QueryStats :many
-SELECT id, type, email, message_id, domain, timestamp, data FROM stats 
-WHERE domain = $1 
-AND timestamp BETWEEN $2 AND $3
+SELECT id, type, email, message_id, domain, timestamp, data FROM stats
+WHERE domain = $1
+AND timestamp >= $2 AND timestamp < $3
 ORDER BY timestamp DESC
 LIMIT $5 OFFSET $4
 `
@@ -107,15 +119,15 @@ func (q *Queries) QueryStats(ctx context.Context, arg QueryStatsParams) ([]Stat,
 }
 
 const queryStatsTimeline = `-- name: QueryStatsTimeline :many
-SELECT 
-	type, 
-	COUNT(*) as count, 
-	date_trunc('hour', timestamp)::TIMESTAMP AS ts 
-FROM stats 
+SELECT
+	type,
+	COUNT(*) as count,
+	date_trunc('hour', timestamp)::TIMESTAMP AS ts
+FROM stats
 WHERE domain = $1
-AND timestamp BETWEEN $2 AND $3
+AND timestamp >= $2 AND timestamp < $3
 GROUP BY type, ts
-ORDER BY ts DESC, type
+ORDER BY ts ASC, type
 `
 
 type QueryStatsTimelineParams struct {

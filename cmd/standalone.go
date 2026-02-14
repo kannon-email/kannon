@@ -91,7 +91,7 @@ func runStandalone(cmd *cobra.Command, args []string) {
 	// Stats
 	g.Go(func() error {
 		logrus.Info("Starting Stats component...")
-		if err := stats.Run(ctx, cnt); err != nil {
+		if err := stats.Run(ctx, cnt, config.Stats.ToStatsConfig()); err != nil {
 			return fmt.Errorf("error in stats: %v", err)
 		}
 		return nil
