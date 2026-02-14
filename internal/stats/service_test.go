@@ -13,6 +13,11 @@ func newTestService() *stats.Service {
 	return stats.NewService(stats.NewInMemRepository())
 }
 
+func newTestServiceWithAggregated() *stats.Service {
+	aggRepo := stats.NewInMemAggregatedStatsRepository()
+	return stats.NewService(stats.NewInMemRepository(), stats.WithAggregatedStatsRepository(aggRepo))
+}
+
 func TestInsertAndQueryStats(t *testing.T) {
 	svc := newTestService()
 	ctx := context.Background()
@@ -119,9 +124,9 @@ func TestQueryStats_FiltersByTimeRange(t *testing.T) {
 	tr := stats.TimeRange{Start: base, Stop: base.Add(2 * time.Hour)}
 
 	times := []time.Time{
-		base.Add(-time.Minute), // before range
-		base,                   // at start (included)
-		base.Add(time.Hour),    // in range
+		base.Add(-time.Minute),  // before range
+		base,                    // at start (included)
+		base.Add(time.Hour),     // in range
 		base.Add(2 * time.Hour), // at stop (excluded)
 	}
 
@@ -241,6 +246,111 @@ func TestDetermineType(t *testing.T) {
 				t.Errorf("DetermineType() = %s, want %s", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestIncrementAggregatedStat(t *testing.T) {
+	svc := newTestServiceWithAggregated()
+	ctx := context.Background()
+
+	ts := time.Date(2026, 1, 15, 14, 30, 0, 0, time.UTC)
+
+	// Increment the same domain/day/type 3 times.
+	for i := 0; i < 3; i++ {
+		if err := svc.IncrementAggregatedStat(ctx, "example.com", ts, stats.TypeDelivered); err != nil {
+			t.Fatalf("IncrementAggregatedStat: %v", err)
+		}
+	}
+
+	tr := stats.TimeRange{
+		Start: time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
+		Stop:  time.Date(2026, 1, 16, 0, 0, 0, 0, time.UTC),
+	}
+	results, err := svc.QueryAggregatedStats(ctx, "example.com", tr)
+	if err != nil {
+		t.Fatalf("QueryAggregatedStats: %v", err)
+	}
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if results[0].Count != 3 {
+		t.Errorf("expected count=3, got %d", results[0].Count)
+	}
+	if results[0].Type != stats.TypeDelivered {
+		t.Errorf("expected type %s, got %s", stats.TypeDelivered, results[0].Type)
+	}
+}
+
+func TestIncrementAggregatedStat_SeparateEntries(t *testing.T) {
+	svc := newTestServiceWithAggregated()
+	ctx := context.Background()
+
+	day1 := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
+	day2 := time.Date(2026, 1, 16, 14, 0, 0, 0, time.UTC)
+
+	// Different days and types should create separate entries.
+	if err := svc.IncrementAggregatedStat(ctx, "example.com", day1, stats.TypeDelivered); err != nil {
+		t.Fatalf("IncrementAggregatedStat: %v", err)
+	}
+	if err := svc.IncrementAggregatedStat(ctx, "example.com", day1, stats.TypeOpened); err != nil {
+		t.Fatalf("IncrementAggregatedStat: %v", err)
+	}
+	if err := svc.IncrementAggregatedStat(ctx, "example.com", day2, stats.TypeDelivered); err != nil {
+		t.Fatalf("IncrementAggregatedStat: %v", err)
+	}
+
+	tr := stats.TimeRange{
+		Start: time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
+		Stop:  time.Date(2026, 1, 17, 0, 0, 0, 0, time.UTC),
+	}
+	results, err := svc.QueryAggregatedStats(ctx, "example.com", tr)
+	if err != nil {
+		t.Fatalf("QueryAggregatedStats: %v", err)
+	}
+
+	if len(results) != 3 {
+		t.Fatalf("expected 3 entries (2 types on day1 + 1 on day2), got %d", len(results))
+	}
+}
+
+func TestQueryAggregatedStats_FiltersByDomainAndTimeRange(t *testing.T) {
+	svc := newTestServiceWithAggregated()
+	ctx := context.Background()
+
+	ts := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
+
+	if err := svc.IncrementAggregatedStat(ctx, "a.com", ts, stats.TypeDelivered); err != nil {
+		t.Fatalf("IncrementAggregatedStat: %v", err)
+	}
+	if err := svc.IncrementAggregatedStat(ctx, "b.com", ts, stats.TypeDelivered); err != nil {
+		t.Fatalf("IncrementAggregatedStat: %v", err)
+	}
+
+	tr := stats.TimeRange{
+		Start: time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
+		Stop:  time.Date(2026, 1, 16, 0, 0, 0, 0, time.UTC),
+	}
+	results, err := svc.QueryAggregatedStats(ctx, "a.com", tr)
+	if err != nil {
+		t.Fatalf("QueryAggregatedStats: %v", err)
+	}
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result for a.com, got %d", len(results))
+	}
+
+	// Out of range query should return nothing.
+	outOfRange := stats.TimeRange{
+		Start: time.Date(2026, 1, 10, 0, 0, 0, 0, time.UTC),
+		Stop:  time.Date(2026, 1, 11, 0, 0, 0, 0, time.UTC),
+	}
+	results, err = svc.QueryAggregatedStats(ctx, "a.com", outOfRange)
+	if err != nil {
+		t.Fatalf("QueryAggregatedStats: %v", err)
+	}
+	if len(results) != 0 {
+		t.Errorf("expected 0 results out of range, got %d", len(results))
 	}
 }
 

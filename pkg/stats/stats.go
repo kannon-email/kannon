@@ -35,7 +35,8 @@ func Run(ctx context.Context, cnt *container.Container, cfg Config) error {
 	js := cnt.NatsJetStream()
 
 	repo := sq.NewStatsRepository(q)
-	service := stats.NewService(repo)
+	aggregatedRepo := sq.NewAggregatedStatsRepository(q)
+	service := stats.NewService(repo, stats.WithAggregatedStatsRepository(aggregatedRepo))
 
 	h := statsHandler{
 		js:        js,
@@ -48,6 +49,10 @@ func Run(ctx context.Context, cnt *container.Container, cfg Config) error {
 
 	eg.Go(func() error {
 		return h.handleStats(ctx)
+	})
+
+	eg.Go(func() error {
+		return h.handleAggregatedStats(ctx)
 	})
 
 	eg.Go(func() error {
@@ -90,6 +95,38 @@ func (h *statsHandler) cleanupCycle(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (h *statsHandler) handleAggregatedStats(ctx context.Context) error {
+	con := utils.MustGetPullSubscriber(ctx, h.js, "kannon-stats", "kannon.stats.*", "kannon-aggregated-stats")
+	c, err := con.Consume(func(msg jetstream.Msg) {
+		if err := h.handleAggregatedStatsMsg(ctx, msg); err != nil {
+			logrus.Errorf("Cannot handle aggregated stats msg: %v", err)
+		}
+	})
+	if err != nil {
+		return err
+	}
+
+	defer c.Drain()
+
+	<-ctx.Done()
+	return nil
+}
+
+func (h *statsHandler) handleAggregatedStatsMsg(ctx context.Context, msg jetstream.Msg) error {
+	data := &types.Stats{}
+	if err := proto.Unmarshal(msg.Data(), data); err != nil {
+		return msg.Term()
+	}
+
+	statType := stats.DetermineTypeFromStats(data)
+	if err := h.service.IncrementAggregatedStat(ctx, data.Domain, data.Timestamp.AsTime(), statType); err != nil {
+		logrus.Errorf("cannot increment aggregated stat: %v", err)
+		return msg.Nak()
+	}
+
+	return msg.Ack()
 }
 
 func (h *statsHandler) handleStatsMsg(ctx context.Context, msg jetstream.Msg) error {

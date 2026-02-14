@@ -15,7 +15,4 @@ func TestDKIMKeyGeneration(t *testing.T) {
 	if len(dkimKeys.PublicKey) == 0 {
 		t.Errorf("public key is not valid: %v", dkimKeys.PublicKey)
 	}
-
-	t.Logf("Generated Private Key: \n%v\n\n", dkimKeys.PrivateKey)
-	t.Logf("Generated Public Key: \n%v\n\n", dkimKeys.PublicKey)
 }

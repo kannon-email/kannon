@@ -29,6 +29,9 @@ sql:
           - column: "stats.type"
             go_type:
               type: "StatsType"
+          - column: "aggregated_stats.type"
+            go_type:
+              type: "StatsType"
           - column: "stats.data"
             go_type:
               import: "github.com/kannon-email/kannon/proto/kannon/stats/types"

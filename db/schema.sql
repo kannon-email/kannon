@@ -110,6 +110,18 @@ CREATE TABLE public."VerificationToken" (
 
 
 --
+-- Name: aggregated_stats; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.aggregated_stats (
+    domain character varying NOT NULL,
+    "timestamp" timestamp without time zone NOT NULL,
+    type character varying NOT NULL,
+    count bigint DEFAULT 0 NOT NULL
+);
+
+
+--
 -- Name: api_keys; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -386,6 +398,14 @@ ALTER TABLE ONLY public."Session"
 
 ALTER TABLE ONLY public."User"
     ADD CONSTRAINT "User_pkey" PRIMARY KEY (id);
+
+
+--
+-- Name: aggregated_stats aggregated_stats_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.aggregated_stats
+    ADD CONSTRAINT aggregated_stats_pkey PRIMARY KEY (domain, "timestamp", type);
 
 
 --
@@ -692,4 +712,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20260104120000'),
     ('20260106120000'),
     ('20260124120000'),
-    ('20260214120000');
+    ('20260214120000'),
+    ('20260214120001');

@@ -54,6 +54,13 @@ func (ns NullTemplateType) Value() (driver.Value, error) {
 	return string(ns.TemplateType), nil
 }
 
+type AggregatedStat struct {
+	Domain    string
+	Timestamp pgtype.Timestamp
+	Type      StatsType
+	Count     int64
+}
+
 type ApiKey struct {
 	ID            string
 	Name          string
