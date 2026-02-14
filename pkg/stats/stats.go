@@ -4,12 +4,12 @@ import (
 	"context"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	_ "github.com/lib/pq"
 	"golang.org/x/sync/errgroup"
 
 	sq "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/runner"
+	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/internal/utils"
 	"github.com/kannon-email/kannon/internal/x/container"
 	"github.com/kannon-email/kannon/proto/kannon/stats/types"
@@ -25,6 +25,7 @@ type Config struct {
 
 type statsHandler struct {
 	js        jetstream.JetStream
+	service   *stats.Service
 	q         *sq.Queries
 	retention time.Duration
 }
@@ -33,8 +34,12 @@ func Run(ctx context.Context, cnt *container.Container, cfg Config) error {
 	q := cnt.Queries()
 	js := cnt.NatsJetStream()
 
+	repo := sq.NewStatsRepository(q)
+	service := stats.NewService(repo)
+
 	h := statsHandler{
 		js:        js,
+		service:   service,
 		q:         q,
 		retention: cfg.Retention,
 	}
@@ -70,12 +75,7 @@ func (h *statsHandler) handleStats(ctx context.Context) error {
 }
 
 func (h *statsHandler) cleanupCycle(ctx context.Context) error {
-	before := pgtype.Timestamp{
-		Time:  time.Now().Add(-h.retention),
-		Valid: true,
-	}
-
-	deletedStats, err := h.q.DeleteStatsOlderThan(ctx, before)
+	deletedStats, err := h.service.Cleanup(ctx, h.retention)
 	if err != nil {
 		return err
 	}
@@ -99,40 +99,14 @@ func (h *statsHandler) handleStatsMsg(ctx context.Context, msg jetstream.Msg) er
 		return msg.Term()
 	}
 
-	stype := sq.GetStatsType(data)
+	stat := stats.NewStat(data.Email, data.MessageId, data.Domain, data.Timestamp.AsTime(), data.Data)
 
-	logrus.Printf("[%s] %s %s", StatsShow[stype], utils.ObfuscateEmail(data.Email), data.MessageId)
-	err = h.insertStat(ctx, data)
+	logrus.Printf("[%s] %s %s", stats.DisplayName[stat.Type], utils.ObfuscateEmail(data.Email), data.MessageId)
+	err = h.service.InsertStat(ctx, stat)
 	if err != nil {
-		logrus.Errorf("cannot insert %v stat: %v", stype, err)
+		logrus.Errorf("cannot insert %v stat: %v", stat.Type, err)
 		return msg.Nak()
 	}
 
 	return msg.Ack()
-}
-
-func (h *statsHandler) insertStat(ctx context.Context, data *types.Stats) error {
-	stype := sq.GetStatsType(data)
-	return h.q.InsertStat(ctx, sq.InsertStatParams{
-		Email:     data.Email,
-		MessageID: data.MessageId,
-		Timestamp: pgtype.Timestamp{
-			Time:  data.Timestamp.AsTime(),
-			Valid: true,
-		},
-		Domain: data.Domain,
-		Type:   stype,
-		Data:   data.Data,
-	})
-}
-
-var StatsShow = map[sq.StatsType]string{
-	sq.StatsTypeAccepted:  "✅ Accepted",
-	sq.StatsTypeRejected:  "🛑 Rejected",
-	sq.StatsTypeBounce:    "💥 Bounced",
-	sq.StatsTypeClicked:   "🔗 Clicked",
-	sq.StatsTypeDelivered: "🚀 Delivered",
-	sq.StatsTypeError:     "😡 Send Error",
-	sq.StatsTypeOpened:    "👀 Opened",
-	sq.StatsTypeUnknown:   "😅 Unknown",
 }

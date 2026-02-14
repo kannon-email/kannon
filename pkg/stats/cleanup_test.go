@@ -11,6 +11,7 @@ import (
 	schema "github.com/kannon-email/kannon/db"
 	sq "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/runner"
+	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/internal/tests"
 	"github.com/kannon-email/kannon/proto/kannon/stats/types"
 	"github.com/sirupsen/logrus"
@@ -43,6 +44,18 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
+const testRetention = 365 * 24 * time.Hour
+
+func newTestHandler() statsHandler {
+	repo := sq.NewStatsRepository(q)
+	service := stats.NewService(repo)
+	return statsHandler{
+		service:   service,
+		q:         q,
+		retention: testRetention,
+	}
+}
+
 func TestCleanupCycle_DeletesOldStats(t *testing.T) {
 	cleanDB(t)
 
@@ -72,10 +85,7 @@ func TestCleanupCycle_DeletesOldStats(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	h := statsHandler{
-		q:         q,
-		retention: 365 * 24 * time.Hour, // 1 year
-	}
+	h := newTestHandler() // 1 year
 
 	err = runner.Run(ctx, h.cleanupCycle, runner.MaxLoop(1))
 	require.NoError(t, err)
@@ -108,10 +118,7 @@ func TestCleanupCycle_KeepsRecentStats(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	h := statsHandler{
-		q:         q,
-		retention: 365 * 24 * time.Hour,
-	}
+	h := newTestHandler()
 
 	err := runner.Run(ctx, h.cleanupCycle, runner.MaxLoop(1))
 	require.NoError(t, err)
@@ -154,10 +161,7 @@ func TestCleanupCycle_DeletesExpiredStatsKeys(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	h := statsHandler{
-		q:         q,
-		retention: 365 * 24 * time.Hour,
-	}
+	h := newTestHandler()
 
 	err = runner.Run(ctx, h.cleanupCycle, runner.MaxLoop(1))
 	require.NoError(t, err)
@@ -176,10 +180,7 @@ func TestCleanupCycle_NoRowsToDelete(t *testing.T) {
 
 	ctx := context.Background()
 
-	h := statsHandler{
-		q:         q,
-		retention: 365 * 24 * time.Hour,
-	}
+	h := newTestHandler()
 
 	// Should not error on empty tables
 	err := runner.Run(ctx, h.cleanupCycle, runner.MaxLoop(1))

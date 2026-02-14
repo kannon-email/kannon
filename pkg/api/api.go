@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"time"
 
+	sq "github.com/kannon-email/kannon/internal/db"
+	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/internal/x/container"
 	"github.com/kannon-email/kannon/pkg/api/adminapi"
 	"github.com/kannon-email/kannon/pkg/api/hzapi"
@@ -37,9 +39,12 @@ func Run(ctx context.Context, config Config, cnt *container.Container) error {
 
 	q := cnt.Queries()
 
+	statsRepo := sq.NewStatsRepository(q)
+	statsService := stats.NewService(statsRepo)
+
 	adminAPIService := adminapi.CreateAdminAPIService(q, cnt.DB())
 	mailAPIService := mailapi.NewMailerAPIV1(q, cnt.DB())
-	statsAPIService := statsv1.NewStatsAPIService(q)
+	statsAPIService := statsv1.NewStatsAPIService(statsService)
 	hzAPIService := hzapi.CreateHZAPIService(cnt)
 
 	return startAPIServer(ctx, port, adminAPIService, mailAPIService, statsAPIService, hzAPIService)

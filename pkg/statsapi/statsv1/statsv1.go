@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"connectrpc.com/connect"
-	sq "github.com/kannon-email/kannon/internal/db"
+	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/proto/kannon/stats/apiv1"
 	statsv1connect "github.com/kannon-email/kannon/proto/kannon/stats/apiv1/apiv1connect"
 )
@@ -31,8 +31,8 @@ func (s *statsAPIConnectAdapter) GetStatsAggregated(ctx context.Context, req *co
 	return connect.NewResponse(resp), nil
 }
 
-func NewStatsAPIService(q *sq.Queries) statsv1connect.StatsApiV1Handler {
+func NewStatsAPIService(service *stats.Service) statsv1connect.StatsApiV1Handler {
 	return &statsAPIConnectAdapter{
-		impl: &a{q: q},
+		impl: &a{service: service},
 	}
 }
