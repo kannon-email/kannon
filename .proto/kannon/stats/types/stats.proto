@@ -8,7 +8,7 @@ option go_package = "github.com/kannon-email/kannon/proto/kannon/stats/types";
 message StatsAggregated {
   string type = 1;
   google.protobuf.Timestamp timestamp = 2;
-  uint32 count = 3;
+  int64 count = 3;
 }
 
 message Stats {

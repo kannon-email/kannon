@@ -610,6 +610,13 @@ CREATE UNIQUE INDEX stats_email_message_id_type_timestamp_idx ON public.stats US
 
 
 --
+-- Name: stats_timestamp_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX stats_timestamp_idx ON public.stats USING btree ("timestamp");
+
+
+--
 -- Name: stats_type_message_id_type_timestamp_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -713,4 +720,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20260106120000'),
     ('20260124120000'),
     ('20260214120000'),
-    ('20260214120001');
+    ('20260214120001'),
+    ('20260214120002');

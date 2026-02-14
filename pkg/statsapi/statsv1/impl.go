@@ -9,11 +9,11 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-type a struct {
+type statsV1Impl struct {
 	service *stats.Service
 }
 
-func (a *a) GetStats(ctx context.Context, req *apiv1.GetStatsReq) (*apiv1.GetStatsRes, error) {
+func (a *statsV1Impl) GetStats(ctx context.Context, req *apiv1.GetStatsReq) (*apiv1.GetStatsRes, error) {
 	timeRange := stats.TimeRange{
 		Start: req.FromDate.AsTime(),
 		Stop:  req.ToDate.AsTime(),
@@ -34,12 +34,12 @@ func (a *a) GetStats(ctx context.Context, req *apiv1.GetStatsReq) (*apiv1.GetSta
 	}
 
 	return &apiv1.GetStatsRes{
-		Total: uint32(total),
+		Total: total,
 		Stats: pbStats,
 	}, nil
 }
 
-func (a *a) GetStatsAggregated(ctx context.Context, req *apiv1.GetStatsAggregatedReq) (*apiv1.GetStatsAggregatedRes, error) {
+func (a *statsV1Impl) GetStatsAggregated(ctx context.Context, req *apiv1.GetStatsAggregatedReq) (*apiv1.GetStatsAggregatedRes, error) {
 	timeRange := stats.TimeRange{
 		Start: req.FromDate.AsTime(),
 		Stop:  req.ToDate.AsTime(),
@@ -55,7 +55,7 @@ func (a *a) GetStatsAggregated(ctx context.Context, req *apiv1.GetStatsAggregate
 		pbStats = append(pbStats, &types.StatsAggregated{
 			Type:      string(s.Type),
 			Timestamp: timestamppb.New(s.Timestamp),
-			Count:     uint32(s.Count),
+			Count:     s.Count,
 		})
 	}
 

@@ -2,6 +2,7 @@ package stats
 
 import (
 	"context"
+	"errors"
 	"time"
 )
 
@@ -55,14 +56,23 @@ func (s *Service) QueryTimeline(ctx context.Context, domain string, timeRange Ti
 	return s.repo.QueryTimeline(ctx, domain, timeRange)
 }
 
+// ErrNoAggregatedRepo is returned when aggregated stats operations are called without a configured repository.
+var ErrNoAggregatedRepo = errors.New("aggregated stats repository not configured")
+
 // IncrementAggregatedStat increments the daily counter for a stat type.
 func (s *Service) IncrementAggregatedStat(ctx context.Context, domain string, timestamp time.Time, statType Type) error {
+	if s.aggregatedRepo == nil {
+		return ErrNoAggregatedRepo
+	}
 	truncated := timestamp.Truncate(24 * time.Hour)
 	return s.aggregatedRepo.Increment(ctx, domain, truncated, statType)
 }
 
 // QueryAggregatedStats returns aggregated stats for a domain within a time range.
 func (s *Service) QueryAggregatedStats(ctx context.Context, domain string, timeRange TimeRange) ([]*AggregatedStat, error) {
+	if s.aggregatedRepo == nil {
+		return nil, ErrNoAggregatedRepo
+	}
 	return s.aggregatedRepo.Query(ctx, domain, timeRange)
 }
 

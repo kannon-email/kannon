@@ -32,8 +32,8 @@ func (q *Queries) IncrementAggregatedStat(ctx context.Context, arg IncrementAggr
 const queryAggregatedStats = `-- name: QueryAggregatedStats :many
 SELECT domain, timestamp, type, count FROM aggregated_stats
 WHERE domain = $1
-AND timestamp BETWEEN $2 AND $3
-ORDER BY timestamp DESC, type
+AND timestamp >= $2 AND timestamp < $3
+ORDER BY timestamp ASC, type
 `
 
 type QueryAggregatedStatsParams struct {

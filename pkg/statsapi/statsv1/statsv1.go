@@ -12,7 +12,7 @@ import (
 // Adapter to Connect handler interface
 
 type statsAPIConnectAdapter struct {
-	impl *a
+	impl *statsV1Impl
 }
 
 func (s *statsAPIConnectAdapter) GetStats(ctx context.Context, req *connect.Request[apiv1.GetStatsReq]) (*connect.Response[apiv1.GetStatsRes], error) {
@@ -33,6 +33,6 @@ func (s *statsAPIConnectAdapter) GetStatsAggregated(ctx context.Context, req *co
 
 func NewStatsAPIService(service *stats.Service) statsv1connect.StatsApiV1Handler {
 	return &statsAPIConnectAdapter{
-		impl: &a{service: service},
+		impl: &statsV1Impl{service: service},
 	}
 }

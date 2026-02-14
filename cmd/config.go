@@ -93,8 +93,9 @@ type StatsConfig struct {
 }
 
 func (c StatsConfig) ToStatsConfig() stats.Config {
+	retention := max(c.Retention, 8760*time.Hour) // 1 year minimum
 	return stats.Config{
-		Retention: c.Retention,
+		Retention: retention,
 	}
 }
 

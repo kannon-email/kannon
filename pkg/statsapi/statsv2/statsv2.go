@@ -2,6 +2,7 @@ package statsv2
 
 import (
 	"context"
+	"errors"
 
 	"connectrpc.com/connect"
 	"github.com/kannon-email/kannon/internal/stats"
@@ -16,9 +17,21 @@ type statsAPIConnectAdapter struct {
 }
 
 func (s *statsAPIConnectAdapter) GetAggregatedStats(ctx context.Context, req *connect.Request[apiv2.GetAggregatedStatsReq]) (*connect.Response[apiv2.GetAggregatedStatsRes], error) {
+	if req.Msg.Domain == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("domain is required"))
+	}
+	if req.Msg.FromDate == nil || req.Msg.ToDate == nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("from_date and to_date are required"))
+	}
+	from := req.Msg.FromDate.AsTime()
+	to := req.Msg.ToDate.AsTime()
+	if !from.Before(to) {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("from_date must be before to_date"))
+	}
+
 	timeRange := stats.TimeRange{
-		Start: req.Msg.FromDate.AsTime(),
-		Stop:  req.Msg.ToDate.AsTime(),
+		Start: from,
+		Stop:  to,
 	}
 
 	results, err := s.service.QueryAggregatedStats(ctx, req.Msg.Domain, timeRange)
@@ -31,7 +44,7 @@ func (s *statsAPIConnectAdapter) GetAggregatedStats(ctx context.Context, req *co
 		pbStats = append(pbStats, &types.StatsAggregated{
 			Type:      string(r.Type),
 			Timestamp: timestamppb.New(r.Timestamp),
-			Count:     uint32(r.Count),
+			Count:     r.Count,
 		})
 	}
 

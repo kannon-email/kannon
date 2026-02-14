@@ -21,7 +21,7 @@ message GetStatsReq {
 }
 
 message GetStatsRes {
-  uint32 total = 1;
+  int64 total = 1;
   repeated pkg.kannon.stats.types.Stats stats = 2;
 }
 

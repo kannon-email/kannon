@@ -1,7 +1,6 @@
 package stats
 
 import (
-	"errors"
 	"time"
 
 	"github.com/kannon-email/kannon/proto/kannon/stats/types"
@@ -20,8 +19,6 @@ const (
 	TypeError     Type = "error"
 	TypeUnknown   Type = "unknown"
 )
-
-var ErrStatNotFound = errors.New("stat not found")
 
 // Stat is the domain entity for a statistics event.
 type Stat struct {

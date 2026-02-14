@@ -62,6 +62,9 @@ func Run(ctx context.Context, cnt *container.Container, cfg Config) error {
 	return eg.Wait()
 }
 
+// handleStats consumes kannon.stats.* messages to persist individual stat records.
+// This is intentionally a separate consumer from handleAggregatedStats so both
+// can independently process the same messages for different purposes.
 func (h *statsHandler) handleStats(ctx context.Context) error {
 	con := utils.MustGetPullSubscriber(ctx, h.js, "kannon-stats", "kannon.stats.*", "kannon-stats-logs")
 	c, err := con.Consume(func(msg jetstream.Msg) {
@@ -97,6 +100,9 @@ func (h *statsHandler) cleanupCycle(ctx context.Context) error {
 	return nil
 }
 
+// handleAggregatedStats consumes kannon.stats.* messages to update daily aggregated counters.
+// Uses a separate consumer name ("kannon-aggregated-stats") from handleStats so both
+// receive all messages independently.
 func (h *statsHandler) handleAggregatedStats(ctx context.Context) error {
 	con := utils.MustGetPullSubscriber(ctx, h.js, "kannon-stats", "kannon.stats.*", "kannon-aggregated-stats")
 	c, err := con.Consume(func(msg jetstream.Msg) {

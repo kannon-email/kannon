@@ -7,5 +7,5 @@ DO UPDATE SET count = aggregated_stats.count + 1;
 -- name: QueryAggregatedStats :many
 SELECT * FROM aggregated_stats
 WHERE domain = @domain
-AND timestamp BETWEEN @start AND @stop
-ORDER BY timestamp DESC, type;
+AND timestamp >= @start AND timestamp < @stop
+ORDER BY timestamp ASC, type;

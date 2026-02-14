@@ -66,6 +66,20 @@ The project uses `mise` for tool version management. Tools are defined in `mise.
 - PostgreSQL migrations in `db/migrations/`
 - See `docs/REPOSITORY_GUIDE.md` for repository implementation patterns
 
+### Database Migrations (dbmate)
+
+Migrations use [dbmate](https://github.com/amacneil/dbmate) format with `-- migrate:up` and `-- migrate:down` markers:
+
+```sql
+-- migrate:up
+CREATE INDEX my_index ON my_table (my_column);
+
+-- migrate:down
+DROP INDEX my_index;
+```
+
+Migration files follow the naming convention: `YYYYMMDDHHMMSS_description.sql` in `db/migrations/`.
+
 ### NATS Messaging
 
 Components communicate via NATS JetStream topics:

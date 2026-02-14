@@ -51,7 +51,7 @@ func (r *InMemAggregatedStatsRepository) Query(_ context.Context, domain string,
 		if k.Domain != domain {
 			continue
 		}
-		if k.Timestamp.Before(timeRange.Start) || k.Timestamp.After(timeRange.Stop) {
+		if k.Timestamp.Before(timeRange.Start) || !k.Timestamp.Before(timeRange.Stop) {
 			continue
 		}
 		cp := *v

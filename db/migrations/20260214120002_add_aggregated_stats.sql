@@ -8,6 +8,8 @@ CREATE TABLE aggregated_stats (
     PRIMARY KEY (domain, timestamp, type)
 );
 
+SET statement_timeout = '300s';
+
 INSERT INTO aggregated_stats (domain, timestamp, type, count)
 SELECT
     domain,
@@ -16,6 +18,8 @@ SELECT
     COUNT(*) AS count
 FROM stats
 GROUP BY domain, date_trunc('day', timestamp), type;
+
+RESET statement_timeout;
 
 
 -- migrate:down

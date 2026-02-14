@@ -5,6 +5,9 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/kannon-email/kannon/proto/kannon/stats/types"
+	"google.golang.org/protobuf/proto"
 )
 
 // InMemRepository is an in-memory implementation of Repository for testing.
@@ -26,8 +29,11 @@ func (r *InMemRepository) Insert(_ context.Context, stat *Stat) error {
 	stat.ID = r.nextID
 	r.nextID++
 
-	// Store a copy to avoid external mutation.
+	// Store a deep copy to avoid external mutation.
 	cp := *stat
+	if stat.Data != nil {
+		cp.Data = proto.Clone(stat.Data).(*types.StatsData)
+	}
 	r.stats = append(r.stats, &cp)
 	return nil
 }

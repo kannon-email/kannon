@@ -437,13 +437,13 @@ func testAggregatedStats(t *testing.T, clientFactory *clientFactory, _ *senderMo
 		aggStats := client.GetAggregatedStats(t)
 		require.NotEmpty(tt, aggStats.Stats)
 
-		typeMap := make(map[string]uint32)
+		typeMap := make(map[string]int64)
 		for _, s := range aggStats.Stats {
 			typeMap[s.Type] += s.Count
 		}
 
-		require.Greater(tt, typeMap["accepted"], uint32(0))
-		require.Greater(tt, typeMap["delivered"], uint32(0))
+		require.Greater(tt, typeMap["accepted"], int64(0))
+		require.Greater(tt, typeMap["delivered"], int64(0))
 	}, 10*time.Second, 1*time.Second, "Aggregated stats should be available")
 }
 
