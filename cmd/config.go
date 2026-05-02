@@ -30,7 +30,7 @@ type Config struct {
 	RunSMTP       bool         `mapstructure:"run-smtp"`
 	RunSender     bool         `mapstructure:"run-sender"`
 	RunDispatcher bool         `mapstructure:"run-dispatcher"`
-	RunVerifier   bool         `mapstructure:"run-verifier"`
+	RunValidator  bool         `mapstructure:"run-validator"`
 	RunBounce     bool         `mapstructure:"run-bounce"`
 	RunStats      bool         `mapstructure:"run-stats"`
 	ConfigFile    string       `mapstructure:"config"`
@@ -135,6 +135,8 @@ func readConfig() (Config, error) {
 		}
 	}
 
+	applyDeprecatedAliases()
+
 	if err := viper.Unmarshal(&config); err != nil {
 		return Config{}, fmt.Errorf("unable to decode config into struct: %v", err)
 	}
@@ -144,4 +146,24 @@ func readConfig() (Config, error) {
 	}
 
 	return config, nil
+}
+
+// applyDeprecatedAliases promotes deprecated boolean config keys onto their
+// canonical names and logs a one-line deprecation warning at startup. Each
+// entry is a public API surface we still owe users.
+func applyDeprecatedAliases() {
+	aliases := []struct {
+		oldKey string
+		newKey string
+	}{
+		{oldKey: "run-verifier", newKey: "run-validator"},
+	}
+
+	for _, a := range aliases {
+		if !viper.GetBool(a.oldKey) {
+			continue
+		}
+		logrus.Warnf("config key %q is deprecated and will be removed in a future major version; use %q instead", a.oldKey, a.newKey)
+		viper.Set(a.newKey, true)
+	}
 }

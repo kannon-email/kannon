@@ -220,7 +220,7 @@ flowchart TD
         SMTP["SMTP Server"]
         Sender["Sender"]
         Dispatcher["Dispatcher"]
-        Verifier["Verifier"]
+        Validator["Validator"]
         Bounce["Bounce"]
         Stats["Stats"]
     end
@@ -229,7 +229,7 @@ flowchart TD
     API <--> DB
     Dispatcher <--> DB
     Sender <--> DB
-    Verifier <--> DB
+    Validator <--> DB
     Stats <--> DB
     Bounce <--> DB
     API <--> NATS
@@ -237,7 +237,7 @@ flowchart TD
     Dispatcher <--> NATS
     SMTP <--> NATS
     Stats <--> NATS
-    Verifier <--> NATS
+    Validator <--> NATS
     Bounce <--> NATS
 ```
 
@@ -248,9 +248,9 @@ flowchart TD
 - Client calls the gRPC Mailer API (`SendHTML` or `SendTemplate`).
 - API authenticates the domain, processes the template, and enqueues recipients into the sending pool (DB).
 
-### 2. Validation (Verifier)
+### 2. Validation (Validator)
 
-- The Verifier worker pulls emails from the pool with status `to_validate`.
+- The Validator worker pulls emails from the pool with status `to_validate`.
 - Validates email addresses. If valid, marks as `scheduled` and publishes an `accepted` stat to NATS. If invalid, cleans from pool and publishes a `rejected` stat.
 
 ### 3. Dispatching (Dispatcher)

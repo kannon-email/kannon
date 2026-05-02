@@ -20,7 +20,7 @@ import (
 var standaloneCmd = &cobra.Command{
 	Use:   "standalone",
 	Short: "Run Kannon in standalone mode with embedded NATS",
-	Long: `Run all Kannon components (API, SMTP, Sender, Dispatcher, Verifier, Stats, Bounce)
+	Long: `Run all Kannon components (API, SMTP, Sender, Dispatcher, Validator, Stats, Bounce)
 in a single process with an embedded NATS server. This mode is ideal for development,
 testing, or single-server deployments. You will still need a PostgreSQL database.`,
 	Run: runStandalone,
@@ -79,11 +79,11 @@ func runStandalone(cmd *cobra.Command, args []string) {
 		return nil
 	})
 
-	// Verifier
+	// Validator
 	g.Go(func() error {
-		logrus.Info("Starting Verifier component...")
+		logrus.Info("Starting Validator component...")
 		if err := validator.Run(ctx, cnt); err != nil {
-			return fmt.Errorf("error in verifier: %v", err)
+			return fmt.Errorf("error in validator: %v", err)
 		}
 		return nil
 	})

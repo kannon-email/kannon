@@ -74,11 +74,11 @@ func run(cmd *cobra.Command, args []string) {
 		})
 	}
 
-	if config.RunVerifier {
+	if config.RunValidator {
 		g.Go(func() error {
 			err := validator.Run(ctx, cnt)
 			if err != nil {
-				return fmt.Errorf("error in verifier: %v", err)
+				return fmt.Errorf("error in validator: %v", err)
 			}
 			return nil
 		})
@@ -136,7 +136,8 @@ func init() {
 	rootCmd.PersistentFlags().Bool("viper", true, "use Viper for configuration")
 	createBoolFlagAndBindToViper("run-sender", false, "run sender")
 	createBoolFlagAndBindToViper("run-dispatcher", false, "run dispatcher")
-	createBoolFlagAndBindToViper("run-verifier", false, "run verifier")
+	createBoolFlagAndBindToViper("run-validator", false, "run validator")
+	createBoolFlagAndBindToViper("run-verifier", false, "DEPRECATED: use --run-validator")
 	createBoolFlagAndBindToViper("run-bounce", false, "run bounce")
 	createBoolFlagAndBindToViper("run-stats", false, "run stats")
 	createBoolFlagAndBindToViper("run-api", false, "run api")

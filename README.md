@@ -53,7 +53,7 @@ Kannon is composed of several microservices and workers:
 - **SMTP**: Handles SMTP protocol and relays mail
 - **Sender**: Sends emails from the queue
 - **Dispatcher**: Manages the sending pool and delivery
-- **Verifier**: Validates emails before sending
+- **Validator**: Validates emails before sending
 - **Bounce**: Handles bounces
 - **Stats**: Collects and stores delivery statistics
 
@@ -68,7 +68,7 @@ flowchart TD
         SMTP["SMTP Server"]
         Sender["Sender"]
         Dispatcher["Dispatcher"]
-        Verifier["Verifier"]
+        Validator["Validator"]
         Bounce["Bounce"]
         Stats["Stats"]
     end
@@ -77,7 +77,7 @@ flowchart TD
     API <--> DB
     Dispatcher <--> DB
     Sender <--> DB
-    Verifier <--> DB
+    Validator <--> DB
     Stats <--> DB
     Bounce <--> DB
     API <--> NATS
@@ -85,7 +85,7 @@ flowchart TD
     Dispatcher <--> NATS
     SMTP <--> NATS
     Stats <--> NATS
-    Verifier <--> NATS
+    Validator <--> NATS
     Bounce <--> NATS
 ```
 
@@ -110,7 +110,7 @@ go build -o kannon .
 ```
 
 This mode:
-- Runs all components (API, SMTP, Sender, Dispatcher, Verifier, Stats, Bounce)
+- Runs all components (API, SMTP, Sender, Dispatcher, Validator, Stats, Bounce)
 - Embeds NATS server (no external NATS required)
 - Ideal for development, testing, or single-server deployments
 - Still requires a PostgreSQL database
@@ -167,12 +167,14 @@ Kannon can be configured via YAML file, environment variables, or CLI flags. Pre
 | `run-smtp` / `K_RUN_SMTP`                       | bool     | false          | Enable SMTP server                     |
 | `run-sender` / `K_RUN_SENDER`                   | bool     | false          | Enable sender worker                   |
 | `run-dispatcher` / `K_RUN_DISPATCHER`           | bool     | false          | Enable dispatcher worker               |
-| `run-verifier` / `K_RUN_VERIFIER`               | bool     | false          | Enable verifier worker                 |
+| `run-validator` / `K_RUN_VALIDATOR`             | bool     | false          | Enable validator worker                |
 | `run-bounce` / `K_RUN_BOUNCE`                   | bool     | false          | Enable bounce worker                   |
 | `run-stats` / `K_RUN_STATS`                     | bool     | false          | Enable stats worker                    |
 | `config`                                        | string   | ~/.kannon.yaml | Path to config file                    |
 
 - See [`examples/docker-compose/kannon.yaml`](examples/docker-compose/kannon.yaml) for a full example.
+
+> **Deprecated aliases:** `run-verifier` / `K_RUN_VERIFIER` continue to work as aliases for `run-validator` / `K_RUN_VALIDATOR`, but emit a deprecation warning at startup and will be removed in a future major version.
 
 ## Database Schema
 
@@ -415,7 +417,7 @@ sender:
 run-smtp: true
 run-bounce: true
 run-dispatcher: true
-run-verifier: true
+run-validator: true
 run-sender: true
 run-api: true
 run-stats: true
