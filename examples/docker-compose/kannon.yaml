@@ -11,7 +11,7 @@ sender:
   demo_sender: true
 
 run-smtp: true
-run-bounce: true
+run-tracker: true
 run-dispatcher: true
 run-validator: true
 run-sender: true

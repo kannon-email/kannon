@@ -28,6 +28,7 @@ func ApplyDeprecatedAliases() {
 		newKey string
 	}{
 		{oldKey: "run-verifier", newKey: "run-validator"},
+		{oldKey: "run-bounce", newKey: "run-tracker"},
 	}
 
 	for _, a := range boolAliases {

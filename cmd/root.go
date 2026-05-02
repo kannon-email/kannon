@@ -68,7 +68,7 @@ func bootstrap(cmd *cobra.Command, flags RunFlags) {
 	if flags.Stats {
 		reg.Register(stats.New(cnt))
 	}
-	if flags.Bounce {
+	if flags.Tracker {
 		reg.Register(tracker.New(cnt))
 	}
 	if flags.API {
@@ -94,7 +94,8 @@ func init() {
 	createBoolFlagAndBindToViper("run-dispatcher", false, "run dispatcher")
 	createBoolFlagAndBindToViper("run-validator", false, "run validator")
 	createBoolFlagAndBindToViper("run-verifier", false, "DEPRECATED: use --run-validator")
-	createBoolFlagAndBindToViper("run-bounce", false, "run bounce")
+	createBoolFlagAndBindToViper("run-tracker", false, "run tracker")
+	createBoolFlagAndBindToViper("run-bounce", false, "DEPRECATED: use --run-tracker")
 	createBoolFlagAndBindToViper("run-stats", false, "run stats")
 	createBoolFlagAndBindToViper("run-api", false, "run api")
 	createBoolFlagAndBindToViper("run-smtp", false, "run smtp server")

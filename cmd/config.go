@@ -18,7 +18,7 @@ type RunFlags struct {
 	Dispatcher bool
 	Validator  bool
 	Stats      bool
-	Bounce     bool
+	Tracker    bool
 	API        bool
 	SMTP       bool
 }
@@ -69,7 +69,7 @@ func runFlagsFromViper() RunFlags {
 		Dispatcher: viper.GetBool("run-dispatcher"),
 		Validator:  viper.GetBool("run-validator"),
 		Stats:      viper.GetBool("run-stats"),
-		Bounce:     viper.GetBool("run-bounce"),
+		Tracker:    viper.GetBool("run-tracker"),
 		API:        viper.GetBool("run-api"),
 		SMTP:       viper.GetBool("run-smtp"),
 	}
