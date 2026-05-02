@@ -18,11 +18,11 @@ import (
 )
 
 type disp struct {
-	ss  statssec.StatsService
-	pm  pool.SendingPoolManager
-	eb  envelope.Builder
-	pub publisher.Publisher
-	js  jetstream.JetStream
+	ss      statssec.StatsService
+	claimer pool.Claimer
+	eb      envelope.Builder
+	pub     publisher.Publisher
+	js      jetstream.JetStream
 }
 
 func (d *disp) log() *logrus.Entry {
@@ -32,7 +32,7 @@ func (d *disp) log() *logrus.Entry {
 func (d *disp) DispatchCycle(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	emails, err := d.pm.PrepareForSend(ctx, 20)
+	emails, err := d.claimer.ClaimForDispatch(ctx, 20)
 	if err != nil {
 		return fmt.Errorf("cannot prepare emails for send: %v", err)
 	}
@@ -74,7 +74,11 @@ func (d *disp) parseErrorsFunc(ctx context.Context, m *statstypes.Stats) error {
 		return fmt.Errorf("stats is not of type error")
 	}
 
-	if err := d.pm.RescheduleEmail(ctx, batch.ID(m.MessageId), m.Email); err != nil {
+	dlv, err := d.claimer.Lookup(ctx, batch.ID(m.MessageId), m.Email)
+	if err != nil {
+		return fmt.Errorf("cannot lookup delivery: %w", err)
+	}
+	if err := d.claimer.Reschedule(ctx, dlv); err != nil {
 		return fmt.Errorf("cannot set delivered: %w", err)
 	}
 	return nil
@@ -87,7 +91,11 @@ func (d *disp) handleDelivers(ctx context.Context) error {
 }
 
 func (d *disp) parsDeliveredFunc(ctx context.Context, m *statstypes.Stats) error {
-	if err := d.pm.CleanEmail(ctx, batch.ID(m.MessageId), m.Email); err != nil {
+	dlv, err := d.claimer.Lookup(ctx, batch.ID(m.MessageId), m.Email)
+	if err != nil {
+		return fmt.Errorf("cannot lookup delivery: %w", err)
+	}
+	if err := d.claimer.Drop(ctx, dlv); err != nil {
 		return fmt.Errorf("cannot set delivered: %w", err)
 	}
 	return nil
@@ -100,7 +108,11 @@ func (d *disp) handleBounced(ctx context.Context) error {
 }
 
 func (d *disp) parsBouncedFunc(ctx context.Context, m *statstypes.Stats) error {
-	if err := d.pm.CleanEmail(ctx, batch.ID(m.MessageId), m.Email); err != nil {
+	dlv, err := d.claimer.Lookup(ctx, batch.ID(m.MessageId), m.Email)
+	if err != nil {
+		return fmt.Errorf("cannot lookup delivery: %w", err)
+	}
+	if err := d.claimer.Drop(ctx, dlv); err != nil {
 		return fmt.Errorf("cannot set delivered: %w", err)
 	}
 

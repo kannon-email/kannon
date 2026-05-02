@@ -1,86 +1,75 @@
+// Package pool exposes the claim/scheduling primitive that operates on
+// delivery.Delivery values. The Claimer hides the enum-flip claim
+// mechanism, the scheduled-time filter, and the exponential backoff
+// behind a small interface (parent PRD #322 §8).
 package pool
 
 import (
 	"context"
-	"time"
 
 	"github.com/kannon-email/kannon/internal/batch"
 	"github.com/kannon-email/kannon/internal/delivery"
-	pb "github.com/kannon-email/kannon/proto/kannon/mailer/types"
 )
 
-// Sender is the visible from-identity of a Batch. It is retained here for
-// backwards compatibility with callers that still build the value type
-// inline; new code should construct batch.Sender directly. This local
-// alias is removed in a follow-up slice (parent PRD #322 §8).
-type Sender = batch.Sender
+// Claimer atomically claims Deliveries from the sending pool and
+// transitions them between in-flight states. Implementations are
+// backed by the delivery.Repository and operate exclusively on
+// delivery.Delivery values.
+type Claimer interface {
+	// ClaimForValidation atomically claims up to max deliveries that
+	// are pending validation and returns them.
+	ClaimForValidation(ctx context.Context, max int) ([]*delivery.Delivery, error)
 
-// SendingPoolManager is a manager for sending pool
-type SendingPoolManager interface {
-	// AddRecipientsPool persists the Batch via the Batch repository and
-	// schedules a Delivery for each recipient.
-	AddRecipientsPool(ctx context.Context, b *batch.Batch, recipients []*pb.Recipient, scheduled time.Time) error
-	PrepareForSend(ctx context.Context, max uint) ([]*delivery.Delivery, error)
-	PrepareForValidate(ctx context.Context, max uint) ([]*delivery.Delivery, error)
-	SetScheduled(ctx context.Context, batchID batch.ID, email string) error
-	RescheduleEmail(ctx context.Context, batchID batch.ID, email string) error
-	CleanEmail(ctx context.Context, batchID batch.ID, email string) error
+	// ClaimForDispatch atomically claims up to max deliveries that are
+	// scheduled and due (scheduled_time <= NOW()) for dispatch.
+	ClaimForDispatch(ctx context.Context, max int) ([]*delivery.Delivery, error)
+
+	// MarkValidated transitions a Delivery from to-validate to
+	// scheduled, making it eligible for ClaimForDispatch.
+	MarkValidated(ctx context.Context, d *delivery.Delivery) error
+
+	// Reschedule applies the Delivery's retry policy: bumps the
+	// attempt counter and rolls the scheduled time forward by the
+	// exponential backoff window.
+	Reschedule(ctx context.Context, d *delivery.Delivery) error
+
+	// Drop removes a terminated Delivery from the pool.
+	Drop(ctx context.Context, d *delivery.Delivery) error
+
+	// Lookup loads a Delivery by its (BatchID, Email) key. Used by
+	// stats-driven consumers that only have the storage key on hand.
+	Lookup(ctx context.Context, batchID batch.ID, email string) (*delivery.Delivery, error)
 }
 
-type sendingPoolManager struct {
-	batches    batch.Repository
+type claimer struct {
 	deliveries delivery.Repository
 }
 
-func (m *sendingPoolManager) AddRecipientsPool(ctx context.Context, b *batch.Batch, recipients []*pb.Recipient, scheduled time.Time) error {
-	if err := m.batches.Create(ctx, b); err != nil {
-		return err
-	}
-
-	for _, r := range recipients {
-		d, err := delivery.New(delivery.NewParams{
-			BatchID:       b.ID(),
-			Email:         r.Email,
-			Fields:        r.Fields,
-			Domain:        b.Domain(),
-			ScheduledTime: scheduled,
-		})
-		if err != nil {
-			return err
-		}
-		if err := m.deliveries.Schedule(ctx, d); err != nil {
-			return err
-		}
-	}
-
-	return nil
+// NewClaimer wires a Claimer backed by the given Delivery repository.
+func NewClaimer(deliveries delivery.Repository) Claimer {
+	return &claimer{deliveries: deliveries}
 }
 
-func (m *sendingPoolManager) PrepareForSend(ctx context.Context, max uint) ([]*delivery.Delivery, error) {
-	return m.deliveries.PrepareForSend(ctx, int(max))
+func (c *claimer) ClaimForValidation(ctx context.Context, max int) ([]*delivery.Delivery, error) {
+	return c.deliveries.PrepareForValidate(ctx, max)
 }
 
-func (m *sendingPoolManager) PrepareForValidate(ctx context.Context, max uint) ([]*delivery.Delivery, error) {
-	return m.deliveries.PrepareForValidate(ctx, int(max))
+func (c *claimer) ClaimForDispatch(ctx context.Context, max int) ([]*delivery.Delivery, error) {
+	return c.deliveries.PrepareForSend(ctx, max)
 }
 
-func (m *sendingPoolManager) CleanEmail(ctx context.Context, batchID batch.ID, email string) error {
-	return m.deliveries.Clean(ctx, batchID, email)
+func (c *claimer) MarkValidated(ctx context.Context, d *delivery.Delivery) error {
+	return c.deliveries.SetScheduled(ctx, d.BatchID(), d.Email())
 }
 
-func (m *sendingPoolManager) SetScheduled(ctx context.Context, batchID batch.ID, email string) error {
-	return m.deliveries.SetScheduled(ctx, batchID, email)
+func (c *claimer) Reschedule(ctx context.Context, d *delivery.Delivery) error {
+	return c.deliveries.Reschedule(ctx, d.BatchID(), d.Email())
 }
 
-func (m *sendingPoolManager) RescheduleEmail(ctx context.Context, batchID batch.ID, email string) error {
-	return m.deliveries.Reschedule(ctx, batchID, email)
+func (c *claimer) Drop(ctx context.Context, d *delivery.Delivery) error {
+	return c.deliveries.Clean(ctx, d.BatchID(), d.Email())
 }
 
-// NewSendingPoolManager wires a SendingPoolManager backed by the given Batch
-// and Delivery repositories.
-func NewSendingPoolManager(batches batch.Repository, deliveries delivery.Repository) SendingPoolManager {
-	return &sendingPoolManager{
-		batches:    batches,
-		deliveries: deliveries,
-	}
+func (c *claimer) Lookup(ctx context.Context, batchID batch.ID, email string) (*delivery.Delivery, error) {
+	return c.deliveries.Get(ctx, batchID, email)
 }

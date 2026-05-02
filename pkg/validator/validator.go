@@ -18,16 +18,16 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func NewValidator(pm pool.SendingPoolManager, pub publisher.Publisher) *Validator {
+func NewValidator(c pool.Claimer, pub publisher.Publisher) *Validator {
 	return &Validator{
-		pm:  pm,
-		pub: pub,
+		claimer: c,
+		pub:     pub,
 	}
 }
 
 type Validator struct {
-	pm  pool.SendingPoolManager
-	pub publisher.Publisher
+	claimer pool.Claimer
+	pub     publisher.Publisher
 }
 
 func (v *Validator) log() *logrus.Entry {
@@ -37,13 +37,13 @@ func (v *Validator) log() *logrus.Entry {
 func Run(ctx context.Context, cnt *container.Container) error {
 	q := cnt.Queries()
 
-	pm := pool.NewSendingPoolManager(sqlc.NewBatchRepository(q), sqlc.NewDeliveryRepository(q))
+	claimer := pool.NewClaimer(sqlc.NewDeliveryRepository(q))
 
 	nc := cnt.NatsPublisher()
 
 	v := Validator{
-		pm:  pm,
-		pub: nc,
+		claimer: claimer,
+		pub:     nc,
 	}
 
 	v.log().Info("🚀 Starting validator")
@@ -54,7 +54,7 @@ func Run(ctx context.Context, cnt *container.Container) error {
 func (d *Validator) Cycle(pctx context.Context) error {
 	ctx, cancel := context.WithTimeout(pctx, 10*time.Second)
 	defer cancel()
-	emails, err := d.pm.PrepareForValidate(ctx, 100)
+	emails, err := d.claimer.ClaimForValidation(ctx, 100)
 	if err != nil {
 		return fmt.Errorf("cannot prepare emails for send: %v", err)
 	}
@@ -79,13 +79,13 @@ func (d *Validator) handleDelivery(ctx context.Context, dlv *delivery.Delivery) 
 
 	if err := validateDelivery(dlv); err != nil {
 		statData.Data = newRejectedStatData(err)
-		if err := d.pm.CleanEmail(ctx, dlv.BatchID(), dlv.Email()); err != nil {
+		if err := d.claimer.Drop(ctx, dlv); err != nil {
 			return err
 		}
 		return publisher.PublishStat(d.pub, statData)
 	}
 
-	if err := d.pm.SetScheduled(ctx, dlv.BatchID(), dlv.Email()); err != nil {
+	if err := d.claimer.MarkValidated(ctx, dlv); err != nil {
 		return err
 	}
 	statData.Data = newAcceptedStatData()

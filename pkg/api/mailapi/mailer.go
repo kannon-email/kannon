@@ -13,8 +13,8 @@ import (
 	"github.com/kannon-email/kannon/internal/apikeys"
 	"github.com/kannon-email/kannon/internal/batch"
 	sqlc "github.com/kannon-email/kannon/internal/db"
+	"github.com/kannon-email/kannon/internal/delivery"
 	"github.com/kannon-email/kannon/internal/domains"
-	"github.com/kannon-email/kannon/internal/pool"
 	smtputils "github.com/kannon-email/kannon/internal/smtp"
 	"github.com/kannon-email/kannon/internal/templates"
 	"github.com/kannon-email/kannon/internal/utils"
@@ -26,10 +26,11 @@ import (
 )
 
 type mailAPIService struct {
-	domains     domains.Repository
-	apiKeys     *apikeys.Service
-	templates   templates.Repository
-	sendingPool pool.SendingPoolManager
+	domains    domains.Repository
+	apiKeys    *apikeys.Service
+	templates  templates.Repository
+	batches    batch.Repository
+	deliveries delivery.Repository
 }
 
 func (s mailAPIService) SendHTML(ctx context.Context, req *connect.Request[pb.SendHTMLReq]) (*connect.Response[pb.SendRes], error) {
@@ -107,7 +108,7 @@ func (s mailAPIService) sendTemplate(ctx context.Context, domain *domains.Domain
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 
-	if err := s.sendingPool.AddRecipientsPool(ctx, b, req.Msg.Recipients, scheduled); err != nil {
+	if err := s.scheduleBatch(ctx, b, req.Msg.Recipients, scheduled); err != nil {
 		logrus.Errorf("cannot create pool %v\n", err)
 		return nil, err
 	}
@@ -120,6 +121,28 @@ func (s mailAPIService) sendTemplate(ctx context.Context, domain *domains.Domain
 }
 
 func (s mailAPIService) Close() error {
+	return nil
+}
+
+func (s mailAPIService) scheduleBatch(ctx context.Context, b *batch.Batch, recipients []*mailertypes.Recipient, scheduled time.Time) error {
+	if err := s.batches.Create(ctx, b); err != nil {
+		return err
+	}
+	for _, r := range recipients {
+		d, err := delivery.New(delivery.NewParams{
+			BatchID:       b.ID(),
+			Email:         r.Email,
+			Fields:        r.Fields,
+			Domain:        b.Domain(),
+			ScheduledTime: scheduled,
+		})
+		if err != nil {
+			return err
+		}
+		if err := s.deliveries.Schedule(ctx, d); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -207,13 +230,13 @@ func NewMailerAPIV1(q *sqlc.Queries, db *pgxpool.Pool) mailerv1connect.MailerHan
 	apiKeysService := apikeys.NewService(apiKeysRepo)
 	batchRepo := sqlc.NewBatchRepository(q)
 	deliveryRepo := sqlc.NewDeliveryRepository(q)
-	sendingPoolCli := pool.NewSendingPoolManager(batchRepo, deliveryRepo)
 	templatesRepo := sqlc.NewTemplatesRepository(q)
 
 	return &mailAPIService{
-		domains:     domainsCli,
-		apiKeys:     apiKeysService,
-		sendingPool: sendingPoolCli,
-		templates:   templatesRepo,
+		domains:    domainsCli,
+		apiKeys:    apiKeysService,
+		batches:    batchRepo,
+		deliveries: deliveryRepo,
+		templates:  templatesRepo,
 	}
 }

@@ -15,6 +15,7 @@ import (
 	schema "github.com/kannon-email/kannon/db"
 	"github.com/kannon-email/kannon/internal/batch"
 	sqlc "github.com/kannon-email/kannon/internal/db"
+	"github.com/kannon-email/kannon/internal/delivery"
 	"github.com/kannon-email/kannon/internal/envelope"
 	"github.com/kannon-email/kannon/internal/pool"
 	"github.com/kannon-email/kannon/internal/statssec"
@@ -39,7 +40,7 @@ var q *sqlc.Queries
 var eb envelope.Builder
 var ma mailerv1connect.MailerHandler
 var adminAPI adminv1connect.ApiHandler
-var pm pool.SendingPoolManager
+var claimer pool.Claimer
 
 func TestMain(m *testing.M) {
 	var purge tests.PurgeFunc
@@ -55,7 +56,7 @@ func TestMain(m *testing.M) {
 	eb = envelope.NewBuilder(q, statssec.NewStatsService(q))
 	ma = mailapi.NewMailerAPIV1(q, db)
 	adminAPI = adminapi.CreateAdminAPIService(q, db)
-	pm = pool.NewSendingPoolManager(sqlc.NewBatchRepository(q), sqlc.NewDeliveryRepository(q))
+	claimer = pool.NewClaimer(sqlc.NewDeliveryRepository(q))
 
 	code := m.Run()
 
@@ -92,11 +93,7 @@ func TestPrepareMail(t *testing.T) {
 	res, err := ma.SendHTML(context.Background(), req)
 	assert.Nil(t, err)
 
-	err = pm.SetScheduled(context.Background(), batch.ID(res.Msg.MessageId), "test@emailtest.com")
-	assert.Nil(t, err)
-
-	emails, err := pm.PrepareForSend(context.Background(), 1)
-	assert.Nil(t, err)
+	emails := markValidatedAndClaim(t, batch.ID(res.Msg.MessageId), "test@emailtest.com")
 	assert.Equal(t, 1, len(emails))
 
 	env, err := eb.Build(context.Background(), emails[0])
@@ -156,11 +153,7 @@ func TestPrepareMailWithAttachments(t *testing.T) {
 	res, err := ma.SendHTML(context.Background(), req)
 	assert.Nil(t, err)
 
-	err = pm.SetScheduled(context.Background(), batch.ID(res.Msg.MessageId), "test@emailtest.com")
-	assert.Nil(t, err)
-
-	emails, err := pm.PrepareForSend(context.Background(), 1)
-	assert.Nil(t, err)
+	emails := markValidatedAndClaim(t, batch.ID(res.Msg.MessageId), "test@emailtest.com")
 	assert.Equal(t, 1, len(emails))
 
 	env, err := eb.Build(context.Background(), emails[0])
@@ -203,11 +196,7 @@ func TestPrepareMailWithHeaders(t *testing.T) {
 	res, err := ma.SendHTML(context.Background(), req)
 	assert.Nil(t, err)
 
-	err = pm.SetScheduled(context.Background(), batch.ID(res.Msg.MessageId), "actual-recipient@emailtest.com")
-	assert.Nil(t, err)
-
-	emails, err := pm.PrepareForSend(context.Background(), 1)
-	assert.Nil(t, err)
+	emails := markValidatedAndClaim(t, batch.ID(res.Msg.MessageId), "actual-recipient@emailtest.com")
 	assert.Equal(t, 1, len(emails))
 
 	env, err := eb.Build(context.Background(), emails[0])
@@ -220,6 +209,18 @@ func TestPrepareMailWithHeaders(t *testing.T) {
 
 	assert.Equal(t, "visible@example.com", parsed.Header.Get("To"))
 	assert.Equal(t, "cc1@example.com, cc2@example.com", parsed.Header.Get("Cc"))
+}
+
+func markValidatedAndClaim(t *testing.T, batchID batch.ID, email string) []*delivery.Delivery {
+	t.Helper()
+	ctx := context.Background()
+	dlv, err := claimer.Lookup(ctx, batchID, email)
+	assert.Nil(t, err)
+	err = claimer.MarkValidated(ctx, dlv)
+	assert.Nil(t, err)
+	claimed, err := claimer.ClaimForDispatch(ctx, 1)
+	assert.Nil(t, err)
+	return claimed
 }
 
 func authRequest[T any](req *connect.Request[T], d *adminapiv1.Domain, apiKey string) {

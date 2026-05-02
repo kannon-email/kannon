@@ -22,18 +22,18 @@ func Run(ctx context.Context, cnt *container.Container) error {
 	q := cnt.Queries()
 
 	ss := statssec.NewStatsService(q)
-	pm := pool.NewSendingPoolManager(sqlc.NewBatchRepository(q), sqlc.NewDeliveryRepository(q))
+	claimer := pool.NewClaimer(sqlc.NewDeliveryRepository(q))
 	eb := envelope.NewBuilder(q, ss)
 
 	js := cnt.NatsJetStream()
 	mustConfigureSendingStream(ctx, js)
 
 	d := disp{
-		ss:  ss,
-		pm:  pm,
-		eb:  eb,
-		pub: cnt.NatsPublisher(),
-		js:  js,
+		ss:      ss,
+		claimer: claimer,
+		eb:      eb,
+		pub:     cnt.NatsPublisher(),
+		js:      js,
 	}
 
 	d.log().Info("🚀 Starting dispatcher")

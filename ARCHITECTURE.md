@@ -26,7 +26,7 @@ Kannon is a cloud-native, scalable SMTP mail sender designed for Kubernetes and 
 
 #### `internal/pool/`
 
-- Manages the sending pool (queue) of emails. Handles scheduling, rescheduling, and cleaning up emails in the pool.
+- Exposes `pool.Claimer`, the deep module that atomically claims `Delivery` entities from the sending pool and transitions them between in-flight states. Hides the enum-flip claim mechanism, the scheduled-time filter, and the exponential backoff window. Initial scheduling is owned by the Mailer API (it persists `Batch` + `Delivery` entities directly via their repositories); the pool package only handles the claim/scheduling primitive over Deliveries.
 
 #### `internal/publisher/`
 
