@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/kannon-email/kannon/x/container"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -55,6 +56,8 @@ func readViperConfig() error {
 			return fmt.Errorf("cannot read config file: %v", err)
 		}
 	}
+
+	container.ApplyDeprecatedAliases()
 
 	if viper.GetBool("debug") {
 		logrus.SetLevel(logrus.DebugLevel)
