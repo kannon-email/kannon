@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/kannon-email/kannon/internal/batch"
-	"github.com/kannon-email/kannon/internal/mailbuilder"
+	"github.com/kannon-email/kannon/internal/envelope"
 	"github.com/kannon-email/kannon/internal/pool"
 	"github.com/kannon-email/kannon/internal/publisher"
 	"github.com/kannon-email/kannon/internal/statssec"
@@ -20,7 +20,7 @@ import (
 type disp struct {
 	ss  statssec.StatsService
 	pm  pool.SendingPoolManager
-	mb  mailbuilder.MailBuilder
+	eb  envelope.Builder
 	pub publisher.Publisher
 	js  jetstream.JetStream
 }
@@ -41,16 +41,16 @@ func (d *disp) DispatchCycle(ctx context.Context) error {
 
 	for _, dlv := range emails {
 		log := d.log()
-		data, err := d.mb.BuildEmail(ctx, dlv)
+		env, err := d.eb.Build(ctx, dlv)
 
 		if err != nil {
 			log.WithError(err).Errorf("Cannot send email")
 			continue
 		}
 
-		log = log.WithField("email", utils.ObfuscateEmail(data.To)).WithField("email_id", data.EmailId)
+		log = log.WithField("email", utils.ObfuscateEmail(env.To())).WithField("email_id", env.EmailID())
 
-		if err := publisher.SendEmail(d.pub, data); err != nil {
+		if err := publisher.SendEmail(d.pub, env); err != nil {
 			log.WithError(err).Errorf("Cannot send email")
 			continue
 		}

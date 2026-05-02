@@ -8,7 +8,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	sqlc "github.com/kannon-email/kannon/internal/db"
-	"github.com/kannon-email/kannon/internal/mailbuilder"
+	"github.com/kannon-email/kannon/internal/envelope"
 	"github.com/kannon-email/kannon/internal/pool"
 	"github.com/kannon-email/kannon/internal/runner"
 	"github.com/kannon-email/kannon/internal/statssec"
@@ -23,7 +23,7 @@ func Run(ctx context.Context, cnt *container.Container) error {
 
 	ss := statssec.NewStatsService(q)
 	pm := pool.NewSendingPoolManager(sqlc.NewBatchRepository(q), sqlc.NewDeliveryRepository(q))
-	mb := mailbuilder.NewMailBuilder(q, ss)
+	eb := envelope.NewBuilder(q, ss)
 
 	js := cnt.NatsJetStream()
 	mustConfigureSendingStream(ctx, js)
@@ -31,7 +31,7 @@ func Run(ctx context.Context, cnt *container.Container) error {
 	d := disp{
 		ss:  ss,
 		pm:  pm,
-		mb:  mb,
+		eb:  eb,
 		pub: cnt.NatsPublisher(),
 		js:  js,
 	}
