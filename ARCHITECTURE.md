@@ -74,7 +74,7 @@ Kannon is a cloud-native, scalable SMTP mail sender designed for Kubernetes and 
 
 - Implements the Stats API: exposes stats queries.
 
-#### `pkg/bump/`
+#### `pkg/tracker/`
 
 - Handles HTTP endpoints for open/click tracking. Publishes stats to NATS.
 
@@ -157,8 +157,8 @@ Kannon uses NATS JetStream for reliable, decoupled messaging between its modules
 | kannon.stats.rejected  | Email rejected (invalid, etc.) | Validator            | Stats               |
 | kannon.stats.delivered | Email delivered successfully   | Sender               | Stats               |
 | kannon.stats.bounced   | Email bounced                  | Sender, SMTP Server  | Stats               |
-| kannon.stats.open      | Email opened (tracking pixel)  | Bump                 | Stats               |
-| kannon.stats.click     | Link clicked in email          | Bump                 | Stats               |
+| kannon.stats.open      | Email opened (tracking pixel)  | Tracker              | Stats               |
+| kannon.stats.click     | Link clicked in email          | Tracker              | Stats               |
 | kannon.bounce          | Bounce events from SMTP server | SMTP Server          | Dispatcher, Stats   |
 
 ### Example NATS JetStream Configuration
@@ -187,7 +187,7 @@ streams:
 - **Dispatcher**: Publishes to `kannon.sending`, listens to `kannon.bounce` and delivery/bounce/error events from NATS.
 - **Sender**: Consumes from `kannon.sending`, publishes to `kannon.stats.delivered`, `kannon.stats.bounced`, etc.
 - **Validator**: Publishes to `kannon.stats.accepted` and `kannon.stats.rejected`.
-- **Bump**: Publishes to `kannon.stats.open` and `kannon.stats.click`.
+- **Tracker**: Publishes to `kannon.stats.open` and `kannon.stats.click`.
 - **Stats**: Consumes all `kannon.stats.*` topics.
 - **SMTP Server**: Publishes to `kannon.bounce` and `kannon.stats.bounced`.
 
@@ -204,7 +204,7 @@ flowchart TD
     SENDING -- "consume" --> Sender
     Sender -- "publish" --> STATS
     Validator -- "publish" --> STATS
-    Bump -- "publish" --> STATS
+    Tracker -- "publish" --> STATS
     SMTPServer -- "publish" --> BOUNCE
     BOUNCE -- "consume" --> Dispatcher
     BOUNCE -- "consume" --> Stats
@@ -266,7 +266,7 @@ flowchart TD
 
 - Accepts incoming SMTP messages (for bounces, etc.), parses them, and publishes bounce events to NATS.
 
-### 6. Tracking (Bump)
+### 6. Tracking (Tracker)
 
 - HTTP endpoints for open/click tracking. When triggered, verifies tokens and publishes open/click stats to NATS.
 

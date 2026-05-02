@@ -163,6 +163,7 @@ Kannon can be configured via YAML file, environment variables, or CLI flags. Pre
 | `smtp.write_timeout` / `K_SMTP_WRITE_TIMEOUT`   | duration | 10s            | SMTP write timeout                     |
 | `smtp.max_payload` / `K_SMTP_MAX_PAYLOAD`       | size     | 1024kb         | Max SMTP message size                  |
 | `smtp.max_recipients` / `K_SMTP_MAX_RECIPIENTS` | int      | 50             | Max recipients per SMTP message        |
+| `tracker.port` / `K_TRACKER_PORT`               | int      | 8080           | Open/click tracking HTTP server port   |
 | `run-api` / `K_RUN_API`                         | bool     | false          | Enable API server                      |
 | `run-smtp` / `K_RUN_SMTP`                       | bool     | false          | Enable SMTP server                     |
 | `run-sender` / `K_RUN_SENDER`                   | bool     | false          | Enable sender worker                   |
@@ -174,7 +175,7 @@ Kannon can be configured via YAML file, environment variables, or CLI flags. Pre
 
 - See [`examples/docker-compose/kannon.yaml`](examples/docker-compose/kannon.yaml) for a full example.
 
-> **Deprecated aliases:** `run-verifier` / `K_RUN_VERIFIER` continue to work as aliases for `run-validator` / `K_RUN_VALIDATOR`, but emit a deprecation warning at startup and will be removed in a future major version.
+> **Deprecated aliases:** `run-verifier` / `K_RUN_VERIFIER` continue to work as aliases for `run-validator` / `K_RUN_VALIDATOR`, and the `bump:` YAML section / `K_BUMP_PORT` env var continue to work as aliases for `tracker:` / `K_TRACKER_PORT`. They emit a deprecation warning at startup and will be removed in a future major version.
 
 ## Database Schema
 

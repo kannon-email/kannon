@@ -5,11 +5,11 @@ import (
 
 	"github.com/kannon-email/kannon/internal/x/container"
 	"github.com/kannon-email/kannon/pkg/api"
-	"github.com/kannon-email/kannon/pkg/bump"
 	"github.com/kannon-email/kannon/pkg/dispatcher"
 	"github.com/kannon-email/kannon/pkg/sender"
 	"github.com/kannon-email/kannon/pkg/smtp"
 	"github.com/kannon-email/kannon/pkg/stats"
+	"github.com/kannon-email/kannon/pkg/tracker"
 	"github.com/kannon-email/kannon/pkg/validator"
 	"github.com/nats-io/nats.go"
 	"github.com/sirupsen/logrus"
@@ -100,7 +100,7 @@ func runStandalone(cmd *cobra.Command, args []string) {
 	// Bounce
 	g.Go(func() error {
 		logrus.Info("Starting Bounce component...")
-		if err := bump.Run(ctx, cnt, config.Bump.ToBumpConfig()); err != nil {
+		if err := tracker.Run(ctx, cnt, config.Tracker.ToTrackerConfig()); err != nil {
 			return fmt.Errorf("error in bounce: %v", err)
 		}
 		return nil

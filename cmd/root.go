@@ -6,11 +6,11 @@ import (
 
 	"github.com/kannon-email/kannon/internal/x/container"
 	"github.com/kannon-email/kannon/pkg/api"
-	"github.com/kannon-email/kannon/pkg/bump"
 	"github.com/kannon-email/kannon/pkg/dispatcher"
 	"github.com/kannon-email/kannon/pkg/sender"
 	"github.com/kannon-email/kannon/pkg/smtp"
 	"github.com/kannon-email/kannon/pkg/stats"
+	"github.com/kannon-email/kannon/pkg/tracker"
 	"github.com/kannon-email/kannon/pkg/validator"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -96,7 +96,7 @@ func run(cmd *cobra.Command, args []string) {
 
 	if config.RunBounce {
 		g.Go(func() error {
-			err := bump.Run(ctx, cnt, config.Bump.ToBumpConfig())
+			err := tracker.Run(ctx, cnt, config.Tracker.ToTrackerConfig())
 			if err != nil {
 				return fmt.Errorf("error in bounce: %v", err)
 			}
