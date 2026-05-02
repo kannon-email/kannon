@@ -3,7 +3,7 @@ package tracker
 import (
 	"context"
 
-	"github.com/kannon-email/kannon/internal/x/container"
+	"github.com/kannon-email/kannon/x/container"
 )
 
 type Config struct {

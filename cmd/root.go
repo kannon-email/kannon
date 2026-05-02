@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/kannon-email/kannon/internal/x/container"
 	"github.com/kannon-email/kannon/pkg/api"
 	"github.com/kannon-email/kannon/pkg/dispatcher"
 	"github.com/kannon-email/kannon/pkg/smtp"
@@ -12,6 +11,7 @@ import (
 	"github.com/kannon-email/kannon/pkg/stats"
 	"github.com/kannon-email/kannon/pkg/tracker"
 	"github.com/kannon-email/kannon/pkg/validator"
+	"github.com/kannon-email/kannon/x/container"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"

@@ -8,7 +8,6 @@ import (
 
 	sq "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/stats"
-	"github.com/kannon-email/kannon/internal/x/container"
 	"github.com/kannon-email/kannon/pkg/api/adminapi"
 	"github.com/kannon-email/kannon/pkg/api/hzapi"
 	"github.com/kannon-email/kannon/pkg/api/mailapi"
@@ -18,6 +17,7 @@ import (
 	mailerv1connect "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1/apiv1connect"
 	statsv1connect "github.com/kannon-email/kannon/proto/kannon/stats/apiv1/apiv1connect"
 	statsv2connect "github.com/kannon-email/kannon/proto/kannon/stats/apiv2/apiv2connect"
+	"github.com/kannon-email/kannon/x/container"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"

@@ -16,7 +16,6 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/kannon-email/kannon/internal/x/container"
 	"github.com/kannon-email/kannon/pkg/api"
 	"github.com/kannon-email/kannon/pkg/dispatcher"
 	"github.com/kannon-email/kannon/pkg/smtpsender"
@@ -26,6 +25,7 @@ import (
 	adminv1connect "github.com/kannon-email/kannon/proto/kannon/admin/apiv1/apiv1connect"
 	mailerapiv1 "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1"
 	mailertypes "github.com/kannon-email/kannon/proto/kannon/mailer/types"
+	"github.com/kannon-email/kannon/x/container"
 )
 
 // TestE2EEmailSending tests the entire email sending pipeline with real infrastructure

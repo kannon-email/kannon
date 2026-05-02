@@ -11,7 +11,7 @@ import (
 	"github.com/kannon-email/kannon/internal/publisher"
 	"github.com/kannon-email/kannon/internal/smtp"
 	"github.com/kannon-email/kannon/internal/utils"
-	"github.com/kannon-email/kannon/internal/x/container"
+	"github.com/kannon-email/kannon/x/container"
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"

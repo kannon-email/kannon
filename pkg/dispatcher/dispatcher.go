@@ -12,7 +12,7 @@ import (
 	"github.com/kannon-email/kannon/internal/pool"
 	"github.com/kannon-email/kannon/internal/runner"
 	"github.com/kannon-email/kannon/internal/statssec"
-	"github.com/kannon-email/kannon/internal/x/container"
+	"github.com/kannon-email/kannon/x/container"
 	"github.com/sirupsen/logrus"
 
 	"github.com/nats-io/nats.go/jetstream"

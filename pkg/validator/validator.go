@@ -12,8 +12,8 @@ import (
 	"github.com/kannon-email/kannon/internal/pool"
 	"github.com/kannon-email/kannon/internal/publisher"
 	"github.com/kannon-email/kannon/internal/runner"
-	"github.com/kannon-email/kannon/internal/x/container"
 	"github.com/kannon-email/kannon/proto/kannon/stats/types"
+	"github.com/kannon-email/kannon/x/container"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )

@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/kannon-email/kannon/internal/statssec"
-	"github.com/kannon-email/kannon/internal/x/container"
 	pb "github.com/kannon-email/kannon/proto/kannon/stats/types"
+	"github.com/kannon-email/kannon/x/container"
 	"github.com/nats-io/nats.go"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"

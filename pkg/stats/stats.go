@@ -11,8 +11,8 @@ import (
 	"github.com/kannon-email/kannon/internal/runner"
 	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/internal/utils"
-	"github.com/kannon-email/kannon/internal/x/container"
 	"github.com/kannon-email/kannon/proto/kannon/stats/types"
+	"github.com/kannon-email/kannon/x/container"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
 
