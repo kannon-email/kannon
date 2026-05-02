@@ -12,10 +12,10 @@ import (
 )
 
 type adminAPIService struct {
-	dm      domains.DomainManager
-	tm      templates.Manager
-	apiKeys *apikeys.Service
-	q       *sqlc.Queries
+	dm        domains.DomainManager
+	templates templates.Repository
+	apiKeys   *apikeys.Service
+	q         *sqlc.Queries
 }
 
 func (s *adminAPIService) GetDomains(ctx context.Context, in *pb.GetDomainsReq) (*pb.GetDomainsResponse, error) {

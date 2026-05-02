@@ -28,7 +28,7 @@ import (
 type mailAPIService struct {
 	domains     domains.DomainManager
 	apiKeys     *apikeys.Service
-	templates   templates.Manager
+	templates   templates.Repository
 	sendingPool pool.SendingPoolManager
 }
 
@@ -40,7 +40,7 @@ func (s mailAPIService) SendHTML(ctx context.Context, req *connect.Request[pb.Se
 
 	req.Msg.Html = utils.ReplaceCustomFields(req.Msg.Html, req.Msg.GlobalFields)
 
-	template, err := s.templates.CreateTransientTemplate(ctx, req.Msg.Html, domain.Domain)
+	template, err := s.createTransientTemplate(ctx, domain.Domain, req.Msg.Html)
 	if err != nil {
 		logrus.Errorf("cannot create template %v\n", err)
 		return nil, fmt.Errorf("cannot create template %v", err)
@@ -49,7 +49,7 @@ func (s mailAPIService) SendHTML(ctx context.Context, req *connect.Request[pb.Se
 	res := &pb.SendTemplateReq{
 		Sender:        req.Msg.Sender,
 		Subject:       req.Msg.Subject,
-		TemplateId:    template.TemplateID,
+		TemplateId:    template.TemplateID(),
 		ScheduledTime: req.Msg.ScheduledTime,
 		Recipients:    req.Msg.Recipients,
 		Attachments:   req.Msg.Attachments,
@@ -70,7 +70,7 @@ func (s mailAPIService) SendTemplate(ctx context.Context, req *connect.Request[p
 }
 
 func (s mailAPIService) sendTemplate(ctx context.Context, domain sqlc.Domain, req *connect.Request[pb.SendTemplateReq]) (*connect.Response[pb.SendRes], error) {
-	template, err := s.templates.FindTemplate(ctx, domain.Domain, req.Msg.TemplateId)
+	template, err := s.templates.FindByDomain(ctx, domain.Domain, req.Msg.TemplateId)
 	if err != nil {
 		logrus.Errorf("cannot find template %v\n", err)
 		return nil, fmt.Errorf("cannot find template with id: %v", req.Msg.TemplateId)
@@ -102,7 +102,7 @@ func (s mailAPIService) sendTemplate(ctx context.Context, domain sqlc.Domain, re
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 
-	b, err := batch.New(domain.Domain, req.Msg.Subject, sender, template.TemplateID, attachments, customHeaders)
+	b, err := batch.New(domain.Domain, req.Msg.Subject, sender, template.TemplateID(), attachments, customHeaders)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
@@ -114,7 +114,7 @@ func (s mailAPIService) sendTemplate(ctx context.Context, domain sqlc.Domain, re
 
 	return connect.NewResponse(&pb.SendRes{
 		MessageId:     b.ID().String(),
-		TemplateId:    template.TemplateID,
+		TemplateId:    template.TemplateID(),
 		ScheduledTime: timestamppb.New(scheduled),
 	}), nil
 }
@@ -123,17 +123,28 @@ func (s mailAPIService) Close() error {
 	return s.domains.Close()
 }
 
-func (s mailAPIService) createTemplateWithGlobalFields(ctx context.Context, template sqlc.Template, globalFields map[string]string) (sqlc.Template, error) {
+func (s mailAPIService) createTemplateWithGlobalFields(ctx context.Context, template *templates.Template, globalFields map[string]string) (*templates.Template, error) {
 	if len(globalFields) == 0 {
 		return template, nil
 	}
 
-	newHTML := utils.ReplaceCustomFields(template.Html, globalFields)
-	if newHTML == template.Html {
+	newHTML := utils.ReplaceCustomFields(template.Html(), globalFields)
+	if newHTML == template.Html() {
 		return template, nil
 	}
 
-	return s.templates.CreateTransientTemplate(ctx, newHTML, template.Domain)
+	return s.createTransientTemplate(ctx, template.Domain(), newHTML)
+}
+
+func (s mailAPIService) createTransientTemplate(ctx context.Context, domain, html string) (*templates.Template, error) {
+	tpl, err := templates.NewTransient(domain, html)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.templates.Create(ctx, tpl); err != nil {
+		return nil, err
+	}
+	return tpl, nil
 }
 
 func (s mailAPIService) getCallDomainFromHeaders(ctx context.Context, headers http.Header) (sqlc.Domain, error) {
@@ -197,12 +208,12 @@ func NewMailerAPIV1(q *sqlc.Queries, db *pgxpool.Pool) mailerv1connect.MailerHan
 	batchRepo := sqlc.NewBatchRepository(q)
 	deliveryRepo := sqlc.NewDeliveryRepository(q)
 	sendingPoolCli := pool.NewSendingPoolManager(batchRepo, deliveryRepo)
-	templates := templates.NewTemplateManager(q)
+	templatesRepo := sqlc.NewTemplatesRepository(q)
 
 	return &mailAPIService{
 		domains:     domainsCli,
 		apiKeys:     apiKeysService,
 		sendingPool: sendingPoolCli,
-		templates:   templates,
+		templates:   templatesRepo,
 	}
 }

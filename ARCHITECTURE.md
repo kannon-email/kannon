@@ -46,7 +46,10 @@ Kannon is a cloud-native, scalable SMTP mail sender designed for Kubernetes and 
 
 #### `internal/templates/`
 
-- Manages email templates: CRUD, transient templates, and template lookup.
+- Defines the `Template` domain entity, `Repository` interface, and `New` / `Load`
+  constructors for the tenant-authored email body. Follows the same pattern as
+  `internal/apikeys/` (entity + repo + repospec); the sqlc-backed implementation
+  lives in `internal/db/`.
 
 #### `internal/utils/`
 
