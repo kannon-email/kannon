@@ -149,35 +149,6 @@ func TestContainer_CloseWithTimeout_MixedErrorsAndTimeout(t *testing.T) {
 	}
 }
 
-func TestContainer_Close_BackwardCompatibility(t *testing.T) {
-	container := &Container{}
-	var called bool
-
-	container.addClosers(func(_ context.Context) error {
-		called = true
-		return nil
-	})
-
-	// Should not panic and should call the closer
-	container.Close()
-
-	if !called {
-		t.Error("Expected closer to be called")
-	}
-}
-
-func TestContainer_Close_ErrorLogging(t *testing.T) {
-	container := &Container{}
-
-	// Add a closer that returns an error
-	container.addClosers(func(_ context.Context) error {
-		return errors.New("test error")
-	})
-
-	// Should not panic even with errors
-	container.Close()
-}
-
 func TestContainer_CloseWithTimeout_ConcurrentClosers(t *testing.T) {
 	container := &Container{}
 

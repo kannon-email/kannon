@@ -1,8 +1,7 @@
 package cmd
 
 import (
-	"context"
-	"fmt"
+	"time"
 
 	"github.com/kannon-email/kannon/pkg/api"
 	"github.com/kannon-email/kannon/pkg/dispatcher"
@@ -15,7 +14,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"golang.org/x/sync/errgroup"
 )
 
 var (
@@ -29,102 +27,60 @@ var (
 	}
 )
 
+const shutdownTimeout = 30 * time.Second
+
 // Execute executes the root command.
 func Execute() error {
 	return rootCmd.Execute()
 }
 
-func run(cmd *cobra.Command, args []string) {
-	ctx := cmd.Context()
-
-	config, err := readConfig()
-	if err != nil {
+func run(cmd *cobra.Command, _ []string) {
+	if err := readViperConfig(); err != nil {
 		logrus.Fatalf("error in reading config: %v", err)
 	}
+	bootstrap(cmd, runFlagsFromViper())
+}
 
-	cnt := container.New(ctx, container.Config{
-		DBUrl:   config.DatabaseURL,
-		NatsURL: config.NatsURL,
-		SenderConfig: container.SenderConfig{
-			DemoSender: config.Sender.DemoSender,
-			Hostname:   config.Sender.Hostname,
-		},
-	})
-	defer cnt.Close()
+// bootstrap is the single boot path shared by `kannon` and `kannon standalone`.
+// It builds the container, registers every runnable selected by flags, and
+// starts them under a shared errgroup-derived context.
+func bootstrap(cmd *cobra.Command, flags RunFlags) {
+	ctx := cmd.Context()
 
-	g, ctx := errgroup.WithContext(ctx)
+	cnt := container.New(ctx)
+	defer func() {
+		if err := cnt.CloseWithTimeout(shutdownTimeout); err != nil {
+			logrus.Errorf("Shutdown errors: %v", err)
+		}
+	}()
 
-	if config.RunSender {
-		g.Go(func() error {
-			err := runSender(ctx, cnt, config)
-			if err != nil {
-				return fmt.Errorf("error in sender: %v", err)
-			}
-			return nil
-		})
+	reg := &container.Registry{}
+
+	if flags.Sender {
+		reg.Register(smtpsender.New(cnt))
+	}
+	if flags.Dispatcher {
+		reg.Register(dispatcher.New(cnt))
+	}
+	if flags.Validator {
+		reg.Register(validator.New(cnt))
+	}
+	if flags.Stats {
+		reg.Register(stats.New(cnt))
+	}
+	if flags.Bounce {
+		reg.Register(tracker.New(cnt))
+	}
+	if flags.API {
+		reg.Register(api.New(cnt))
+	}
+	if flags.SMTP {
+		reg.Register(smtp.New(cnt))
 	}
 
-	if config.RunDispatcher {
-		g.Go(func() error {
-			err := runDispatcher(ctx, cnt, config)
-			if err != nil {
-				return fmt.Errorf("error in dispatcher: %v", err)
-			}
-			return nil
-		})
-	}
+	logrus.Infof("Starting Kannon runnables: %v", reg.Names())
 
-	if config.RunValidator {
-		g.Go(func() error {
-			err := validator.Run(ctx, cnt)
-			if err != nil {
-				return fmt.Errorf("error in validator: %v", err)
-			}
-			return nil
-		})
-	}
-
-	if config.RunStats {
-		g.Go(func() error {
-			err := stats.Run(ctx, cnt, config.Stats.ToStatsConfig())
-			if err != nil {
-				return fmt.Errorf("error in stats: %v", err)
-			}
-			return nil
-		})
-	}
-
-	if config.RunBounce {
-		g.Go(func() error {
-			err := tracker.Run(ctx, cnt, config.Tracker.ToTrackerConfig())
-			if err != nil {
-				return fmt.Errorf("error in bounce: %v", err)
-			}
-			return nil
-		})
-	}
-
-	if config.RunAPI {
-		g.Go(func() error {
-			err := runAPI(ctx, cnt, config)
-			if err != nil {
-				return fmt.Errorf("error in api: %v", err)
-			}
-			return nil
-		})
-	}
-
-	if config.RunSMTP {
-		g.Go(func() error {
-			err := runSMTP(ctx, cnt, config)
-			if err != nil {
-				return fmt.Errorf("error in smtp: %v", err)
-			}
-			return nil
-		})
-	}
-
-	if err := g.Wait(); err != nil {
+	if err := reg.Run(ctx); err != nil {
 		logrus.Fatalf("service error: %v", err)
 	}
 }
@@ -151,25 +107,4 @@ func createBoolFlagAndBindToViper(name string, defaultValue bool, usage string) 
 	if err != nil {
 		logrus.Fatalf("cannot set flat '%v': %v", name, err)
 	}
-}
-
-func runAPI(ctx context.Context, cnt *container.Container, config Config) error {
-	cnf := config.API.ToAPIConfig()
-	return api.Run(ctx, cnf, cnt)
-}
-
-func runDispatcher(ctx context.Context, cnt *container.Container, _ Config) error {
-	return dispatcher.Run(ctx, cnt)
-}
-
-func runSender(ctx context.Context, cnt *container.Container, config Config) error {
-	cnf := config.Sender.ToSenderConfig()
-	s := smtpsender.NewSMTPSenderFromContainer(cnt, cnf)
-	return s.Run(ctx)
-}
-
-func runSMTP(ctx context.Context, cnt *container.Container, config Config) error {
-	cnf := config.SMTP.ToSMTPConfig()
-	conn := cnt.Nats()
-	return smtp.Run(ctx, conn, cnf)
 }

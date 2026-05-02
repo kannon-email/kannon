@@ -24,18 +24,31 @@ import (
 )
 
 type Config struct {
-	Port uint
+	Port uint `mapstructure:"port"`
 }
 
-func (c Config) GetPort() uint {
+func (c *Config) setDefaults() {
 	if c.Port == 0 {
-		return 50051
+		c.Port = 50051
 	}
-	return c.Port
 }
 
-func Run(ctx context.Context, config Config, cnt *container.Container) error {
-	port := config.GetPort()
+// New constructs the API runnable, loading its slice of configuration from
+// viper under the "api" key.
+func New(cnt *container.Container) container.Runnable {
+	var cfg Config
+	container.LoadConfig("api", &cfg)
+	cfg.setDefaults()
+	return container.Runnable{
+		Name: "api",
+		Run: func(ctx context.Context) error {
+			return run(ctx, cfg, cnt)
+		},
+	}
+}
+
+func run(ctx context.Context, config Config, cnt *container.Container) error {
+	port := config.Port
 
 	logrus.Infof("Starting API Service on port %d", port)
 

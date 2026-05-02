@@ -20,7 +20,13 @@ import (
 )
 
 type Config struct {
-	Retention time.Duration
+	Retention time.Duration `mapstructure:"retention"`
+}
+
+func (c *Config) setDefaults() {
+	if c.Retention <= 0 {
+		c.Retention = 8760 * time.Hour // 1 year
+	}
 }
 
 type statsHandler struct {
@@ -30,7 +36,21 @@ type statsHandler struct {
 	retention time.Duration
 }
 
-func Run(ctx context.Context, cnt *container.Container, cfg Config) error {
+// New constructs the stats runnable, loading its slice of configuration from
+// viper under the "stats" key.
+func New(cnt *container.Container) container.Runnable {
+	var cfg Config
+	container.LoadConfig("stats", &cfg)
+	cfg.setDefaults()
+	return container.Runnable{
+		Name: "stats",
+		Run: func(ctx context.Context) error {
+			return run(ctx, cnt, cfg)
+		},
+	}
+}
+
+func run(ctx context.Context, cnt *container.Container, cfg Config) error {
 	q := cnt.Queries()
 	js := cnt.NatsJetStream()
 

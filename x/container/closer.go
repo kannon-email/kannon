@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"time"
-
-	"github.com/sirupsen/logrus"
 )
 
 type CloserFunc func(context.Context) error
@@ -46,13 +44,4 @@ func (c *Container) CloseWithTimeout(timeout time.Duration) error {
 		return fmt.Errorf("shutdown errors: %v", errs)
 	}
 	return nil
-}
-
-const closeTimeout = 30 * time.Second
-
-// Close keeps existing Close() for backward compatibility
-func (c *Container) Close() {
-	if err := c.CloseWithTimeout(closeTimeout); err != nil {
-		logrus.Errorf("Shutdown errors: %v", err)
-	}
 }

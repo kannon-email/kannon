@@ -34,21 +34,25 @@ func (v *Validator) log() *logrus.Entry {
 	return logrus.WithField("component", "validator")
 }
 
-func Run(ctx context.Context, cnt *container.Container) error {
-	q := cnt.Queries()
+// New constructs the validator runnable. The validator has no configurable
+// knobs today, so it does not call container.LoadConfig.
+func New(cnt *container.Container) container.Runnable {
+	return container.Runnable{
+		Name: "validator",
+		Run: func(ctx context.Context) error {
+			q := cnt.Queries()
+			claimer := pool.NewClaimer(sqlc.NewDeliveryRepository(q))
 
-	claimer := pool.NewClaimer(sqlc.NewDeliveryRepository(q))
+			v := Validator{
+				claimer: claimer,
+				pub:     cnt.NatsPublisher(),
+			}
 
-	nc := cnt.NatsPublisher()
+			v.log().Info("🚀 Starting validator")
 
-	v := Validator{
-		claimer: claimer,
-		pub:     nc,
+			return runner.Run(ctx, v.Cycle, runner.WaitLoop(1*time.Second))
+		},
 	}
-
-	v.log().Info("🚀 Starting validator")
-
-	return runner.Run(ctx, v.Cycle, runner.WaitLoop(1*time.Second))
 }
 
 func (d *Validator) Cycle(pctx context.Context) error {
