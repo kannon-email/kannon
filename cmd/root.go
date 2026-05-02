@@ -7,8 +7,8 @@ import (
 	"github.com/kannon-email/kannon/internal/x/container"
 	"github.com/kannon-email/kannon/pkg/api"
 	"github.com/kannon-email/kannon/pkg/dispatcher"
-	"github.com/kannon-email/kannon/pkg/sender"
 	"github.com/kannon-email/kannon/pkg/smtp"
+	"github.com/kannon-email/kannon/pkg/smtpsender"
 	"github.com/kannon-email/kannon/pkg/stats"
 	"github.com/kannon-email/kannon/pkg/tracker"
 	"github.com/kannon-email/kannon/pkg/validator"
@@ -164,8 +164,8 @@ func runDispatcher(ctx context.Context, cnt *container.Container, _ Config) erro
 
 func runSender(ctx context.Context, cnt *container.Container, config Config) error {
 	cnf := config.Sender.ToSenderConfig()
-	sender := sender.NewSenderFromContainer(cnt, cnf)
-	return sender.Run(ctx)
+	s := smtpsender.NewSMTPSenderFromContainer(cnt, cnf)
+	return s.Run(ctx)
 }
 
 func runSMTP(ctx context.Context, cnt *container.Container, config Config) error {

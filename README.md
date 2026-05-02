@@ -51,7 +51,7 @@ Kannon is composed of several microservices and workers:
 
 - **API**: gRPC server for mail, template, and domain management
 - **SMTP**: Handles SMTP protocol and relays mail
-- **Sender**: Sends emails from the queue
+- **SMTPSender**: Sends emails from the queue
 - **Dispatcher**: Manages the sending pool and delivery
 - **Validator**: Validates emails before sending
 - **Bounce**: Handles bounces
@@ -66,7 +66,7 @@ flowchart TD
     subgraph Core
         API["gRPC API"]
         SMTP["SMTP Server"]
-        Sender["Sender"]
+        SMTPSender["SMTPSender"]
         Dispatcher["Dispatcher"]
         Validator["Validator"]
         Bounce["Bounce"]
@@ -76,12 +76,12 @@ flowchart TD
     NATS[(NATS)]
     API <--> DB
     Dispatcher <--> DB
-    Sender <--> DB
+    SMTPSender <--> DB
     Validator <--> DB
     Stats <--> DB
     Bounce <--> DB
     API <--> NATS
-    Sender <--> NATS
+    SMTPSender <--> NATS
     Dispatcher <--> NATS
     SMTP <--> NATS
     Stats <--> NATS
@@ -110,7 +110,7 @@ go build -o kannon .
 ```
 
 This mode:
-- Runs all components (API, SMTP, Sender, Dispatcher, Validator, Stats, Bounce)
+- Runs all components (API, SMTP, SMTPSender, Dispatcher, Validator, Stats, Bounce)
 - Embeds NATS server (no external NATS required)
 - Ideal for development, testing, or single-server deployments
 - Still requires a PostgreSQL database

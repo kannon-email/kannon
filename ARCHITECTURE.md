@@ -10,7 +10,7 @@ Kannon is a cloud-native, scalable SMTP mail sender designed for Kubernetes and 
 
 #### `cmd/`
 
-- Application entrypoint and CLI. Handles configuration, service startup, and orchestrates which components (API, SMTP, sender, dispatcher, etc.) are run.
+- Application entrypoint and CLI. Handles configuration, service startup, and orchestrates which components (API, SMTP, smtpsender, dispatcher, etc.) are run.
 
 #### `internal/x/container/`
 
@@ -82,7 +82,7 @@ Kannon is a cloud-native, scalable SMTP mail sender designed for Kubernetes and 
 
 - Worker that pulls scheduled emails from the pool, builds messages, and publishes them to NATS for sending. Listens for delivery/bounce/error events from NATS and updates the pool accordingly.
 
-#### `pkg/sender/`
+#### `pkg/smtpsender/`
 
 - Worker that consumes emails to send from NATS, performs SMTP delivery, and publishes delivery/bounce/error stats back to NATS.
 
@@ -152,11 +152,11 @@ Kannon uses NATS JetStream for reliable, decoupled messaging between its modules
 
 | Stream/Topic           | Description                    | Publishers (Modules) | Consumers (Modules) |
 | ---------------------- | ------------------------------ | -------------------- | ------------------- |
-| kannon.sending         | Emails to be sent via SMTP     | Dispatcher           | Sender              |
+| kannon.sending         | Emails to be sent via SMTP     | Dispatcher           | SMTPSender          |
 | kannon.stats.accepted  | Email accepted for sending     | Validator            | Stats               |
 | kannon.stats.rejected  | Email rejected (invalid, etc.) | Validator            | Stats               |
-| kannon.stats.delivered | Email delivered successfully   | Sender               | Stats               |
-| kannon.stats.bounced   | Email bounced                  | Sender, SMTP Server  | Stats               |
+| kannon.stats.delivered | Email delivered successfully   | SMTPSender           | Stats               |
+| kannon.stats.bounced   | Email bounced                  | SMTPSender, SMTP Server | Stats            |
 | kannon.stats.open      | Email opened (tracking pixel)  | Tracker              | Stats               |
 | kannon.stats.click     | Link clicked in email          | Tracker              | Stats               |
 | kannon.bounce          | Bounce events from SMTP server | SMTP Server          | Dispatcher, Stats   |
@@ -185,7 +185,7 @@ streams:
 ### Module Interactions with NATS
 
 - **Dispatcher**: Publishes to `kannon.sending`, listens to `kannon.bounce` and delivery/bounce/error events from NATS.
-- **Sender**: Consumes from `kannon.sending`, publishes to `kannon.stats.delivered`, `kannon.stats.bounced`, etc.
+- **SMTPSender**: Consumes from `kannon.sending`, publishes to `kannon.stats.delivered`, `kannon.stats.bounced`, etc.
 - **Validator**: Publishes to `kannon.stats.accepted` and `kannon.stats.rejected`.
 - **Tracker**: Publishes to `kannon.stats.open` and `kannon.stats.click`.
 - **Stats**: Consumes all `kannon.stats.*` topics.
@@ -201,8 +201,8 @@ flowchart TD
         BOUNCE["kannon.bounce"]
     end
     Dispatcher -- "publish" --> SENDING
-    SENDING -- "consume" --> Sender
-    Sender -- "publish" --> STATS
+    SENDING -- "consume" --> SMTPSender
+    SMTPSender -- "publish" --> STATS
     Validator -- "publish" --> STATS
     Tracker -- "publish" --> STATS
     SMTPServer -- "publish" --> BOUNCE
@@ -218,7 +218,7 @@ flowchart TD
     subgraph Core
         API["gRPC API"]
         SMTP["SMTP Server"]
-        Sender["Sender"]
+        SMTPSender["SMTPSender"]
         Dispatcher["Dispatcher"]
         Validator["Validator"]
         Bounce["Bounce"]
@@ -228,12 +228,12 @@ flowchart TD
     NATS[(NATS)]
     API <--> DB
     Dispatcher <--> DB
-    Sender <--> DB
+    SMTPSender <--> DB
     Validator <--> DB
     Stats <--> DB
     Bounce <--> DB
     API <--> NATS
-    Sender <--> NATS
+    SMTPSender <--> NATS
     Dispatcher <--> NATS
     SMTP <--> NATS
     Stats <--> NATS
@@ -258,9 +258,9 @@ flowchart TD
 - The Dispatcher pulls `scheduled` emails from the pool, builds the email (DKIM, tracking, etc.), and publishes them to NATS (`kannon.sending`).
 - Listens for delivery, bounce, and error events from NATS and updates the pool accordingly.
 
-### 4. Sending (Sender)
+### 4. Sending (SMTPSender)
 
-- The Sender worker consumes emails from NATS (`kannon.sending`), performs SMTP delivery, and publishes delivery/bounce/error stats to NATS (`kannon.stats.*`).
+- The SMTPSender worker consumes emails from NATS (`kannon.sending`), performs SMTP delivery, and publishes delivery/bounce/error stats to NATS (`kannon.stats.*`).
 
 ### 5. SMTP Server
 

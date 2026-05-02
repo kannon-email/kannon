@@ -19,7 +19,7 @@ import (
 	"github.com/kannon-email/kannon/internal/x/container"
 	"github.com/kannon-email/kannon/pkg/api"
 	"github.com/kannon-email/kannon/pkg/dispatcher"
-	"github.com/kannon-email/kannon/pkg/sender"
+	"github.com/kannon-email/kannon/pkg/smtpsender"
 	"github.com/kannon-email/kannon/pkg/stats"
 	"github.com/kannon-email/kannon/pkg/validator"
 	adminapiv1 "github.com/kannon-email/kannon/proto/kannon/admin/apiv1"
@@ -99,11 +99,11 @@ func runKannon(t *testing.T, infra *TestInfrastructure, senderMock *senderMock) 
 
 	// Start sender with localhost hostname for local delivery
 	wg.Go(func() error {
-		cfg := sender.Config{
+		cfg := smtpsender.Config{
 			MaxJobs: 5,
 		}
 
-		sender := sender.NewSender(cnt.Nats(), cnt.NatsJetStream(), senderMock, cfg)
+		sender := smtpsender.NewSMTPSender(cnt.Nats(), cnt.NatsJetStream(), senderMock, cfg)
 		return sender.Run(ctx)
 	})
 

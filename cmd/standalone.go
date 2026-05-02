@@ -6,8 +6,8 @@ import (
 	"github.com/kannon-email/kannon/internal/x/container"
 	"github.com/kannon-email/kannon/pkg/api"
 	"github.com/kannon-email/kannon/pkg/dispatcher"
-	"github.com/kannon-email/kannon/pkg/sender"
 	"github.com/kannon-email/kannon/pkg/smtp"
+	"github.com/kannon-email/kannon/pkg/smtpsender"
 	"github.com/kannon-email/kannon/pkg/stats"
 	"github.com/kannon-email/kannon/pkg/tracker"
 	"github.com/kannon-email/kannon/pkg/validator"
@@ -20,7 +20,7 @@ import (
 var standaloneCmd = &cobra.Command{
 	Use:   "standalone",
 	Short: "Run Kannon in standalone mode with embedded NATS",
-	Long: `Run all Kannon components (API, SMTP, Sender, Dispatcher, Validator, Stats, Bounce)
+	Long: `Run all Kannon components (API, SMTP, SMTPSender, Dispatcher, Validator, Stats, Bounce)
 in a single process with an embedded NATS server. This mode is ideal for development,
 testing, or single-server deployments. You will still need a PostgreSQL database.`,
 	Run: runStandalone,
@@ -59,12 +59,12 @@ func runStandalone(cmd *cobra.Command, args []string) {
 	// Start all components
 	logrus.Info("Starting all Kannon components...")
 
-	// Sender
+	// SMTPSender
 	g.Go(func() error {
-		logrus.Info("Starting Sender component...")
+		logrus.Info("Starting SMTPSender component...")
 		cnf := config.Sender.ToSenderConfig()
-		sender := sender.NewSenderFromContainer(cnt, cnf)
-		if err := sender.Run(ctx); err != nil {
+		s := smtpsender.NewSMTPSenderFromContainer(cnt, cnf)
+		if err := s.Run(ctx); err != nil {
 			return fmt.Errorf("error in sender: %v", err)
 		}
 		return nil

@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/kannon-email/kannon/pkg/api"
-	"github.com/kannon-email/kannon/pkg/sender"
 	"github.com/kannon-email/kannon/pkg/smtp"
+	"github.com/kannon-email/kannon/pkg/smtpsender"
 	"github.com/kannon-email/kannon/pkg/stats"
 	"github.com/kannon-email/kannon/pkg/tracker"
 	"github.com/sirupsen/logrus"
@@ -62,8 +62,8 @@ type SenderConfig struct {
 	DemoSender bool   `mapstructure:"demo_sender"`
 }
 
-func (c SenderConfig) ToSenderConfig() sender.Config {
-	return sender.Config{
+func (c SenderConfig) ToSenderConfig() smtpsender.Config {
+	return smtpsender.Config{
 		MaxJobs: c.MaxJobs,
 	}
 }
