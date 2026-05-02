@@ -56,7 +56,7 @@ Worker that consumes all `kannon.stats.*` events and persists them.
 
 **Tracker**:
 HTTP server that handles open and click tracking. Verifies signed tokens, redirects clicks to the original URL, serves the tracking pixel, and emits Opened / Clicked events to NATS.
-_Avoid_: Bump (legacy package name; rename in refactor — see `docs/REFACTORING.md` §3)
+_Avoid_: Bump (legacy package name, removed under PRD #322; the `bump:` config key remains as a deprecated alias and will be removed in a future major version)
 
 ### Outcomes (per Delivery)
 
@@ -107,8 +107,8 @@ stateDiagram-v2
     note right of Delivered
       Engagement events may follow
       (non-terminal, can repeat):
-        Opened   (Bump)
-        Clicked  (Bump)
+        Opened   (Tracker)
+        Clicked  (Tracker)
       They do not change the
       lifecycle state.
     end note
@@ -153,4 +153,4 @@ _Avoid_: Queue, SendingPool (when discussed as a domain concept — it isn't one
 - "Batch" connotes a processing job and reads oddly at cardinality 1 ("a batch of one"). Accepted as a deliberate trade-off — chosen for its accuracy about the multi-recipient shape and to keep "Message" free for the SMTP/RFC sense.
 - "Envelope" puns on the SMTP envelope (`MAIL FROM`/`RCPT TO`). Accepted: the **Envelope** here *is* the SMTP envelope plus its payload, so the pun is informative rather than misleading.
 - The proto type `Sender{email, alias}` is misaligned with RFC 5322, where `Sender` ≠ `From` (Sender = submitter, From = author). The proto is closer to `From`. Renaming is wire-breaking and deferred; flagged for a future major version.
-- `ARCHITECTURE.md` uses both "Validator" and "Verifier" for the same module. Resolved: **Validator** is canonical; "Verifier" must be removed.
+- `ARCHITECTURE.md` previously used both "Validator" and "Verifier" for the same module. Resolved under PRD #322: **Validator** is canonical and "Verifier" has been removed from the docs and Go code; `run-verifier` / `K_RUN_VERIFIER` remain as deprecated CLI/env aliases that log a warning at startup, until removed in a future major version.

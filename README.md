@@ -54,7 +54,7 @@ Kannon is composed of several microservices and workers:
 - **SMTPSender**: Sends emails from the queue
 - **Dispatcher**: Manages the sending pool and delivery
 - **Validator**: Validates emails before sending
-- **Bounce**: Handles bounces
+- **Tracker**: Serves open/click tracking endpoints and publishes engagement stats
 - **Stats**: Collects and stores delivery statistics
 
 All components can be enabled/disabled via CLI flags or config.
@@ -69,7 +69,7 @@ flowchart TD
         SMTPSender["SMTPSender"]
         Dispatcher["Dispatcher"]
         Validator["Validator"]
-        Bounce["Bounce"]
+        Tracker["Tracker"]
         Stats["Stats"]
     end
     DB[(PostgreSQL)]
@@ -79,14 +79,13 @@ flowchart TD
     SMTPSender <--> DB
     Validator <--> DB
     Stats <--> DB
-    Bounce <--> DB
     API <--> NATS
     SMTPSender <--> NATS
     Dispatcher <--> NATS
     SMTP <--> NATS
     Stats <--> NATS
     Validator <--> NATS
-    Bounce <--> NATS
+    Tracker <--> NATS
 ```
 
 ## Quickstart
