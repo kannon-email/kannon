@@ -10,6 +10,7 @@ RUN go mod download
 COPY ./pkg ./pkg
 COPY ./cmd ./cmd
 COPY ./internal ./internal
+COPY ./x ./x
 COPY ./db ./db
 COPY ./proto ./proto
 COPY ./kannon.go  ./

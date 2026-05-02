@@ -13,10 +13,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/kannon-email/kannon/internal/x/container"
 	"github.com/kannon-email/kannon/pkg/api"
 	"github.com/kannon-email/kannon/pkg/dispatcher"
 	"github.com/kannon-email/kannon/pkg/smtpsender"
@@ -26,6 +24,8 @@ import (
 	adminv1connect "github.com/kannon-email/kannon/proto/kannon/admin/apiv1/apiv1connect"
 	mailerapiv1 "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1"
 	mailertypes "github.com/kannon-email/kannon/proto/kannon/mailer/types"
+	"github.com/kannon-email/kannon/x/container"
+	"github.com/spf13/viper"
 )
 
 // TestE2EEmailSending tests the entire email sending pipeline with real infrastructure
@@ -82,49 +82,34 @@ func runKannon(t *testing.T, infra *TestInfrastructure, senderMock *senderMock) 
 	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
-	cnt := container.New(ctx, container.Config{
-		DBUrl:   infra.dbURL,
-		NatsURL: infra.natsURL,
-	})
+	viper.Reset()
+	viper.Set("api.port", infra.apiPort)
+	viper.Set("stats.retention", "8760h")
+
+	cnt := container.NewForTest(ctx,
+		container.WithDBURL(infra.dbURL),
+		container.WithNatsURL(infra.natsURL),
+	)
 	t.Cleanup(func() {
-		cnt.Close()
-	})
-
-	wg, ctx := errgroup.WithContext(ctx)
-
-	// Start API server
-	wg.Go(func() error {
-		return api.Run(ctx, api.Config{Port: infra.apiPort}, cnt)
-	})
-
-	// Start sender with localhost hostname for local delivery
-	wg.Go(func() error {
-		cfg := smtpsender.Config{
-			MaxJobs: 5,
+		if err := cnt.CloseWithTimeout(30 * time.Second); err != nil {
+			logrus.Errorf("error closing container: %v", err)
 		}
-
-		sender := smtpsender.NewSMTPSender(cnt.Nats(), cnt.NatsJetStream(), senderMock, cfg)
-		return sender.Run(ctx)
 	})
 
-	// Start dispatcher
-	wg.Go(func() error {
-		return dispatcher.Run(ctx, cnt)
-	})
+	reg := &container.Registry{}
+	reg.Register(api.New(cnt))
+	reg.Register(dispatcher.New(cnt))
+	reg.Register(validator.New(cnt))
+	reg.Register(stats.New(cnt))
 
-	// Start validator
-	wg.Go(func() error {
-		return validator.Run(ctx, cnt)
-	})
-
-	// Start stats
-	wg.Go(func() error {
-		return stats.Run(ctx, cnt, stats.Config{Retention: 8760 * time.Hour})
-	})
+	// Custom SMTPSender wired against the test sender mock; the package's
+	// New(c) builds a real SMTP sender from the container, which the e2e
+	// suite can't use because it asserts on the captured payloads.
+	sender := smtpsender.NewSMTPSender(cnt.NatsPublisher(), cnt.NatsJetStream(), senderMock, smtpsender.Config{MaxJobs: 5})
+	reg.Register(container.Runnable{Name: "smtpsender", Run: sender.Run})
 
 	go func() {
-		err := wg.Wait()
-		if err != nil {
+		if err := reg.Run(ctx); err != nil {
 			logrus.Errorf("error in running kannon: %v", err)
 		}
 	}()

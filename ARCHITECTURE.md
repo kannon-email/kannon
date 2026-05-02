@@ -12,7 +12,7 @@ Kannon is a cloud-native, scalable SMTP mail sender designed for Kubernetes and 
 
 - Application entrypoint and CLI. Handles configuration, service startup, and orchestrates which components (API, SMTP, smtpsender, dispatcher, etc.) are run.
 
-#### `internal/x/container/`
+#### `x/container/`
 
 - Dependency injection container. Manages singletons for DB, NATS, and other shared resources.
 

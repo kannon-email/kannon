@@ -12,13 +12,24 @@ import (
 	"github.com/kannon-email/kannon/internal/pool"
 	"github.com/kannon-email/kannon/internal/runner"
 	"github.com/kannon-email/kannon/internal/statssec"
-	"github.com/kannon-email/kannon/internal/x/container"
+	"github.com/kannon-email/kannon/x/container"
 	"github.com/sirupsen/logrus"
 
 	"github.com/nats-io/nats.go/jetstream"
 )
 
-func Run(ctx context.Context, cnt *container.Container) error {
+// New constructs the dispatcher runnable. The dispatcher has no
+// configurable knobs today, so it does not call container.LoadConfig.
+func New(cnt *container.Container) container.Runnable {
+	return container.Runnable{
+		Name: "dispatcher",
+		Run: func(ctx context.Context) error {
+			return run(ctx, cnt)
+		},
+	}
+}
+
+func run(ctx context.Context, cnt *container.Container) error {
 	q := cnt.Queries()
 
 	ss := statssec.NewStatsService(q)

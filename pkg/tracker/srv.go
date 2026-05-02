@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/kannon-email/kannon/internal/statssec"
-	"github.com/kannon-email/kannon/internal/x/container"
 	pb "github.com/kannon-email/kannon/proto/kannon/stats/types"
+	"github.com/kannon-email/kannon/x/container"
 	"github.com/nats-io/nats.go"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
@@ -38,11 +38,7 @@ func (s *srv) Run(ctx context.Context) error {
 	mux.HandleFunc("/o/", s.handleOpen)
 	mux.HandleFunc("/c/", s.handleClick)
 
-	port := s.cfg.Port
-	if port == 0 {
-		port = 8080 // default port
-	}
-	addr := fmt.Sprintf("0.0.0.0:%d", port)
+	addr := fmt.Sprintf("0.0.0.0:%d", s.cfg.Port)
 	logrus.Infof("running tracker on %s", addr)
 
 	server := &http.Server{Addr: addr, Handler: mux}

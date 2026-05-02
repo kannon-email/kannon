@@ -11,7 +11,7 @@ import (
 	"github.com/kannon-email/kannon/internal/publisher"
 	"github.com/kannon-email/kannon/internal/smtp"
 	"github.com/kannon-email/kannon/internal/utils"
-	"github.com/kannon-email/kannon/internal/x/container"
+	"github.com/kannon-email/kannon/x/container"
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
@@ -19,14 +19,13 @@ import (
 )
 
 type Config struct {
-	MaxJobs uint
+	MaxJobs uint `mapstructure:"max_jobs"`
 }
 
-func (c Config) GetMaxJobs() uint {
+func (c *Config) setDefaults() {
 	if c.MaxJobs == 0 {
-		return 10
+		c.MaxJobs = 10
 	}
-	return c.MaxJobs
 }
 
 type smtpSender struct {
@@ -36,11 +35,17 @@ type smtpSender struct {
 	cfg       Config
 }
 
-func NewSMTPSenderFromContainer(cnt *container.Container, cfg Config) *smtpSender {
-	sender := cnt.Sender()
-	js := cnt.NatsJetStream()
-	publisher := cnt.NatsPublisher()
-	return NewSMTPSender(publisher, js, sender, cfg)
+// New constructs the SMTPSender runnable, loading its slice of configuration
+// from viper under the "sender" key.
+func New(cnt *container.Container) container.Runnable {
+	var cfg Config
+	container.LoadConfig("sender", &cfg)
+	cfg.setDefaults()
+	s := NewSMTPSender(cnt.NatsPublisher(), cnt.NatsJetStream(), cnt.Sender(), cfg)
+	return container.Runnable{
+		Name: "smtpsender",
+		Run:  s.Run,
+	}
 }
 
 func NewSMTPSender(publisher publisher.Publisher, js jetstream.JetStream, s smtp.Sender, cfg Config) *smtpSender {
@@ -54,7 +59,7 @@ func NewSMTPSender(publisher publisher.Publisher, js jetstream.JetStream, s smtp
 
 func (s *smtpSender) Run(ctx context.Context) error {
 	logrus.WithField("hostname", s.sender.SenderName()).
-		WithField("max_jobs", s.cfg.GetMaxJobs()).
+		WithField("max_jobs", s.cfg.MaxJobs).
 		Infof("Starting SMTPSender Service")
 	mustConfigureStatsJS(ctx, s.js)
 
@@ -66,7 +71,7 @@ func (s *smtpSender) Run(ctx context.Context) error {
 func (s *smtpSender) handleSend(ctx context.Context, consumer jetstream.Consumer) error {
 	logrus.Infof("🚀 Ready to send!\n")
 
-	maxJobs := s.cfg.GetMaxJobs()
+	maxJobs := s.cfg.MaxJobs
 
 	tasks := NewParallel(maxJobs)
 

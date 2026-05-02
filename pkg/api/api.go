@@ -8,7 +8,6 @@ import (
 
 	sq "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/stats"
-	"github.com/kannon-email/kannon/internal/x/container"
 	"github.com/kannon-email/kannon/pkg/api/adminapi"
 	"github.com/kannon-email/kannon/pkg/api/hzapi"
 	"github.com/kannon-email/kannon/pkg/api/mailapi"
@@ -18,24 +17,38 @@ import (
 	mailerv1connect "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1/apiv1connect"
 	statsv1connect "github.com/kannon-email/kannon/proto/kannon/stats/apiv1/apiv1connect"
 	statsv2connect "github.com/kannon-email/kannon/proto/kannon/stats/apiv2/apiv2connect"
+	"github.com/kannon-email/kannon/x/container"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 )
 
 type Config struct {
-	Port uint
+	Port uint `mapstructure:"port"`
 }
 
-func (c Config) GetPort() uint {
+func (c *Config) setDefaults() {
 	if c.Port == 0 {
-		return 50051
+		c.Port = 50051
 	}
-	return c.Port
 }
 
-func Run(ctx context.Context, config Config, cnt *container.Container) error {
-	port := config.GetPort()
+// New constructs the API runnable, loading its slice of configuration from
+// viper under the "api" key.
+func New(cnt *container.Container) container.Runnable {
+	var cfg Config
+	container.LoadConfig("api", &cfg)
+	cfg.setDefaults()
+	return container.Runnable{
+		Name: "api",
+		Run: func(ctx context.Context) error {
+			return run(ctx, cfg, cnt)
+		},
+	}
+}
+
+func run(ctx context.Context, config Config, cnt *container.Container) error {
+	port := config.Port
 
 	logrus.Infof("Starting API Service on port %d", port)
 

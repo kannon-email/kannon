@@ -168,13 +168,13 @@ Kannon can be configured via YAML file, environment variables, or CLI flags. Pre
 | `run-sender` / `K_RUN_SENDER`                   | bool     | false          | Enable sender worker                   |
 | `run-dispatcher` / `K_RUN_DISPATCHER`           | bool     | false          | Enable dispatcher worker               |
 | `run-validator` / `K_RUN_VALIDATOR`             | bool     | false          | Enable validator worker                |
-| `run-bounce` / `K_RUN_BOUNCE`                   | bool     | false          | Enable bounce worker                   |
+| `run-tracker` / `K_RUN_TRACKER`                 | bool     | false          | Enable tracker worker                  |
 | `run-stats` / `K_RUN_STATS`                     | bool     | false          | Enable stats worker                    |
 | `config`                                        | string   | ~/.kannon.yaml | Path to config file                    |
 
 - See [`examples/docker-compose/kannon.yaml`](examples/docker-compose/kannon.yaml) for a full example.
 
-> **Deprecated aliases:** `run-verifier` / `K_RUN_VERIFIER` continue to work as aliases for `run-validator` / `K_RUN_VALIDATOR`, and the `bump:` YAML section / `K_BUMP_PORT` env var continue to work as aliases for `tracker:` / `K_TRACKER_PORT`. They emit a deprecation warning at startup and will be removed in a future major version.
+> **Deprecated aliases:** `run-verifier` / `K_RUN_VERIFIER` continue to work as aliases for `run-validator` / `K_RUN_VALIDATOR`; `run-bounce` / `K_RUN_BOUNCE` continue to work as aliases for `run-tracker` / `K_RUN_TRACKER`; and the `bump:` YAML section / `K_BUMP_PORT` env var continue to work as aliases for `tracker:` / `K_TRACKER_PORT`. They will be removed in a future major version.
 
 ## Database Schema
 
@@ -415,7 +415,7 @@ sender:
 
 # All components enabled for full testing
 run-smtp: true
-run-bounce: true
+run-tracker: true
 run-dispatcher: true
 run-validator: true
 run-sender: true

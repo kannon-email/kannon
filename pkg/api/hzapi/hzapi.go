@@ -4,10 +4,10 @@ import (
 	"context"
 
 	"connectrpc.com/connect"
-	"github.com/kannon-email/kannon/internal/x/container"
 	"github.com/kannon-email/kannon/pkg/hz"
 	pb "github.com/kannon-email/kannon/proto/kannon/admin/apiv1"
 	hzv1connect "github.com/kannon-email/kannon/proto/kannon/admin/apiv1/apiv1connect"
+	"github.com/kannon-email/kannon/x/container"
 )
 
 type hzAPIConnectAdapter struct {
