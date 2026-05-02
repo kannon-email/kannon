@@ -57,7 +57,13 @@ Kannon is a cloud-native, scalable SMTP mail sender designed for Kubernetes and 
 
 #### `internal/domains/`
 
-- Manages sender domains and DKIM keys.
+- Defines the SenderDomain entity (the sender-tenant identity per
+  `CONTEXT.md`), `Repository` interface, and `New` / `Load` constructors
+  for the FQDN + DKIM key pair under which Batches are authored. Follows
+  the same pattern as `internal/apikeys/` (entity + repo + repospec); the
+  sqlc-backed implementation lives in `internal/db/`. The Go type is
+  named `Domain` for historical reasons; renaming the wire/DB-visible
+  field to `fqdn` is wire/DB breaking and deferred.
 
 ### Service/Worker Modules (`pkg/`)
 

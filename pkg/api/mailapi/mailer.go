@@ -26,7 +26,7 @@ import (
 )
 
 type mailAPIService struct {
-	domains     domains.DomainManager
+	domains     domains.Repository
 	apiKeys     *apikeys.Service
 	templates   templates.Repository
 	sendingPool pool.SendingPoolManager
@@ -40,7 +40,7 @@ func (s mailAPIService) SendHTML(ctx context.Context, req *connect.Request[pb.Se
 
 	req.Msg.Html = utils.ReplaceCustomFields(req.Msg.Html, req.Msg.GlobalFields)
 
-	template, err := s.createTransientTemplate(ctx, domain.Domain, req.Msg.Html)
+	template, err := s.createTransientTemplate(ctx, domain.Domain(), req.Msg.Html)
 	if err != nil {
 		logrus.Errorf("cannot create template %v\n", err)
 		return nil, fmt.Errorf("cannot create template %v", err)
@@ -69,8 +69,8 @@ func (s mailAPIService) SendTemplate(ctx context.Context, req *connect.Request[p
 	return s.sendTemplate(ctx, domain, req)
 }
 
-func (s mailAPIService) sendTemplate(ctx context.Context, domain sqlc.Domain, req *connect.Request[pb.SendTemplateReq]) (*connect.Response[pb.SendRes], error) {
-	template, err := s.templates.FindByDomain(ctx, domain.Domain, req.Msg.TemplateId)
+func (s mailAPIService) sendTemplate(ctx context.Context, domain *domains.Domain, req *connect.Request[pb.SendTemplateReq]) (*connect.Response[pb.SendRes], error) {
+	template, err := s.templates.FindByDomain(ctx, domain.Domain(), req.Msg.TemplateId)
 	if err != nil {
 		logrus.Errorf("cannot find template %v\n", err)
 		return nil, fmt.Errorf("cannot find template with id: %v", req.Msg.TemplateId)
@@ -102,7 +102,7 @@ func (s mailAPIService) sendTemplate(ctx context.Context, domain sqlc.Domain, re
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 
-	b, err := batch.New(domain.Domain, req.Msg.Subject, sender, template.TemplateID(), attachments, customHeaders)
+	b, err := batch.New(domain.Domain(), req.Msg.Subject, sender, template.TemplateID(), attachments, customHeaders)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
@@ -120,7 +120,7 @@ func (s mailAPIService) sendTemplate(ctx context.Context, domain sqlc.Domain, re
 }
 
 func (s mailAPIService) Close() error {
-	return s.domains.Close()
+	return nil
 }
 
 func (s mailAPIService) createTemplateWithGlobalFields(ctx context.Context, template *templates.Template, globalFields map[string]string) (*templates.Template, error) {
@@ -147,24 +147,24 @@ func (s mailAPIService) createTransientTemplate(ctx context.Context, domain, htm
 	return tpl, nil
 }
 
-func (s mailAPIService) getCallDomainFromHeaders(ctx context.Context, headers http.Header) (sqlc.Domain, error) {
+func (s mailAPIService) getCallDomainFromHeaders(ctx context.Context, headers http.Header) (*domains.Domain, error) {
 	auth := headers.Get("Authorization")
 
 	if !strings.HasPrefix(auth, "Basic ") {
-		return sqlc.Domain{}, fmt.Errorf("invalid auth")
+		return nil, fmt.Errorf("invalid auth")
 	}
 
 	token := strings.Replace(auth, "Basic ", "", 1)
 	data, err := base64.StdEncoding.DecodeString(token)
 	if err != nil {
-		return sqlc.Domain{}, fmt.Errorf("invalid auth")
+		return nil, fmt.Errorf("invalid auth")
 	}
 
 	authData := string(data)
 
 	parts := strings.Split(authData, ":")
 	if len(parts) != 2 {
-		return sqlc.Domain{}, fmt.Errorf("invalid auth")
+		return nil, fmt.Errorf("invalid auth")
 	}
 	domainName, key := parts[0], parts[1]
 
@@ -172,13 +172,13 @@ func (s mailAPIService) getCallDomainFromHeaders(ctx context.Context, headers ht
 	apiKey, err := s.apiKeys.ValidateForAuth(ctx, domainName, key)
 	if err != nil {
 		// Always return generic error (security requirement)
-		return sqlc.Domain{}, fmt.Errorf("invalid auth")
+		return nil, fmt.Errorf("invalid auth")
 	}
 
 	// Fetch full domain info
-	domain, err := s.domains.FindDomain(ctx, apiKey.Domain())
+	domain, err := s.domains.FindByName(ctx, apiKey.Domain())
 	if err != nil {
-		return sqlc.Domain{}, fmt.Errorf("invalid auth")
+		return nil, fmt.Errorf("invalid auth")
 	}
 
 	return domain, nil
@@ -202,7 +202,7 @@ func validateHeaders(h *mailertypes.Headers) (batch.Headers, error) {
 }
 
 func NewMailerAPIV1(q *sqlc.Queries, db *pgxpool.Pool) mailerv1connect.MailerHandler {
-	domainsCli := domains.NewDomainManager(q)
+	domainsCli := sqlc.NewDomainsRepository(q)
 	apiKeysRepo := sqlc.NewAPIKeysRepository(q, db)
 	apiKeysService := apikeys.NewService(apiKeysRepo)
 	batchRepo := sqlc.NewBatchRepository(q)
