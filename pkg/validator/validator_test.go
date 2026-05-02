@@ -46,7 +46,7 @@ func TestMain(m *testing.M) {
 	}
 
 	q = sqlc.New(db)
-	pm := pool.NewSendingPoolManager(q, sqlc.NewBatchRepository(q))
+	pm := pool.NewSendingPoolManager(sqlc.NewBatchRepository(q), sqlc.NewDeliveryRepository(q))
 	vt = validator.NewValidator(pm, &mp)
 
 	ts = mailapi.NewMailerAPIV1(q, db)

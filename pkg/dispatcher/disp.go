@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/kannon-email/kannon/internal/batch"
 	"github.com/kannon-email/kannon/internal/mailbuilder"
 	"github.com/kannon-email/kannon/internal/pool"
 	"github.com/kannon-email/kannon/internal/publisher"
@@ -38,9 +39,9 @@ func (d *disp) DispatchCycle(ctx context.Context) error {
 
 	d.log().Debugf("seding %d emails", len(emails))
 
-	for _, email := range emails {
+	for _, dlv := range emails {
 		log := d.log()
-		data, err := d.mb.BuildEmail(ctx, email)
+		data, err := d.mb.BuildEmail(ctx, dlv)
 
 		if err != nil {
 			log.WithError(err).Errorf("Cannot send email")
@@ -73,7 +74,7 @@ func (d *disp) parseErrorsFunc(ctx context.Context, m *statstypes.Stats) error {
 		return fmt.Errorf("stats is not of type error")
 	}
 
-	if err := d.pm.RescheduleEmail(ctx, m.MessageId, m.Email); err != nil {
+	if err := d.pm.RescheduleEmail(ctx, batch.ID(m.MessageId), m.Email); err != nil {
 		return fmt.Errorf("cannot set delivered: %w", err)
 	}
 	return nil
@@ -86,7 +87,7 @@ func (d *disp) handleDelivers(ctx context.Context) error {
 }
 
 func (d *disp) parsDeliveredFunc(ctx context.Context, m *statstypes.Stats) error {
-	if err := d.pm.CleanEmail(ctx, m.MessageId, m.Email); err != nil {
+	if err := d.pm.CleanEmail(ctx, batch.ID(m.MessageId), m.Email); err != nil {
 		return fmt.Errorf("cannot set delivered: %w", err)
 	}
 	return nil
@@ -99,7 +100,7 @@ func (d *disp) handleBounced(ctx context.Context) error {
 }
 
 func (d *disp) parsBouncedFunc(ctx context.Context, m *statstypes.Stats) error {
-	if err := d.pm.CleanEmail(ctx, m.MessageId, m.Email); err != nil {
+	if err := d.pm.CleanEmail(ctx, batch.ID(m.MessageId), m.Email); err != nil {
 		return fmt.Errorf("cannot set delivered: %w", err)
 	}
 

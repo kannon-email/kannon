@@ -22,7 +22,7 @@ func Run(ctx context.Context, cnt *container.Container) error {
 	q := cnt.Queries()
 
 	ss := statssec.NewStatsService(q)
-	pm := pool.NewSendingPoolManager(q, sqlc.NewBatchRepository(q))
+	pm := pool.NewSendingPoolManager(sqlc.NewBatchRepository(q), sqlc.NewDeliveryRepository(q))
 	mb := mailbuilder.NewMailBuilder(q, ss)
 
 	js := cnt.NatsJetStream()

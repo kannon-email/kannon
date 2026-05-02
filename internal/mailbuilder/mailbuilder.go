@@ -9,6 +9,7 @@ import (
 	"time"
 
 	sqlc "github.com/kannon-email/kannon/internal/db"
+	"github.com/kannon-email/kannon/internal/delivery"
 	"github.com/kannon-email/kannon/internal/dkim"
 	"github.com/kannon-email/kannon/internal/pool"
 	"github.com/kannon-email/kannon/internal/statssec"
@@ -21,7 +22,7 @@ import (
 const maxRetry = 10
 
 type MailBuilder interface {
-	BuildEmail(ctx context.Context, email sqlc.SendingPoolEmail) (*pb.EmailToSend, error)
+	BuildEmail(ctx context.Context, d *delivery.Delivery) (*pb.EmailToSend, error)
 }
 
 // NewMailBuilder creates an SMTP mailer
@@ -41,8 +42,8 @@ type mailBuilder struct {
 	st      statssec.StatsService
 }
 
-func (m *mailBuilder) BuildEmail(ctx context.Context, email sqlc.SendingPoolEmail) (*pb.EmailToSend, error) {
-	emailData, err := m.db.GetSendingData(ctx, email.MessageID)
+func (m *mailBuilder) BuildEmail(ctx context.Context, d *delivery.Delivery) (*pb.EmailToSend, error) {
+	emailData, err := m.db.GetSendingData(ctx, d.BatchID().String())
 	if err != nil {
 		return nil, err
 	}
@@ -57,8 +58,8 @@ func (m *mailBuilder) BuildEmail(ctx context.Context, email sqlc.SendingPoolEmai
 		attachments[name] = bytes.NewReader(r)
 	}
 
-	returnPath := buildReturnPath(email.Email, emailData.MessageID)
-	msg, err := m.prepareMessage(ctx, sender, emailData.Subject, email.Email, emailData.Domain, emailData.MessageID, emailData.Html, m.headers, email.Fields, attachments, emailData.Headers)
+	returnPath := buildReturnPath(d.Email(), emailData.MessageID)
+	msg, err := m.prepareMessage(ctx, sender, emailData.Subject, d.Email(), emailData.Domain, emailData.MessageID, emailData.Html, m.headers, d.Fields(), attachments, emailData.Headers)
 	if err != nil {
 		return nil, err
 	}
@@ -72,10 +73,10 @@ func (m *mailBuilder) BuildEmail(ctx context.Context, email sqlc.SendingPoolEmai
 	return &pb.EmailToSend{
 		From:        emailData.SenderEmail,
 		ReturnPath:  returnPath,
-		To:          email.Email,
+		To:          d.Email(),
 		Body:        signedMsg,
-		EmailId:     buildEmailID(email.Email, emailData.MessageID),
-		ShouldRetry: email.SendAttemptsCnt < maxRetry,
+		EmailId:     buildEmailID(d.Email(), emailData.MessageID),
+		ShouldRetry: d.SendAttempts() < maxRetry,
 	}, nil
 }
 

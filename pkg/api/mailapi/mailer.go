@@ -195,7 +195,8 @@ func NewMailerAPIV1(q *sqlc.Queries, db *pgxpool.Pool) mailerv1connect.MailerHan
 	apiKeysRepo := sqlc.NewAPIKeysRepository(q, db)
 	apiKeysService := apikeys.NewService(apiKeysRepo)
 	batchRepo := sqlc.NewBatchRepository(q)
-	sendingPoolCli := pool.NewSendingPoolManager(q, batchRepo)
+	deliveryRepo := sqlc.NewDeliveryRepository(q)
+	sendingPoolCli := pool.NewSendingPoolManager(batchRepo, deliveryRepo)
 	templates := templates.NewTemplateManager(q)
 
 	return &mailAPIService{

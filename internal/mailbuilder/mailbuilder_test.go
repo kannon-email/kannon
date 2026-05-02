@@ -13,6 +13,7 @@ import (
 	"connectrpc.com/connect"
 	"github.com/jackc/pgx/v5/pgxpool"
 	schema "github.com/kannon-email/kannon/db"
+	"github.com/kannon-email/kannon/internal/batch"
 	sqlc "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/mailbuilder"
 	"github.com/kannon-email/kannon/internal/pool"
@@ -54,7 +55,7 @@ func TestMain(m *testing.M) {
 	mb = mailbuilder.NewMailBuilder(q, statssec.NewStatsService(q))
 	ma = mailapi.NewMailerAPIV1(q, db)
 	adminAPI = adminapi.CreateAdminAPIService(q, db)
-	pm = pool.NewSendingPoolManager(q, sqlc.NewBatchRepository(q))
+	pm = pool.NewSendingPoolManager(sqlc.NewBatchRepository(q), sqlc.NewDeliveryRepository(q))
 
 	code := m.Run()
 
@@ -101,7 +102,7 @@ func TestPrepareMail(t *testing.T) {
 	res, err := ma.SendHTML(context.Background(), req)
 	assert.Nil(t, err)
 
-	err = pm.SetScheduled(context.Background(), res.Msg.MessageId, "test@emailtest.com")
+	err = pm.SetScheduled(context.Background(), batch.ID(res.Msg.MessageId), "test@emailtest.com")
 	assert.Nil(t, err)
 
 	emails, err := pm.PrepareForSend(context.Background(), 1)
@@ -190,7 +191,7 @@ func TestPrepareMailWithAttachments(t *testing.T) {
 	res, err := ma.SendHTML(context.Background(), req)
 	assert.Nil(t, err)
 
-	err = pm.SetScheduled(context.Background(), res.Msg.MessageId, "test@emailtest.com")
+	err = pm.SetScheduled(context.Background(), batch.ID(res.Msg.MessageId), "test@emailtest.com")
 	assert.Nil(t, err)
 
 	emails, err := pm.PrepareForSend(context.Background(), 1)
@@ -243,7 +244,7 @@ func TestPrepareMailWithHeaders(t *testing.T) {
 	res, err := ma.SendHTML(context.Background(), req)
 	assert.Nil(t, err)
 
-	err = pm.SetScheduled(context.Background(), res.Msg.MessageId, "actual-recipient@emailtest.com")
+	err = pm.SetScheduled(context.Background(), batch.ID(res.Msg.MessageId), "actual-recipient@emailtest.com")
 	assert.Nil(t, err)
 
 	emails, err := pm.PrepareForSend(context.Background(), 1)
