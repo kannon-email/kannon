@@ -22,3 +22,6 @@ vendor
 
 .env
 .bin
+
+.worktrees/
+ralph/
