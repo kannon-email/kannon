@@ -7,6 +7,7 @@ import (
 	_ "github.com/lib/pq"
 	"golang.org/x/sync/errgroup"
 
+	sqlc "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/mailbuilder"
 	"github.com/kannon-email/kannon/internal/pool"
 	"github.com/kannon-email/kannon/internal/runner"
@@ -21,7 +22,7 @@ func Run(ctx context.Context, cnt *container.Container) error {
 	q := cnt.Queries()
 
 	ss := statssec.NewStatsService(q)
-	pm := pool.NewSendingPoolManager(q)
+	pm := pool.NewSendingPoolManager(q, sqlc.NewBatchRepository(q))
 	mb := mailbuilder.NewMailBuilder(q, ss)
 
 	js := cnt.NatsJetStream()

@@ -5,19 +5,22 @@ import (
 	"math"
 	"time"
 
+	"github.com/kannon-email/kannon/internal/batch"
 	sqlc "github.com/kannon-email/kannon/internal/db"
-	"github.com/kannon-email/kannon/internal/utils"
 	pb "github.com/kannon-email/kannon/proto/kannon/mailer/types"
 )
 
-type Sender struct {
-	Alias string
-	Email string
-}
+// Sender is the visible from-identity of a Batch. It is retained here for
+// backwards compatibility with callers that still build the value type
+// inline; new code should construct batch.Sender directly. This local
+// alias is removed in a follow-up slice (parent PRD #322 §8).
+type Sender = batch.Sender
 
-// SendingPoolManager is a manger for sending pool
+// SendingPoolManager is a manager for sending pool
 type SendingPoolManager interface {
-	AddRecipientsPool(ctx context.Context, template sqlc.Template, recipents []*pb.Recipient, from Sender, scheduled time.Time, subject string, domain string, attachments sqlc.Attachments, customHeaders sqlc.Headers) (sqlc.Message, error)
+	// AddRecipientsPool persists the Batch via the Batch repository and
+	// schedules a per-recipient row in the sending pool for each recipient.
+	AddRecipientsPool(ctx context.Context, b *batch.Batch, recipients []*pb.Recipient, scheduled time.Time) error
 	PrepareForSend(ctx context.Context, max uint) ([]sqlc.SendingPoolEmail, error)
 	PrepareForValidate(ctx context.Context, max uint) ([]sqlc.SendingPoolEmail, error)
 	SetScheduled(ctx context.Context, messageID string, email string) error
@@ -26,39 +29,30 @@ type SendingPoolManager interface {
 }
 
 type sendingPoolManager struct {
-	db *sqlc.Queries
+	db      *sqlc.Queries
+	batches batch.Repository
 }
 
-// AddPool starts a new schedule in the pool
-func (m *sendingPoolManager) AddRecipientsPool(ctx context.Context, template sqlc.Template, recipents []*pb.Recipient, from Sender, scheduled time.Time, subject string, domain string, attachments sqlc.Attachments, customHeaders sqlc.Headers) (sqlc.Message, error) {
-	msg, err := m.db.CreateMessage(ctx, sqlc.CreateMessageParams{
-		TemplateID:  template.TemplateID,
-		Domain:      domain,
-		Subject:     subject,
-		SenderEmail: from.Email,
-		SenderAlias: from.Alias,
-		MessageID:   utils.CreateMessageID(domain),
-		Attachments: attachments,
-		Headers:     customHeaders,
-	})
-	if err != nil {
-		return sqlc.Message{}, err
+// AddRecipientsPool persists the Batch and creates one sending pool row per recipient.
+func (m *sendingPoolManager) AddRecipientsPool(ctx context.Context, b *batch.Batch, recipients []*pb.Recipient, scheduled time.Time) error {
+	if err := m.batches.Create(ctx, b); err != nil {
+		return err
 	}
 
-	for _, r := range recipents {
-		err = m.db.CreatePool(ctx, sqlc.CreatePoolParams{
-			MessageID:     msg.MessageID,
+	for _, r := range recipients {
+		err := m.db.CreatePool(ctx, sqlc.CreatePoolParams{
+			MessageID:     b.ID().String(),
 			Email:         r.Email,
 			Fields:        r.Fields,
 			ScheduledTime: sqlc.PgTimestampFromTime(scheduled),
-			Domain:        domain,
+			Domain:        b.Domain(),
 		})
 		if err != nil {
-			return sqlc.Message{}, err
+			return err
 		}
 	}
 
-	return msg, nil
+	return nil
 }
 
 func (m *sendingPoolManager) PrepareForSend(ctx context.Context, max uint) ([]sqlc.SendingPoolEmail, error) {
@@ -103,9 +97,10 @@ func (m *sendingPoolManager) RescheduleEmail(ctx context.Context, messageID stri
 	})
 }
 
-func NewSendingPoolManager(q *sqlc.Queries) SendingPoolManager {
+func NewSendingPoolManager(q *sqlc.Queries, batches batch.Repository) SendingPoolManager {
 	return &sendingPoolManager{
-		db: q,
+		db:      q,
+		batches: batches,
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 	"connectrpc.com/connect"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/kannon-email/kannon/internal/apikeys"
+	"github.com/kannon-email/kannon/internal/batch"
 	sqlc "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/domains"
 	"github.com/kannon-email/kannon/internal/pool"
@@ -81,7 +82,7 @@ func (s mailAPIService) sendTemplate(ctx context.Context, domain sqlc.Domain, re
 		return nil, fmt.Errorf("cannot create template %v", err)
 	}
 
-	sender := pool.Sender{
+	sender := batch.Sender{
 		Email: req.Msg.Sender.Email,
 		Alias: req.Msg.Sender.Alias,
 	}
@@ -91,7 +92,7 @@ func (s mailAPIService) sendTemplate(ctx context.Context, domain sqlc.Domain, re
 		scheduled = req.Msg.ScheduledTime.AsTime()
 	}
 
-	attachments := make(sqlc.Attachments)
+	attachments := make(batch.Attachments, len(req.Msg.Attachments))
 	for _, r := range req.Msg.Attachments {
 		attachments[r.Filename] = r.Content
 	}
@@ -101,15 +102,18 @@ func (s mailAPIService) sendTemplate(ctx context.Context, domain sqlc.Domain, re
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 
-	pool, err := s.sendingPool.AddRecipientsPool(ctx, template, req.Msg.Recipients, sender, scheduled, req.Msg.Subject, domain.Domain, attachments, customHeaders)
-
+	b, err := batch.New(domain.Domain, req.Msg.Subject, sender, template.TemplateID, attachments, customHeaders)
 	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+
+	if err := s.sendingPool.AddRecipientsPool(ctx, b, req.Msg.Recipients, scheduled); err != nil {
 		logrus.Errorf("cannot create pool %v\n", err)
 		return nil, err
 	}
 
 	return connect.NewResponse(&pb.SendRes{
-		MessageId:     pool.MessageID,
+		MessageId:     b.ID().String(),
 		TemplateId:    template.TemplateID,
 		ScheduledTime: timestamppb.New(scheduled),
 	}), nil
@@ -169,28 +173,29 @@ func (s mailAPIService) getCallDomainFromHeaders(ctx context.Context, headers ht
 	return domain, nil
 }
 
-func validateHeaders(h *mailertypes.Headers) (sqlc.Headers, error) {
+func validateHeaders(h *mailertypes.Headers) (batch.Headers, error) {
 	if h == nil {
-		return sqlc.Headers{}, nil
+		return batch.Headers{}, nil
 	}
 	for _, email := range h.To {
 		if !smtputils.Validate(email) {
-			return sqlc.Headers{}, fmt.Errorf("invalid To header: %q is not a valid email address", email)
+			return batch.Headers{}, fmt.Errorf("invalid To header: %q is not a valid email address", email)
 		}
 	}
 	for _, email := range h.Cc {
 		if !smtputils.Validate(email) {
-			return sqlc.Headers{}, fmt.Errorf("invalid Cc header: %q is not a valid email address", email)
+			return batch.Headers{}, fmt.Errorf("invalid Cc header: %q is not a valid email address", email)
 		}
 	}
-	return sqlc.Headers{To: h.To, Cc: h.Cc}, nil
+	return batch.Headers{To: h.To, Cc: h.Cc}, nil
 }
 
 func NewMailerAPIV1(q *sqlc.Queries, db *pgxpool.Pool) mailerv1connect.MailerHandler {
 	domainsCli := domains.NewDomainManager(q)
 	apiKeysRepo := sqlc.NewAPIKeysRepository(q, db)
 	apiKeysService := apikeys.NewService(apiKeysRepo)
-	sendingPoolCli := pool.NewSendingPoolManager(q)
+	batchRepo := sqlc.NewBatchRepository(q)
+	sendingPoolCli := pool.NewSendingPoolManager(q, batchRepo)
 	templates := templates.NewTemplateManager(q)
 
 	return &mailAPIService{

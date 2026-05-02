@@ -36,7 +36,7 @@ func (v *Validator) log() *logrus.Entry {
 func Run(ctx context.Context, cnt *container.Container) error {
 	q := cnt.Queries()
 
-	pm := pool.NewSendingPoolManager(q)
+	pm := pool.NewSendingPoolManager(q, sqlc.NewBatchRepository(q))
 
 	nc := cnt.NatsPublisher()
 

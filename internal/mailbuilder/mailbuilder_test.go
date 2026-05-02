@@ -54,7 +54,7 @@ func TestMain(m *testing.M) {
 	mb = mailbuilder.NewMailBuilder(q, statssec.NewStatsService(q))
 	ma = mailapi.NewMailerAPIV1(q, db)
 	adminAPI = adminapi.CreateAdminAPIService(q, db)
-	pm = pool.NewSendingPoolManager(q)
+	pm = pool.NewSendingPoolManager(q, sqlc.NewBatchRepository(q))
 
 	code := m.Run()
 
