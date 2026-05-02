@@ -1,6 +1,6 @@
 # Kannon 💥
 
-[![CI](https://github.com/gyozatech/kannon/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/gyozatech/kannon/actions/workflows/ci.yaml)
+[![CI](https://github.com/kannon-email/kannon/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/kannon-email/kannon/actions/workflows/ci.yaml)
 
 ![Kannon Logo](assets/kannonlogo.png?raw=true)
 
@@ -47,15 +47,17 @@ A **Cloud Native SMTP mail sender** for Kubernetes and modern infrastructure.
 
 ## Architecture
 
+A single `SendHTML` / `SendTemplate` API call creates one **Batch** with N **Deliveries** (one per Recipient). Deliveries flow through the Pool, are built into **Envelopes** by the Dispatcher, and transmitted by the SMTPSender. See [`CONTEXT.md`](./CONTEXT.md) for the full shared language (Batch, Recipient, Delivery, Envelope, Domain, Template) and the per-Delivery outcome state machine (Validated → Delivered / Bounced, plus Opened / Clicked engagement events).
+
 Kannon is composed of several microservices and workers:
 
-- **API**: gRPC server for mail, template, and domain management
-- **SMTP**: Handles SMTP protocol and relays mail
-- **SMTPSender**: Sends emails from the queue
-- **Dispatcher**: Manages the sending pool and delivery
-- **Validator**: Validates emails before sending
-- **Tracker**: Serves open/click tracking endpoints and publishes engagement stats
-- **Stats**: Collects and stores delivery statistics
+- **Mailer API**: gRPC server that accepts `SendHTML` / `SendTemplate` and creates Batches with N Deliveries; together with the **Admin API** (Domains, Templates, API Keys) and **Stats API**, it forms the gRPC surface.
+- **Validator**: Pulls Deliveries with status `to_validate`, validates the recipient address, and either schedules or rejects them.
+- **Dispatcher**: Pulls scheduled Deliveries, builds DKIM-signed Envelopes, and publishes them to NATS. Also consumes delivery / bounce / error events and updates Delivery state.
+- **SMTPSender**: Consumes Envelopes from NATS, performs the outbound SMTP transmission, and publishes Delivered / Bounced / transient-error stats.
+- **SMTPServer**: Inbound SMTP listener for bounce / DSN traffic from remote mail systems; publishes asynchronous Bounced events to NATS.
+- **Tracker**: HTTP server for open and click tracking. Verifies signed tokens, redirects clicks, serves the tracking pixel, and emits Opened / Clicked events.
+- **Stats**: Consumes all `kannon.stats.*` events and persists them.
 
 All components can be enabled/disabled via CLI flags or config.
 
@@ -64,12 +66,12 @@ All components can be enabled/disabled via CLI flags or config.
 ```mermaid
 flowchart TD
     subgraph Core
-        API["gRPC API"]
-        SMTP["SMTP Server"]
-        SMTPSender["SMTPSender"]
+        API["gRPC API (Mailer / Admin / Stats)"]
+        SMTPServer["SMTPServer (inbound DSN/bounce)"]
+        SMTPSender["SMTPSender (outbound)"]
         Dispatcher["Dispatcher"]
         Validator["Validator"]
-        Tracker["Tracker"]
+        Tracker["Tracker (open/click)"]
         Stats["Stats"]
     end
     DB[(PostgreSQL)]
@@ -82,7 +84,7 @@ flowchart TD
     API <--> NATS
     SMTPSender <--> NATS
     Dispatcher <--> NATS
-    SMTP <--> NATS
+    SMTPServer <--> NATS
     Stats <--> NATS
     Validator <--> NATS
     Tracker <--> NATS
@@ -92,10 +94,10 @@ flowchart TD
 
 ### Prerequisites
 
-- Go 1.25.5+
+- Go 1.26.2+
 - Docker (optional, for containerized deployment)
 - PostgreSQL database
-- NATS server (optional - embedded mode available in standalone command)
+- NATS server (optional — embedded mode available in standalone command)
 
 ### Standalone Mode (Recommended for Development/Testing)
 
@@ -109,7 +111,7 @@ go build -o kannon .
 ```
 
 This mode:
-- Runs all components (API, SMTP, SMTPSender, Dispatcher, Validator, Stats, Bounce)
+- Runs all components (API, SMTPServer, SMTPSender, Dispatcher, Validator, Tracker, Stats)
 - Embeds NATS server (no external NATS required)
 - Ideal for development, testing, or single-server deployments
 - Still requires a PostgreSQL database
@@ -178,15 +180,15 @@ Kannon can be configured via YAML file, environment variables, or CLI flags. Pre
 
 ## Database Schema
 
-Kannon requires a PostgreSQL database. Main tables:
+Kannon requires a PostgreSQL database. Main tables (physical names retained for backward compatibility; see [`CONTEXT.md`](./CONTEXT.md) for the corresponding domain entities):
 
-- **domains**: Registered sender domains, DKIM keys
-- **api_keys**: API keys for authentication (multiple keys per domain, expirable, revocable)
-- **messages**: Outgoing messages, subject, sender, template, attachments, custom headers
-- **sending_pool_emails**: Email queue, status, scheduling, custom fields
-- **templates**: Email templates, type, metadata
-- **stats**: Delivery and open/click statistics
-- **stats_keys**: Public/private keys for stats security
+- **domains**: Registered sender Domains (FQDN + DKIM keypair)
+- **api_keys**: API Keys for authentication (multiple keys per Domain; expirable, revocable)
+- **messages**: One row per **Batch** — subject, Sender, template reference, attachments, custom headers (legacy table name; the entity is a Batch)
+- **sending_pool_emails**: The Pool — one row per **Delivery** (recipient, scheduled time, retry count, per-recipient fields). Rows are deleted on terminal outcomes
+- **templates**: Persistent and Transient Templates owned by a Domain
+- **stats**: Per-Delivery outcome events (Validated / Rejected / Delivered / Bounced / Opened / Clicked)
+- **stats_keys**: Signing keys for tracking tokens
 
 See [`db/migrations/`](./db/migrations/) for full schema and migrations.
 
@@ -352,9 +354,10 @@ We welcome contributions! Please:
 
 ### Developer Documentation
 
-- **[REPOSITORY_GUIDE.md](docs/REPOSITORY_GUIDE.md)** - PostgreSQL repository implementation patterns
-- **[ARCHITECTURE.md](ARCHITECTURE.md)** - Detailed technical architecture
-- **[CLAUDE.md](CLAUDE.md)** - AI assistant guidance for working with the codebase
+- **[CONTEXT.md](CONTEXT.md)** — Shared language: Batch, Recipient, Delivery, Envelope, Domain, Template, and the per-Delivery outcome state machine
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** — Detailed technical architecture (modules, NATS streams, topics, consumers, message flows)
+- **[REPOSITORY_GUIDE.md](docs/REPOSITORY_GUIDE.md)** — PostgreSQL repository implementation patterns
+- **[CLAUDE.md](CLAUDE.md)** — AI assistant guidance for working with the codebase
 
 ### Local Development
 
