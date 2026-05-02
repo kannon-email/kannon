@@ -8,6 +8,7 @@ import (
 	"time"
 
 	sqlc "github.com/kannon-email/kannon/internal/db"
+	"github.com/kannon-email/kannon/internal/delivery"
 	"github.com/kannon-email/kannon/internal/pool"
 	"github.com/kannon-email/kannon/internal/publisher"
 	"github.com/kannon-email/kannon/internal/runner"
@@ -17,16 +18,16 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func NewValidator(pm pool.SendingPoolManager, pub publisher.Publisher) *Validator {
+func NewValidator(c pool.Claimer, pub publisher.Publisher) *Validator {
 	return &Validator{
-		pm:  pm,
-		pub: pub,
+		claimer: c,
+		pub:     pub,
 	}
 }
 
 type Validator struct {
-	pm  pool.SendingPoolManager
-	pub publisher.Publisher
+	claimer pool.Claimer
+	pub     publisher.Publisher
 }
 
 func (v *Validator) log() *logrus.Entry {
@@ -36,13 +37,13 @@ func (v *Validator) log() *logrus.Entry {
 func Run(ctx context.Context, cnt *container.Container) error {
 	q := cnt.Queries()
 
-	pm := pool.NewSendingPoolManager(q)
+	claimer := pool.NewClaimer(sqlc.NewDeliveryRepository(q))
 
 	nc := cnt.NatsPublisher()
 
 	v := Validator{
-		pm:  pm,
-		pub: nc,
+		claimer: claimer,
+		pub:     nc,
 	}
 
 	v.log().Info("🚀 Starting validator")
@@ -53,38 +54,38 @@ func Run(ctx context.Context, cnt *container.Container) error {
 func (d *Validator) Cycle(pctx context.Context) error {
 	ctx, cancel := context.WithTimeout(pctx, 10*time.Second)
 	defer cancel()
-	emails, err := d.pm.PrepareForValidate(ctx, 100)
+	emails, err := d.claimer.ClaimForValidation(ctx, 100)
 	if err != nil {
 		return fmt.Errorf("cannot prepare emails for send: %v", err)
 	}
 
 	d.log().Debugf("validating %d emails", len(emails))
 
-	for _, pool := range emails {
-		if err := d.handlePool(ctx, pool); err != nil {
-			d.log().WithError(err).Errorf("error handling pool email: %#v", pool)
+	for _, dlv := range emails {
+		if err := d.handleDelivery(ctx, dlv); err != nil {
+			d.log().WithError(err).Errorf("error handling delivery: %v/%v", dlv.BatchID(), dlv.Email())
 		}
 	}
 	return nil
 }
 
-func (d *Validator) handlePool(ctx context.Context, pool sqlc.SendingPoolEmail) error {
+func (d *Validator) handleDelivery(ctx context.Context, dlv *delivery.Delivery) error {
 	statData := &types.Stats{
-		MessageId: pool.MessageID,
-		Domain:    pool.Domain,
-		Email:     pool.Email,
+		MessageId: dlv.BatchID().String(),
+		Domain:    dlv.Domain(),
+		Email:     dlv.Email(),
 		Timestamp: timestamppb.Now(),
 	}
 
-	if err := validatePool(pool); err != nil {
+	if err := validateDelivery(dlv); err != nil {
 		statData.Data = newRejectedStatData(err)
-		if err := d.pm.CleanEmail(ctx, pool.MessageID, pool.Email); err != nil {
+		if err := d.claimer.Drop(ctx, dlv); err != nil {
 			return err
 		}
 		return publisher.PublishStat(d.pub, statData)
 	}
 
-	if err := d.pm.SetScheduled(ctx, pool.MessageID, pool.Email); err != nil {
+	if err := d.claimer.MarkValidated(ctx, dlv); err != nil {
 		return err
 	}
 	statData.Data = newAcceptedStatData()
@@ -109,9 +110,9 @@ func newAcceptedStatData() *types.StatsData {
 	}
 }
 
-func validatePool(pool sqlc.SendingPoolEmail) error {
-	if err := validateEmail(pool.Email); err != nil {
-		logrus.Errorf("invalid email %s: %v", pool.Email, err)
+func validateDelivery(d *delivery.Delivery) error {
+	if err := validateEmail(d.Email()); err != nil {
+		logrus.Errorf("invalid email %s: %v", d.Email(), err)
 		return err
 	}
 	return nil

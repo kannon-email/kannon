@@ -6,11 +6,11 @@ import (
 
 	"github.com/kannon-email/kannon/internal/x/container"
 	"github.com/kannon-email/kannon/pkg/api"
-	"github.com/kannon-email/kannon/pkg/bump"
 	"github.com/kannon-email/kannon/pkg/dispatcher"
-	"github.com/kannon-email/kannon/pkg/sender"
 	"github.com/kannon-email/kannon/pkg/smtp"
+	"github.com/kannon-email/kannon/pkg/smtpsender"
 	"github.com/kannon-email/kannon/pkg/stats"
+	"github.com/kannon-email/kannon/pkg/tracker"
 	"github.com/kannon-email/kannon/pkg/validator"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -74,11 +74,11 @@ func run(cmd *cobra.Command, args []string) {
 		})
 	}
 
-	if config.RunVerifier {
+	if config.RunValidator {
 		g.Go(func() error {
 			err := validator.Run(ctx, cnt)
 			if err != nil {
-				return fmt.Errorf("error in verifier: %v", err)
+				return fmt.Errorf("error in validator: %v", err)
 			}
 			return nil
 		})
@@ -96,7 +96,7 @@ func run(cmd *cobra.Command, args []string) {
 
 	if config.RunBounce {
 		g.Go(func() error {
-			err := bump.Run(ctx, cnt, config.Bump.ToBumpConfig())
+			err := tracker.Run(ctx, cnt, config.Tracker.ToTrackerConfig())
 			if err != nil {
 				return fmt.Errorf("error in bounce: %v", err)
 			}
@@ -136,7 +136,8 @@ func init() {
 	rootCmd.PersistentFlags().Bool("viper", true, "use Viper for configuration")
 	createBoolFlagAndBindToViper("run-sender", false, "run sender")
 	createBoolFlagAndBindToViper("run-dispatcher", false, "run dispatcher")
-	createBoolFlagAndBindToViper("run-verifier", false, "run verifier")
+	createBoolFlagAndBindToViper("run-validator", false, "run validator")
+	createBoolFlagAndBindToViper("run-verifier", false, "DEPRECATED: use --run-validator")
 	createBoolFlagAndBindToViper("run-bounce", false, "run bounce")
 	createBoolFlagAndBindToViper("run-stats", false, "run stats")
 	createBoolFlagAndBindToViper("run-api", false, "run api")
@@ -163,8 +164,8 @@ func runDispatcher(ctx context.Context, cnt *container.Container, _ Config) erro
 
 func runSender(ctx context.Context, cnt *container.Container, config Config) error {
 	cnf := config.Sender.ToSenderConfig()
-	sender := sender.NewSenderFromContainer(cnt, cnf)
-	return sender.Run(ctx)
+	s := smtpsender.NewSMTPSenderFromContainer(cnt, cnf)
+	return s.Run(ctx)
 }
 
 func runSMTP(ctx context.Context, cnt *container.Container, config Config) error {

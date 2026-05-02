@@ -1,4 +1,4 @@
-package bump
+package tracker
 
 import (
 	"context"
@@ -43,7 +43,7 @@ func (s *srv) Run(ctx context.Context) error {
 		port = 8080 // default port
 	}
 	addr := fmt.Sprintf("0.0.0.0:%d", port)
-	logrus.Infof("running bounce on %s", addr)
+	logrus.Infof("running tracker on %s", addr)
 
 	server := &http.Server{Addr: addr, Handler: mux}
 

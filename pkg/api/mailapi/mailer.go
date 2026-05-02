@@ -11,9 +11,10 @@ import (
 	"connectrpc.com/connect"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/kannon-email/kannon/internal/apikeys"
+	"github.com/kannon-email/kannon/internal/batch"
 	sqlc "github.com/kannon-email/kannon/internal/db"
+	"github.com/kannon-email/kannon/internal/delivery"
 	"github.com/kannon-email/kannon/internal/domains"
-	"github.com/kannon-email/kannon/internal/pool"
 	smtputils "github.com/kannon-email/kannon/internal/smtp"
 	"github.com/kannon-email/kannon/internal/templates"
 	"github.com/kannon-email/kannon/internal/utils"
@@ -25,10 +26,11 @@ import (
 )
 
 type mailAPIService struct {
-	domains     domains.DomainManager
-	apiKeys     *apikeys.Service
-	templates   templates.Manager
-	sendingPool pool.SendingPoolManager
+	domains    domains.Repository
+	apiKeys    *apikeys.Service
+	templates  templates.Repository
+	batches    batch.Repository
+	deliveries delivery.Repository
 }
 
 func (s mailAPIService) SendHTML(ctx context.Context, req *connect.Request[pb.SendHTMLReq]) (*connect.Response[pb.SendRes], error) {
@@ -39,7 +41,7 @@ func (s mailAPIService) SendHTML(ctx context.Context, req *connect.Request[pb.Se
 
 	req.Msg.Html = utils.ReplaceCustomFields(req.Msg.Html, req.Msg.GlobalFields)
 
-	template, err := s.templates.CreateTransientTemplate(ctx, req.Msg.Html, domain.Domain)
+	template, err := s.createTransientTemplate(ctx, domain.Domain(), req.Msg.Html)
 	if err != nil {
 		logrus.Errorf("cannot create template %v\n", err)
 		return nil, fmt.Errorf("cannot create template %v", err)
@@ -48,7 +50,7 @@ func (s mailAPIService) SendHTML(ctx context.Context, req *connect.Request[pb.Se
 	res := &pb.SendTemplateReq{
 		Sender:        req.Msg.Sender,
 		Subject:       req.Msg.Subject,
-		TemplateId:    template.TemplateID,
+		TemplateId:    template.TemplateID(),
 		ScheduledTime: req.Msg.ScheduledTime,
 		Recipients:    req.Msg.Recipients,
 		Attachments:   req.Msg.Attachments,
@@ -68,8 +70,8 @@ func (s mailAPIService) SendTemplate(ctx context.Context, req *connect.Request[p
 	return s.sendTemplate(ctx, domain, req)
 }
 
-func (s mailAPIService) sendTemplate(ctx context.Context, domain sqlc.Domain, req *connect.Request[pb.SendTemplateReq]) (*connect.Response[pb.SendRes], error) {
-	template, err := s.templates.FindTemplate(ctx, domain.Domain, req.Msg.TemplateId)
+func (s mailAPIService) sendTemplate(ctx context.Context, domain *domains.Domain, req *connect.Request[pb.SendTemplateReq]) (*connect.Response[pb.SendRes], error) {
+	template, err := s.templates.FindByDomain(ctx, domain.Domain(), req.Msg.TemplateId)
 	if err != nil {
 		logrus.Errorf("cannot find template %v\n", err)
 		return nil, fmt.Errorf("cannot find template with id: %v", req.Msg.TemplateId)
@@ -81,7 +83,7 @@ func (s mailAPIService) sendTemplate(ctx context.Context, domain sqlc.Domain, re
 		return nil, fmt.Errorf("cannot create template %v", err)
 	}
 
-	sender := pool.Sender{
+	sender := batch.Sender{
 		Email: req.Msg.Sender.Email,
 		Alias: req.Msg.Sender.Alias,
 	}
@@ -91,7 +93,7 @@ func (s mailAPIService) sendTemplate(ctx context.Context, domain sqlc.Domain, re
 		scheduled = req.Msg.ScheduledTime.AsTime()
 	}
 
-	attachments := make(sqlc.Attachments)
+	attachments := make(batch.Attachments, len(req.Msg.Attachments))
 	for _, r := range req.Msg.Attachments {
 		attachments[r.Filename] = r.Content
 	}
@@ -101,55 +103,91 @@ func (s mailAPIService) sendTemplate(ctx context.Context, domain sqlc.Domain, re
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 
-	pool, err := s.sendingPool.AddRecipientsPool(ctx, template, req.Msg.Recipients, sender, scheduled, req.Msg.Subject, domain.Domain, attachments, customHeaders)
-
+	b, err := batch.New(domain.Domain(), req.Msg.Subject, sender, template.TemplateID(), attachments, customHeaders)
 	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+
+	if err := s.scheduleBatch(ctx, b, req.Msg.Recipients, scheduled); err != nil {
 		logrus.Errorf("cannot create pool %v\n", err)
 		return nil, err
 	}
 
 	return connect.NewResponse(&pb.SendRes{
-		MessageId:     pool.MessageID,
-		TemplateId:    template.TemplateID,
+		MessageId:     b.ID().String(),
+		TemplateId:    template.TemplateID(),
 		ScheduledTime: timestamppb.New(scheduled),
 	}), nil
 }
 
 func (s mailAPIService) Close() error {
-	return s.domains.Close()
+	return nil
 }
 
-func (s mailAPIService) createTemplateWithGlobalFields(ctx context.Context, template sqlc.Template, globalFields map[string]string) (sqlc.Template, error) {
+func (s mailAPIService) scheduleBatch(ctx context.Context, b *batch.Batch, recipients []*mailertypes.Recipient, scheduled time.Time) error {
+	if err := s.batches.Create(ctx, b); err != nil {
+		return err
+	}
+	for _, r := range recipients {
+		d, err := delivery.New(delivery.NewParams{
+			BatchID:       b.ID(),
+			Email:         r.Email,
+			Fields:        r.Fields,
+			Domain:        b.Domain(),
+			ScheduledTime: scheduled,
+		})
+		if err != nil {
+			return err
+		}
+		if err := s.deliveries.Schedule(ctx, d); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s mailAPIService) createTemplateWithGlobalFields(ctx context.Context, template *templates.Template, globalFields map[string]string) (*templates.Template, error) {
 	if len(globalFields) == 0 {
 		return template, nil
 	}
 
-	newHTML := utils.ReplaceCustomFields(template.Html, globalFields)
-	if newHTML == template.Html {
+	newHTML := utils.ReplaceCustomFields(template.Html(), globalFields)
+	if newHTML == template.Html() {
 		return template, nil
 	}
 
-	return s.templates.CreateTransientTemplate(ctx, newHTML, template.Domain)
+	return s.createTransientTemplate(ctx, template.Domain(), newHTML)
 }
 
-func (s mailAPIService) getCallDomainFromHeaders(ctx context.Context, headers http.Header) (sqlc.Domain, error) {
+func (s mailAPIService) createTransientTemplate(ctx context.Context, domain, html string) (*templates.Template, error) {
+	tpl, err := templates.NewTransient(domain, html)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.templates.Create(ctx, tpl); err != nil {
+		return nil, err
+	}
+	return tpl, nil
+}
+
+func (s mailAPIService) getCallDomainFromHeaders(ctx context.Context, headers http.Header) (*domains.Domain, error) {
 	auth := headers.Get("Authorization")
 
 	if !strings.HasPrefix(auth, "Basic ") {
-		return sqlc.Domain{}, fmt.Errorf("invalid auth")
+		return nil, fmt.Errorf("invalid auth")
 	}
 
 	token := strings.Replace(auth, "Basic ", "", 1)
 	data, err := base64.StdEncoding.DecodeString(token)
 	if err != nil {
-		return sqlc.Domain{}, fmt.Errorf("invalid auth")
+		return nil, fmt.Errorf("invalid auth")
 	}
 
 	authData := string(data)
 
 	parts := strings.Split(authData, ":")
 	if len(parts) != 2 {
-		return sqlc.Domain{}, fmt.Errorf("invalid auth")
+		return nil, fmt.Errorf("invalid auth")
 	}
 	domainName, key := parts[0], parts[1]
 
@@ -157,46 +195,48 @@ func (s mailAPIService) getCallDomainFromHeaders(ctx context.Context, headers ht
 	apiKey, err := s.apiKeys.ValidateForAuth(ctx, domainName, key)
 	if err != nil {
 		// Always return generic error (security requirement)
-		return sqlc.Domain{}, fmt.Errorf("invalid auth")
+		return nil, fmt.Errorf("invalid auth")
 	}
 
 	// Fetch full domain info
-	domain, err := s.domains.FindDomain(ctx, apiKey.Domain())
+	domain, err := s.domains.FindByName(ctx, apiKey.Domain())
 	if err != nil {
-		return sqlc.Domain{}, fmt.Errorf("invalid auth")
+		return nil, fmt.Errorf("invalid auth")
 	}
 
 	return domain, nil
 }
 
-func validateHeaders(h *mailertypes.Headers) (sqlc.Headers, error) {
+func validateHeaders(h *mailertypes.Headers) (batch.Headers, error) {
 	if h == nil {
-		return sqlc.Headers{}, nil
+		return batch.Headers{}, nil
 	}
 	for _, email := range h.To {
 		if !smtputils.Validate(email) {
-			return sqlc.Headers{}, fmt.Errorf("invalid To header: %q is not a valid email address", email)
+			return batch.Headers{}, fmt.Errorf("invalid To header: %q is not a valid email address", email)
 		}
 	}
 	for _, email := range h.Cc {
 		if !smtputils.Validate(email) {
-			return sqlc.Headers{}, fmt.Errorf("invalid Cc header: %q is not a valid email address", email)
+			return batch.Headers{}, fmt.Errorf("invalid Cc header: %q is not a valid email address", email)
 		}
 	}
-	return sqlc.Headers{To: h.To, Cc: h.Cc}, nil
+	return batch.Headers{To: h.To, Cc: h.Cc}, nil
 }
 
 func NewMailerAPIV1(q *sqlc.Queries, db *pgxpool.Pool) mailerv1connect.MailerHandler {
-	domainsCli := domains.NewDomainManager(q)
+	domainsCli := sqlc.NewDomainsRepository(q)
 	apiKeysRepo := sqlc.NewAPIKeysRepository(q, db)
 	apiKeysService := apikeys.NewService(apiKeysRepo)
-	sendingPoolCli := pool.NewSendingPoolManager(q)
-	templates := templates.NewTemplateManager(q)
+	batchRepo := sqlc.NewBatchRepository(q)
+	deliveryRepo := sqlc.NewDeliveryRepository(q)
+	templatesRepo := sqlc.NewTemplatesRepository(q)
 
 	return &mailAPIService{
-		domains:     domainsCli,
-		apiKeys:     apiKeysService,
-		sendingPool: sendingPoolCli,
-		templates:   templates,
+		domains:    domainsCli,
+		apiKeys:    apiKeysService,
+		batches:    batchRepo,
+		deliveries: deliveryRepo,
+		templates:  templatesRepo,
 	}
 }

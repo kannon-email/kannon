@@ -13,7 +13,7 @@ sender:
 run-smtp: true
 run-bounce: true
 run-dispatcher: true
-run-verifier: true
+run-validator: true
 run-sender: true
 run-api: true
 run-stats: true

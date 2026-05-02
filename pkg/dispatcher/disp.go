@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/kannon-email/kannon/internal/mailbuilder"
+	"github.com/kannon-email/kannon/internal/batch"
+	"github.com/kannon-email/kannon/internal/envelope"
 	"github.com/kannon-email/kannon/internal/pool"
 	"github.com/kannon-email/kannon/internal/publisher"
 	"github.com/kannon-email/kannon/internal/statssec"
@@ -17,11 +18,11 @@ import (
 )
 
 type disp struct {
-	ss  statssec.StatsService
-	pm  pool.SendingPoolManager
-	mb  mailbuilder.MailBuilder
-	pub publisher.Publisher
-	js  jetstream.JetStream
+	ss      statssec.StatsService
+	claimer pool.Claimer
+	eb      envelope.Builder
+	pub     publisher.Publisher
+	js      jetstream.JetStream
 }
 
 func (d *disp) log() *logrus.Entry {
@@ -31,25 +32,25 @@ func (d *disp) log() *logrus.Entry {
 func (d *disp) DispatchCycle(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	emails, err := d.pm.PrepareForSend(ctx, 20)
+	emails, err := d.claimer.ClaimForDispatch(ctx, 20)
 	if err != nil {
 		return fmt.Errorf("cannot prepare emails for send: %v", err)
 	}
 
 	d.log().Debugf("seding %d emails", len(emails))
 
-	for _, email := range emails {
+	for _, dlv := range emails {
 		log := d.log()
-		data, err := d.mb.BuildEmail(ctx, email)
+		env, err := d.eb.Build(ctx, dlv)
 
 		if err != nil {
 			log.WithError(err).Errorf("Cannot send email")
 			continue
 		}
 
-		log = log.WithField("email", utils.ObfuscateEmail(data.To)).WithField("email_id", data.EmailId)
+		log = log.WithField("email", utils.ObfuscateEmail(env.To())).WithField("email_id", env.EmailID())
 
-		if err := publisher.SendEmail(d.pub, data); err != nil {
+		if err := publisher.SendEmail(d.pub, env); err != nil {
 			log.WithError(err).Errorf("Cannot send email")
 			continue
 		}
@@ -73,7 +74,11 @@ func (d *disp) parseErrorsFunc(ctx context.Context, m *statstypes.Stats) error {
 		return fmt.Errorf("stats is not of type error")
 	}
 
-	if err := d.pm.RescheduleEmail(ctx, m.MessageId, m.Email); err != nil {
+	dlv, err := d.claimer.Lookup(ctx, batch.ID(m.MessageId), m.Email)
+	if err != nil {
+		return fmt.Errorf("cannot lookup delivery: %w", err)
+	}
+	if err := d.claimer.Reschedule(ctx, dlv); err != nil {
 		return fmt.Errorf("cannot set delivered: %w", err)
 	}
 	return nil
@@ -86,7 +91,11 @@ func (d *disp) handleDelivers(ctx context.Context) error {
 }
 
 func (d *disp) parsDeliveredFunc(ctx context.Context, m *statstypes.Stats) error {
-	if err := d.pm.CleanEmail(ctx, m.MessageId, m.Email); err != nil {
+	dlv, err := d.claimer.Lookup(ctx, batch.ID(m.MessageId), m.Email)
+	if err != nil {
+		return fmt.Errorf("cannot lookup delivery: %w", err)
+	}
+	if err := d.claimer.Drop(ctx, dlv); err != nil {
 		return fmt.Errorf("cannot set delivered: %w", err)
 	}
 	return nil
@@ -99,7 +108,11 @@ func (d *disp) handleBounced(ctx context.Context) error {
 }
 
 func (d *disp) parsBouncedFunc(ctx context.Context, m *statstypes.Stats) error {
-	if err := d.pm.CleanEmail(ctx, m.MessageId, m.Email); err != nil {
+	dlv, err := d.claimer.Lookup(ctx, batch.ID(m.MessageId), m.Email)
+	if err != nil {
+		return fmt.Errorf("cannot lookup delivery: %w", err)
+	}
+	if err := d.claimer.Drop(ctx, dlv); err != nil {
 		return fmt.Errorf("cannot set delivered: %w", err)
 	}
 

@@ -1,4 +1,4 @@
-package sender
+package smtpsender
 
 import (
 	"context"
@@ -29,22 +29,22 @@ func (c Config) GetMaxJobs() uint {
 	return c.MaxJobs
 }
 
-type sender struct {
+type smtpSender struct {
 	sender    smtp.Sender
 	publisher publisher.Publisher
 	js        jetstream.JetStream
 	cfg       Config
 }
 
-func NewSenderFromContainer(cnt *container.Container, cfg Config) *sender {
+func NewSMTPSenderFromContainer(cnt *container.Container, cfg Config) *smtpSender {
 	sender := cnt.Sender()
 	js := cnt.NatsJetStream()
 	publisher := cnt.NatsPublisher()
-	return NewSender(publisher, js, sender, cfg)
+	return NewSMTPSender(publisher, js, sender, cfg)
 }
 
-func NewSender(publisher publisher.Publisher, js jetstream.JetStream, s smtp.Sender, cfg Config) *sender {
-	return &sender{
+func NewSMTPSender(publisher publisher.Publisher, js jetstream.JetStream, s smtp.Sender, cfg Config) *smtpSender {
+	return &smtpSender{
 		sender:    s,
 		publisher: publisher,
 		js:        js,
@@ -52,10 +52,10 @@ func NewSender(publisher publisher.Publisher, js jetstream.JetStream, s smtp.Sen
 	}
 }
 
-func (s *sender) Run(ctx context.Context) error {
+func (s *smtpSender) Run(ctx context.Context) error {
 	logrus.WithField("hostname", s.sender.SenderName()).
 		WithField("max_jobs", s.cfg.GetMaxJobs()).
-		Infof("Starting Sender Service")
+		Infof("Starting SMTPSender Service")
 	mustConfigureStatsJS(ctx, s.js)
 
 	consumer := utils.MustGetPullSubscriber(ctx, s.js, "kannon-sending", "kannon.sending", "kannon-sending-pool")
@@ -63,7 +63,7 @@ func (s *sender) Run(ctx context.Context) error {
 	return s.handleSend(ctx, consumer)
 }
 
-func (s *sender) handleSend(ctx context.Context, consumer jetstream.Consumer) error {
+func (s *smtpSender) handleSend(ctx context.Context, consumer jetstream.Consumer) error {
 	logrus.Infof("🚀 Ready to send!\n")
 
 	maxJobs := s.cfg.GetMaxJobs()
@@ -84,11 +84,11 @@ func (s *sender) handleSend(ctx context.Context, consumer jetstream.Consumer) er
 	<-ctx.Done()
 	tasks.WaitAndClose()
 
-	logrus.Infof("👋 Shutting down Sender Service")
+	logrus.Infof("👋 Shutting down SMTPSender Service")
 	return ctx.Err()
 }
 
-func (s *sender) handleMsgAck(msg jetstream.Msg, err error) {
+func (s *smtpSender) handleMsgAck(msg jetstream.Msg, err error) {
 	if err != nil {
 		logrus.Errorf("error in handling message: %v\n", err.Error())
 		if err := msg.Nak(); err != nil {
@@ -101,7 +101,7 @@ func (s *sender) handleMsgAck(msg jetstream.Msg, err error) {
 	}
 }
 
-func (s *sender) handleMessage(msg jetstream.Msg) error {
+func (s *smtpSender) handleMessage(msg jetstream.Msg) error {
 	data := &msgtypes.EmailToSend{}
 	err := proto.Unmarshal(msg.Data(), data)
 	if err != nil {
@@ -116,7 +116,7 @@ func (s *sender) handleMessage(msg jetstream.Msg) error {
 	return s.handleSendSuccess(data)
 }
 
-func (s *sender) handleSendSuccess(data *msgtypes.EmailToSend) error {
+func (s *smtpSender) handleSendSuccess(data *msgtypes.EmailToSend) error {
 	msgID, domain, err := utils.ExtractMsgIDAndDomainFromEmailID(data.EmailId)
 	if err != nil {
 		return nil
@@ -144,7 +144,7 @@ func (s *sender) handleSendSuccess(data *msgtypes.EmailToSend) error {
 	return nil
 }
 
-func (s *sender) handleSendError(sendErr smtp.SenderError, data *msgtypes.EmailToSend) error {
+func (s *smtpSender) handleSendError(sendErr smtp.SenderError, data *msgtypes.EmailToSend) error {
 	msgID, domain, err := utils.ExtractMsgIDAndDomainFromEmailID(data.EmailId)
 	if err != nil {
 		return nil

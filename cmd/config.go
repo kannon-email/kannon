@@ -7,10 +7,10 @@ import (
 	"time"
 
 	"github.com/kannon-email/kannon/pkg/api"
-	"github.com/kannon-email/kannon/pkg/bump"
-	"github.com/kannon-email/kannon/pkg/sender"
 	"github.com/kannon-email/kannon/pkg/smtp"
+	"github.com/kannon-email/kannon/pkg/smtpsender"
 	"github.com/kannon-email/kannon/pkg/stats"
+	"github.com/kannon-email/kannon/pkg/tracker"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -18,22 +18,22 @@ import (
 
 // Config holds all application configuration.
 type Config struct {
-	DatabaseURL   string       `mapstructure:"database_url"`
-	NatsURL       string       `mapstructure:"nats_url"`
-	Debug         bool         `mapstructure:"debug"`
-	API           APIConfig    `mapstructure:"api"`
-	Sender        SenderConfig `mapstructure:"sender"`
-	SMTP          SMTPConfig   `mapstructure:"smtp"`
-	Bump          BumpConfig   `mapstructure:"bump"`
-	Stats         StatsConfig  `mapstructure:"stats"`
-	RunAPI        bool         `mapstructure:"run-api"`
-	RunSMTP       bool         `mapstructure:"run-smtp"`
-	RunSender     bool         `mapstructure:"run-sender"`
-	RunDispatcher bool         `mapstructure:"run-dispatcher"`
-	RunVerifier   bool         `mapstructure:"run-verifier"`
-	RunBounce     bool         `mapstructure:"run-bounce"`
-	RunStats      bool         `mapstructure:"run-stats"`
-	ConfigFile    string       `mapstructure:"config"`
+	DatabaseURL   string        `mapstructure:"database_url"`
+	NatsURL       string        `mapstructure:"nats_url"`
+	Debug         bool          `mapstructure:"debug"`
+	API           APIConfig     `mapstructure:"api"`
+	Sender        SenderConfig  `mapstructure:"sender"`
+	SMTP          SMTPConfig    `mapstructure:"smtp"`
+	Tracker       TrackerConfig `mapstructure:"tracker"`
+	Stats         StatsConfig   `mapstructure:"stats"`
+	RunAPI        bool          `mapstructure:"run-api"`
+	RunSMTP       bool          `mapstructure:"run-smtp"`
+	RunSender     bool          `mapstructure:"run-sender"`
+	RunDispatcher bool          `mapstructure:"run-dispatcher"`
+	RunValidator  bool          `mapstructure:"run-validator"`
+	RunBounce     bool          `mapstructure:"run-bounce"`
+	RunStats      bool          `mapstructure:"run-stats"`
+	ConfigFile    string        `mapstructure:"config"`
 }
 
 type APIConfig struct {
@@ -46,12 +46,12 @@ func (c APIConfig) ToAPIConfig() api.Config {
 	}
 }
 
-type BumpConfig struct {
+type TrackerConfig struct {
 	Port uint `mapstructure:"port"`
 }
 
-func (c BumpConfig) ToBumpConfig() bump.Config {
-	return bump.Config{
+func (c TrackerConfig) ToTrackerConfig() tracker.Config {
+	return tracker.Config{
 		Port: c.Port,
 	}
 }
@@ -62,8 +62,8 @@ type SenderConfig struct {
 	DemoSender bool   `mapstructure:"demo_sender"`
 }
 
-func (c SenderConfig) ToSenderConfig() sender.Config {
-	return sender.Config{
+func (c SenderConfig) ToSenderConfig() smtpsender.Config {
+	return smtpsender.Config{
 		MaxJobs: c.MaxJobs,
 	}
 }
@@ -135,6 +135,8 @@ func readConfig() (Config, error) {
 		}
 	}
 
+	applyDeprecatedAliases()
+
 	if err := viper.Unmarshal(&config); err != nil {
 		return Config{}, fmt.Errorf("unable to decode config into struct: %v", err)
 	}
@@ -144,4 +146,49 @@ func readConfig() (Config, error) {
 	}
 
 	return config, nil
+}
+
+// applyDeprecatedAliases promotes deprecated config keys onto their canonical
+// names and logs a one-line deprecation warning at startup. Each entry is a
+// public API surface we still owe users.
+func applyDeprecatedAliases() {
+	boolAliases := []struct {
+		oldKey string
+		newKey string
+	}{
+		{oldKey: "run-verifier", newKey: "run-validator"},
+	}
+
+	for _, a := range boolAliases {
+		if !viper.GetBool(a.oldKey) {
+			continue
+		}
+		logrus.Warnf("config key %q is deprecated and will be removed in a future major version; use %q instead", a.oldKey, a.newKey)
+		viper.Set(a.newKey, true)
+	}
+
+	subKeyAliases := []struct {
+		oldKey string
+		newKey string
+	}{
+		{oldKey: "bump.port", newKey: "tracker.port"},
+	}
+
+	warnedSections := map[string]bool{}
+	for _, a := range subKeyAliases {
+		//nolint:errcheck
+		viper.BindEnv(a.oldKey)
+		if !viper.IsSet(a.oldKey) {
+			continue
+		}
+		oldSection := strings.SplitN(a.oldKey, ".", 2)[0]
+		newSection := strings.SplitN(a.newKey, ".", 2)[0]
+		if !warnedSections[oldSection] {
+			logrus.Warnf("config section %q is deprecated and will be removed in a future major version; use %q instead", oldSection, newSection)
+			warnedSections[oldSection] = true
+		}
+		if !viper.IsSet(a.newKey) {
+			viper.Set(a.newKey, viper.Get(a.oldKey))
+		}
+	}
 }

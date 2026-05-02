@@ -51,10 +51,10 @@ Kannon is composed of several microservices and workers:
 
 - **API**: gRPC server for mail, template, and domain management
 - **SMTP**: Handles SMTP protocol and relays mail
-- **Sender**: Sends emails from the queue
+- **SMTPSender**: Sends emails from the queue
 - **Dispatcher**: Manages the sending pool and delivery
-- **Verifier**: Validates emails before sending
-- **Bounce**: Handles bounces
+- **Validator**: Validates emails before sending
+- **Tracker**: Serves open/click tracking endpoints and publishes engagement stats
 - **Stats**: Collects and stores delivery statistics
 
 All components can be enabled/disabled via CLI flags or config.
@@ -66,27 +66,26 @@ flowchart TD
     subgraph Core
         API["gRPC API"]
         SMTP["SMTP Server"]
-        Sender["Sender"]
+        SMTPSender["SMTPSender"]
         Dispatcher["Dispatcher"]
-        Verifier["Verifier"]
-        Bounce["Bounce"]
+        Validator["Validator"]
+        Tracker["Tracker"]
         Stats["Stats"]
     end
     DB[(PostgreSQL)]
     NATS[(NATS)]
     API <--> DB
     Dispatcher <--> DB
-    Sender <--> DB
-    Verifier <--> DB
+    SMTPSender <--> DB
+    Validator <--> DB
     Stats <--> DB
-    Bounce <--> DB
     API <--> NATS
-    Sender <--> NATS
+    SMTPSender <--> NATS
     Dispatcher <--> NATS
     SMTP <--> NATS
     Stats <--> NATS
-    Verifier <--> NATS
-    Bounce <--> NATS
+    Validator <--> NATS
+    Tracker <--> NATS
 ```
 
 ## Quickstart
@@ -110,7 +109,7 @@ go build -o kannon .
 ```
 
 This mode:
-- Runs all components (API, SMTP, Sender, Dispatcher, Verifier, Stats, Bounce)
+- Runs all components (API, SMTP, SMTPSender, Dispatcher, Validator, Stats, Bounce)
 - Embeds NATS server (no external NATS required)
 - Ideal for development, testing, or single-server deployments
 - Still requires a PostgreSQL database
@@ -163,16 +162,19 @@ Kannon can be configured via YAML file, environment variables, or CLI flags. Pre
 | `smtp.write_timeout` / `K_SMTP_WRITE_TIMEOUT`   | duration | 10s            | SMTP write timeout                     |
 | `smtp.max_payload` / `K_SMTP_MAX_PAYLOAD`       | size     | 1024kb         | Max SMTP message size                  |
 | `smtp.max_recipients` / `K_SMTP_MAX_RECIPIENTS` | int      | 50             | Max recipients per SMTP message        |
+| `tracker.port` / `K_TRACKER_PORT`               | int      | 8080           | Open/click tracking HTTP server port   |
 | `run-api` / `K_RUN_API`                         | bool     | false          | Enable API server                      |
 | `run-smtp` / `K_RUN_SMTP`                       | bool     | false          | Enable SMTP server                     |
 | `run-sender` / `K_RUN_SENDER`                   | bool     | false          | Enable sender worker                   |
 | `run-dispatcher` / `K_RUN_DISPATCHER`           | bool     | false          | Enable dispatcher worker               |
-| `run-verifier` / `K_RUN_VERIFIER`               | bool     | false          | Enable verifier worker                 |
+| `run-validator` / `K_RUN_VALIDATOR`             | bool     | false          | Enable validator worker                |
 | `run-bounce` / `K_RUN_BOUNCE`                   | bool     | false          | Enable bounce worker                   |
 | `run-stats` / `K_RUN_STATS`                     | bool     | false          | Enable stats worker                    |
 | `config`                                        | string   | ~/.kannon.yaml | Path to config file                    |
 
 - See [`examples/docker-compose/kannon.yaml`](examples/docker-compose/kannon.yaml) for a full example.
+
+> **Deprecated aliases:** `run-verifier` / `K_RUN_VERIFIER` continue to work as aliases for `run-validator` / `K_RUN_VALIDATOR`, and the `bump:` YAML section / `K_BUMP_PORT` env var continue to work as aliases for `tracker:` / `K_TRACKER_PORT`. They emit a deprecation warning at startup and will be removed in a future major version.
 
 ## Database Schema
 
@@ -415,7 +417,7 @@ sender:
 run-smtp: true
 run-bounce: true
 run-dispatcher: true
-run-verifier: true
+run-validator: true
 run-sender: true
 run-api: true
 run-stats: true

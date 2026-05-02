@@ -1,118 +1,75 @@
+// Package pool exposes the claim/scheduling primitive that operates on
+// delivery.Delivery values. The Claimer hides the enum-flip claim
+// mechanism, the scheduled-time filter, and the exponential backoff
+// behind a small interface (parent PRD #322 §8).
 package pool
 
 import (
 	"context"
-	"math"
-	"time"
 
-	sqlc "github.com/kannon-email/kannon/internal/db"
-	"github.com/kannon-email/kannon/internal/utils"
-	pb "github.com/kannon-email/kannon/proto/kannon/mailer/types"
+	"github.com/kannon-email/kannon/internal/batch"
+	"github.com/kannon-email/kannon/internal/delivery"
 )
 
-type Sender struct {
-	Alias string
-	Email string
+// Claimer atomically claims Deliveries from the sending pool and
+// transitions them between in-flight states. Implementations are
+// backed by the delivery.Repository and operate exclusively on
+// delivery.Delivery values.
+type Claimer interface {
+	// ClaimForValidation atomically claims up to max deliveries that
+	// are pending validation and returns them.
+	ClaimForValidation(ctx context.Context, max int) ([]*delivery.Delivery, error)
+
+	// ClaimForDispatch atomically claims up to max deliveries that are
+	// scheduled and due (scheduled_time <= NOW()) for dispatch.
+	ClaimForDispatch(ctx context.Context, max int) ([]*delivery.Delivery, error)
+
+	// MarkValidated transitions a Delivery from to-validate to
+	// scheduled, making it eligible for ClaimForDispatch.
+	MarkValidated(ctx context.Context, d *delivery.Delivery) error
+
+	// Reschedule applies the Delivery's retry policy: bumps the
+	// attempt counter and rolls the scheduled time forward by the
+	// exponential backoff window.
+	Reschedule(ctx context.Context, d *delivery.Delivery) error
+
+	// Drop removes a terminated Delivery from the pool.
+	Drop(ctx context.Context, d *delivery.Delivery) error
+
+	// Lookup loads a Delivery by its (BatchID, Email) key. Used by
+	// stats-driven consumers that only have the storage key on hand.
+	Lookup(ctx context.Context, batchID batch.ID, email string) (*delivery.Delivery, error)
 }
 
-// SendingPoolManager is a manger for sending pool
-type SendingPoolManager interface {
-	AddRecipientsPool(ctx context.Context, template sqlc.Template, recipents []*pb.Recipient, from Sender, scheduled time.Time, subject string, domain string, attachments sqlc.Attachments, customHeaders sqlc.Headers) (sqlc.Message, error)
-	PrepareForSend(ctx context.Context, max uint) ([]sqlc.SendingPoolEmail, error)
-	PrepareForValidate(ctx context.Context, max uint) ([]sqlc.SendingPoolEmail, error)
-	SetScheduled(ctx context.Context, messageID string, email string) error
-	RescheduleEmail(ctx context.Context, messageID string, email string) error
-	CleanEmail(ctx context.Context, messageID string, email string) error
+type claimer struct {
+	deliveries delivery.Repository
 }
 
-type sendingPoolManager struct {
-	db *sqlc.Queries
+// NewClaimer wires a Claimer backed by the given Delivery repository.
+func NewClaimer(deliveries delivery.Repository) Claimer {
+	return &claimer{deliveries: deliveries}
 }
 
-// AddPool starts a new schedule in the pool
-func (m *sendingPoolManager) AddRecipientsPool(ctx context.Context, template sqlc.Template, recipents []*pb.Recipient, from Sender, scheduled time.Time, subject string, domain string, attachments sqlc.Attachments, customHeaders sqlc.Headers) (sqlc.Message, error) {
-	msg, err := m.db.CreateMessage(ctx, sqlc.CreateMessageParams{
-		TemplateID:  template.TemplateID,
-		Domain:      domain,
-		Subject:     subject,
-		SenderEmail: from.Email,
-		SenderAlias: from.Alias,
-		MessageID:   utils.CreateMessageID(domain),
-		Attachments: attachments,
-		Headers:     customHeaders,
-	})
-	if err != nil {
-		return sqlc.Message{}, err
-	}
-
-	for _, r := range recipents {
-		err = m.db.CreatePool(ctx, sqlc.CreatePoolParams{
-			MessageID:     msg.MessageID,
-			Email:         r.Email,
-			Fields:        r.Fields,
-			ScheduledTime: sqlc.PgTimestampFromTime(scheduled),
-			Domain:        domain,
-		})
-		if err != nil {
-			return sqlc.Message{}, err
-		}
-	}
-
-	return msg, nil
+func (c *claimer) ClaimForValidation(ctx context.Context, max int) ([]*delivery.Delivery, error) {
+	return c.deliveries.PrepareForValidate(ctx, max)
 }
 
-func (m *sendingPoolManager) PrepareForSend(ctx context.Context, max uint) ([]sqlc.SendingPoolEmail, error) {
-	return m.db.PrepareForSend(ctx, int32(max))
+func (c *claimer) ClaimForDispatch(ctx context.Context, max int) ([]*delivery.Delivery, error) {
+	return c.deliveries.PrepareForSend(ctx, max)
 }
 
-func (m *sendingPoolManager) PrepareForValidate(ctx context.Context, max uint) ([]sqlc.SendingPoolEmail, error) {
-	return m.db.PrepareForValidate(ctx, int32(max))
+func (c *claimer) MarkValidated(ctx context.Context, d *delivery.Delivery) error {
+	return c.deliveries.SetScheduled(ctx, d.BatchID(), d.Email())
 }
 
-func (m *sendingPoolManager) CleanEmail(ctx context.Context, messageID string, email string) error {
-	return m.db.CleanPool(ctx, sqlc.CleanPoolParams{
-		Email:     email,
-		MessageID: messageID,
-	})
+func (c *claimer) Reschedule(ctx context.Context, d *delivery.Delivery) error {
+	return c.deliveries.Reschedule(ctx, d.BatchID(), d.Email())
 }
 
-func (m *sendingPoolManager) SetScheduled(ctx context.Context, messageID string, email string) error {
-	return m.db.SetSendingPoolScheduled(ctx, sqlc.SetSendingPoolScheduledParams{
-		Email:     email,
-		MessageID: messageID,
-	})
+func (c *claimer) Drop(ctx context.Context, d *delivery.Delivery) error {
+	return c.deliveries.Clean(ctx, d.BatchID(), d.Email())
 }
 
-func (m *sendingPoolManager) RescheduleEmail(ctx context.Context, messageID string, email string) error {
-	pool, err := m.db.GetPool(ctx, sqlc.GetPoolParams{
-		Email:     email,
-		MessageID: messageID,
-	})
-	if err != nil {
-		return err
-	}
-
-	rescheduleDelay := computeRescheduleDelay(int(pool.SendAttemptsCnt))
-
-	scheduledTime := pool.OriginalScheduledTime.Time.Add(rescheduleDelay)
-
-	return m.db.ReschedulePool(ctx, sqlc.ReschedulePoolParams{
-		Email:         email,
-		MessageID:     messageID,
-		ScheduledTime: sqlc.PgTimestampFromTime(scheduledTime),
-	})
-}
-
-func NewSendingPoolManager(q *sqlc.Queries) SendingPoolManager {
-	return &sendingPoolManager{
-		db: q,
-	}
-}
-
-func computeRescheduleDelay(attempts int) time.Duration {
-	rescheduleDelay := 2 * time.Minute * time.Duration(math.Pow(2, float64(attempts)))
-	if rescheduleDelay < 5*time.Minute {
-		rescheduleDelay = 5 * time.Minute
-	}
-	return rescheduleDelay
+func (c *claimer) Lookup(ctx context.Context, batchID batch.ID, email string) (*delivery.Delivery, error) {
+	return c.deliveries.Get(ctx, batchID, email)
 }

@@ -2,6 +2,8 @@
 
 This guide documents the repository implementation pattern used in Kannon. For a complete working example, see the API Keys implementation in `internal/apikeys/` and `internal/db/key_repo.go`.
 
+The same pattern is used by every persistent domain package in `internal/`: the spine domains [`batch`](../internal/batch/) and [`delivery`](../internal/delivery/) (introduced by PRD #322) follow it, alongside the supporting [`apikeys`](../internal/apikeys/), [`templates`](../internal/templates/), and [`domains`](../internal/domains/) packages. Each one ships an entity with `New` / `Load` constructors, a `Repository` interface, and a `repospec.go` specification harness exercised against real Postgres in `internal/db/`. The third spine domain, [`envelope`](../internal/envelope/), is build-only — it ships the `Envelope` entity plus the `envelope.Builder` deep module instead of a repository, because envelopes are not persisted. When adding a new domain entity, mirror this shape rather than inventing a new one.
+
 ## Overview
 
 Kannon follows a domain-driven repository pattern with clear separation between:

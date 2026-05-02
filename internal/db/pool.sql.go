@@ -92,6 +92,26 @@ func (q *Queries) CreatePool(ctx context.Context, arg CreatePoolParams) error {
 	return err
 }
 
+const getMessage = `-- name: GetMessage :one
+SELECT message_id, subject, sender_email, sender_alias, template_id, domain, attachments, headers FROM messages WHERE message_id = $1
+`
+
+func (q *Queries) GetMessage(ctx context.Context, messageID string) (Message, error) {
+	row := q.db.QueryRow(ctx, getMessage, messageID)
+	var i Message
+	err := row.Scan(
+		&i.MessageID,
+		&i.Subject,
+		&i.SenderEmail,
+		&i.SenderAlias,
+		&i.TemplateID,
+		&i.Domain,
+		&i.Attachments,
+		&i.Headers,
+	)
+	return i, err
+}
+
 const getPool = `-- name: GetPool :one
 SELECT id, scheduled_time, original_scheduled_time, send_attempts_cnt, email, message_id, fields, status, created_at, domain FROM  sending_pool_emails 
 WHERE email = $1 AND message_id = $2

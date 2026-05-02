@@ -49,7 +49,7 @@ INSERT(to_validate) → [claim] validating ─ok→ scheduled ─time arrives & 
 1. **Drop dead enum values:** remove `initializing`, `sent`, `error` from `SENDING_POOL_STATUS`. Migration must drop the column default and rewrite the type.
 2. **Replace claim-flip pairs with a claim column:** introduce `claimed_at TIMESTAMP NULL` (and optionally `claimed_by VARCHAR`) and reduce the enum to `to_validate` and `scheduled`. The SELECT-FOR-UPDATE-style claim becomes `WHERE status='X' AND claimed_at IS NULL` + set `claimed_at = NOW()`.
 3. **Rename remaining states to neutral nouns:** `to_validate` → `pending`, `scheduled` → `ready` (or keep `scheduled`, since it carries domain meaning about deferred sends).
-4. **Decide whether the `Sender` Go struct in `internal/pool/pool.go` should be renamed** to avoid clashing with the proto `Sender` and the `SMTPSender` worker. Likely → `From` or `FromIdentity`.
+4. **Sender Go struct in `internal/pool/`:** resolved under PRD #322. The local `pool.Sender` struct has been removed; "Sender" now has exactly one meaning in code — the proto type for the visible from-identity of a Batch (mirrored as `batch.Sender`).
 
 ### Open questions
 
@@ -72,8 +72,8 @@ INSERT(to_validate) → [claim] validating ─ok→ scheduled ─time arrives & 
 | `rejected` | Real. Emitted by Validator with `reason`. Keep. |
 | `delivered` | Real. Means "remote MX accepted handoff" (industry-standard loose meaning). Keep, document explicitly. |
 | `bounced` | Real. Carries `permanent`, `code`, `msg`. Two source paths (sync from SMTPSender, async DSN from SMTPServer). Keep. |
-| `opened` | Real. Engagement event from Bump. Keep. |
-| `clicked` | Real. Engagement event from Bump. Keep. |
+| `opened` | Real. Engagement event from Tracker. Keep. |
+| `clicked` | Real. Engagement event from Tracker. Keep. |
 | `error` | Real internal-only signal (transient retry). Demote: drop from the public stats vocabulary; keep as an internal Dispatcher signal (NATS topic or log). |
 | `failed` | **Dead.** Declared in proto, no publisher. Remove. |
 | `unknown` | DB-side fallback. Not a real event. Remove or keep as defensive default only. |
@@ -93,17 +93,9 @@ INSERT(to_validate) → [claim] validating ─ok→ scheduled ─time arrives & 
 
 ---
 
-## 3. Rename `Bump` → `Tracker`
+## 3. Rename `Bump` → `Tracker` — DONE
 
-**Source:** `pkg/bump/`.
-
-The `Bump` package handles open/click tracking. The name is jargon — `Tracker` is self-documenting and matches what the component does.
-
-### Proposed cleanup
-
-1. Rename package `pkg/bump/` → `pkg/tracker/`.
-2. Update `ARCHITECTURE.md`, README, configuration flags, and any CLI options that reference "bump".
-3. The HTTP routes (`/o/...`, `/c/...` or whatever they are today) should keep stable URLs to avoid breaking previously-emitted tracking links — verify and document.
+Completed under PRD #322. The package is now `pkg/tracker/`, the `tracker:` config / `K_TRACKER_PORT` env var are canonical, and `bump:` / `K_BUMP_PORT` continue to work as deprecated aliases that log a warning at startup. HTTP routes were preserved, so previously-emitted tracking links remain valid.
 
 ---
 

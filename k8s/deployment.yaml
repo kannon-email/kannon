@@ -17,7 +17,7 @@ spec:
         - name: kannon-cp 
           image: ghcr.io/kannon-email/kannon/kannon
           imagePullPolicy: Always
-          args: ['--run-api', '--run-bounce', '--run-dispatcher', '--run-verifier', '--run-sender', '--run-smtp' ,'--config', '/etc/kannon/config.yaml']
+          args: ['--run-api', '--run-bounce', '--run-dispatcher', '--run-validator', '--run-sender', '--run-smtp' ,'--config', '/etc/kannon/config.yaml']
           resources:
             limits:
               memory: '64Mi'

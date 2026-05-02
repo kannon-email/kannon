@@ -7,7 +7,8 @@ import (
 	_ "github.com/lib/pq"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/kannon-email/kannon/internal/mailbuilder"
+	sqlc "github.com/kannon-email/kannon/internal/db"
+	"github.com/kannon-email/kannon/internal/envelope"
 	"github.com/kannon-email/kannon/internal/pool"
 	"github.com/kannon-email/kannon/internal/runner"
 	"github.com/kannon-email/kannon/internal/statssec"
@@ -21,18 +22,18 @@ func Run(ctx context.Context, cnt *container.Container) error {
 	q := cnt.Queries()
 
 	ss := statssec.NewStatsService(q)
-	pm := pool.NewSendingPoolManager(q)
-	mb := mailbuilder.NewMailBuilder(q, ss)
+	claimer := pool.NewClaimer(sqlc.NewDeliveryRepository(q))
+	eb := envelope.NewBuilder(q, ss)
 
 	js := cnt.NatsJetStream()
 	mustConfigureSendingStream(ctx, js)
 
 	d := disp{
-		ss:  ss,
-		pm:  pm,
-		mb:  mb,
-		pub: cnt.NatsPublisher(),
-		js:  js,
+		ss:      ss,
+		claimer: claimer,
+		eb:      eb,
+		pub:     cnt.NatsPublisher(),
+		js:      js,
 	}
 
 	d.log().Info("🚀 Starting dispatcher")

@@ -1,64 +1,88 @@
+// Package domains defines the SenderDomain domain entity per CONTEXT.md:
+// the sender-tenant identity (FQDN + DKIM key pair) under which Batches are
+// authored and emails are signed. The Go type is named Domain for historical
+// reasons; renaming the wire/DB-visible field "domain" to "fqdn" is wire/DB
+// breaking and deferred to the refactoring backlog.
+//
+// Storage row is sqlc.Domain; the on-the-wire payload is the proto Domain
+// (which exposes only Domain + DkimPubKey); the domain entity is
+// domains.Domain.
 package domains
 
 import (
-	"context"
+	"errors"
+	"fmt"
+	"time"
 
-	sqlc "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/dkim"
+	pb "github.com/kannon-email/kannon/proto/kannon/admin/apiv1"
 )
 
-type domainManager struct {
-	q *sqlc.Queries
+// Domain errors.
+var (
+	ErrDomainNotFound = errors.New("domain not found")
+)
+
+// Domain is the SenderDomain entity: a sender-tenant identified by its FQDN
+// and the DKIM key pair used to sign outgoing mail for it.
+type Domain struct {
+	id             int32
+	domain         string
+	dkimPrivateKey string
+	dkimPublicKey  string
+	createdAt      time.Time
 }
 
-type DomainManager interface {
-	CreateDomain(ctx context.Context, domain string) (sqlc.Domain, error)
-	FindDomain(ctx context.Context, domain string) (sqlc.Domain, error)
-	GetAllDomains(ctx context.Context) ([]sqlc.Domain, error)
-	Close() error
-}
-
-func NewDomainManager(q *sqlc.Queries) DomainManager {
-	return &domainManager{
-		q: q,
+// New creates a new SenderDomain with a freshly generated DKIM key pair.
+// The numeric id and createdAt are populated by the repository on Create.
+func New(fqdn string) (*Domain, error) {
+	if fqdn == "" {
+		return nil, fmt.Errorf("domain is required")
 	}
-}
-
-func (dm *domainManager) CreateDomain(ctx context.Context, domain string) (sqlc.Domain, error) {
 	keys, err := dkim.GenerateDKIMKeysPair()
 	if err != nil {
-		return sqlc.Domain{}, err
+		return nil, err
 	}
-
-	d, err := dm.q.CreateDomain(ctx, sqlc.CreateDomainParams{
-		Domain:         domain,
-		DkimPrivateKey: keys.PrivateKey,
-		DkimPublicKey:  keys.PublicKey,
-	})
-
-	if err != nil {
-		return sqlc.Domain{}, err
-	}
-
-	return d, nil
+	return &Domain{
+		domain:         fqdn,
+		dkimPrivateKey: keys.PrivateKey,
+		dkimPublicKey:  keys.PublicKey,
+	}, nil
 }
 
-func (dm *domainManager) FindDomain(ctx context.Context, d string) (sqlc.Domain, error) {
-	domain, err := dm.q.FindDomain(ctx, d)
-	if err != nil {
-		return domain, err
-	}
-	return domain, nil
+// LoadParams contains all fields needed to rehydrate a Domain from storage.
+type LoadParams struct {
+	ID             int32
+	Domain         string
+	DkimPrivateKey string
+	DkimPublicKey  string
+	CreatedAt      time.Time
 }
 
-func (dm *domainManager) GetAllDomains(ctx context.Context) ([]sqlc.Domain, error) {
-	domains, err := dm.q.GetAllDomains(ctx)
-	if err != nil {
-		return domains, err
+// Load rehydrates a Domain from stored data (used by repository implementations).
+func Load(p LoadParams) *Domain {
+	return &Domain{
+		id:             p.ID,
+		domain:         p.Domain,
+		dkimPrivateKey: p.DkimPrivateKey,
+		dkimPublicKey:  p.DkimPublicKey,
+		createdAt:      p.CreatedAt,
 	}
-	return domains, nil
 }
 
-func (dm *domainManager) Close() error {
-	return nil
+// Getters
+
+func (d *Domain) ID() int32              { return d.id }
+func (d *Domain) Domain() string         { return d.domain }
+func (d *Domain) DkimPrivateKey() string { return d.dkimPrivateKey }
+func (d *Domain) DkimPublicKey() string  { return d.dkimPublicKey }
+func (d *Domain) CreatedAt() time.Time   { return d.createdAt }
+
+// Pb translates to the proto wire type. Only the FQDN and the public DKIM
+// key are exposed on the wire — the private key never leaves the server.
+func (d *Domain) Pb() *pb.Domain {
+	return &pb.Domain{
+		Domain:     d.domain,
+		DkimPubKey: d.dkimPublicKey,
+	}
 }

@@ -9,13 +9,10 @@ import (
 type SendingPoolStatus string
 
 const (
-	SendingPoolStatusInitializing SendingPoolStatus = "initializing"
-	SendingPoolStatusToValidate   SendingPoolStatus = "to_validate"
-	SendingPoolStatusValidating   SendingPoolStatus = "validating"
-	SendingPoolStatusSending      SendingPoolStatus = "sending"
-	SendingPoolStatusSent         SendingPoolStatus = "sent"
-	SendingPoolStatusScheduled    SendingPoolStatus = "scheduled"
-	SendingPoolStatusError        SendingPoolStatus = "error"
+	SendingPoolStatusToValidate SendingPoolStatus = "to_validate"
+	SendingPoolStatusValidating SendingPoolStatus = "validating"
+	SendingPoolStatusSending    SendingPoolStatus = "sending"
+	SendingPoolStatusScheduled  SendingPoolStatus = "scheduled"
 )
 
 type CustomFields map[string]string

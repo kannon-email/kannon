@@ -6,8 +6,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/kannon-email/kannon/internal/apikeys"
 	sqlc "github.com/kannon-email/kannon/internal/db"
-	"github.com/kannon-email/kannon/internal/domains"
-	"github.com/kannon-email/kannon/internal/templates"
 
 	"connectrpc.com/connect"
 	pb "github.com/kannon-email/kannon/proto/kannon/admin/apiv1"
@@ -117,16 +115,16 @@ func (a *adminAPIConnectAdapter) DeactivateAPIKey(ctx context.Context, req *conn
 }
 
 func CreateAdminAPIService(q *sqlc.Queries, pool *pgxpool.Pool) adminv1connect.ApiHandler {
-	dm := domains.NewDomainManager(q)
-	tm := templates.NewTemplateManager(q)
+	domainsRepo := sqlc.NewDomainsRepository(q)
+	tm := sqlc.NewTemplatesRepository(q)
 	apiKeysRepo := sqlc.NewAPIKeysRepository(q, pool)
 	apiKeysService := apikeys.NewService(apiKeysRepo)
 	return &adminAPIConnectAdapter{
 		impl: &adminAPIService{
-			dm:      dm,
-			tm:      tm,
-			apiKeys: apiKeysService,
-			q:       q,
+			domains:   domainsRepo,
+			templates: tm,
+			apiKeys:   apiKeysService,
+			q:         q,
 		},
 	}
 }
