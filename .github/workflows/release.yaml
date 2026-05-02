@@ -1,22 +1,25 @@
-name: Release Drafter
+name: Release
 
 on:
   push:
-    branches:
-      - main
-  pull_request:
-    types: [opened, reopened, synchronize]
+    tags:
+      - "v*"
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+permissions:
+  contents: write
 
 jobs:
-    update_release_draft:
-      runs-on: ubuntu-latest
-      permissions:
-        contents: read
-      steps:
-        - uses: release-drafter/release-drafter@v7
-          env:
-            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
