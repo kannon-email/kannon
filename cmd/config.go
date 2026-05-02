@@ -11,6 +11,7 @@ import (
 	"github.com/kannon-email/kannon/pkg/smtpsender"
 	"github.com/kannon-email/kannon/pkg/stats"
 	"github.com/kannon-email/kannon/pkg/tracker"
+	"github.com/kannon-email/kannon/x/container"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -135,7 +136,7 @@ func readConfig() (Config, error) {
 		}
 	}
 
-	applyDeprecatedAliases()
+	container.ApplyDeprecatedAliases()
 
 	if err := viper.Unmarshal(&config); err != nil {
 		return Config{}, fmt.Errorf("unable to decode config into struct: %v", err)
@@ -146,49 +147,4 @@ func readConfig() (Config, error) {
 	}
 
 	return config, nil
-}
-
-// applyDeprecatedAliases promotes deprecated config keys onto their canonical
-// names and logs a one-line deprecation warning at startup. Each entry is a
-// public API surface we still owe users.
-func applyDeprecatedAliases() {
-	boolAliases := []struct {
-		oldKey string
-		newKey string
-	}{
-		{oldKey: "run-verifier", newKey: "run-validator"},
-	}
-
-	for _, a := range boolAliases {
-		if !viper.GetBool(a.oldKey) {
-			continue
-		}
-		logrus.Warnf("config key %q is deprecated and will be removed in a future major version; use %q instead", a.oldKey, a.newKey)
-		viper.Set(a.newKey, true)
-	}
-
-	subKeyAliases := []struct {
-		oldKey string
-		newKey string
-	}{
-		{oldKey: "bump.port", newKey: "tracker.port"},
-	}
-
-	warnedSections := map[string]bool{}
-	for _, a := range subKeyAliases {
-		//nolint:errcheck
-		viper.BindEnv(a.oldKey)
-		if !viper.IsSet(a.oldKey) {
-			continue
-		}
-		oldSection := strings.SplitN(a.oldKey, ".", 2)[0]
-		newSection := strings.SplitN(a.newKey, ".", 2)[0]
-		if !warnedSections[oldSection] {
-			logrus.Warnf("config section %q is deprecated and will be removed in a future major version; use %q instead", oldSection, newSection)
-			warnedSections[oldSection] = true
-		}
-		if !viper.IsSet(a.newKey) {
-			viper.Set(a.newKey, viper.Get(a.oldKey))
-		}
-	}
 }
