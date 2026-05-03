@@ -92,6 +92,10 @@ func TestE2EEmailSending(t *testing.T) {
 		testOpened(t, factory, senderMock, infra)
 	})
 
+	t.Run("Clicked", func(t *testing.T) {
+		testClicked(t, factory, senderMock, infra)
+	})
+
 	t.Log("🎉 E2E email sending test completed successfully!")
 }
 
@@ -570,6 +574,18 @@ func extractOpenToken(t *testing.T, body string) string {
 	return m[1]
 }
 
+// clickTokenRe extracts the JWT-style token from a `/c/<token>` tracked
+// link URL produced by the Envelope builder. The Envelope builder
+// rewrites every `<a href="...">` to `https://stats.<fqdn>/c/<token>`.
+var clickTokenRe = regexp.MustCompile(`/c/([A-Za-z0-9._-]+)`)
+
+func extractClickToken(t *testing.T, body string) string {
+	t.Helper()
+	m := clickTokenRe.FindStringSubmatch(body)
+	require.Len(t, m, 2, "click token not found in body: %q", body)
+	return m[1]
+}
+
 func testOpened(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
 	client := clientFactory.NewClient(t, infra)
 
@@ -603,6 +619,57 @@ func testOpened(t *testing.T, clientFactory *clientFactory, senderMock *senderMo
 
 	matched := requireStat(t, client, to, "opened", 1)
 	assert.EqualValues(t, to, matched[0].Email)
+}
+
+func testClicked(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
+	client := clientFactory.NewClient(t, infra)
+
+	const landingURL = "https://example.com/landing"
+	to := makeFakeEmail()
+	sendReq := &mailerapiv1.SendHTMLReq{
+		Sender: &mailertypes.Sender{
+			Email: "sender@test.example.com",
+			Alias: "Test Sender",
+		},
+		Recipients: []*mailertypes.Recipient{
+			{Email: to},
+		},
+		Subject:       "Clicked Test",
+		Html:          fmt.Sprintf(`<html><body><h1>Hello!</h1><a href=%q>click</a></body></html>`, landingURL),
+		ScheduledTime: timestamppb.Now(),
+	}
+
+	client.SendEmail(t, sendReq)
+
+	msg := requireGetEmail(t, senderMock, to)
+	token := extractClickToken(t, msg.Body)
+
+	// Redirect-following disabled: the test asserts the 307 + Location
+	// directly, not that example.com is reachable from CI.
+	httpClient := &http.Client{
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	url := fmt.Sprintf("http://localhost:%d/c/%s", infra.trackerPort, token)
+	var location string
+	require.EventuallyWithT(t, func(tt *assert.CollectT) {
+		resp, err := httpClient.Get(url)
+		require.NoError(tt, err)
+		defer resp.Body.Close()
+		_, _ = io.Copy(io.Discard, resp.Body)
+		require.Equal(tt, http.StatusTemporaryRedirect, resp.StatusCode)
+		location = resp.Header.Get("Location")
+	}, 10*time.Second, 200*time.Millisecond, "Tracker click endpoint should be reachable")
+
+	assert.Equal(t, landingURL, location, "click redirect must round-trip the originally-authored URL")
+
+	matched := requireStat(t, client, to, "clicked", 1)
+	assert.EqualValues(t, to, matched[0].Email)
+	clicked := matched[0].Data.GetClicked()
+	require.NotNil(t, clicked, "clicked stat should carry typed Clicked data")
+	assert.Equal(t, landingURL, clicked.Url, "clicked stat URL must match the originally-authored URL")
 }
 
 func requireGetEmail(t *testing.T, s *senderMock, email string) ParsedEmail {
