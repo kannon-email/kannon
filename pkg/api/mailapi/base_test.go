@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	schema "github.com/kannon-email/kannon/db"
 	sqlc "github.com/kannon-email/kannon/internal/db"
+	"github.com/kannon-email/kannon/internal/delivery"
 	"github.com/kannon-email/kannon/internal/tests"
 	"github.com/kannon-email/kannon/pkg/api/adminapi"
 	"github.com/kannon-email/kannon/pkg/api/mailapi"
@@ -37,7 +38,7 @@ func TestMain(m *testing.M) {
 	}
 
 	q = sqlc.New(db)
-	ts = mailapi.NewMailerAPIV1(q, db)
+	ts = mailapi.NewMailerAPIV1(q, db, delivery.DefaultBackoff)
 	adminAPI = adminapi.CreateAdminAPIService(q, db)
 
 	code := m.Run()

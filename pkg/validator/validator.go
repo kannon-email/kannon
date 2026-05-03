@@ -41,7 +41,7 @@ func New(cnt *container.Container) container.Runnable {
 		Name: "validator",
 		Run: func(ctx context.Context) error {
 			q := cnt.Queries()
-			claimer := pool.NewClaimer(sqlc.NewDeliveryRepository(q))
+			claimer := pool.NewClaimer(sqlc.NewDeliveryRepository(q, cnt.BackoffPolicy()))
 
 			v := Validator{
 				claimer: claimer,

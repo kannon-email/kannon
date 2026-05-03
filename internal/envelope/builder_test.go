@@ -45,6 +45,7 @@ func mustDelivery(t *testing.T, batchID batch.ID, email string, fields map[strin
 		Fields:        fields,
 		Domain:        "test.com",
 		ScheduledTime: time.Now(),
+		Backoff:       delivery.DefaultBackoff,
 	})
 	assert.Nil(t, err)
 	return d
@@ -138,6 +139,7 @@ func TestBuilderShouldRetryFalseAfterMaxAttempts(t *testing.T) {
 		Email:        "rcpt@example.com",
 		Domain:       "test.com",
 		SendAttempts: 10,
+		Backoff:      delivery.DefaultBackoff,
 	})
 	env, err := b.Build(context.Background(), d)
 	assert.Nil(t, err)

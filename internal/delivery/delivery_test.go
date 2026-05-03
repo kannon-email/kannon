@@ -18,6 +18,7 @@ func TestNew(t *testing.T) {
 			Fields:        map[string]string{"name": "X"},
 			Domain:        "example.com",
 			ScheduledTime: now,
+			Backoff:       DefaultBackoff,
 		})
 		require.NoError(t, err)
 		assert.Equal(t, "to@example.com", d.Email())
@@ -67,6 +68,7 @@ func TestNextRetryAt(t *testing.T) {
 			SendAttempts:          tc.attempts,
 			ScheduledTime:         base,
 			OriginalScheduledTime: base,
+			Backoff:               DefaultBackoff,
 		})
 		assert.Equal(t, base.Add(tc.want), d.NextRetryAt(), "attempts=%d", tc.attempts)
 	}
