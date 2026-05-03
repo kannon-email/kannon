@@ -24,6 +24,7 @@ import (
 	adminv1connect "github.com/kannon-email/kannon/proto/kannon/admin/apiv1/apiv1connect"
 	mailerapiv1 "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1"
 	mailertypes "github.com/kannon-email/kannon/proto/kannon/mailer/types"
+	statstypes "github.com/kannon-email/kannon/proto/kannon/stats/types"
 	"github.com/kannon-email/kannon/x/container"
 	"github.com/spf13/viper"
 )
@@ -73,6 +74,10 @@ func TestE2EEmailSending(t *testing.T) {
 
 	t.Run("AggregatedStats", func(t *testing.T) {
 		testAggregatedStats(t, factory, senderMock, infra)
+	})
+
+	t.Run("PermanentBounce", func(t *testing.T) {
+		testPermanentBounce(t, factory, senderMock, infra)
 	})
 
 	t.Log("🎉 E2E email sending test completed successfully!")
@@ -430,6 +435,62 @@ func testAggregatedStats(t *testing.T, clientFactory *clientFactory, _ *senderMo
 		require.Greater(tt, typeMap["accepted"], int64(0))
 		require.Greater(tt, typeMap["delivered"], int64(0))
 	}, 10*time.Second, 1*time.Second, "Aggregated stats should be available")
+}
+
+// requireStat polls the Stats API until at least `count` events of
+// `statType` exist for `email`, then returns the matching stats so the
+// caller can introspect typed Data. Mirrors the EventuallyWithT shape
+// the existing happy-path assertions use, scoped to a (Type, Email) pair.
+func requireStat(t *testing.T, client *clientTest, email, statType string, count int) []*statstypes.Stats {
+	t.Helper()
+	var matched []*statstypes.Stats
+	require.EventuallyWithT(t, func(tt *assert.CollectT) {
+		matched = matched[:0]
+		stats := client.GetStats(t)
+		for _, s := range stats.Stats {
+			if s.Type == statType && s.Email == email {
+				matched = append(matched, s)
+			}
+		}
+		require.GreaterOrEqual(tt, len(matched), count,
+			"expected at least %d %q stats for %s, got %d", count, statType, email, len(matched))
+	}, 15*time.Second, 500*time.Millisecond,
+		"Stats of type %q for %s should be available", statType, email)
+	return matched
+}
+
+func testPermanentBounce(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
+	client := clientFactory.NewClient(t, infra)
+
+	// Unique random suffix so this subtest's per-Recipient counters cannot
+	// collide with anything else running in parallel.
+	to := fmt.Sprintf("bounce.%s@%s", strings.ToLower(faker.Username()), client.domain)
+
+	sendReq := &mailerapiv1.SendHTMLReq{
+		Sender: &mailertypes.Sender{
+			Email: "sender@test.example.com",
+			Alias: "Test Sender",
+		},
+		Recipients: []*mailertypes.Recipient{
+			{Email: to},
+		},
+		Subject:       "Permanent Bounce Test",
+		Html:          "<h1>Hello!</h1>",
+		ScheduledTime: timestamppb.Now(),
+	}
+
+	client.SendEmail(t, sendReq)
+
+	matched := requireStat(t, client, to, "bounced", 1)
+	require.NotNil(t, matched[0].Data)
+	bounced := matched[0].Data.GetBounced()
+	require.NotNil(t, bounced, "bounced stat should carry typed Bounced data")
+	assert.True(t, bounced.Permanent, "bounce should be classified permanent")
+	assert.EqualValues(t, 550, bounced.Code, "permanent bounce should carry SMTP code 550")
+
+	// senderMock should have observed exactly one attempt — permanent
+	// bounces are not retried.
+	assert.Len(t, senderMock.History(to), 1, "permanent bounce should not be retried")
 }
 
 func requireGetEmail(t *testing.T, s *senderMock, email string) ParsedEmail {
