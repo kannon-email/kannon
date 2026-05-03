@@ -59,7 +59,7 @@ func run(ctx context.Context, config Config, cnt *container.Container) error {
 	statsService := stats.NewService(statsRepo, stats.WithAggregatedStatsRepository(aggregatedRepo))
 
 	adminAPIService := adminapi.CreateAdminAPIService(q, cnt.DB())
-	mailAPIService := mailapi.NewMailerAPIV1(q, cnt.DB())
+	mailAPIService := mailapi.NewMailerAPIV1(q, cnt.DB(), cnt.BackoffPolicy())
 	statsAPIService := statsv1.NewStatsAPIService(statsService)
 	statsV2APIService := statsv2.NewStatsAPIService(statsService)
 	hzAPIService := hzapi.CreateHZAPIService(cnt)

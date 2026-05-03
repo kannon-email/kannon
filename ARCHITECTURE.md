@@ -189,9 +189,11 @@ Kannon uses NATS JetStream for reliable, decoupled messaging between its modules
 | kannon.stats.accepted  | Email accepted for sending     | Validator            | Stats               |
 | kannon.stats.rejected  | Email rejected (invalid, etc.) | Validator            | Stats               |
 | kannon.stats.delivered | Email delivered successfully   | SMTPSender           | Stats               |
-| kannon.stats.bounced   | Email bounced                  | SMTPSender, SMTP Server | Stats            |
-| kannon.stats.open      | Email opened (tracking pixel)  | Tracker              | Stats               |
-| kannon.stats.click     | Link clicked in email          | Tracker              | Stats               |
+| kannon.stats.bounced   | Email bounced (permanent)      | SMTPSender, SMTP Server | Stats            |
+| kannon.stats.soft-bounce | Email soft-bounced (transient) | SMTP Server        | Stats               |
+| kannon.stats.error     | Transient send error (retried) | SMTPSender           | Stats               |
+| kannon.stats.opened    | Email opened (tracking pixel)  | Tracker              | Stats               |
+| kannon.stats.clicked   | Link clicked in email          | Tracker              | Stats               |
 | kannon.bounce          | Bounce events from SMTP server | SMTP Server          | Dispatcher, Stats   |
 
 ### Example NATS JetStream Configuration
@@ -220,7 +222,7 @@ streams:
 - **Dispatcher**: Publishes to `kannon.sending`, listens to `kannon.bounce` and delivery/bounce/error events from NATS.
 - **SMTPSender**: Consumes from `kannon.sending`, publishes to `kannon.stats.delivered`, `kannon.stats.bounced`, etc.
 - **Validator**: Publishes to `kannon.stats.accepted` and `kannon.stats.rejected`.
-- **Tracker**: Publishes to `kannon.stats.open` and `kannon.stats.click`.
+- **Tracker**: Publishes to `kannon.stats.opened` and `kannon.stats.clicked`.
 - **Stats**: Consumes all `kannon.stats.*` topics.
 - **SMTP Server**: Publishes to `kannon.bounce` and `kannon.stats.bounced`.
 

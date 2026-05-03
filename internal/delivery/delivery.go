@@ -6,7 +6,6 @@ package delivery
 import (
 	"errors"
 	"fmt"
-	"math"
 	"time"
 
 	"github.com/kannon-email/kannon/internal/batch"
@@ -26,6 +25,7 @@ type Delivery struct {
 	domain                string
 	scheduledTime         time.Time
 	originalScheduledTime time.Time
+	backoff               BackoffPolicy
 }
 
 // NewParams contains all fields needed to create a fresh Delivery.
@@ -35,6 +35,7 @@ type NewParams struct {
 	Fields        map[string]string
 	Domain        string
 	ScheduledTime time.Time
+	Backoff       BackoffPolicy
 }
 
 // New creates a new Delivery scheduled for first attempt.
@@ -55,6 +56,7 @@ func New(p NewParams) (*Delivery, error) {
 		domain:                p.Domain,
 		scheduledTime:         p.ScheduledTime,
 		originalScheduledTime: p.ScheduledTime,
+		backoff:               policyOrDefault(p.Backoff),
 	}, nil
 }
 
@@ -67,6 +69,7 @@ type LoadParams struct {
 	Domain                string
 	ScheduledTime         time.Time
 	OriginalScheduledTime time.Time
+	Backoff               BackoffPolicy
 }
 
 // Load rehydrates a Delivery from stored data (used by repository implementations).
@@ -79,6 +82,7 @@ func Load(p LoadParams) *Delivery {
 		domain:                p.Domain,
 		scheduledTime:         p.ScheduledTime,
 		originalScheduledTime: p.OriginalScheduledTime,
+		backoff:               policyOrDefault(p.Backoff),
 	}
 }
 
@@ -98,13 +102,12 @@ func (d *Delivery) OriginalScheduledTime() time.Time {
 // attempted, given its current attempt count and the original scheduled
 // time. The repository uses this when applying a reschedule.
 func (d *Delivery) NextRetryAt() time.Time {
-	return d.originalScheduledTime.Add(rescheduleDelay(d.sendAttempts))
+	return d.originalScheduledTime.Add(d.backoff.Delay(d.sendAttempts))
 }
 
-func rescheduleDelay(attempts int) time.Duration {
-	delay := 2 * time.Minute * time.Duration(math.Pow(2, float64(attempts)))
-	if delay < 5*time.Minute {
-		delay = 5 * time.Minute
+func policyOrDefault(p BackoffPolicy) BackoffPolicy {
+	if p == nil {
+		return DefaultBackoff
 	}
-	return delay
+	return p
 }

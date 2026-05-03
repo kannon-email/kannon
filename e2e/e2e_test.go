@@ -3,7 +3,9 @@ package e2e_test
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -15,15 +17,18 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/kannon-email/kannon/internal/delivery"
 	"github.com/kannon-email/kannon/pkg/api"
 	"github.com/kannon-email/kannon/pkg/dispatcher"
 	"github.com/kannon-email/kannon/pkg/smtpsender"
 	"github.com/kannon-email/kannon/pkg/stats"
+	"github.com/kannon-email/kannon/pkg/tracker"
 	"github.com/kannon-email/kannon/pkg/validator"
 	adminapiv1 "github.com/kannon-email/kannon/proto/kannon/admin/apiv1"
 	adminv1connect "github.com/kannon-email/kannon/proto/kannon/admin/apiv1/apiv1connect"
 	mailerapiv1 "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1"
 	mailertypes "github.com/kannon-email/kannon/proto/kannon/mailer/types"
+	statstypes "github.com/kannon-email/kannon/proto/kannon/stats/types"
 	"github.com/kannon-email/kannon/x/container"
 	"github.com/spf13/viper"
 )
@@ -75,6 +80,22 @@ func TestE2EEmailSending(t *testing.T) {
 		testAggregatedStats(t, factory, senderMock, infra)
 	})
 
+	t.Run("PermanentBounce", func(t *testing.T) {
+		testPermanentBounce(t, factory, senderMock, infra)
+	})
+
+	t.Run("TransientThenDeliver", func(t *testing.T) {
+		testTransientThenDeliver(t, factory, senderMock, infra)
+	})
+
+	t.Run("Opened", func(t *testing.T) {
+		testOpened(t, factory, senderMock, infra)
+	})
+
+	t.Run("Clicked", func(t *testing.T) {
+		testClicked(t, factory, senderMock, infra)
+	})
+
 	t.Log("🎉 E2E email sending test completed successfully!")
 }
 
@@ -84,11 +105,18 @@ func runKannon(t *testing.T, infra *TestInfrastructure, senderMock *senderMock) 
 
 	viper.Reset()
 	viper.Set("api.port", infra.apiPort)
+	viper.Set("tracker.port", infra.trackerPort)
 	viper.Set("stats.retention", "8760h")
 
 	cnt := container.NewForTest(ctx,
 		container.WithDBURL(infra.dbURL),
 		container.WithNatsURL(infra.natsURL),
+		// Collapse the production 2m/5m retry curve into milliseconds so the
+		// transient-then-deliver path converges in CI wall time.
+		container.WithBackoff(delivery.ExponentialBackoff{
+			Base: 50 * time.Millisecond,
+			Min:  50 * time.Millisecond,
+		}),
 	)
 	t.Cleanup(func() {
 		if err := cnt.CloseWithTimeout(30 * time.Second); err != nil {
@@ -101,6 +129,7 @@ func runKannon(t *testing.T, infra *TestInfrastructure, senderMock *senderMock) 
 	reg.Register(dispatcher.New(cnt))
 	reg.Register(validator.New(cnt))
 	reg.Register(stats.New(cnt))
+	reg.Register(tracker.New(cnt))
 
 	// Custom SMTPSender wired against the test sender mock; the package's
 	// New(c) builds a real SMTP sender from the container, which the e2e
@@ -430,6 +459,217 @@ func testAggregatedStats(t *testing.T, clientFactory *clientFactory, _ *senderMo
 		require.Greater(tt, typeMap["accepted"], int64(0))
 		require.Greater(tt, typeMap["delivered"], int64(0))
 	}, 10*time.Second, 1*time.Second, "Aggregated stats should be available")
+}
+
+// requireStat polls the Stats API until at least `count` events of
+// `statType` exist for `email`, then returns the matching stats so the
+// caller can introspect typed Data. Mirrors the EventuallyWithT shape
+// the existing happy-path assertions use, scoped to a (Type, Email) pair.
+func requireStat(t *testing.T, client *clientTest, email, statType string, count int) []*statstypes.Stats {
+	t.Helper()
+	var matched []*statstypes.Stats
+	require.EventuallyWithT(t, func(tt *assert.CollectT) {
+		matched = matched[:0]
+		stats := client.GetStats(t)
+		for _, s := range stats.Stats {
+			if s.Type == statType && s.Email == email {
+				matched = append(matched, s)
+			}
+		}
+		require.GreaterOrEqual(tt, len(matched), count,
+			"expected at least %d %q stats for %s, got %d", count, statType, email, len(matched))
+	}, 15*time.Second, 500*time.Millisecond,
+		"Stats of type %q for %s should be available", statType, email)
+	return matched
+}
+
+func testPermanentBounce(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
+	client := clientFactory.NewClient(t, infra)
+
+	// Unique random suffix so this subtest's per-Recipient counters cannot
+	// collide with anything else running in parallel.
+	to := fmt.Sprintf("bounce.%s@%s", strings.ToLower(faker.Username()), client.domain)
+
+	sendReq := &mailerapiv1.SendHTMLReq{
+		Sender: &mailertypes.Sender{
+			Email: "sender@test.example.com",
+			Alias: "Test Sender",
+		},
+		Recipients: []*mailertypes.Recipient{
+			{Email: to},
+		},
+		Subject:       "Permanent Bounce Test",
+		Html:          "<h1>Hello!</h1>",
+		ScheduledTime: timestamppb.Now(),
+	}
+
+	client.SendEmail(t, sendReq)
+
+	matched := requireStat(t, client, to, "bounced", 1)
+	require.NotNil(t, matched[0].Data)
+	bounced := matched[0].Data.GetBounced()
+	require.NotNil(t, bounced, "bounced stat should carry typed Bounced data")
+	assert.True(t, bounced.Permanent, "bounce should be classified permanent")
+	assert.EqualValues(t, 550, bounced.Code, "permanent bounce should carry SMTP code 550")
+
+	// senderMock should have observed exactly one attempt — permanent
+	// bounces are not retried.
+	assert.Len(t, senderMock.History(to), 1, "permanent bounce should not be retried")
+}
+
+func testTransientThenDeliver(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
+	client := clientFactory.NewClient(t, infra)
+
+	// Unique random suffix per subtest run keeps the senderMock's
+	// per-Recipient attempt counter and History isolated from anything
+	// else exercising the harness.
+	const transientFailures = 2
+	to := fmt.Sprintf("transient.x%d.%s@%s", transientFailures, strings.ToLower(faker.Username()), client.domain)
+
+	sendReq := &mailerapiv1.SendHTMLReq{
+		Sender: &mailertypes.Sender{
+			Email: "sender@test.example.com",
+			Alias: "Test Sender",
+		},
+		Recipients: []*mailertypes.Recipient{
+			{Email: to},
+		},
+		Subject:       "Transient Then Deliver Test",
+		Html:          "<h1>Hello!</h1>",
+		ScheduledTime: timestamppb.Now(),
+	}
+
+	client.SendEmail(t, sendReq)
+
+	// First the transient errors, then the eventual delivered. Polling on
+	// delivered alone is enough to assert the loop converged.
+	requireStat(t, client, to, "delivered", 1)
+
+	errs := requireStat(t, client, to, "error", transientFailures)
+	assert.Len(t, errs, transientFailures, "expected exactly %d error stats", transientFailures)
+
+	// Bounced/Errored boundary: a transient SenderError must not be
+	// reclassified as a permanent bounce.
+	allStats := client.GetStats(t)
+	for _, s := range allStats.Stats {
+		if s.Email == to {
+			assert.NotEqual(t, "bounced", s.Type, "transient failure should not produce a bounced stat")
+		}
+	}
+
+	assert.Len(t, senderMock.History(to), transientFailures+1,
+		"senderMock should have observed %d transient attempts plus one success", transientFailures)
+}
+
+// openTokenRe extracts the JWT-style token from a `/o/<token>` tracking
+// pixel URL produced by the Envelope builder. JWT tokens are
+// base64url-encoded (`[A-Za-z0-9_-]`) with `.` separating the three
+// segments — no `=` padding, no other punctuation.
+var openTokenRe = regexp.MustCompile(`/o/([A-Za-z0-9._-]+)`)
+
+func extractOpenToken(t *testing.T, body string) string {
+	t.Helper()
+	m := openTokenRe.FindStringSubmatch(body)
+	require.Len(t, m, 2, "open token not found in body: %q", body)
+	return m[1]
+}
+
+// clickTokenRe extracts the JWT-style token from a `/c/<token>` tracked
+// link URL produced by the Envelope builder. The Envelope builder
+// rewrites every `<a href="...">` to `https://stats.<fqdn>/c/<token>`.
+var clickTokenRe = regexp.MustCompile(`/c/([A-Za-z0-9._-]+)`)
+
+func extractClickToken(t *testing.T, body string) string {
+	t.Helper()
+	m := clickTokenRe.FindStringSubmatch(body)
+	require.Len(t, m, 2, "click token not found in body: %q", body)
+	return m[1]
+}
+
+func testOpened(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
+	client := clientFactory.NewClient(t, infra)
+
+	to := makeFakeEmail()
+	sendReq := &mailerapiv1.SendHTMLReq{
+		Sender: &mailertypes.Sender{
+			Email: "sender@test.example.com",
+			Alias: "Test Sender",
+		},
+		Recipients: []*mailertypes.Recipient{
+			{Email: to},
+		},
+		Subject:       "Opened Test",
+		Html:          "<html><body><h1>Hello!</h1></body></html>",
+		ScheduledTime: timestamppb.Now(),
+	}
+
+	client.SendEmail(t, sendReq)
+
+	msg := requireGetEmail(t, senderMock, to)
+	token := extractOpenToken(t, msg.Body)
+
+	url := fmt.Sprintf("http://localhost:%d/o/%s", infra.trackerPort, token)
+	require.EventuallyWithT(t, func(tt *assert.CollectT) {
+		resp, err := http.Get(url)
+		require.NoError(tt, err)
+		defer resp.Body.Close()
+		_, _ = io.Copy(io.Discard, resp.Body)
+		require.Equal(tt, http.StatusOK, resp.StatusCode)
+	}, 10*time.Second, 200*time.Millisecond, "Tracker open endpoint should be reachable")
+
+	matched := requireStat(t, client, to, "opened", 1)
+	assert.EqualValues(t, to, matched[0].Email)
+}
+
+func testClicked(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
+	client := clientFactory.NewClient(t, infra)
+
+	const landingURL = "https://example.com/landing"
+	to := makeFakeEmail()
+	sendReq := &mailerapiv1.SendHTMLReq{
+		Sender: &mailertypes.Sender{
+			Email: "sender@test.example.com",
+			Alias: "Test Sender",
+		},
+		Recipients: []*mailertypes.Recipient{
+			{Email: to},
+		},
+		Subject:       "Clicked Test",
+		Html:          fmt.Sprintf(`<html><body><h1>Hello!</h1><a href=%q>click</a></body></html>`, landingURL),
+		ScheduledTime: timestamppb.Now(),
+	}
+
+	client.SendEmail(t, sendReq)
+
+	msg := requireGetEmail(t, senderMock, to)
+	token := extractClickToken(t, msg.Body)
+
+	// Redirect-following disabled: the test asserts the 307 + Location
+	// directly, not that example.com is reachable from CI.
+	httpClient := &http.Client{
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	url := fmt.Sprintf("http://localhost:%d/c/%s", infra.trackerPort, token)
+	var location string
+	require.EventuallyWithT(t, func(tt *assert.CollectT) {
+		resp, err := httpClient.Get(url)
+		require.NoError(tt, err)
+		defer resp.Body.Close()
+		_, _ = io.Copy(io.Discard, resp.Body)
+		require.Equal(tt, http.StatusTemporaryRedirect, resp.StatusCode)
+		location = resp.Header.Get("Location")
+	}, 10*time.Second, 200*time.Millisecond, "Tracker click endpoint should be reachable")
+
+	assert.Equal(t, landingURL, location, "click redirect must round-trip the originally-authored URL")
+
+	matched := requireStat(t, client, to, "clicked", 1)
+	assert.EqualValues(t, to, matched[0].Email)
+	clicked := matched[0].Data.GetClicked()
+	require.NotNil(t, clicked, "clicked stat should carry typed Clicked data")
+	assert.Equal(t, landingURL, clicked.Url, "clicked stat URL must match the originally-authored URL")
 }
 
 func requireGetEmail(t *testing.T, s *senderMock, email string) ParsedEmail {

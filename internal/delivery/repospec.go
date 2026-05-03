@@ -48,6 +48,7 @@ func newDelivery(t *testing.T, batchID batch.ID, domain, email string) *Delivery
 		Fields:        map[string]string{"name": "X"},
 		Domain:        domain,
 		ScheduledTime: time.Now().UTC().Add(-time.Minute),
+		Backoff:       DefaultBackoff,
 	})
 	require.NoError(t, err)
 	return d

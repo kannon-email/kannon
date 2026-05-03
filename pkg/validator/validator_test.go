@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	schema "github.com/kannon-email/kannon/db"
 	sqlc "github.com/kannon-email/kannon/internal/db"
+	"github.com/kannon-email/kannon/internal/delivery"
 	"github.com/kannon-email/kannon/internal/pool"
 	"github.com/kannon-email/kannon/internal/runner"
 	"github.com/kannon-email/kannon/internal/tests"
@@ -46,10 +47,10 @@ func TestMain(m *testing.M) {
 	}
 
 	q = sqlc.New(db)
-	claimer := pool.NewClaimer(sqlc.NewDeliveryRepository(q))
+	claimer := pool.NewClaimer(sqlc.NewDeliveryRepository(q, delivery.DefaultBackoff))
 	vt = validator.NewValidator(claimer, &mp)
 
-	ts = mailapi.NewMailerAPIV1(q, db)
+	ts = mailapi.NewMailerAPIV1(q, db, delivery.DefaultBackoff)
 	adminAPI = adminapi.CreateAdminAPIService(q, db)
 
 	code := m.Run()

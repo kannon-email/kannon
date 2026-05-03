@@ -33,7 +33,7 @@ func run(ctx context.Context, cnt *container.Container) error {
 	q := cnt.Queries()
 
 	ss := statssec.NewStatsService(q)
-	claimer := pool.NewClaimer(sqlc.NewDeliveryRepository(q))
+	claimer := pool.NewClaimer(sqlc.NewDeliveryRepository(q, cnt.BackoffPolicy()))
 	eb := envelope.NewBuilder(q, ss)
 
 	js := cnt.NatsJetStream()

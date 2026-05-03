@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	sqlc "github.com/kannon-email/kannon/internal/db"
+	"github.com/kannon-email/kannon/internal/delivery"
 	"github.com/kannon-email/kannon/internal/publisher"
 	"github.com/kannon-email/kannon/internal/smtp"
 	"github.com/nats-io/nats-server/v2/server"
@@ -27,6 +28,7 @@ type Container struct {
 	useEmbeddedNats bool
 	senderHostname  string
 	demoSender      bool
+	backoff         delivery.BackoffPolicy
 
 	// singleton instances
 	db                 *singleton[*pgxpool.Pool]
@@ -60,6 +62,7 @@ func New(ctx context.Context) *Container {
 		useEmbeddedNats:    viper.GetBool("use_embedded_nats"),
 		senderHostname:     sc.Hostname,
 		demoSender:         sc.DemoSender,
+		backoff:            delivery.DefaultBackoff,
 		db:                 &singleton[*pgxpool.Pool]{},
 		nats:               &singleton[*nats.Conn]{},
 		embeddedNatsServer: &singleton[*server.Server]{},
@@ -95,12 +98,20 @@ func WithDemoSender() TestOption {
 	return func(c *Container) { c.demoSender = true }
 }
 
+// WithBackoff overrides the retry backoff policy. Tests use this to collapse
+// the production multi-minute curve into milliseconds without mutating
+// per-package internals.
+func WithBackoff(p delivery.BackoffPolicy) TestOption {
+	return func(c *Container) { c.backoff = p }
+}
+
 // NewForTest builds a Container without reading viper, applying the supplied
 // options. Tests use this to wire a synthetic container without inventing
 // per-package backdoors.
 func NewForTest(ctx context.Context, opts ...TestOption) *Container {
 	c := &Container{
 		ctx:                ctx,
+		backoff:            delivery.DefaultBackoff,
 		db:                 &singleton[*pgxpool.Pool]{},
 		nats:               &singleton[*nats.Conn]{},
 		embeddedNatsServer: &singleton[*server.Server]{},
@@ -287,6 +298,12 @@ func (c *Container) NatsJetStream() jetstream.JetStream {
 	})
 
 	return js
+}
+
+// BackoffPolicy returns the canonical retry backoff policy for this Container.
+// Production uses delivery.DefaultBackoff; tests may override via WithBackoff.
+func (c *Container) BackoffPolicy() delivery.BackoffPolicy {
+	return c.backoff
 }
 
 func (c *Container) Sender() smtp.Sender {

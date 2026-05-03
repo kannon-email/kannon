@@ -31,6 +31,7 @@ type mailAPIService struct {
 	templates  templates.Repository
 	batches    batch.Repository
 	deliveries delivery.Repository
+	backoff    delivery.BackoffPolicy
 }
 
 func (s mailAPIService) SendHTML(ctx context.Context, req *connect.Request[pb.SendHTMLReq]) (*connect.Response[pb.SendRes], error) {
@@ -135,6 +136,7 @@ func (s mailAPIService) scheduleBatch(ctx context.Context, b *batch.Batch, recip
 			Fields:        r.Fields,
 			Domain:        b.Domain(),
 			ScheduledTime: scheduled,
+			Backoff:       s.backoff,
 		})
 		if err != nil {
 			return err
@@ -224,12 +226,12 @@ func validateHeaders(h *mailertypes.Headers) (batch.Headers, error) {
 	return batch.Headers{To: h.To, Cc: h.Cc}, nil
 }
 
-func NewMailerAPIV1(q *sqlc.Queries, db *pgxpool.Pool) mailerv1connect.MailerHandler {
+func NewMailerAPIV1(q *sqlc.Queries, db *pgxpool.Pool, backoff delivery.BackoffPolicy) mailerv1connect.MailerHandler {
 	domainsCli := sqlc.NewDomainsRepository(q)
 	apiKeysRepo := sqlc.NewAPIKeysRepository(q, db)
 	apiKeysService := apikeys.NewService(apiKeysRepo)
 	batchRepo := sqlc.NewBatchRepository(q)
-	deliveryRepo := sqlc.NewDeliveryRepository(q)
+	deliveryRepo := sqlc.NewDeliveryRepository(q, backoff)
 	templatesRepo := sqlc.NewTemplatesRepository(q)
 
 	return &mailAPIService{
@@ -238,5 +240,6 @@ func NewMailerAPIV1(q *sqlc.Queries, db *pgxpool.Pool) mailerv1connect.MailerHan
 		batches:    batchRepo,
 		deliveries: deliveryRepo,
 		templates:  templatesRepo,
+		backoff:    backoff,
 	}
 }

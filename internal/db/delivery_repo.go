@@ -11,13 +11,17 @@ import (
 )
 
 type deliveryRepository struct {
-	q *Queries
+	q       *Queries
+	backoff delivery.BackoffPolicy
 }
 
 // NewDeliveryRepository creates a new PostgreSQL-backed Delivery repository.
-// It writes to and reads from the sending_pool_emails table.
-func NewDeliveryRepository(q *Queries) delivery.Repository {
-	return &deliveryRepository{q: q}
+// It writes to and reads from the sending_pool_emails table. The backoff
+// policy is applied to every Delivery rehydrated from a row, so the
+// repository's reschedule path uses the canonical curve threaded through the
+// Container (see x/container.Container.BackoffPolicy).
+func NewDeliveryRepository(q *Queries, backoff delivery.BackoffPolicy) delivery.Repository {
+	return &deliveryRepository{q: q, backoff: backoff}
 }
 
 func (r *deliveryRepository) Schedule(ctx context.Context, d *delivery.Delivery) error {
@@ -35,7 +39,7 @@ func (r *deliveryRepository) PrepareForSend(ctx context.Context, max int) ([]*de
 	if err != nil {
 		return nil, err
 	}
-	return rowsToDeliveries(rows), nil
+	return r.rowsToDeliveries(rows), nil
 }
 
 func (r *deliveryRepository) PrepareForValidate(ctx context.Context, max int) ([]*delivery.Delivery, error) {
@@ -43,7 +47,7 @@ func (r *deliveryRepository) PrepareForValidate(ctx context.Context, max int) ([
 	if err != nil {
 		return nil, err
 	}
-	return rowsToDeliveries(rows), nil
+	return r.rowsToDeliveries(rows), nil
 }
 
 func (r *deliveryRepository) Get(ctx context.Context, batchID batch.ID, email string) (*delivery.Delivery, error) {
@@ -57,7 +61,7 @@ func (r *deliveryRepository) Get(ctx context.Context, batchID batch.ID, email st
 		}
 		return nil, err
 	}
-	return rowToDelivery(row), nil
+	return r.rowToDelivery(row), nil
 }
 
 func (r *deliveryRepository) SetScheduled(ctx context.Context, batchID batch.ID, email string) error {
@@ -86,15 +90,15 @@ func (r *deliveryRepository) Clean(ctx context.Context, batchID batch.ID, email 
 	})
 }
 
-func rowsToDeliveries(rows []SendingPoolEmail) []*delivery.Delivery {
+func (r *deliveryRepository) rowsToDeliveries(rows []SendingPoolEmail) []*delivery.Delivery {
 	out := make([]*delivery.Delivery, len(rows))
-	for i, r := range rows {
-		out[i] = rowToDelivery(r)
+	for i, row := range rows {
+		out[i] = r.rowToDelivery(row)
 	}
 	return out
 }
 
-func rowToDelivery(row SendingPoolEmail) *delivery.Delivery {
+func (r *deliveryRepository) rowToDelivery(row SendingPoolEmail) *delivery.Delivery {
 	return delivery.Load(delivery.LoadParams{
 		BatchID:               batch.ID(row.MessageID),
 		Email:                 row.Email,
@@ -103,6 +107,7 @@ func rowToDelivery(row SendingPoolEmail) *delivery.Delivery {
 		Domain:                row.Domain,
 		ScheduledTime:         row.ScheduledTime.Time,
 		OriginalScheduledTime: row.OriginalScheduledTime.Time,
+		Backoff:               r.backoff,
 	})
 }
 

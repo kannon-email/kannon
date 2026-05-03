@@ -6,27 +6,24 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/kannon-email/kannon/internal/publisher"
 	"github.com/kannon-email/kannon/internal/statssec"
-	pb "github.com/kannon-email/kannon/proto/kannon/stats/types"
 	"github.com/kannon-email/kannon/x/container"
-	"github.com/nats-io/nats.go"
 	"github.com/sirupsen/logrus"
-	"google.golang.org/protobuf/proto"
 )
 
 type srv struct {
-	nc  *nats.Conn
+	pub publisher.Publisher
 	ss  statssec.StatsService
 	cfg Config
 }
 
 func NewServer(cnt *container.Container, cfg Config) *srv {
-	nc := cnt.Nats()
 	q := cnt.Queries()
 	ss := statssec.NewStatsService(q)
 
 	return &srv{
-		nc:  nc,
+		pub: cnt.Nats(),
 		ss:  ss,
 		cfg: cfg,
 	}
@@ -53,18 +50,6 @@ func (s *srv) Run(ctx context.Context) error {
 	}()
 
 	return server.ListenAndServe()
-}
-
-func (s *srv) sendMsg(data *pb.Stats, topic string) error {
-	msg, err := proto.Marshal(data)
-	if err != nil {
-		return fmt.Errorf("cannot marshal data: %w", err)
-	}
-	err = s.nc.Publish(topic, msg)
-	if err != nil {
-		return fmt.Errorf("cannot send message on nats: %w", err)
-	}
-	return nil
 }
 
 func readUserIP(r *http.Request) string {

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	sqlc "github.com/kannon-email/kannon/internal/db"
+	"github.com/kannon-email/kannon/internal/publisher"
 	"github.com/kannon-email/kannon/internal/statssec"
 	"github.com/kannon-email/kannon/internal/utils"
 	pb "github.com/kannon-email/kannon/proto/kannon/stats/types"
@@ -40,8 +41,7 @@ func (s *srv) handleClick(w http.ResponseWriter, r *http.Request) {
 	ip := readUserIP(r)
 	data := buildClickStat(claims, userAgent, ip, domain)
 
-	err = s.sendMsg(data, "kannon.stats.clicks")
-	if err != nil {
+	if err := publisher.PublishStat(s.pub, data); err != nil {
 		logrus.Errorf("cannot send message on nats: %v", err)
 		return
 	}
