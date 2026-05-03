@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -13,8 +14,10 @@ import (
 // grammar so subtests can declaratively trigger per-Recipient failure
 // behaviour without touching helper code:
 //
-//	bounce.<suffix>     -> permanent SenderError, code 550
-//	(anything else)     -> success, captured for inspection
+//	bounce.<suffix>           -> permanent SenderError, code 550
+//	transient.x<N>.<suffix>   -> transient SenderError on attempts 1..N,
+//	                             success on attempt N+1
+//	(anything else)           -> success, captured for inspection
 //
 // The grammar is e2e-internal vocabulary and intentionally not promoted
 // to CONTEXT.md.
@@ -49,6 +52,14 @@ func (s *senderMock) Send(from string, to string, body []byte) smtp.SenderError 
 			err:       fmt.Errorf("550 user unknown: %s", to),
 			permanent: true,
 			code:      550,
+		}
+	}
+
+	if n, ok := transientFailCount(to); ok && s.attempts[to] <= n {
+		return &mockSenderError{
+			err:       fmt.Errorf("451 transient failure (attempt %d/%d): %s", s.attempts[to], n, to),
+			permanent: false,
+			code:      451,
 		}
 	}
 
@@ -101,6 +112,30 @@ func isBounceAddress(to string) bool {
 		return false
 	}
 	return strings.HasPrefix(to[:at], "bounce.")
+}
+
+// transientFailCount decodes N from a `transient.x<N>.<suffix>` local-part.
+// Returns (N, true) when the address matches the grammar with N >= 1.
+func transientFailCount(to string) (int, bool) {
+	at := strings.IndexByte(to, '@')
+	if at < 0 {
+		return 0, false
+	}
+	local := to[:at]
+	const prefix = "transient.x"
+	if !strings.HasPrefix(local, prefix) {
+		return 0, false
+	}
+	rest := local[len(prefix):]
+	dot := strings.IndexByte(rest, '.')
+	if dot <= 0 {
+		return 0, false
+	}
+	n, err := strconv.Atoi(rest[:dot])
+	if err != nil || n < 1 {
+		return 0, false
+	}
+	return n, true
 }
 
 type mockSenderError struct {

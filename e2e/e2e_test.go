@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/kannon-email/kannon/internal/delivery"
 	"github.com/kannon-email/kannon/pkg/api"
 	"github.com/kannon-email/kannon/pkg/dispatcher"
 	"github.com/kannon-email/kannon/pkg/smtpsender"
@@ -80,6 +81,10 @@ func TestE2EEmailSending(t *testing.T) {
 		testPermanentBounce(t, factory, senderMock, infra)
 	})
 
+	t.Run("TransientThenDeliver", func(t *testing.T) {
+		testTransientThenDeliver(t, factory, senderMock, infra)
+	})
+
 	t.Log("🎉 E2E email sending test completed successfully!")
 }
 
@@ -94,6 +99,12 @@ func runKannon(t *testing.T, infra *TestInfrastructure, senderMock *senderMock) 
 	cnt := container.NewForTest(ctx,
 		container.WithDBURL(infra.dbURL),
 		container.WithNatsURL(infra.natsURL),
+		// Collapse the production 2m/5m retry curve into milliseconds so the
+		// transient-then-deliver path converges in CI wall time.
+		container.WithBackoff(delivery.ExponentialBackoff{
+			Base: 50 * time.Millisecond,
+			Min:  50 * time.Millisecond,
+		}),
 	)
 	t.Cleanup(func() {
 		if err := cnt.CloseWithTimeout(30 * time.Second); err != nil {
@@ -491,6 +502,50 @@ func testPermanentBounce(t *testing.T, clientFactory *clientFactory, senderMock 
 	// senderMock should have observed exactly one attempt — permanent
 	// bounces are not retried.
 	assert.Len(t, senderMock.History(to), 1, "permanent bounce should not be retried")
+}
+
+func testTransientThenDeliver(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
+	client := clientFactory.NewClient(t, infra)
+
+	// Unique random suffix per subtest run keeps the senderMock's
+	// per-Recipient attempt counter and History isolated from anything
+	// else exercising the harness.
+	const transientFailures = 2
+	to := fmt.Sprintf("transient.x%d.%s@%s", transientFailures, strings.ToLower(faker.Username()), client.domain)
+
+	sendReq := &mailerapiv1.SendHTMLReq{
+		Sender: &mailertypes.Sender{
+			Email: "sender@test.example.com",
+			Alias: "Test Sender",
+		},
+		Recipients: []*mailertypes.Recipient{
+			{Email: to},
+		},
+		Subject:       "Transient Then Deliver Test",
+		Html:          "<h1>Hello!</h1>",
+		ScheduledTime: timestamppb.Now(),
+	}
+
+	client.SendEmail(t, sendReq)
+
+	// First the transient errors, then the eventual delivered. Polling on
+	// delivered alone is enough to assert the loop converged.
+	requireStat(t, client, to, "delivered", 1)
+
+	errs := requireStat(t, client, to, "error", transientFailures)
+	assert.Len(t, errs, transientFailures, "expected exactly %d error stats", transientFailures)
+
+	// Bounced/Errored boundary: a transient SenderError must not be
+	// reclassified as a permanent bounce.
+	allStats := client.GetStats(t)
+	for _, s := range allStats.Stats {
+		if s.Email == to {
+			assert.NotEqual(t, "bounced", s.Type, "transient failure should not produce a bounced stat")
+		}
+	}
+
+	assert.Len(t, senderMock.History(to), transientFailures+1,
+		"senderMock should have observed %d transient attempts plus one success", transientFailures)
 }
 
 func requireGetEmail(t *testing.T, s *senderMock, email string) ParsedEmail {
