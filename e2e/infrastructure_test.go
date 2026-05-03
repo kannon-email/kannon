@@ -16,10 +16,11 @@ import (
 
 // TestInfrastructure holds the test infrastructure resources
 type TestInfrastructure struct {
-	dbURL   string
-	natsURL string
-	apiPort uint
-	cleanup []func() error
+	dbURL       string
+	natsURL     string
+	apiPort     uint
+	trackerPort uint
+	cleanup     []func() error
 }
 
 func (infra *TestInfrastructure) Cleanup() {
@@ -103,9 +104,15 @@ func setupTestInfrastructure(ctx context.Context) (*TestInfrastructure, error) {
 		return infra, fmt.Errorf("could not find available port: %w", err)
 	}
 
+	trackerPort, err := findAvailablePort()
+	if err != nil {
+		return infra, fmt.Errorf("could not find available port for tracker: %w", err)
+	}
+
 	infra.dbURL = dbURL
 	infra.natsURL = natsURL
 	infra.apiPort = apiPort
+	infra.trackerPort = trackerPort
 
 	return infra, nil
 }

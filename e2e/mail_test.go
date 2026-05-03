@@ -48,7 +48,8 @@ func parseEmail(t *assert.CollectT, body []byte) ParsedEmail {
 		}
 	}
 
-	emailBody := parseSimpleEmailBody(t, msg.Body)
+	encoding := strings.ToLower(msg.Header.Get("Content-Transfer-Encoding"))
+	emailBody := parseSimpleEmailBody(t, msg.Body, encoding)
 	return ParsedEmail{
 		From:        from,
 		To:          to,
@@ -139,9 +140,19 @@ func parseMultipartEmail(t *assert.CollectT, body io.Reader, boundary string) (s
 	return emailBody, attachments
 }
 
-// parseSimpleEmailBody reads the body from a non-multipart email.
-func parseSimpleEmailBody(t *assert.CollectT, body io.Reader) string {
-	b, err := io.ReadAll(body)
+// parseSimpleEmailBody reads the body from a non-multipart email,
+// decoding the Content-Transfer-Encoding if present so callers see the
+// original payload (e.g. tracking-pixel URLs aren't broken across QP
+// soft line breaks).
+func parseSimpleEmailBody(t *assert.CollectT, body io.Reader, encoding string) string {
+	var r = body
+	switch encoding {
+	case "quoted-printable":
+		r = quotedprintable.NewReader(body)
+	case "base64":
+		r = base64.NewDecoder(base64.StdEncoding, body)
+	}
+	b, err := io.ReadAll(r)
 	require.NoError(t, err)
 	return string(b)
 }

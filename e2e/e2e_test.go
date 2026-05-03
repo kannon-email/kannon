@@ -3,7 +3,9 @@ package e2e_test
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -20,6 +22,7 @@ import (
 	"github.com/kannon-email/kannon/pkg/dispatcher"
 	"github.com/kannon-email/kannon/pkg/smtpsender"
 	"github.com/kannon-email/kannon/pkg/stats"
+	"github.com/kannon-email/kannon/pkg/tracker"
 	"github.com/kannon-email/kannon/pkg/validator"
 	adminapiv1 "github.com/kannon-email/kannon/proto/kannon/admin/apiv1"
 	adminv1connect "github.com/kannon-email/kannon/proto/kannon/admin/apiv1/apiv1connect"
@@ -85,6 +88,10 @@ func TestE2EEmailSending(t *testing.T) {
 		testTransientThenDeliver(t, factory, senderMock, infra)
 	})
 
+	t.Run("Opened", func(t *testing.T) {
+		testOpened(t, factory, senderMock, infra)
+	})
+
 	t.Log("🎉 E2E email sending test completed successfully!")
 }
 
@@ -94,6 +101,7 @@ func runKannon(t *testing.T, infra *TestInfrastructure, senderMock *senderMock) 
 
 	viper.Reset()
 	viper.Set("api.port", infra.apiPort)
+	viper.Set("tracker.port", infra.trackerPort)
 	viper.Set("stats.retention", "8760h")
 
 	cnt := container.NewForTest(ctx,
@@ -117,6 +125,7 @@ func runKannon(t *testing.T, infra *TestInfrastructure, senderMock *senderMock) 
 	reg.Register(dispatcher.New(cnt))
 	reg.Register(validator.New(cnt))
 	reg.Register(stats.New(cnt))
+	reg.Register(tracker.New(cnt))
 
 	// Custom SMTPSender wired against the test sender mock; the package's
 	// New(c) builds a real SMTP sender from the container, which the e2e
@@ -546,6 +555,54 @@ func testTransientThenDeliver(t *testing.T, clientFactory *clientFactory, sender
 
 	assert.Len(t, senderMock.History(to), transientFailures+1,
 		"senderMock should have observed %d transient attempts plus one success", transientFailures)
+}
+
+// openTokenRe extracts the JWT-style token from a `/o/<token>` tracking
+// pixel URL produced by the Envelope builder. JWT tokens are
+// base64url-encoded (`[A-Za-z0-9_-]`) with `.` separating the three
+// segments — no `=` padding, no other punctuation.
+var openTokenRe = regexp.MustCompile(`/o/([A-Za-z0-9._-]+)`)
+
+func extractOpenToken(t *testing.T, body string) string {
+	t.Helper()
+	m := openTokenRe.FindStringSubmatch(body)
+	require.Len(t, m, 2, "open token not found in body: %q", body)
+	return m[1]
+}
+
+func testOpened(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
+	client := clientFactory.NewClient(t, infra)
+
+	to := makeFakeEmail()
+	sendReq := &mailerapiv1.SendHTMLReq{
+		Sender: &mailertypes.Sender{
+			Email: "sender@test.example.com",
+			Alias: "Test Sender",
+		},
+		Recipients: []*mailertypes.Recipient{
+			{Email: to},
+		},
+		Subject:       "Opened Test",
+		Html:          "<html><body><h1>Hello!</h1></body></html>",
+		ScheduledTime: timestamppb.Now(),
+	}
+
+	client.SendEmail(t, sendReq)
+
+	msg := requireGetEmail(t, senderMock, to)
+	token := extractOpenToken(t, msg.Body)
+
+	url := fmt.Sprintf("http://localhost:%d/o/%s", infra.trackerPort, token)
+	require.EventuallyWithT(t, func(tt *assert.CollectT) {
+		resp, err := http.Get(url)
+		require.NoError(tt, err)
+		defer resp.Body.Close()
+		_, _ = io.Copy(io.Discard, resp.Body)
+		require.Equal(tt, http.StatusOK, resp.StatusCode)
+	}, 10*time.Second, 200*time.Millisecond, "Tracker open endpoint should be reachable")
+
+	matched := requireStat(t, client, to, "opened", 1)
+	assert.EqualValues(t, to, matched[0].Email)
 }
 
 func requireGetEmail(t *testing.T, s *senderMock, email string) ParsedEmail {
