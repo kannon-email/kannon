@@ -130,6 +130,10 @@ func (s mailAPIService) scheduleBatch(ctx context.Context, b *batch.Batch, recip
 		return err
 	}
 	for _, r := range recipients {
+		if strings.TrimSpace(r.Email) == "" {
+			logrus.Warnf("skipping recipient with empty email in batch %s", b.ID().String())
+			continue
+		}
 		d, err := delivery.New(delivery.NewParams{
 			BatchID:       b.ID(),
 			Email:         r.Email,
@@ -139,10 +143,12 @@ func (s mailAPIService) scheduleBatch(ctx context.Context, b *batch.Batch, recip
 			Backoff:       s.backoff,
 		})
 		if err != nil {
-			return err
+			logrus.Warnf("skipping recipient %q in batch %s: %v", r.Email, b.ID().String(), err)
+			continue
 		}
 		if err := s.deliveries.Schedule(ctx, d); err != nil {
-			return err
+			logrus.Warnf("cannot schedule delivery for %q in batch %s: %v", r.Email, b.ID().String(), err)
+			continue
 		}
 	}
 	return nil

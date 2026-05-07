@@ -121,6 +121,81 @@ func TestSendMailWithInvalidHeaders(t *testing.T) {
 	}
 }
 
+func TestSendMailSkipsRecipientsWithEmptyEmail(t *testing.T) {
+	defer cleanDB(t)
+
+	d := createTestDomain(t)
+
+	schedTime := time.Now().Add(10 * time.Minute).Truncate(1 * time.Second)
+	req := connect.NewRequest(&mailerv1.SendHTMLReq{
+		Sender: &types.Sender{
+			Email: "test@test.com",
+			Alias: "Test",
+		},
+		Recipients: []*types.Recipient{
+			{Email: "first@email.com"},
+			{Email: ""},
+			{Email: "second@email.com"},
+			{Email: "   "},
+			{Email: "third@email.com"},
+		},
+		Subject:       "Test",
+		Html:          "Hello",
+		ScheduledTime: timestamppb.New(schedTime),
+	})
+	authRequest(req, d)
+
+	res, err := ts.SendHTML(context.Background(), req)
+
+	assert.Nil(t, err)
+	assert.NotEmpty(t, res.Msg.MessageId)
+
+	sp, err := q.GetSendingPoolsEmails(context.Background(), sqlc.GetSendingPoolsEmailsParams{
+		MessageID: res.Msg.MessageId,
+		Limit:     100,
+		Offset:    0,
+	})
+	assert.Nil(t, err)
+	assert.Equal(t, 3, len(sp))
+
+	got := []string{sp[0].Email, sp[1].Email, sp[2].Email}
+	assert.ElementsMatch(t, []string{"first@email.com", "second@email.com", "third@email.com"}, got)
+}
+
+func TestSendMailWithAllEmptyRecipientsSucceedsWithEmptyPool(t *testing.T) {
+	defer cleanDB(t)
+
+	d := createTestDomain(t)
+
+	req := connect.NewRequest(&mailerv1.SendHTMLReq{
+		Sender: &types.Sender{
+			Email: "test@test.com",
+			Alias: "Test",
+		},
+		Recipients: []*types.Recipient{
+			{Email: ""},
+			{Email: "\t"},
+		},
+		Subject:       "Test",
+		Html:          "Hello",
+		ScheduledTime: timestamppb.Now(),
+	})
+	authRequest(req, d)
+
+	res, err := ts.SendHTML(context.Background(), req)
+
+	assert.Nil(t, err)
+	assert.NotEmpty(t, res.Msg.MessageId)
+
+	sp, err := q.GetSendingPoolsEmails(context.Background(), sqlc.GetSendingPoolsEmailsParams{
+		MessageID: res.Msg.MessageId,
+		Limit:     100,
+		Offset:    0,
+	})
+	assert.Nil(t, err)
+	assert.Equal(t, 0, len(sp))
+}
+
 func TestSendMailWithGlobalFields(t *testing.T) {
 	defer cleanDB(t)
 
