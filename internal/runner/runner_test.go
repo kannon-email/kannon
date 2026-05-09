@@ -19,7 +19,7 @@ func (t *testLooper) Loop(ctx context.Context) error {
 }
 
 func TestMaxLoops(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	l := &testLooper{}
 	err := runner.Run(ctx, l.Loop, runner.MaxLoop(1))
 	assert.Nil(t, err)
@@ -27,7 +27,7 @@ func TestMaxLoops(t *testing.T) {
 }
 
 func TestMaxLoops10(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	l := &testLooper{}
 	err := runner.Run(ctx, l.Loop, runner.MaxLoop(10))
 	assert.Nil(t, err)
@@ -35,7 +35,7 @@ func TestMaxLoops10(t *testing.T) {
 }
 
 func TestRunWithoutMaxLoopShouldEndWithErrContextExpired(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 1*time.Millisecond)
 	defer cancel()
 
 	l := &testLooper{}
@@ -45,7 +45,7 @@ func TestRunWithoutMaxLoopShouldEndWithErrContextExpired(t *testing.T) {
 }
 
 func TestWithLoopWaitBig(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 1*time.Millisecond)
 	defer cancel()
 
 	l := &testLooper{}
@@ -55,7 +55,7 @@ func TestWithLoopWaitBig(t *testing.T) {
 }
 
 func TestWithLoopWaitSmall(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Microsecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 1*time.Microsecond)
 	defer cancel()
 
 	l := &testLooper{}

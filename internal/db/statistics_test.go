@@ -1,7 +1,6 @@
 package sqlc
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -11,7 +10,7 @@ import (
 )
 
 func TestReadAndWriteStats(t *testing.T) {
-	err := q.InsertStat(context.Background(), InsertStatParams{
+	err := q.InsertStat(t.Context(), InsertStatParams{
 		Email:     "test@test.com",
 		MessageID: "123",
 		Type:      StatsTypeAccepted,
@@ -26,7 +25,7 @@ func TestReadAndWriteStats(t *testing.T) {
 
 	require.Nil(t, err)
 
-	stats, err := q.QueryStats(context.Background(), QueryStatsParams{
+	stats, err := q.QueryStats(t.Context(), QueryStatsParams{
 		Domain: "test.com",
 		Start:  pgtype.Timestamp{Time: time.Now().Add(-1 * time.Hour), Valid: true},
 		Stop:   pgtype.Timestamp{Time: time.Now().Add(1 * time.Hour), Valid: true},

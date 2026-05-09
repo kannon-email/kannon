@@ -72,7 +72,7 @@ func TestBuilderRendersSubjectFromAndTo(t *testing.T) {
 	b := envelope.NewBuilderWith(src, stubTokens{link: "ltok", open: "otok"})
 
 	d := mustDelivery(t, batch.ID("msg-1@test.com"), "rcpt@example.com", map[string]string{"name": "World"})
-	env, err := b.Build(context.Background(), d)
+	env, err := b.Build(t.Context(), d)
 	assert.Nil(t, err)
 
 	assert.Equal(t, "rcpt@example.com", env.To())
@@ -100,7 +100,7 @@ func TestBuilderInsertsTrackingPixelAndRewritesLinks(t *testing.T) {
 	b := envelope.NewBuilderWith(src, stubTokens{link: "LTOK", open: "OTOK"})
 
 	d := mustDelivery(t, batch.ID("msg-1@test.com"), "rcpt@example.com", nil)
-	env, err := b.Build(context.Background(), d)
+	env, err := b.Build(t.Context(), d)
 	assert.Nil(t, err)
 
 	parsed, err := mail.ReadMessage(bytes.NewReader(env.Body()))
@@ -141,7 +141,7 @@ func TestBuilderShouldRetryFalseAfterMaxAttempts(t *testing.T) {
 		SendAttempts: 10,
 		Backoff:      delivery.DefaultBackoff,
 	})
-	env, err := b.Build(context.Background(), d)
+	env, err := b.Build(t.Context(), d)
 	assert.Nil(t, err)
 	assert.False(t, env.ShouldRetry())
 }

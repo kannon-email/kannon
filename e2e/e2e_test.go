@@ -403,7 +403,7 @@ func waitForAPIServer(t *testing.T, infra *TestInfrastructure) {
 	)
 
 	require.EventuallyWithT(t, func(tt *assert.CollectT) {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 
 		_, err := hzClient.HZ(ctx, connect.NewRequest(&adminapiv1.HZRequest{}))

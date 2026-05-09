@@ -1,7 +1,6 @@
 package statssec_test
 
 import (
-	"context"
 	"log/slog"
 	"os"
 	"testing"
@@ -44,12 +43,12 @@ func TestMain(m *testing.M) {
 
 func TestCreateOpenToken(t *testing.T) {
 	// when user create a domain
-	token, err := s.CreateOpenToken(context.Background(), "<xxxx/test@test.com>", "test@test.com")
+	token, err := s.CreateOpenToken(t.Context(), "<xxxx/test@test.com>", "test@test.com")
 	assert.Nil(t, err)
 
 	assert.NotEmpty(t, token)
 
-	c, err := s.VerifyOpenToken(context.Background(), token)
+	c, err := s.VerifyOpenToken(t.Context(), token)
 	assert.Nil(t, err)
 
 	assert.Equal(t, "<xxxx/test@test.com>", c.MessageID)
@@ -58,12 +57,12 @@ func TestCreateOpenToken(t *testing.T) {
 
 func TestCreateLinkToken(t *testing.T) {
 	// when user create a domain
-	token, err := s.CreateLinkToken(context.Background(), "<xxxx/test@test.com>", "test@test.com", "https://test.com")
+	token, err := s.CreateLinkToken(t.Context(), "<xxxx/test@test.com>", "test@test.com", "https://test.com")
 	assert.Nil(t, err)
 
 	assert.NotEmpty(t, token)
 
-	c, err := s.VerifyLinkToken(context.Background(), token)
+	c, err := s.VerifyLinkToken(t.Context(), token)
 	assert.Nil(t, err)
 
 	assert.Equal(t, "<xxxx/test@test.com>", c.MessageID)

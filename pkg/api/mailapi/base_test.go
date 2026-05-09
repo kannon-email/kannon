@@ -1,7 +1,6 @@
 package mailapi_test
 
 import (
-	"context"
 	"encoding/base64"
 	"log/slog"
 	"os"
@@ -58,13 +57,13 @@ func createTestDomain(t *testing.T) *tests.DomainWithKey {
 
 func cleanDB(t *testing.T) {
 	t.Helper()
-	_, err := db.Exec(context.Background(), "DELETE FROM domains")
+	_, err := db.Exec(t.Context(), "DELETE FROM domains")
 	assert.Nil(t, err)
 
-	_, err = db.Exec(context.Background(), "DELETE FROM sending_pool_emails")
+	_, err = db.Exec(t.Context(), "DELETE FROM sending_pool_emails")
 	assert.Nil(t, err)
 
-	_, err = db.Exec(context.Background(), "DELETE FROM templates")
+	_, err = db.Exec(t.Context(), "DELETE FROM templates")
 	assert.Nil(t, err)
 }
 

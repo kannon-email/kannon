@@ -1,7 +1,6 @@
 package validator_test
 
 import (
-	"context"
 	"encoding/base64"
 	"log/slog"
 	"os"
@@ -64,7 +63,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestLoop(t *testing.T) {
-	err := runner.Run(context.Background(), vt.Cycle, runner.MaxLoop(1))
+	err := runner.Run(t.Context(), vt.Cycle, runner.MaxLoop(1))
 	assert.Nil(t, err)
 }
 
@@ -82,7 +81,6 @@ func TestValidEmail(t *testing.T) {
 
 	t.Cleanup(func() {
 		mp.subjects = nil
-		cleanDB(t)
 	})
 }
 
@@ -98,13 +96,12 @@ func TestInvalidEmail(t *testing.T) {
 
 	t.Cleanup(func() {
 		mp.subjects = nil
-		cleanDB(t)
 	})
 }
 
 func runOneCycle(t *testing.T) {
 	t.Helper()
-	err := runner.Run(context.Background(), vt.Cycle, runner.MaxLoop(1))
+	err := runner.Run(t.Context(), vt.Cycle, runner.MaxLoop(1))
 	assert.Nil(t, err)
 }
 
@@ -128,25 +125,13 @@ func sendEmail(t *testing.T, domainWithKey *tests.DomainWithKey, email string) {
 
 	authRequest(req, domainWithKey)
 
-	_, err := ts.SendHTML(context.Background(), req)
+	_, err := ts.SendHTML(t.Context(), req)
 	assert.Nil(t, err)
 }
 
 func createTestDomain(t *testing.T) *tests.DomainWithKey {
 	t.Helper()
 	return tests.CreateTestDomain(t, adminAPI)
-}
-
-func cleanDB(t *testing.T) {
-	t.Helper()
-	_, err := db.Exec(context.Background(), "DELETE FROM domains")
-	assert.Nil(t, err)
-
-	_, err = db.Exec(context.Background(), "DELETE FROM sending_pool_emails")
-	assert.Nil(t, err)
-
-	_, err = db.Exec(context.Background(), "DELETE FROM templates")
-	assert.Nil(t, err)
 }
 
 func authRequest[T any](req *connect.Request[T], d *tests.DomainWithKey) {

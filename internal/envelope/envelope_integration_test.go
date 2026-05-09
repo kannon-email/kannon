@@ -2,7 +2,6 @@ package envelope_test
 
 import (
 	"bytes"
-	"context"
 	"encoding/base64"
 	"io"
 	"log/slog"
@@ -68,12 +67,12 @@ func TestMain(m *testing.M) {
 }
 
 func TestPrepareMail(t *testing.T) {
-	d, err := adminAPI.CreateDomain(context.Background(), connect.NewRequest(&adminapiv1.CreateDomainRequest{
+	d, err := adminAPI.CreateDomain(t.Context(), connect.NewRequest(&adminapiv1.CreateDomainRequest{
 		Domain: "test.com",
 	}))
 	assert.Nil(t, err)
 
-	keyRes, err := adminAPI.CreateAPIKey(context.Background(), connect.NewRequest(&adminapiv1.CreateAPIKeyRequest{
+	keyRes, err := adminAPI.CreateAPIKey(t.Context(), connect.NewRequest(&adminapiv1.CreateAPIKeyRequest{
 		Domain: d.Msg.Domain,
 		Name:   "test-key",
 	}))
@@ -90,13 +89,13 @@ func TestPrepareMail(t *testing.T) {
 	})
 	authRequest(req, d.Msg, keyRes.Msg.Key)
 
-	res, err := ma.SendHTML(context.Background(), req)
+	res, err := ma.SendHTML(t.Context(), req)
 	assert.Nil(t, err)
 
 	emails := markValidatedAndClaim(t, batch.ID(res.Msg.MessageId), "test@emailtest.com")
 	assert.Equal(t, 1, len(emails))
 
-	env, err := eb.Build(context.Background(), emails[0])
+	env, err := eb.Build(t.Context(), emails[0])
 	assert.Nil(t, err)
 	parsed, err := mail.ReadMessage(bytes.NewReader(env.Body()))
 	assert.Nil(t, err)
@@ -121,17 +120,17 @@ func TestPrepareMailNoAccess(t *testing.T) {
 		},
 	})
 
-	_, err := ma.SendHTML(context.Background(), req)
+	_, err := ma.SendHTML(t.Context(), req)
 	assert.NotNil(t, err)
 }
 
 func TestPrepareMailWithAttachments(t *testing.T) {
-	d, err := adminAPI.CreateDomain(context.Background(), connect.NewRequest(&adminapiv1.CreateDomainRequest{
+	d, err := adminAPI.CreateDomain(t.Context(), connect.NewRequest(&adminapiv1.CreateDomainRequest{
 		Domain: "test2.com",
 	}))
 	assert.Nil(t, err)
 
-	keyRes, err := adminAPI.CreateAPIKey(context.Background(), connect.NewRequest(&adminapiv1.CreateAPIKeyRequest{
+	keyRes, err := adminAPI.CreateAPIKey(t.Context(), connect.NewRequest(&adminapiv1.CreateAPIKeyRequest{
 		Domain: d.Msg.Domain,
 		Name:   "test-key",
 	}))
@@ -151,13 +150,13 @@ func TestPrepareMailWithAttachments(t *testing.T) {
 	})
 	authRequest(req, d.Msg, keyRes.Msg.Key)
 
-	res, err := ma.SendHTML(context.Background(), req)
+	res, err := ma.SendHTML(t.Context(), req)
 	assert.Nil(t, err)
 
 	emails := markValidatedAndClaim(t, batch.ID(res.Msg.MessageId), "test@emailtest.com")
 	assert.Equal(t, 1, len(emails))
 
-	env, err := eb.Build(context.Background(), emails[0])
+	env, err := eb.Build(t.Context(), emails[0])
 	assert.Nil(t, err)
 	parsed, err := mail.ReadMessage(bytes.NewReader(env.Body()))
 	assert.Nil(t, err)
@@ -168,12 +167,12 @@ func TestPrepareMailWithAttachments(t *testing.T) {
 }
 
 func TestPrepareMailWithHeaders(t *testing.T) {
-	d, err := adminAPI.CreateDomain(context.Background(), connect.NewRequest(&adminapiv1.CreateDomainRequest{
+	d, err := adminAPI.CreateDomain(t.Context(), connect.NewRequest(&adminapiv1.CreateDomainRequest{
 		Domain: "test-ch.com",
 	}))
 	assert.Nil(t, err)
 
-	keyRes, err := adminAPI.CreateAPIKey(context.Background(), connect.NewRequest(&adminapiv1.CreateAPIKeyRequest{
+	keyRes, err := adminAPI.CreateAPIKey(t.Context(), connect.NewRequest(&adminapiv1.CreateAPIKeyRequest{
 		Domain: d.Msg.Domain,
 		Name:   "test-key-ch",
 	}))
@@ -194,13 +193,13 @@ func TestPrepareMailWithHeaders(t *testing.T) {
 	})
 	authRequest(req, d.Msg, keyRes.Msg.Key)
 
-	res, err := ma.SendHTML(context.Background(), req)
+	res, err := ma.SendHTML(t.Context(), req)
 	assert.Nil(t, err)
 
 	emails := markValidatedAndClaim(t, batch.ID(res.Msg.MessageId), "actual-recipient@emailtest.com")
 	assert.Equal(t, 1, len(emails))
 
-	env, err := eb.Build(context.Background(), emails[0])
+	env, err := eb.Build(t.Context(), emails[0])
 	assert.Nil(t, err)
 
 	assert.Equal(t, "actual-recipient@emailtest.com", env.To())
@@ -214,7 +213,7 @@ func TestPrepareMailWithHeaders(t *testing.T) {
 
 func markValidatedAndClaim(t *testing.T, batchID batch.ID, email string) []*delivery.Delivery {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	dlv, err := claimer.Lookup(ctx, batchID, email)
 	assert.Nil(t, err)
 	err = claimer.MarkValidated(ctx, dlv)

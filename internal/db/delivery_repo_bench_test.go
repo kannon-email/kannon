@@ -1,7 +1,6 @@
 package sqlc
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -32,7 +31,7 @@ func buildDeliveries(b *testing.B, batchID batch.ID, domain string, n, iter int)
 
 func BenchmarkScheduleMany(b *testing.B) {
 	repo := NewDeliveryRepository(db, delivery.DefaultBackoff)
-	ctx := context.Background()
+	ctx := b.Context()
 
 	for _, n := range []int{10, 100, 1000, 10_000} {
 		b.Run(fmt.Sprintf("N=%d", n), func(b *testing.B) {

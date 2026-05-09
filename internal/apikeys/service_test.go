@@ -1,7 +1,6 @@
 package apikeys_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -15,7 +14,7 @@ const testDomain = "test.example.com"
 
 func TestService_CreateKey(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		repo := apikeyshelpers.NewInMemoryRepository()
 		service := apikeys.NewService(repo)
 
@@ -34,7 +33,7 @@ func TestService_CreateKey(t *testing.T) {
 	})
 
 	t.Run("WithExpiration", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		repo := apikeyshelpers.NewInMemoryRepository()
 		service := apikeys.NewService(repo)
 
@@ -48,7 +47,7 @@ func TestService_CreateKey(t *testing.T) {
 	})
 
 	t.Run("InvalidDomain", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		repo := apikeyshelpers.NewInMemoryRepository()
 		service := apikeys.NewService(repo)
 
@@ -57,7 +56,7 @@ func TestService_CreateKey(t *testing.T) {
 	})
 
 	t.Run("InvalidName", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		repo := apikeyshelpers.NewInMemoryRepository()
 		service := apikeys.NewService(repo)
 
@@ -68,7 +67,7 @@ func TestService_CreateKey(t *testing.T) {
 
 func TestService_GetKey(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		repo := apikeyshelpers.NewInMemoryRepository()
 		service := apikeys.NewService(repo)
 
@@ -85,7 +84,7 @@ func TestService_GetKey(t *testing.T) {
 	})
 
 	t.Run("NotFound", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		repo := apikeyshelpers.NewInMemoryRepository()
 		service := apikeys.NewService(repo)
 
@@ -101,7 +100,7 @@ func TestService_GetKey(t *testing.T) {
 
 func TestService_ListKeys(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		repo := apikeyshelpers.NewInMemoryRepository()
 		service := apikeys.NewService(repo)
 
@@ -120,7 +119,7 @@ func TestService_ListKeys(t *testing.T) {
 	})
 
 	t.Run("WithActiveFilter", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		repo := apikeyshelpers.NewInMemoryRepository()
 		service := apikeys.NewService(repo)
 
@@ -157,7 +156,7 @@ func TestService_ListKeys(t *testing.T) {
 	})
 
 	t.Run("WithPagination", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		repo := apikeyshelpers.NewInMemoryRepository()
 		service := apikeys.NewService(repo)
 
@@ -189,7 +188,7 @@ func TestService_ListKeys(t *testing.T) {
 	})
 
 	t.Run("InvalidDomain", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		repo := apikeyshelpers.NewInMemoryRepository()
 		service := apikeys.NewService(repo)
 
@@ -200,7 +199,7 @@ func TestService_ListKeys(t *testing.T) {
 
 func TestService_DeactivateKey(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		repo := apikeyshelpers.NewInMemoryRepository()
 		service := apikeys.NewService(repo)
 
@@ -223,7 +222,7 @@ func TestService_DeactivateKey(t *testing.T) {
 	})
 
 	t.Run("NotFound", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		repo := apikeyshelpers.NewInMemoryRepository()
 		service := apikeys.NewService(repo)
 
@@ -239,7 +238,7 @@ func TestService_DeactivateKey(t *testing.T) {
 
 func TestService_ValidateForAuth(t *testing.T) {
 	t.Run("ValidKey", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		repo := apikeyshelpers.NewInMemoryRepository()
 		service := apikeys.NewService(repo)
 
@@ -254,7 +253,7 @@ func TestService_ValidateForAuth(t *testing.T) {
 	})
 
 	t.Run("InactiveKey", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		repo := apikeyshelpers.NewInMemoryRepository()
 		service := apikeys.NewService(repo)
 
@@ -272,7 +271,7 @@ func TestService_ValidateForAuth(t *testing.T) {
 	})
 
 	t.Run("ExpiredKey", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		repo := apikeyshelpers.NewInMemoryRepository()
 		service := apikeys.NewService(repo)
 
@@ -313,7 +312,7 @@ func TestService_ValidateForAuth(t *testing.T) {
 	})
 
 	t.Run("NonExistentKey", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		repo := apikeyshelpers.NewInMemoryRepository()
 		service := apikeys.NewService(repo)
 
@@ -325,7 +324,7 @@ func TestService_ValidateForAuth(t *testing.T) {
 	})
 
 	t.Run("InvalidKeyFormat", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		repo := apikeyshelpers.NewInMemoryRepository()
 		service := apikeys.NewService(repo)
 

@@ -14,7 +14,7 @@ const (
 
 func TestSingleton_SuccessfulInitialization(t *testing.T) {
 	s := &singleton[string]{}
-	ctx := context.Background()
+	ctx := t.Context()
 
 	expected := testValue
 	initFunc := func(ctx context.Context) (string, error) {
@@ -34,7 +34,7 @@ func TestSingleton_SuccessfulInitialization(t *testing.T) {
 
 func TestSingleton_OnlyInitializedOnce(t *testing.T) {
 	s := &singleton[int]{}
-	ctx := context.Background()
+	ctx := t.Context()
 
 	callCount := 0
 	initFunc := func(ctx context.Context) (int, error) {
@@ -66,7 +66,7 @@ func TestSingleton_OnlyInitializedOnce(t *testing.T) {
 
 func TestSingleton_ConcurrentAccess(t *testing.T) {
 	s := &singleton[string]{}
-	ctx := context.Background()
+	ctx := t.Context()
 
 	callCount := 0
 	var mu sync.Mutex
@@ -113,7 +113,7 @@ func TestSingleton_StructType(t *testing.T) {
 	}
 
 	s := &singleton[testStruct]{}
-	ctx := context.Background()
+	ctx := t.Context()
 
 	expected := testStruct{Name: "test", ID: 42}
 	initFunc := func(ctx context.Context) (testStruct, error) {
@@ -134,7 +134,7 @@ func TestSingleton_PointerType(t *testing.T) {
 	}
 
 	s := &singleton[*testStruct]{}
-	ctx := context.Background()
+	ctx := t.Context()
 
 	expected := &testStruct{Name: "test", ID: 42}
 	initFunc := func(ctx context.Context) (*testStruct, error) {
@@ -172,7 +172,7 @@ func (ti *testImpl) GetValue() string {
 
 func TestSingleton_InterfaceType(t *testing.T) {
 	s := &singleton[testInterface]{}
-	ctx := context.Background()
+	ctx := t.Context()
 
 	expected := &testImpl{value: "test-interface"}
 	initFunc := func(ctx context.Context) (testInterface, error) {
@@ -196,7 +196,7 @@ const testKey contextKey = "key"
 
 func TestSingleton_ContextPassing(t *testing.T) {
 	s := &singleton[string]{}
-	ctx := context.WithValue(context.Background(), testKey, testValue)
+	ctx := context.WithValue(t.Context(), testKey, testValue)
 
 	var receivedCtx context.Context
 	initFunc := func(ctx context.Context) (string, error) {
