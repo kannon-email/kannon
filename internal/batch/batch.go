@@ -6,7 +6,6 @@ package batch
 
 import (
 	"errors"
-	"fmt"
 )
 
 // Domain errors.
@@ -47,16 +46,16 @@ type Batch struct {
 // New creates a new Batch with a freshly generated ID for the given domain.
 func New(domain, subject string, sender Sender, templateID string, attachments Attachments, headers Headers) (*Batch, error) {
 	if domain == "" {
-		return nil, fmt.Errorf("domain is required")
+		return nil, errors.New("domain is required")
 	}
 	if subject == "" {
-		return nil, fmt.Errorf("subject is required")
+		return nil, errors.New("subject is required")
 	}
 	if templateID == "" {
-		return nil, fmt.Errorf("template ID is required")
+		return nil, errors.New("template ID is required")
 	}
 	if sender.Email == "" {
-		return nil, fmt.Errorf("sender email is required")
+		return nil, errors.New("sender email is required")
 	}
 	return &Batch{
 		id:          NewID(domain),

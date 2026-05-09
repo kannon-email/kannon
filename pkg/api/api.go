@@ -96,6 +96,6 @@ func startAPIServer(ctx context.Context, port uint, adminServer adminv1connect.A
 		}
 	}()
 
-	slog.Info(fmt.Sprintf("Connect API server listening on %s", addr))
+	slog.Info("Connect API server listening on " + addr)
 	return server.ListenAndServe()
 }

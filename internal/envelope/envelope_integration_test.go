@@ -105,7 +105,8 @@ func TestPrepareMail(t *testing.T) {
 	assert.Equal(t, "Test <test@test.com>", parsed.Header.Get("From"))
 	assert.Equal(t, "Test Test", parsed.Header.Get("Subject"))
 
-	html, _ := io.ReadAll(parsed.Body)
+	html, err := io.ReadAll(parsed.Body)
+	assert.Nil(t, err)
 	assert.Equal(t, "test Test", string(html))
 }
 

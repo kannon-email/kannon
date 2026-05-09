@@ -37,7 +37,7 @@ func PublishStat(p Publisher, s *types.Stats) error {
 
 	data, err := proto.Marshal(s)
 	if err != nil {
-		return fmt.Errorf("cannot marshal protoc: %v", err)
+		return fmt.Errorf("cannot marshal protoc: %w", err)
 	}
 	return p.Publish(subj, data)
 }

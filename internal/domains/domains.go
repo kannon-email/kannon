@@ -11,7 +11,6 @@ package domains
 
 import (
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/kannon-email/kannon/internal/dkim"
@@ -37,7 +36,7 @@ type Domain struct {
 // The numeric id and createdAt are populated by the repository on Create.
 func New(fqdn string) (*Domain, error) {
 	if fqdn == "" {
-		return nil, fmt.Errorf("domain is required")
+		return nil, errors.New("domain is required")
 	}
 	keys, err := dkim.GenerateDKIMKeysPair()
 	if err != nil {

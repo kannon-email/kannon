@@ -3,6 +3,7 @@ package envelope
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -197,12 +198,13 @@ func TestRenderMsgWithSingleAttachment(t *testing.T) {
 	gotAttachments := map[string][]byte{}
 	for {
 		part, err := mr.NextPart()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		assert.Nil(t, err)
 
 		ct := part.Header.Get("Content-Type")
+		//nolint:errcheck // attachment parts may omit Content-Type
 		mt, _, _ := mime.ParseMediaType(ct)
 		raw, err := io.ReadAll(part)
 		assert.Nil(t, err)
@@ -246,10 +248,11 @@ func TestRenderMsgWithMultipleAttachments(t *testing.T) {
 	got := map[string][]byte{}
 	for {
 		part, err := mr.NextPart()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		assert.Nil(t, err)
+		//nolint:errcheck // attachment parts may omit Content-Type
 		mt, _, _ := mime.ParseMediaType(part.Header.Get("Content-Type"))
 		if mt == "text/html" {
 			continue

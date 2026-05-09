@@ -49,10 +49,14 @@ func seedBatchFixture(tb testing.TB) (batch.ID, string) {
 
 	tb.Cleanup(func() {
 		cleanupCtx := context.Background()
-		_, _ = db.Exec(cleanupCtx, "DELETE FROM sending_pool_emails WHERE domain = $1", domainName)
-		_, _ = db.Exec(cleanupCtx, "DELETE FROM messages WHERE domain = $1", domainName)
-		_, _ = db.Exec(cleanupCtx, "DELETE FROM templates WHERE domain = $1", domainName)
-		_, _ = db.Exec(cleanupCtx, "DELETE FROM domains WHERE domain = $1", domainName)
+		//nolint:errcheck // best-effort test cleanup
+		db.Exec(cleanupCtx, "DELETE FROM sending_pool_emails WHERE domain = $1", domainName)
+		//nolint:errcheck // best-effort test cleanup
+		db.Exec(cleanupCtx, "DELETE FROM messages WHERE domain = $1", domainName)
+		//nolint:errcheck // best-effort test cleanup
+		db.Exec(cleanupCtx, "DELETE FROM templates WHERE domain = $1", domainName)
+		//nolint:errcheck // best-effort test cleanup
+		db.Exec(cleanupCtx, "DELETE FROM domains WHERE domain = $1", domainName)
 	})
 
 	return bID, domainName

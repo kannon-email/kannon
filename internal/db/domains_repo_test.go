@@ -10,7 +10,8 @@ import (
 
 func TestDomainsRepository(t *testing.T) {
 	t.Cleanup(func() {
-		_, _ = db.Exec(context.Background(), "DELETE FROM domains CASCADE")
+		//nolint:errcheck // best-effort test cleanup
+		db.Exec(context.Background(), "DELETE FROM domains CASCADE")
 	})
 	_, err := db.Exec(context.Background(), "DELETE FROM domains CASCADE")
 	require.NoError(t, err)

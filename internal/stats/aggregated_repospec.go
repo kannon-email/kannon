@@ -2,6 +2,7 @@ package stats
 
 import (
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -92,7 +93,7 @@ func testIncrementSeparateEntries(t *testing.T, repo AggregatedStatsRepository) 
 
 func testAggregatedQueryFiltersByDomain(t *testing.T, repo AggregatedStatsRepository) {
 	ctx := t.Context()
-	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
+	suffix := strconv.FormatInt(time.Now().UnixNano(), 10)
 	domainA := fmt.Sprintf("agg-a-%s.test", suffix)
 	domainB := fmt.Sprintf("agg-b-%s.test", suffix)
 	day := time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC)

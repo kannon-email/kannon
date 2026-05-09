@@ -53,7 +53,7 @@ type Template struct {
 // ID. createdAt/updatedAt are populated by the repository on Create.
 func NewPersistent(domain, html, title string) (*Template, error) {
 	if domain == "" {
-		return nil, fmt.Errorf("domain is required")
+		return nil, errors.New("domain is required")
 	}
 	return &Template{
 		templateID: newTemplateID(domain),
@@ -67,7 +67,7 @@ func NewPersistent(domain, html, title string) (*Template, error) {
 // NewTransient creates a new transient Template with a freshly generated ID.
 func NewTransient(domain, html string) (*Template, error) {
 	if domain == "" {
-		return nil, fmt.Errorf("domain is required")
+		return nil, errors.New("domain is required")
 	}
 	return &Template{
 		templateID: newTemplateID(domain),

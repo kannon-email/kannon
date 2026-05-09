@@ -608,7 +608,7 @@ func testOpened(t *testing.T, clientFactory *clientFactory, senderMock *senderMo
 		resp, err := http.Get(url)
 		require.NoError(tt, err)
 		defer resp.Body.Close()
-		_, _ = io.Copy(io.Discard, resp.Body)
+		_, _ = io.Copy(io.Discard, resp.Body) //nolint:errcheck // draining body before close
 		require.Equal(tt, http.StatusOK, resp.StatusCode)
 	}, 10*time.Second, 200*time.Millisecond, "Tracker open endpoint should be reachable")
 
@@ -653,7 +653,7 @@ func testClicked(t *testing.T, clientFactory *clientFactory, senderMock *senderM
 		resp, err := httpClient.Get(url)
 		require.NoError(tt, err)
 		defer resp.Body.Close()
-		_, _ = io.Copy(io.Discard, resp.Body)
+		_, _ = io.Copy(io.Discard, resp.Body) //nolint:errcheck // draining body before close
 		require.Equal(tt, http.StatusTemporaryRedirect, resp.StatusCode)
 		location = resp.Header.Get("Location")
 	}, 10*time.Second, 200*time.Millisecond, "Tracker click endpoint should be reachable")

@@ -2,6 +2,7 @@ package container
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -169,10 +170,10 @@ func (c *Container) EmbeddedNatsServer() *server.Server {
 
 		if !ns.ReadyForConnections(10 * time.Second) {
 			ns.Shutdown()
-			return nil, fmt.Errorf("NATS server not ready after 10 seconds")
+			return nil, errors.New("NATS server not ready after 10 seconds")
 		}
 
-		slog.Info(fmt.Sprintf("Embedded NATS server started at %s", ns.ClientURL()))
+		slog.Info("Embedded NATS server started at " + ns.ClientURL())
 
 		c.addClosers(func(ctx context.Context) error {
 			slog.Info("Shutting down embedded NATS server...")
@@ -183,7 +184,7 @@ func (c *Container) EmbeddedNatsServer() *server.Server {
 
 		c.addHZ("embedded-nats", func(ctx context.Context) error {
 			if !ns.ReadyForConnections(100 * time.Millisecond) {
-				return fmt.Errorf("embedded NATS server not ready")
+				return errors.New("embedded NATS server not ready")
 			}
 			return nil
 		})
@@ -200,7 +201,7 @@ func (c *Container) Nats() *nats.Conn {
 			natsURL = ns.ClientURL()
 		}
 
-		slog.Debug(fmt.Sprintf("connecting to NATS: %s", natsURL))
+		slog.Debug("connecting to NATS: " + natsURL)
 		nc, err := nats.Connect(natsURL)
 		if err != nil {
 			return nil, err
@@ -328,10 +329,10 @@ func provisionEmbeddedJetStreams(nc *nats.Conn) error {
 
 	for _, s := range streams {
 		if _, err := js.StreamInfo(s.name); err == nil {
-			slog.Debug(fmt.Sprintf("JetStream stream already exists: %s", s.name))
+			slog.Debug("JetStream stream already exists: " + s.name)
 			continue
 		}
-		slog.Info(fmt.Sprintf("Creating JetStream stream: %s", s.name))
+		slog.Info("Creating JetStream stream: " + s.name)
 		if _, err := js.AddStream(&nats.StreamConfig{
 			Name:     s.name,
 			Subjects: s.subjects,

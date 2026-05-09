@@ -52,6 +52,7 @@ func TestSplitEmail_InvalidEmail(t *testing.T) {
 
 func TestGetEmailDomain(t *testing.T) {
 	input := "test@email.com"
-	domain, _ := GetEmailDomain(input)
+	domain, err := GetEmailDomain(input)
+	assert.Nil(t, err)
 	assert.Equal(t, domain, "email.com")
 }

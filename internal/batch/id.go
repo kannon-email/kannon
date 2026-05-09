@@ -1,6 +1,7 @@
 package batch
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -20,13 +21,13 @@ func NewID(domain string) ID {
 // ParseID validates and parses a string into an ID.
 func ParseID(s string) (ID, error) {
 	if s == "" {
-		return "", fmt.Errorf("batch ID is required")
+		return "", errors.New("batch ID is required")
 	}
 	if !strings.HasPrefix(s, IDPrefix) {
 		return "", fmt.Errorf("invalid batch ID format: must start with %s", IDPrefix)
 	}
 	if !strings.Contains(s, "@") {
-		return "", fmt.Errorf("invalid batch ID format: missing domain")
+		return "", errors.New("invalid batch ID format: missing domain")
 	}
 	return ID(s), nil
 }

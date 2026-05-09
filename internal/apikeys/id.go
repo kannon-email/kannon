@@ -1,6 +1,7 @@
 package apikeys
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -20,7 +21,7 @@ func NewID() ID {
 // ParseID validates and parses a string into an ID
 func ParseID(s string) (ID, error) {
 	if s == "" {
-		return "", fmt.Errorf("API key ID is required")
+		return "", errors.New("API key ID is required")
 	}
 	if !strings.HasPrefix(s, IDPrefix) {
 		return "", fmt.Errorf("invalid API key ID format: must start with %s", IDPrefix)

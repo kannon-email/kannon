@@ -40,7 +40,7 @@ func (s *Session) AuthPlain(username, password string) error {
 }
 
 func (s *Session) Mail(from string, opts *smtp.MailOptions) error {
-	slog.Debug(fmt.Sprintf("Mail from: %s", from))
+	slog.Debug("Mail from: " + from)
 	s.From = from
 	return nil
 }

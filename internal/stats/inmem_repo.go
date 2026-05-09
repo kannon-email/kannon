@@ -32,7 +32,8 @@ func (r *InMemRepository) Insert(_ context.Context, stat *Stat) error {
 	// Store a deep copy to avoid external mutation.
 	cp := *stat
 	if stat.Data != nil {
-		cp.Data = proto.Clone(stat.Data).(*types.StatsData)
+		// proto.Clone preserves the concrete type of its input.
+		cp.Data = proto.Clone(stat.Data).(*types.StatsData) //nolint:errcheck // assertion cannot fail
 	}
 	r.stats = append(r.stats, &cp)
 	return nil

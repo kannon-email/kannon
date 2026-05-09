@@ -2,6 +2,7 @@ package validator
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"regexp"
@@ -59,7 +60,7 @@ func (d *Validator) Cycle(pctx context.Context) error {
 	defer cancel()
 	emails, err := d.claimer.ClaimForValidation(ctx, 100)
 	if err != nil {
-		return fmt.Errorf("cannot prepare emails for send: %v", err)
+		return fmt.Errorf("cannot prepare emails for send: %w", err)
 	}
 
 	d.log().Debug(fmt.Sprintf("validating %d emails", len(emails)))
@@ -133,4 +134,4 @@ func validateEmail(email string) error {
 	return ErrInvalidEmailAddress
 }
 
-var ErrInvalidEmailAddress = fmt.Errorf(" is not a valid email")
+var ErrInvalidEmailAddress = errors.New(" is not a valid email")

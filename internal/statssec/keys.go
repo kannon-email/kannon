@@ -6,6 +6,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"time"
 
@@ -35,7 +36,7 @@ func generateKeyPair() (*rsa.PrivateKey, *rsa.PublicKey, error) {
 	}
 
 	publickey := privatekey.Public()
-	return privatekey, publickey.(*rsa.PublicKey), nil
+	return privatekey, publickey.(*rsa.PublicKey), nil //nolint:errcheck // RSA private key always returns *rsa.PublicKey
 }
 
 func createOpenToken(privateKey *rsa.PrivateKey, kid string, now time.Time, messageID string, email string) (string, error) {
@@ -125,12 +126,12 @@ func verifyOpenToken(ctx context.Context, tokenString string, q *sqlc.Queries) (
 	}
 
 	if !token.Valid {
-		return nil, fmt.Errorf("invalit token")
+		return nil, errors.New("invalit token")
 	}
 
 	claims, ok := token.Claims.(*OpenClaims)
 	if !ok {
-		return nil, fmt.Errorf("cannot unstructure claims")
+		return nil, errors.New("cannot unstructure claims")
 	}
 	return claims, nil
 }
@@ -142,12 +143,12 @@ func verifyLinkToken(ctx context.Context, tokenString string, q *sqlc.Queries) (
 	}
 
 	if !token.Valid {
-		return nil, fmt.Errorf("invalit token")
+		return nil, errors.New("invalit token")
 	}
 
 	claims, ok := token.Claims.(*LinkClaims)
 	if !ok {
-		return nil, fmt.Errorf("cannot unstructure claims")
+		return nil, errors.New("cannot unstructure claims")
 	}
 	return claims, nil
 }
