@@ -12,8 +12,6 @@ import (
 	"github.com/kannon-email/kannon/internal/tests"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
-
-	_ "github.com/lib/pq"
 )
 
 var db *pgxpool.Pool

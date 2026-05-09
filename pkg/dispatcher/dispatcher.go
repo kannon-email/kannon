@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	_ "github.com/lib/pq"
 	"golang.org/x/sync/errgroup"
 
 	sqlc "github.com/kannon-email/kannon/internal/db"

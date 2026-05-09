@@ -25,8 +25,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/types/known/timestamppb"
-
-	_ "github.com/lib/pq"
 )
 
 var db *pgxpool.Pool

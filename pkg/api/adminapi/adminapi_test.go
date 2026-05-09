@@ -15,8 +15,6 @@ import (
 	adminv1connect "github.com/kannon-email/kannon/proto/kannon/admin/apiv1/apiv1connect"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
-
-	_ "github.com/lib/pq"
 )
 
 var db *pgxpool.Pool

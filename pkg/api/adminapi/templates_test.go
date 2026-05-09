@@ -9,8 +9,6 @@ import (
 	"connectrpc.com/connect"
 	pb "github.com/kannon-email/kannon/proto/kannon/admin/apiv1"
 	"github.com/stretchr/testify/assert"
-
-	_ "github.com/lib/pq"
 )
 
 func TestCreateTemplate(t *testing.T) {
