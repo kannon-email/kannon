@@ -1,6 +1,6 @@
 GOBIN=$(PWD)/.bin
 
-.PHONY: test generate-db generate-proto upgrade
+.PHONY: test generate-db generate-proto upgrade lint deadcode
 
 upgrade:
 	go get -u ./...
@@ -22,8 +22,16 @@ generate-proto:
 
 generate: generate-db generate-proto
 
-lint:
+lint: deadcode
 	golangci-lint run --fix
+
+deadcode:
+	@out=$$(go tool deadcode -test ./...); \
+	if [ -n "$$out" ]; then \
+		echo "$$out"; \
+		echo "deadcode: unreachable code detected"; \
+		exit 1; \
+	fi
 
 docker-up:
 	# KANNON_IMAGE default to ghcr.io/kannon-email/kannon:latest

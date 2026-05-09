@@ -4,8 +4,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"regexp"
-
-	"github.com/nrednav/cuid2"
 )
 
 var extractMsgIDReg = regexp.MustCompile(`<.+\/(?P<messageId>.+)>`)
@@ -32,10 +30,6 @@ func ExtractMsgIDAndDomainFromEmailID(emailID string) (msgID string, domain stri
 		return "", "", err
 	}
 	return
-}
-
-func CreateMessageID(domain string) string {
-	return fmt.Sprintf("msg_%v@%v", cuid2.Generate(), domain)
 }
 
 var parseReturnPath = regexp.MustCompile(`bump_(?P<emailHash>[^+]*)\+(?P<messageID>.*)`)

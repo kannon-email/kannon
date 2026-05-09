@@ -195,39 +195,3 @@ func findAvailablePort() (uint, error) {
 	port := listener.Addr().(*net.TCPAddr).Port
 	return uint(port), nil
 }
-
-// GetDatabaseURL returns the database URL for external use
-func (infra *TestInfrastructure) GetDatabaseURL() string {
-	return infra.dbURL
-}
-
-// GetNatsURL returns the NATS URL for external use
-func (infra *TestInfrastructure) GetNatsURL() string {
-	return infra.natsURL
-}
-
-// GetAPIPort returns the API port for external use
-func (infra *TestInfrastructure) GetAPIPort() uint {
-	return infra.apiPort
-}
-
-// IsHealthy checks if the infrastructure is healthy
-func (infra *TestInfrastructure) IsHealthy(ctx context.Context) error {
-	// Check database
-	db, err := pgxpool.New(ctx, infra.dbURL)
-	if err != nil {
-		return fmt.Errorf("failed to connect to database: %w", err)
-	}
-	defer db.Close()
-
-	if err := db.Ping(ctx); err != nil {
-		return fmt.Errorf("database ping failed: %w", err)
-	}
-
-	// Check NATS
-	if err := testNatsConnection(infra.natsURL); err != nil {
-		return fmt.Errorf("nats connection failed: %w", err)
-	}
-
-	return nil
-}

@@ -29,3 +29,11 @@ jobs:
         with:
           version: v2.12.0
           args: --timeout 5m
+      - name: deadcode
+        run: |
+          out=$(go tool deadcode -test ./...)
+          if [ -n "$out" ]; then
+            echo "$out"
+            echo "deadcode: unreachable code detected"
+            exit 1
+          fi

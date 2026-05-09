@@ -84,21 +84,6 @@ func WithNatsURL(url string) TestOption {
 	return func(c *Container) { c.natsURL = url }
 }
 
-// WithEmbeddedNats enables the embedded NATS server in the test container.
-func WithEmbeddedNats() TestOption {
-	return func(c *Container) { c.useEmbeddedNats = true }
-}
-
-// WithSenderHostname overrides the SMTP sender hostname.
-func WithSenderHostname(h string) TestOption {
-	return func(c *Container) { c.senderHostname = h }
-}
-
-// WithDemoSender enables the demo SMTP sender.
-func WithDemoSender() TestOption {
-	return func(c *Container) { c.demoSender = true }
-}
-
 // WithBackoff overrides the retry backoff policy. Tests use this to collapse
 // the production multi-minute curve into milliseconds without mutating
 // per-package internals.
