@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -37,6 +38,9 @@ type Container struct {
 	embeddedNatsServer *singleton[*server.Server]
 	sender             *singleton[smtp.Sender]
 
+	// mu guards closers and hzs, which are appended to from singleton factory
+	// callbacks that may run concurrently across runnable goroutines.
+	mu      sync.Mutex
 	closers []CloserFunc
 	hzs     []HZ
 }

@@ -9,27 +9,33 @@ import (
 type CloserFunc func(context.Context) error
 
 func (c *Container) addClosers(closers ...CloserFunc) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.closers = append(c.closers, closers...)
 }
 
 func (c *Container) CloseWithTimeout(timeout time.Duration) error {
-	if len(c.closers) == 0 {
+	c.mu.Lock()
+	closers := append([]CloserFunc(nil), c.closers...)
+	c.mu.Unlock()
+
+	if len(closers) == 0 {
 		return nil
 	}
 
-	errCh := make(chan error, len(c.closers))
+	errCh := make(chan error, len(closers))
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	// Close resources in parallel
-	for _, closer := range c.closers {
+	for _, closer := range closers {
 		go func(fn CloserFunc) {
 			errCh <- fn(ctx)
 		}(closer)
 	}
 
 	var errs []error
-	for i := 0; i < len(c.closers); i++ {
+	for i := 0; i < len(closers); i++ {
 		select {
 		case err := <-errCh:
 			if err != nil {
