@@ -47,7 +47,7 @@ func TestMain(m *testing.M) {
 const testRetention = 365 * 24 * time.Hour
 
 func newTestHandler() statsHandler {
-	repo := sq.NewStatsRepository(q)
+	repo := sq.NewStatsRepository(db)
 	service := stats.NewService(repo)
 	return statsHandler{
 		service:   service,

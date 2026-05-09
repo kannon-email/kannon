@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/kannon-email/kannon/internal/apikeys"
-	sqlc "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/domains"
 	"github.com/kannon-email/kannon/internal/templates"
 
@@ -15,7 +14,6 @@ type adminAPIService struct {
 	domains   domains.Repository
 	templates templates.Repository
 	apiKeys   *apikeys.Service
-	q         *sqlc.Queries
 }
 
 func (s *adminAPIService) GetDomains(ctx context.Context, in *pb.GetDomainsReq) (*pb.GetDomainsResponse, error) {

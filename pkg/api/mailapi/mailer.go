@@ -236,13 +236,13 @@ func validateHeaders(h *mailertypes.Headers) (batch.Headers, error) {
 	return batch.Headers{To: h.To, Cc: h.Cc}, nil
 }
 
-func NewMailerAPIV1(q *sqlc.Queries, db *pgxpool.Pool, backoff delivery.BackoffPolicy) mailerv1connect.MailerHandler {
-	domainsCli := sqlc.NewDomainsRepository(q)
-	apiKeysRepo := sqlc.NewAPIKeysRepository(q, db)
+func NewMailerAPIV1(db *pgxpool.Pool, backoff delivery.BackoffPolicy) mailerv1connect.MailerHandler {
+	domainsCli := sqlc.NewDomainsRepository(db)
+	apiKeysRepo := sqlc.NewAPIKeysRepository(db)
 	apiKeysService := apikeys.NewService(apiKeysRepo)
-	batchRepo := sqlc.NewBatchRepository(q)
+	batchRepo := sqlc.NewBatchRepository(db)
 	deliveryRepo := sqlc.NewDeliveryRepository(db, backoff)
-	templatesRepo := sqlc.NewTemplatesRepository(q)
+	templatesRepo := sqlc.NewTemplatesRepository(db)
 
 	return &mailAPIService{
 		domains:    domainsCli,

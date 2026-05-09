@@ -5,21 +5,23 @@ import (
 	"errors"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/kannon-email/kannon/internal/domains"
 )
 
 type domainsRepository struct {
-	q *Queries
+	db *pgxpool.Pool
 }
 
 // NewDomainsRepository creates a new PostgreSQL-backed SenderDomain repository.
-func NewDomainsRepository(q *Queries) domains.Repository {
-	return &domainsRepository{q: q}
+func NewDomainsRepository(db *pgxpool.Pool) domains.Repository {
+	return &domainsRepository{db: db}
 }
 
 func (r *domainsRepository) Create(ctx context.Context, d *domains.Domain) error {
-	row, err := r.q.CreateDomain(ctx, CreateDomainParams{
+	q := New(r.db)
+	row, err := q.CreateDomain(ctx, CreateDomainParams{
 		Domain:         d.Domain(),
 		DkimPrivateKey: d.DkimPrivateKey(),
 		DkimPublicKey:  d.DkimPublicKey(),
@@ -32,7 +34,8 @@ func (r *domainsRepository) Create(ctx context.Context, d *domains.Domain) error
 }
 
 func (r *domainsRepository) FindByName(ctx context.Context, fqdn string) (*domains.Domain, error) {
-	row, err := r.q.FindDomain(ctx, fqdn)
+	q := New(r.db)
+	row, err := q.FindDomain(ctx, fqdn)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, domains.ErrDomainNotFound
@@ -43,7 +46,8 @@ func (r *domainsRepository) FindByName(ctx context.Context, fqdn string) (*domai
 }
 
 func (r *domainsRepository) List(ctx context.Context) ([]*domains.Domain, error) {
-	rows, err := r.q.GetAllDomains(ctx)
+	q := New(r.db)
+	rows, err := q.GetAllDomains(ctx)
 	if err != nil {
 		return nil, err
 	}

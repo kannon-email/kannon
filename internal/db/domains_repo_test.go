@@ -15,6 +15,6 @@ func TestDomainsRepository(t *testing.T) {
 	_, err := db.Exec(context.Background(), "DELETE FROM domains CASCADE")
 	require.NoError(t, err)
 
-	repo := NewDomainsRepository(q)
+	repo := NewDomainsRepository(db)
 	domains.RunRepoSpec(t, repo)
 }

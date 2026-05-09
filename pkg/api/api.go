@@ -52,14 +52,14 @@ func run(ctx context.Context, config Config, cnt *container.Container) error {
 
 	logrus.Infof("Starting API Service on port %d", port)
 
-	q := cnt.Queries()
+	db := cnt.DB()
 
-	statsRepo := sq.NewStatsRepository(q)
-	aggregatedRepo := sq.NewAggregatedStatsRepository(q)
+	statsRepo := sq.NewStatsRepository(db)
+	aggregatedRepo := sq.NewAggregatedStatsRepository(db)
 	statsService := stats.NewService(statsRepo, stats.WithAggregatedStatsRepository(aggregatedRepo))
 
-	adminAPIService := adminapi.CreateAdminAPIService(q, cnt.DB())
-	mailAPIService := mailapi.NewMailerAPIV1(q, cnt.DB(), cnt.BackoffPolicy())
+	adminAPIService := adminapi.CreateAdminAPIService(db)
+	mailAPIService := mailapi.NewMailerAPIV1(db, cnt.BackoffPolicy())
 	statsAPIService := statsv1.NewStatsAPIService(statsService)
 	statsV2APIService := statsv2.NewStatsAPIService(statsService)
 	hzAPIService := hzapi.CreateHZAPIService(cnt)
