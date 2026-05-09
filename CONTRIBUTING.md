@@ -44,6 +44,12 @@ Then, in another terminal:
 make test
 ```
 
+Both `make test` and `make test-e2e` run with Go's race detector (`-race`)
+enabled, matching CI. Race-detector builds are slower and use more memory, but
+catch concurrency bugs (Kannon uses `errgroup`, NATS consumers, and worker
+pools) at PR time instead of in production. If you hit a `DATA RACE` report
+locally, treat it as a real bug.
+
 ### 5. Run E2E Tests
 
 ```sh
