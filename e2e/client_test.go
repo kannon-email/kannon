@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"github.com/go-faker/faker/v4"
+	"github.com/kannon-email/kannon/internal/tests"
 	adminapiv1 "github.com/kannon-email/kannon/proto/kannon/admin/apiv1"
 	adminv1connect "github.com/kannon-email/kannon/proto/kannon/admin/apiv1/apiv1connect"
 	mailerapiv1 "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1"
@@ -81,7 +81,7 @@ type clientFactory struct {
 }
 
 func (f *clientFactory) NewClient(t *testing.T, infra *TestInfrastructure) *clientTest {
-	domain := faker.DomainName()
+	domain := tests.FakeDomain(t)
 	res, err := f.adminClient.CreateDomain(t.Context(), connect.NewRequest(&adminapiv1.CreateDomainRequest{
 		Domain: domain,
 	}))

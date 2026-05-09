@@ -7,17 +7,16 @@ import (
 	"log/slog"
 	"net/http"
 	"regexp"
-	"strings"
 	"testing"
 	"time"
 
 	"connectrpc.com/connect"
-	"github.com/go-faker/faker/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/kannon-email/kannon/internal/delivery"
+	"github.com/kannon-email/kannon/internal/tests"
 	"github.com/kannon-email/kannon/pkg/api"
 	"github.com/kannon-email/kannon/pkg/dispatcher"
 	"github.com/kannon-email/kannon/pkg/smtpsender"
@@ -147,7 +146,7 @@ func runKannon(t *testing.T, infra *TestInfrastructure, senderMock *senderMock) 
 func testSingleRecipientEmail(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
 	client := clientFactory.NewClient(t, infra)
 
-	testEmail := makeFakeEmail()
+	testEmail := tests.FakeEmail(t)
 	sendReq := &mailerapiv1.SendHTMLReq{
 		Sender: &mailertypes.Sender{
 			Email: "sender@test.example.com",
@@ -195,9 +194,9 @@ func testMultipleRecipientsEmail(t *testing.T, clientFactory *clientFactory, smt
 
 	// Send an email to multiple recipients
 	testEmails := []string{
-		makeFakeEmail(),
-		makeFakeEmail(),
-		makeFakeEmail(),
+		tests.FakeEmail(t),
+		tests.FakeEmail(t),
+		tests.FakeEmail(t),
 	}
 
 	recipients := make([]*mailertypes.Recipient, len(testEmails))
@@ -252,7 +251,7 @@ func testMassiveSend(t *testing.T, clientFactory *clientFactory, infra *TestInfr
 
 	for i := 0; i < numRecipients; i++ {
 		recipients[i] = &mailertypes.Recipient{
-			Email: makeFakeEmail(),
+			Email: tests.FakeEmail(t),
 		}
 	}
 
@@ -281,7 +280,7 @@ func testEmailWithAttachments(t *testing.T, clientFactory *clientFactory, smtpSe
 
 	// Create test attachment data
 	attachmentData := []byte("This is a test attachment content")
-	email := makeFakeEmail()
+	email := tests.FakeEmail(t)
 
 	sendReq := &mailerapiv1.SendHTMLReq{
 		Sender: &mailertypes.Sender{
@@ -328,7 +327,7 @@ func testEmailWithAttachments(t *testing.T, clientFactory *clientFactory, smtpSe
 func testEmailWithHeaders(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
 	client := clientFactory.NewClient(t, infra)
 
-	testEmail := makeFakeEmail()
+	testEmail := tests.FakeEmail(t)
 	sendReq := &mailerapiv1.SendHTMLReq{
 		Sender: &mailertypes.Sender{
 			Email: "sender@test.example.com",
@@ -415,14 +414,10 @@ func waitForAPIServer(t *testing.T, infra *TestInfrastructure) {
 	}, 30*time.Second, 500*time.Millisecond, "API server should be ready within 30 seconds")
 }
 
-func makeFakeEmail() string {
-	return strings.ToLower(faker.Email())
-}
-
 func testAggregatedStats(t *testing.T, clientFactory *clientFactory, _ *senderMock, infra *TestInfrastructure) {
 	client := clientFactory.NewClient(t, infra)
 
-	testEmail := makeFakeEmail()
+	testEmail := tests.FakeEmail(t)
 	sendReq := &mailerapiv1.SendHTMLReq{
 		Sender: &mailertypes.Sender{
 			Email: "sender@test.example.com",
@@ -488,7 +483,7 @@ func testPermanentBounce(t *testing.T, clientFactory *clientFactory, senderMock 
 
 	// Unique random suffix so this subtest's per-Recipient counters cannot
 	// collide with anything else running in parallel.
-	to := fmt.Sprintf("bounce.%s@%s", strings.ToLower(faker.Username()), client.domain)
+	to := fmt.Sprintf("bounce.%s@%s", tests.FakeUsername(t), client.domain)
 
 	sendReq := &mailerapiv1.SendHTMLReq{
 		Sender: &mailertypes.Sender{
@@ -524,7 +519,7 @@ func testTransientThenDeliver(t *testing.T, clientFactory *clientFactory, sender
 	// per-Recipient attempt counter and History isolated from anything
 	// else exercising the harness.
 	const transientFailures = 2
-	to := fmt.Sprintf("transient.x%d.%s@%s", transientFailures, strings.ToLower(faker.Username()), client.domain)
+	to := fmt.Sprintf("transient.x%d.%s@%s", transientFailures, tests.FakeUsername(t), client.domain)
 
 	sendReq := &mailerapiv1.SendHTMLReq{
 		Sender: &mailertypes.Sender{
@@ -589,7 +584,7 @@ func extractClickToken(t *testing.T, body string) string {
 func testOpened(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
 	client := clientFactory.NewClient(t, infra)
 
-	to := makeFakeEmail()
+	to := tests.FakeEmail(t)
 	sendReq := &mailerapiv1.SendHTMLReq{
 		Sender: &mailertypes.Sender{
 			Email: "sender@test.example.com",
@@ -625,7 +620,7 @@ func testClicked(t *testing.T, clientFactory *clientFactory, senderMock *senderM
 	client := clientFactory.NewClient(t, infra)
 
 	const landingURL = "https://example.com/landing"
-	to := makeFakeEmail()
+	to := tests.FakeEmail(t)
 	sendReq := &mailerapiv1.SendHTMLReq{
 		Sender: &mailertypes.Sender{
 			Email: "sender@test.example.com",
