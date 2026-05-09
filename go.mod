@@ -11,7 +11,6 @@ require (
 	github.com/go-faker/faker/v4 v4.7.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/jackc/pgx/v5 v5.9.2
-	github.com/jmoiron/sqlx v1.4.0
 	github.com/lucsky/cuid v1.2.1
 	github.com/moby/moby/api v1.54.2
 	github.com/nats-io/nats-server/v2 v2.14.0

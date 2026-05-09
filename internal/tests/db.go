@@ -7,8 +7,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/jmoiron/sqlx"
 	"github.com/moby/moby/api/types/container"
 	"github.com/ory/dockertest/v4"
 )
@@ -52,7 +52,7 @@ func TestPostgresInit(schema string) (*pgxpool.Pool, PurgeFunc, error) {
 		return nil, nil, fmt.Errorf("cannot connect to docker: %w", err)
 	}
 
-	if err := applySchema(resource.GetPort("5432/tcp"), schema); err != nil {
+	if err := applySchema(ctx, resource.GetPort("5432/tcp"), schema); err != nil {
 		return nil, nil, fmt.Errorf("cannot apply schema: %w", err)
 	}
 
@@ -66,17 +66,16 @@ func TestPostgresInit(schema string) (*pgxpool.Pool, PurgeFunc, error) {
 	return db, purgeFunc, nil
 }
 
-func applySchema(dbPort string, schema string) error {
-	dbHost := getDBHost()
-	db, err := sqlx.Connect("postgres", fmt.Sprintf("host=%v user=test dbname=test password=test sslmode=disable port=%v", dbHost, dbPort))
+func applySchema(ctx context.Context, dbPort, schema string) error {
+	pgConnString := fmt.Sprintf("postgresql://test:test@%v:%v/test", getDBHost(), dbPort)
+	conn, err := pgx.Connect(ctx, pgConnString)
 	if err != nil {
-		return fmt.Errorf("cannot open migration: %s", err)
-	}
-
-	if _, err := db.Exec(schema); err != nil {
 		return err
 	}
-	return nil
+	defer conn.Close(ctx)
+
+	_, err = conn.PgConn().Exec(ctx, schema).ReadAll()
+	return err
 }
 
 func getDBHost() string {
