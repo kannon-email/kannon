@@ -7,6 +7,6 @@ import (
 )
 
 func TestStatsRepository(t *testing.T) {
-	repo := NewStatsRepository(q)
+	repo := NewStatsRepository(db)
 	stats.RunRepoSpec(t, repo)
 }

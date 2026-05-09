@@ -27,7 +27,7 @@ func (h testHelper) CreateDomain(t *testing.T) string {
 }
 
 func TestAPIKeysRepository(t *testing.T) {
-	repo := NewAPIKeysRepository(q, db)
+	repo := NewAPIKeysRepository(db)
 	helper := testHelper{}
 	apikeys.RunRepoSpec(t, repo, helper)
 }

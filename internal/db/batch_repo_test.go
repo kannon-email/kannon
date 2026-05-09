@@ -44,6 +44,6 @@ func (h batchTestHelper) CreateTemplate(t *testing.T, domain string) string {
 }
 
 func TestBatchRepository(t *testing.T) {
-	repo := NewBatchRepository(q)
+	repo := NewBatchRepository(db)
 	batch.RunRepoSpec(t, repo, batchTestHelper{})
 }

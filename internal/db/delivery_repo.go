@@ -12,7 +12,7 @@ import (
 )
 
 type deliveryRepository struct {
-	q       *Queries
+	db      *pgxpool.Pool
 	backoff delivery.BackoffPolicy
 }
 
@@ -22,7 +22,7 @@ type deliveryRepository struct {
 // repository's reschedule path uses the canonical curve threaded through the
 // Container (see x/container.Container.BackoffPolicy).
 func NewDeliveryRepository(db *pgxpool.Pool, backoff delivery.BackoffPolicy) delivery.Repository {
-	return &deliveryRepository{q: New(db), backoff: backoff}
+	return &deliveryRepository{db: db, backoff: backoff}
 }
 
 func (r *deliveryRepository) Schedule(ctx context.Context, ds ...*delivery.Delivery) error {
@@ -44,14 +44,16 @@ func (r *deliveryRepository) Schedule(ctx context.Context, ds ...*delivery.Deliv
 		}
 	}
 
-	if _, err := r.q.CreatePool(ctx, rows); err != nil {
+	q := New(r.db)
+	if _, err := q.CreatePool(ctx, rows); err != nil {
 		return err
 	}
 	return nil
 }
 
 func (r *deliveryRepository) PrepareForSend(ctx context.Context, max int) ([]*delivery.Delivery, error) {
-	rows, err := r.q.PrepareForSend(ctx, int32(max))
+	q := New(r.db)
+	rows, err := q.PrepareForSend(ctx, int32(max))
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +61,8 @@ func (r *deliveryRepository) PrepareForSend(ctx context.Context, max int) ([]*de
 }
 
 func (r *deliveryRepository) PrepareForValidate(ctx context.Context, max int) ([]*delivery.Delivery, error) {
-	rows, err := r.q.PrepareForValidate(ctx, int32(max))
+	q := New(r.db)
+	rows, err := q.PrepareForValidate(ctx, int32(max))
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +70,8 @@ func (r *deliveryRepository) PrepareForValidate(ctx context.Context, max int) ([
 }
 
 func (r *deliveryRepository) Get(ctx context.Context, batchID batch.ID, email string) (*delivery.Delivery, error) {
-	row, err := r.q.GetPool(ctx, GetPoolParams{
+	q := New(r.db)
+	row, err := q.GetPool(ctx, GetPoolParams{
 		Email:     email,
 		MessageID: batchID.String(),
 	})
@@ -81,7 +85,8 @@ func (r *deliveryRepository) Get(ctx context.Context, batchID batch.ID, email st
 }
 
 func (r *deliveryRepository) SetScheduled(ctx context.Context, batchID batch.ID, email string) error {
-	return r.q.SetSendingPoolScheduled(ctx, SetSendingPoolScheduledParams{
+	q := New(r.db)
+	return q.SetSendingPoolScheduled(ctx, SetSendingPoolScheduledParams{
 		Email:     email,
 		MessageID: batchID.String(),
 	})
@@ -92,7 +97,8 @@ func (r *deliveryRepository) Reschedule(ctx context.Context, batchID batch.ID, e
 	if err != nil {
 		return err
 	}
-	return r.q.ReschedulePool(ctx, ReschedulePoolParams{
+	q := New(r.db)
+	return q.ReschedulePool(ctx, ReschedulePoolParams{
 		Email:         email,
 		MessageID:     batchID.String(),
 		ScheduledTime: PgTimestampFromTime(d.NextRetryAt()),
@@ -100,7 +106,8 @@ func (r *deliveryRepository) Reschedule(ctx context.Context, batchID batch.ID, e
 }
 
 func (r *deliveryRepository) Clean(ctx context.Context, batchID batch.ID, email string) error {
-	return r.q.CleanPool(ctx, CleanPoolParams{
+	q := New(r.db)
+	return q.CleanPool(ctx, CleanPoolParams{
 		Email:     email,
 		MessageID: batchID.String(),
 	})

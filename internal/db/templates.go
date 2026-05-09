@@ -5,21 +5,23 @@ import (
 	"errors"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/kannon-email/kannon/internal/templates"
 )
 
 type templatesRepository struct {
-	q *Queries
+	db *pgxpool.Pool
 }
 
 // NewTemplatesRepository creates a new PostgreSQL-backed Template repository.
-func NewTemplatesRepository(q *Queries) templates.Repository {
-	return &templatesRepository{q: q}
+func NewTemplatesRepository(db *pgxpool.Pool) templates.Repository {
+	return &templatesRepository{db: db}
 }
 
 func (r *templatesRepository) Create(ctx context.Context, t *templates.Template) error {
-	row, err := r.q.CreateTemplate(ctx, CreateTemplateParams{
+	q := New(r.db)
+	row, err := q.CreateTemplate(ctx, CreateTemplateParams{
 		TemplateID: t.TemplateID(),
 		Html:       t.Html(),
 		Title:      t.Title(),
@@ -41,7 +43,8 @@ func (r *templatesRepository) Update(ctx context.Context, templateID string, fn 
 	if err := fn(current); err != nil {
 		return nil, err
 	}
-	row, err := r.q.UpdateTemplate(ctx, UpdateTemplateParams{
+	q := New(r.db)
+	row, err := q.UpdateTemplate(ctx, UpdateTemplateParams{
 		TemplateID: current.TemplateID(),
 		Html:       current.Html(),
 		Title:      current.Title(),
@@ -56,7 +59,8 @@ func (r *templatesRepository) Update(ctx context.Context, templateID string, fn 
 }
 
 func (r *templatesRepository) Delete(ctx context.Context, templateID string) (*templates.Template, error) {
-	row, err := r.q.DeleteTemplate(ctx, templateID)
+	q := New(r.db)
+	row, err := q.DeleteTemplate(ctx, templateID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, templates.ErrTemplateNotFound
@@ -67,7 +71,8 @@ func (r *templatesRepository) Delete(ctx context.Context, templateID string) (*t
 }
 
 func (r *templatesRepository) GetByID(ctx context.Context, templateID string) (*templates.Template, error) {
-	row, err := r.q.GetTemplate(ctx, templateID)
+	q := New(r.db)
+	row, err := q.GetTemplate(ctx, templateID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, templates.ErrTemplateNotFound
@@ -78,7 +83,8 @@ func (r *templatesRepository) GetByID(ctx context.Context, templateID string) (*
 }
 
 func (r *templatesRepository) FindByDomain(ctx context.Context, domain, templateID string) (*templates.Template, error) {
-	row, err := r.q.FindTemplate(ctx, FindTemplateParams{
+	q := New(r.db)
+	row, err := q.FindTemplate(ctx, FindTemplateParams{
 		TemplateID: templateID,
 		Domain:     domain,
 	})
@@ -92,7 +98,8 @@ func (r *templatesRepository) FindByDomain(ctx context.Context, domain, template
 }
 
 func (r *templatesRepository) List(ctx context.Context, domain string, page templates.Pagination) ([]*templates.Template, error) {
-	rows, err := r.q.GetTemplates(ctx, GetTemplatesParams{
+	q := New(r.db)
+	rows, err := q.GetTemplates(ctx, GetTemplatesParams{
 		Domain: domain,
 		Skip:   int32(page.Skip),
 		Take:   int32(page.Take),
@@ -108,7 +115,8 @@ func (r *templatesRepository) List(ctx context.Context, domain string, page temp
 }
 
 func (r *templatesRepository) Count(ctx context.Context, domain string) (int, error) {
-	n, err := r.q.CountTemplates(ctx, domain)
+	q := New(r.db)
+	n, err := q.CountTemplates(ctx, domain)
 	if err != nil {
 		return 0, err
 	}

@@ -114,17 +114,16 @@ func (a *adminAPIConnectAdapter) DeactivateAPIKey(ctx context.Context, req *conn
 	return connect.NewResponse(resp), nil
 }
 
-func CreateAdminAPIService(q *sqlc.Queries, pool *pgxpool.Pool) adminv1connect.ApiHandler {
-	domainsRepo := sqlc.NewDomainsRepository(q)
-	tm := sqlc.NewTemplatesRepository(q)
-	apiKeysRepo := sqlc.NewAPIKeysRepository(q, pool)
+func CreateAdminAPIService(db *pgxpool.Pool) adminv1connect.ApiHandler {
+	domainsRepo := sqlc.NewDomainsRepository(db)
+	tm := sqlc.NewTemplatesRepository(db)
+	apiKeysRepo := sqlc.NewAPIKeysRepository(db)
 	apiKeysService := apikeys.NewService(apiKeysRepo)
 	return &adminAPIConnectAdapter{
 		impl: &adminAPIService{
 			domains:   domainsRepo,
 			templates: tm,
 			apiKeys:   apiKeysService,
-			q:         q,
 		},
 	}
 }

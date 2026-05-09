@@ -30,6 +30,6 @@ func (h templatesTestHelper) CreateDomain(t *testing.T) string {
 }
 
 func TestTemplatesRepository(t *testing.T) {
-	repo := NewTemplatesRepository(q)
+	repo := NewTemplatesRepository(db)
 	templates.RunRepoSpec(t, repo, templatesTestHelper{})
 }

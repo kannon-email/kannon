@@ -5,21 +5,23 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/kannon-email/kannon/internal/stats"
 )
 
 // AggregatedStatsRepository implements stats.AggregatedStatsRepository using sqlc queries.
 type AggregatedStatsRepository struct {
-	q *Queries
+	db *pgxpool.Pool
 }
 
 // NewAggregatedStatsRepository creates a new AggregatedStatsRepository.
-func NewAggregatedStatsRepository(q *Queries) *AggregatedStatsRepository {
-	return &AggregatedStatsRepository{q: q}
+func NewAggregatedStatsRepository(db *pgxpool.Pool) *AggregatedStatsRepository {
+	return &AggregatedStatsRepository{db: db}
 }
 
 func (r *AggregatedStatsRepository) Increment(ctx context.Context, domain string, timestamp time.Time, statType stats.Type) error {
-	return r.q.IncrementAggregatedStat(ctx, IncrementAggregatedStatParams{
+	q := New(r.db)
+	return q.IncrementAggregatedStat(ctx, IncrementAggregatedStatParams{
 		Domain:    domain,
 		Timestamp: pgtype.Timestamp{Time: timestamp, Valid: true},
 		Type:      StatsType(statType),
@@ -27,7 +29,8 @@ func (r *AggregatedStatsRepository) Increment(ctx context.Context, domain string
 }
 
 func (r *AggregatedStatsRepository) Query(ctx context.Context, domain string, timeRange stats.TimeRange) ([]*stats.AggregatedStat, error) {
-	rows, err := r.q.QueryAggregatedStats(ctx, QueryAggregatedStatsParams{
+	q := New(r.db)
+	rows, err := q.QueryAggregatedStats(ctx, QueryAggregatedStatsParams{
 		Domain: domain,
 		Start:  pgtype.Timestamp{Time: timeRange.Start, Valid: true},
 		Stop:   pgtype.Timestamp{Time: timeRange.Stop, Valid: true},

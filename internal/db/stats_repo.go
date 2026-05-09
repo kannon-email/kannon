@@ -5,21 +5,23 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/kannon-email/kannon/internal/stats"
 )
 
 // StatsRepository implements stats.Repository using sqlc queries.
 type StatsRepository struct {
-	q *Queries
+	db *pgxpool.Pool
 }
 
 // NewStatsRepository creates a new StatsRepository.
-func NewStatsRepository(q *Queries) *StatsRepository {
-	return &StatsRepository{q: q}
+func NewStatsRepository(db *pgxpool.Pool) *StatsRepository {
+	return &StatsRepository{db: db}
 }
 
 func (r *StatsRepository) Insert(ctx context.Context, stat *stats.Stat) error {
-	return r.q.InsertStat(ctx, InsertStatParams{
+	q := New(r.db)
+	return q.InsertStat(ctx, InsertStatParams{
 		Email:     stat.Email,
 		MessageID: stat.MessageID,
 		Type:      StatsType(stat.Type),
@@ -30,7 +32,8 @@ func (r *StatsRepository) Insert(ctx context.Context, stat *stats.Stat) error {
 }
 
 func (r *StatsRepository) Query(ctx context.Context, domain string, timeRange stats.TimeRange, page stats.Pagination) ([]*stats.Stat, error) {
-	rows, err := r.q.QueryStats(ctx, QueryStatsParams{
+	q := New(r.db)
+	rows, err := q.QueryStats(ctx, QueryStatsParams{
 		Domain: domain,
 		Start:  toPgTimestamp(timeRange.Start),
 		Stop:   toPgTimestamp(timeRange.Stop),
@@ -49,7 +52,8 @@ func (r *StatsRepository) Query(ctx context.Context, domain string, timeRange st
 }
 
 func (r *StatsRepository) Count(ctx context.Context, domain string, timeRange stats.TimeRange) (int64, error) {
-	return r.q.CountQueryStats(ctx, CountQueryStatsParams{
+	q := New(r.db)
+	return q.CountQueryStats(ctx, CountQueryStatsParams{
 		Domain: domain,
 		Start:  toPgTimestamp(timeRange.Start),
 		Stop:   toPgTimestamp(timeRange.Stop),
@@ -57,7 +61,8 @@ func (r *StatsRepository) Count(ctx context.Context, domain string, timeRange st
 }
 
 func (r *StatsRepository) QueryTimeline(ctx context.Context, domain string, timeRange stats.TimeRange) ([]*stats.AggregatedStat, error) {
-	rows, err := r.q.QueryStatsTimeline(ctx, QueryStatsTimelineParams{
+	q := New(r.db)
+	rows, err := q.QueryStatsTimeline(ctx, QueryStatsTimelineParams{
 		Domain: domain,
 		Start:  toPgTimestamp(timeRange.Start),
 		Stop:   toPgTimestamp(timeRange.Stop),
@@ -78,7 +83,8 @@ func (r *StatsRepository) QueryTimeline(ctx context.Context, domain string, time
 }
 
 func (r *StatsRepository) DeleteOlderThan(ctx context.Context, before time.Time) (int64, error) {
-	return r.q.DeleteStatsOlderThan(ctx, toPgTimestamp(before))
+	q := New(r.db)
+	return q.DeleteStatsOlderThan(ctx, toPgTimestamp(before))
 }
 
 func toPgTimestamp(t time.Time) pgtype.Timestamp {

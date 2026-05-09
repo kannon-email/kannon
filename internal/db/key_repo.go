@@ -12,22 +12,23 @@ import (
 )
 
 type apiKeysRepository struct {
-	q    *Queries
-	pool *pgxpool.Pool
+	db *pgxpool.Pool
 }
 
 // NewAPIKeysRepository creates a new PostgreSQL-backed API keys repository
-func NewAPIKeysRepository(q *Queries, pool *pgxpool.Pool) apikeys.Repository {
-	return &apiKeysRepository{q: q, pool: pool}
+func NewAPIKeysRepository(db *pgxpool.Pool) apikeys.Repository {
+	return &apiKeysRepository{db: db}
 }
 
 func (r *apiKeysRepository) Create(ctx context.Context, key *apikeys.APIKey) error {
+	q := New(r.db)
+
 	var expiresAt pgtype.Timestamp
 	if key.ExpiresAt() != nil {
 		expiresAt = pgtype.Timestamp{Time: *key.ExpiresAt(), Valid: true}
 	}
 
-	_, err := r.q.CreateAPIKey(ctx, CreateAPIKeyParams{
+	_, err := q.CreateAPIKey(ctx, CreateAPIKeyParams{
 		ID:        key.ID().String(),
 		Domain:    key.Domain(),
 		KeyHash:   key.KeyHash(),
@@ -44,7 +45,7 @@ func (r *apiKeysRepository) Create(ctx context.Context, key *apikeys.APIKey) err
 
 func (r *apiKeysRepository) Update(ctx context.Context, ref apikeys.KeyRef, updateFn apikeys.UpdateFunc) (*apikeys.APIKey, error) {
 	// Start transaction
-	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
+	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +54,7 @@ func (r *apiKeysRepository) Update(ctx context.Context, ref apikeys.KeyRef, upda
 	defer tx.Rollback(ctx)
 
 	// Create transactional queries
-	txq := r.q.WithTx(tx)
+	txq := New(r.db).WithTx(tx)
 
 	// Get with row lock
 	row, err := txq.GetAPIKeyByIDForUpdate(ctx, GetAPIKeyByIDForUpdateParams{
@@ -108,8 +109,10 @@ func (r *apiKeysRepository) Update(ctx context.Context, ref apikeys.KeyRef, upda
 }
 
 func (r *apiKeysRepository) GetByKeyHash(ctx context.Context, domain, keyHash string) (*apikeys.APIKey, error) {
+	q := New(r.db)
+
 	// Always perform database lookup to prevent timing attacks
-	row, err := r.q.GetAPIKeyByHash(ctx, GetAPIKeyByHashParams{
+	row, err := q.GetAPIKeyByHash(ctx, GetAPIKeyByHashParams{
 		KeyHash: keyHash,
 		Domain:  domain,
 	})
@@ -125,7 +128,9 @@ func (r *apiKeysRepository) GetByKeyHash(ctx context.Context, domain, keyHash st
 }
 
 func (r *apiKeysRepository) GetByID(ctx context.Context, ref apikeys.KeyRef) (*apikeys.APIKey, error) {
-	row, err := r.q.GetAPIKeyByID(ctx, GetAPIKeyByIDParams{
+	q := New(r.db)
+
+	row, err := q.GetAPIKeyByID(ctx, GetAPIKeyByIDParams{
 		ID:     ref.KeyID().String(),
 		Domain: ref.Domain(),
 	})
@@ -140,7 +145,9 @@ func (r *apiKeysRepository) GetByID(ctx context.Context, ref apikeys.KeyRef) (*a
 }
 
 func (r *apiKeysRepository) List(ctx context.Context, domain string, filters apikeys.ListFilters, page apikeys.Pagination) ([]*apikeys.APIKey, error) {
-	rows, err := r.q.ListAPIKeysByDomain(ctx, ListAPIKeysByDomainParams{
+	q := New(r.db)
+
+	rows, err := q.ListAPIKeysByDomain(ctx, ListAPIKeysByDomainParams{
 		Domain:  domain,
 		Column2: filters.OnlyActive,
 		Limit:   int32(page.Limit),
@@ -159,7 +166,9 @@ func (r *apiKeysRepository) List(ctx context.Context, domain string, filters api
 }
 
 func (r *apiKeysRepository) Count(ctx context.Context, domain string, filters apikeys.ListFilters) (int, error) {
-	count, err := r.q.CountAPIKeysByDomain(ctx, CountAPIKeysByDomainParams{
+	q := New(r.db)
+
+	count, err := q.CountAPIKeysByDomain(ctx, CountAPIKeysByDomainParams{
 		Domain:  domain,
 		Column2: filters.OnlyActive,
 	})

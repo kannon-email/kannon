@@ -9,7 +9,6 @@ import (
 	"github.com/go-faker/faker/v4"
 	"github.com/jackc/pgx/v5/pgxpool"
 	schema "github.com/kannon-email/kannon/db"
-	sqlc "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/tests"
 	"github.com/kannon-email/kannon/pkg/api/adminapi"
 	pb "github.com/kannon-email/kannon/proto/kannon/admin/apiv1"
@@ -21,7 +20,6 @@ import (
 )
 
 var db *pgxpool.Pool
-var q *sqlc.Queries
 var testservice adminv1connect.ApiHandler
 
 func TestMain(m *testing.M) {
@@ -33,8 +31,7 @@ func TestMain(m *testing.M) {
 		logrus.Fatalf("Could not start resource: %s", err)
 	}
 
-	q = sqlc.New(db)
-	testservice = adminapi.CreateAdminAPIService(q, db)
+	testservice = adminapi.CreateAdminAPIService(db)
 
 	code := m.Run()
 

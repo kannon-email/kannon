@@ -54,8 +54,9 @@ func run(ctx context.Context, cnt *container.Container, cfg Config) error {
 	q := cnt.Queries()
 	js := cnt.NatsJetStream()
 
-	repo := sq.NewStatsRepository(q)
-	aggregatedRepo := sq.NewAggregatedStatsRepository(q)
+	db := cnt.DB()
+	repo := sq.NewStatsRepository(db)
+	aggregatedRepo := sq.NewAggregatedStatsRepository(db)
 	service := stats.NewService(repo, stats.WithAggregatedStatsRepository(aggregatedRepo))
 
 	h := statsHandler{

@@ -38,8 +38,8 @@ func TestMain(m *testing.M) {
 	}
 
 	q = sqlc.New(db)
-	ts = mailapi.NewMailerAPIV1(q, db, delivery.DefaultBackoff)
-	adminAPI = adminapi.CreateAdminAPIService(q, db)
+	ts = mailapi.NewMailerAPIV1(db, delivery.DefaultBackoff)
+	adminAPI = adminapi.CreateAdminAPIService(db)
 
 	code := m.Run()
 
