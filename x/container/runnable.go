@@ -39,7 +39,6 @@ func (r *Registry) Names() []string {
 func (r *Registry) Run(ctx context.Context) error {
 	g, gctx := errgroup.WithContext(ctx)
 	for _, run := range r.runnables {
-		run := run
 		g.Go(func() error {
 			return run.Run(gctx)
 		})
