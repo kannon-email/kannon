@@ -2,6 +2,7 @@ package stats
 
 import (
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -104,7 +105,7 @@ func testQueryPagination(t *testing.T, repo Repository) {
 
 func testQueryFiltersByDomain(t *testing.T, repo Repository) {
 	ctx := t.Context()
-	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
+	suffix := strconv.FormatInt(time.Now().UnixNano(), 10)
 	domainA := fmt.Sprintf("domain-a-%s.test", suffix)
 	domainB := fmt.Sprintf("domain-b-%s.test", suffix)
 	now := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)

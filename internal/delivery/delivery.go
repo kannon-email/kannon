@@ -5,7 +5,6 @@ package delivery
 
 import (
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/kannon-email/kannon/internal/batch"
@@ -41,13 +40,13 @@ type NewParams struct {
 // New creates a new Delivery scheduled for first attempt.
 func New(p NewParams) (*Delivery, error) {
 	if p.BatchID.IsZero() {
-		return nil, fmt.Errorf("batch ID is required")
+		return nil, errors.New("batch ID is required")
 	}
 	if p.Email == "" {
-		return nil, fmt.Errorf("email is required")
+		return nil, errors.New("email is required")
 	}
 	if p.Domain == "" {
-		return nil, fmt.Errorf("domain is required")
+		return nil, errors.New("domain is required")
 	}
 	return &Delivery{
 		batchID:               p.BatchID,

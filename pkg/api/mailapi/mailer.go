@@ -3,6 +3,7 @@ package mailapi
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -37,7 +38,7 @@ type mailAPIService struct {
 func (s mailAPIService) SendHTML(ctx context.Context, req *connect.Request[pb.SendHTMLReq]) (*connect.Response[pb.SendRes], error) {
 	domain, err := s.getCallDomainFromHeaders(ctx, req.Header())
 	if err != nil {
-		return nil, fmt.Errorf("invalid or wrong auth")
+		return nil, errors.New("invalid or wrong auth")
 	}
 
 	req.Msg.Html = utils.ReplaceCustomFields(req.Msg.Html, req.Msg.GlobalFields)
@@ -45,7 +46,7 @@ func (s mailAPIService) SendHTML(ctx context.Context, req *connect.Request[pb.Se
 	template, err := s.createTransientTemplate(ctx, domain.Domain(), req.Msg.Html)
 	if err != nil {
 		slog.Error("cannot create template", "err", err)
-		return nil, fmt.Errorf("cannot create template %v", err)
+		return nil, fmt.Errorf("cannot create template %w", err)
 	}
 
 	res := &pb.SendTemplateReq{
@@ -65,7 +66,7 @@ func (s mailAPIService) SendHTML(ctx context.Context, req *connect.Request[pb.Se
 func (s mailAPIService) SendTemplate(ctx context.Context, req *connect.Request[pb.SendTemplateReq]) (*connect.Response[pb.SendRes], error) {
 	domain, err := s.getCallDomainFromHeaders(ctx, req.Header())
 	if err != nil {
-		return nil, fmt.Errorf("invalid or wrong auth")
+		return nil, errors.New("invalid or wrong auth")
 	}
 
 	return s.sendTemplate(ctx, domain, req)
@@ -81,7 +82,7 @@ func (s mailAPIService) sendTemplate(ctx context.Context, domain *domains.Domain
 	template, err = s.createTemplateWithGlobalFields(ctx, template, req.Msg.GlobalFields)
 	if err != nil {
 		slog.Error("cannot create transient template", "err", err)
-		return nil, fmt.Errorf("cannot create template %v", err)
+		return nil, fmt.Errorf("cannot create template %w", err)
 	}
 
 	sender := batch.Sender{
@@ -132,7 +133,7 @@ func (s mailAPIService) scheduleBatch(ctx context.Context, b *batch.Batch, recip
 	ds := make([]*delivery.Delivery, 0, len(recipients))
 	for _, r := range recipients {
 		if strings.TrimSpace(r.Email) == "" {
-			slog.Warn(fmt.Sprintf("skipping recipient with empty email in batch %s", b.ID().String()))
+			slog.Warn("skipping recipient with empty email in batch " + b.ID().String())
 			continue
 		}
 		d, err := delivery.New(delivery.NewParams{
@@ -186,20 +187,20 @@ func (s mailAPIService) getCallDomainFromHeaders(ctx context.Context, headers ht
 	auth := headers.Get("Authorization")
 
 	if !strings.HasPrefix(auth, "Basic ") {
-		return nil, fmt.Errorf("invalid auth")
+		return nil, errors.New("invalid auth")
 	}
 
 	token := strings.Replace(auth, "Basic ", "", 1)
 	data, err := base64.StdEncoding.DecodeString(token)
 	if err != nil {
-		return nil, fmt.Errorf("invalid auth")
+		return nil, errors.New("invalid auth")
 	}
 
 	authData := string(data)
 
 	parts := strings.Split(authData, ":")
 	if len(parts) != 2 {
-		return nil, fmt.Errorf("invalid auth")
+		return nil, errors.New("invalid auth")
 	}
 	domainName, key := parts[0], parts[1]
 
@@ -207,13 +208,13 @@ func (s mailAPIService) getCallDomainFromHeaders(ctx context.Context, headers ht
 	apiKey, err := s.apiKeys.ValidateForAuth(ctx, domainName, key)
 	if err != nil {
 		// Always return generic error (security requirement)
-		return nil, fmt.Errorf("invalid auth")
+		return nil, errors.New("invalid auth")
 	}
 
 	// Fetch full domain info
 	domain, err := s.domains.FindByName(ctx, apiKey.Domain())
 	if err != nil {
-		return nil, fmt.Errorf("invalid auth")
+		return nil, errors.New("invalid auth")
 	}
 
 	return domain, nil

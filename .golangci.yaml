@@ -6,6 +6,7 @@ linters:
     - dogsled
     - dupl
     - errcheck
+    - errorlint
     - goconst
     - gocritic
     - goprintffuncname
@@ -13,6 +14,8 @@ linters:
     - ineffassign
     - misspell
     - nolintlint
+    - perfsprint
+    - sloglint
     - staticcheck
     - unconvert
     - unparam
@@ -21,6 +24,9 @@ linters:
   settings:
     dupl:
       threshold: 100
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
     goconst:
       min-len: 3
       min-occurrences: 3

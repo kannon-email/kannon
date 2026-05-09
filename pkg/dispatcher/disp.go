@@ -2,6 +2,7 @@ package dispatcher
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -34,7 +35,7 @@ func (d *disp) DispatchCycle(ctx context.Context) error {
 	defer cancel()
 	emails, err := d.claimer.ClaimForDispatch(ctx, 20)
 	if err != nil {
-		return fmt.Errorf("cannot prepare emails for send: %v", err)
+		return fmt.Errorf("cannot prepare emails for send: %w", err)
 	}
 
 	d.log().Debug(fmt.Sprintf("seding %d emails", len(emails)))
@@ -71,7 +72,7 @@ func (d *disp) handleErrors(ctx context.Context) error {
 func (d *disp) parseErrorsFunc(ctx context.Context, m *statstypes.Stats) error {
 	bounceErr := m.Data.GetError()
 	if bounceErr == nil {
-		return fmt.Errorf("stats is not of type error")
+		return errors.New("stats is not of type error")
 	}
 
 	dlv, err := d.claimer.Lookup(ctx, batch.ID(m.MessageId), m.Email)

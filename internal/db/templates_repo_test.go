@@ -23,8 +23,10 @@ func (h templatesTestHelper) CreateDomain(t *testing.T) string {
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		cleanupCtx := context.Background()
-		_, _ = db.Exec(cleanupCtx, "DELETE FROM templates WHERE domain = $1", domainName)
-		_, _ = db.Exec(cleanupCtx, "DELETE FROM domains WHERE domain = $1", domainName)
+		//nolint:errcheck // best-effort test cleanup
+		db.Exec(cleanupCtx, "DELETE FROM templates WHERE domain = $1", domainName)
+		//nolint:errcheck // best-effort test cleanup
+		db.Exec(cleanupCtx, "DELETE FROM domains WHERE domain = $1", domainName)
 	})
 	return domainName
 }

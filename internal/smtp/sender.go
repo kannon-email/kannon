@@ -7,6 +7,7 @@ package smtp
 
 import (
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -89,7 +90,7 @@ func (s *sender) Send(from, to string, msg []byte) SenderError {
 
 		lastErr = err
 	}
-	err = fmt.Errorf("all MXs failed, last error: %v", lastErr)
+	err = fmt.Errorf("all MXs failed, last error: %w", lastErr)
 	return newSMTPError(err, false, lastErr.Code())
 }
 
@@ -188,7 +189,8 @@ func lookupMXs(domain string) ([]string, *smtpError) {
 	mxRecords, err := net.LookupMX(domain)
 	if err != nil {
 		// TODO: Better handle Temporary errors.
-		dnsErr, ok := err.(*net.DNSError)
+		dnsErr := &net.DNSError{}
+		ok := errors.As(err, &dnsErr)
 		if !ok || !dnsErr.IsNotFound {
 			slog.Debug(fmt.Sprintf("MX lookup error: %v", err))
 			// TODO: add error code
@@ -220,7 +222,8 @@ func lookupMXs(domain string) ([]string, *smtpError) {
 }
 
 func newSMTPErrorFromSTMP(err error) *smtpError {
-	terr, ok := err.(*textproto.Error)
+	terr := &textproto.Error{}
+	ok := errors.As(err, &terr)
 	if !ok {
 		// unknown error
 		return newSMTPError(err, false, 0)

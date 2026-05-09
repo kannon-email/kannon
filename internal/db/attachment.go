@@ -3,10 +3,11 @@ package sqlc
 import (
 	"database/sql/driver"
 	"encoding/json"
+	"errors"
 	"fmt"
 )
 
-var ErrInvalidAttachment = fmt.Errorf("invalid attachment")
+var ErrInvalidAttachment = errors.New("invalid attachment")
 
 type Attachments map[string][]byte
 

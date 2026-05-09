@@ -36,7 +36,7 @@ func (s *srv) Run(ctx context.Context) error {
 	mux.HandleFunc("/c/", s.handleClick)
 
 	addr := fmt.Sprintf("0.0.0.0:%d", s.cfg.Port)
-	slog.Info(fmt.Sprintf("running tracker on %s", addr))
+	slog.Info("running tracker on " + addr)
 
 	server := &http.Server{Addr: addr, Handler: mux}
 

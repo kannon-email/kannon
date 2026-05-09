@@ -1,6 +1,7 @@
 package apikeys
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -109,7 +110,7 @@ func testUpdate(t *testing.T, repo Repository, helper RepoTestHelper) {
 		assert.Nil(t, initial.DeactivatedAt(), "deactivatedAt should be nil initially")
 
 		// Attempt update that mutates key then returns error
-		testErr := fmt.Errorf("intentional test error")
+		testErr := errors.New("intentional test error")
 		_, err = repo.Update(ctx, ref, func(k *APIKey) error {
 			k.Deactivate() // Mutates the key
 			return testErr // But then fails
@@ -185,9 +186,10 @@ func testGetByID(t *testing.T, repo Repository, helper RepoTestHelper) {
 		ctx := t.Context()
 		domain := helper.CreateDomain(t)
 
-		nonExistentID, _ := ParseID("key_nonexistent")
+		nonExistentID, err := ParseID("key_nonexistent")
+		require.NoError(t, err)
 		ref := NewKeyRef(domain, nonExistentID)
-		_, err := repo.GetByID(ctx, ref)
+		_, err = repo.GetByID(ctx, ref)
 		assert.ErrorIs(t, err, ErrKeyNotFound)
 	})
 }

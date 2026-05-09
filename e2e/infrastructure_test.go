@@ -63,7 +63,7 @@ func setupTestInfrastructure(ctx context.Context) (*TestInfrastructure, error) {
 
 	// Get connection URLs
 	dbURL := fmt.Sprintf("postgresql://test:test@localhost:%s/test?sslmode=disable", pgRes.GetPort("5432/tcp"))
-	natsURL := fmt.Sprintf("nats://localhost:%s", natsRes.GetPort("4222/tcp"))
+	natsURL := "nats://localhost:" + natsRes.GetPort("4222/tcp")
 
 	// Wait for PostgreSQL to be ready
 	var db *pgxpool.Pool
@@ -192,6 +192,6 @@ func findAvailablePort() (uint, error) {
 	}
 	defer listener.Close()
 
-	port := listener.Addr().(*net.TCPAddr).Port
+	port := listener.Addr().(*net.TCPAddr).Port //nolint:errcheck // net.Listen("tcp") always yields *net.TCPAddr
 	return uint(port), nil
 }

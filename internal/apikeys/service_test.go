@@ -90,10 +90,11 @@ func TestService_GetKey(t *testing.T) {
 		service := apikeys.NewService(repo)
 
 		domain := testDomain
-		nonExistentID, _ := apikeys.ParseID("key_nonexistent")
+		nonExistentID, err := apikeys.ParseID("key_nonexistent")
+		require.NoError(t, err)
 		ref := apikeys.NewKeyRef(domain, nonExistentID)
 
-		_, err := service.GetKey(ctx, ref)
+		_, err = service.GetKey(ctx, ref)
 		assert.ErrorIs(t, err, apikeys.ErrKeyNotFound)
 	})
 }
@@ -227,10 +228,11 @@ func TestService_DeactivateKey(t *testing.T) {
 		service := apikeys.NewService(repo)
 
 		domain := testDomain
-		nonExistentID, _ := apikeys.ParseID("key_nonexistent")
+		nonExistentID, err := apikeys.ParseID("key_nonexistent")
+		require.NoError(t, err)
 		ref := apikeys.NewKeyRef(domain, nonExistentID)
 
-		_, err := service.DeactivateKey(ctx, ref)
+		_, err = service.DeactivateKey(ctx, ref)
 		assert.ErrorIs(t, err, apikeys.ErrKeyNotFound)
 	})
 }
