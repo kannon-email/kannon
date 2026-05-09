@@ -56,7 +56,18 @@ locally, treat it as a real bug.
 make test-e2e
 ```
 
-### 6. Run Linters
+### 6. Run Benchmarks
+
+```sh
+make bench
+```
+
+Runs all `Benchmark*` functions across the module (without `-race`, since the
+race detector dramatically inflates timings). Benchmarks that need Postgres
+(e.g. `internal/db`) will spin up a container via testcontainers, so a Docker
+daemon must be running.
+
+### 7. Run Linters
 
 ```sh
 make lint

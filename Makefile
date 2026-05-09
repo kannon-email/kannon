@@ -1,6 +1,6 @@
 GOBIN=$(PWD)/.bin
 
-.PHONY: test generate-db generate-proto upgrade lint deadcode
+.PHONY: test bench generate-db generate-proto upgrade lint deadcode
 
 upgrade:
 	go get -u ./...
@@ -12,6 +12,9 @@ test:
 
 test-e2e:
 	go test ./e2e -race -v -timeout 10m
+
+bench:
+	go test ./... -run='^$$' -bench=. -benchmem
 
 
 generate-db:
