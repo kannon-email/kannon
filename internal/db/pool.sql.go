@@ -68,28 +68,14 @@ func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (M
 	return i, err
 }
 
-const createPool = `-- name: CreatePool :exec
-INSERT INTO sending_pool_emails (email, status, scheduled_time, original_scheduled_time, message_id, fields, domain) VALUES 
-    ($1, 'to_validate', $2, $2, $3, $4, $5)
-`
-
 type CreatePoolParams struct {
-	Email         string
-	ScheduledTime pgtype.Timestamp
-	MessageID     string
-	Fields        CustomFields
-	Domain        string
-}
-
-func (q *Queries) CreatePool(ctx context.Context, arg CreatePoolParams) error {
-	_, err := q.db.Exec(ctx, createPool,
-		arg.Email,
-		arg.ScheduledTime,
-		arg.MessageID,
-		arg.Fields,
-		arg.Domain,
-	)
-	return err
+	Email                 string
+	Status                SendingPoolStatus
+	ScheduledTime         pgtype.Timestamp
+	OriginalScheduledTime pgtype.Timestamp
+	MessageID             string
+	Fields                CustomFields
+	Domain                string
 }
 
 const getMessage = `-- name: GetMessage :one

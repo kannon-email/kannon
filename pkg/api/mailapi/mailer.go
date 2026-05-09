@@ -129,6 +129,7 @@ func (s mailAPIService) scheduleBatch(ctx context.Context, b *batch.Batch, recip
 	if err := s.batches.Create(ctx, b); err != nil {
 		return err
 	}
+	ds := make([]*delivery.Delivery, 0, len(recipients))
 	for _, r := range recipients {
 		if strings.TrimSpace(r.Email) == "" {
 			logrus.Warnf("skipping recipient with empty email in batch %s", b.ID().String())
@@ -146,10 +147,13 @@ func (s mailAPIService) scheduleBatch(ctx context.Context, b *batch.Batch, recip
 			logrus.Warnf("skipping recipient %q in batch %s: %v", r.Email, b.ID().String(), err)
 			continue
 		}
-		if err := s.deliveries.Schedule(ctx, d); err != nil {
-			logrus.Warnf("cannot schedule delivery for %q in batch %s: %v", r.Email, b.ID().String(), err)
-			continue
-		}
+		ds = append(ds, d)
+	}
+	if len(ds) == 0 {
+		return nil
+	}
+	if err := s.deliveries.Schedule(ctx, ds...); err != nil {
+		return fmt.Errorf("cannot schedule deliveries for batch %s: %w", b.ID().String(), err)
 	}
 	return nil
 }
@@ -237,7 +241,7 @@ func NewMailerAPIV1(q *sqlc.Queries, db *pgxpool.Pool, backoff delivery.BackoffP
 	apiKeysRepo := sqlc.NewAPIKeysRepository(q, db)
 	apiKeysService := apikeys.NewService(apiKeysRepo)
 	batchRepo := sqlc.NewBatchRepository(q)
-	deliveryRepo := sqlc.NewDeliveryRepository(q, backoff)
+	deliveryRepo := sqlc.NewDeliveryRepository(db, backoff)
 	templatesRepo := sqlc.NewTemplatesRepository(q)
 
 	return &mailAPIService{

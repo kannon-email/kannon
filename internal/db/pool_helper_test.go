@@ -13,17 +13,17 @@ import (
 // seedBatchFixture seeds a fresh domain + template + batch row so
 // foreign-key constraints on sending_pool_emails are satisfied. Returns
 // the BatchID and Domain name. Used by repository specification tests
-// for the delivery / pool packages.
-func seedBatchFixture(t *testing.T) (batch.ID, string) {
-	t.Helper()
-	ctx := t.Context()
+// and benchmarks for the delivery / pool packages.
+func seedBatchFixture(tb testing.TB) (batch.ID, string) {
+	tb.Helper()
+	ctx := context.Background()
 	domainName := fmt.Sprintf("test-pool-%d.com", time.Now().UnixNano())
 	_, err := q.CreateDomain(ctx, CreateDomainParams{
 		Domain:         domainName,
 		DkimPrivateKey: "test-private",
 		DkimPublicKey:  "test-public",
 	})
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
 	tplID := fmt.Sprintf("tpl_%d", time.Now().UnixNano())
 	_, err = q.CreateTemplate(ctx, CreateTemplateParams{
@@ -32,7 +32,7 @@ func seedBatchFixture(t *testing.T) (batch.ID, string) {
 		Domain:     domainName,
 		Type:       TemplateTypeTransient,
 	})
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
 	bID := batch.NewID(domainName)
 	_, err = q.CreateMessage(ctx, CreateMessageParams{
@@ -45,9 +45,9 @@ func seedBatchFixture(t *testing.T) (batch.ID, string) {
 		Attachments: Attachments{},
 		Headers:     Headers{},
 	})
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
-	t.Cleanup(func() {
+	tb.Cleanup(func() {
 		cleanupCtx := context.Background()
 		_, _ = db.Exec(cleanupCtx, "DELETE FROM sending_pool_emails WHERE domain = $1", domainName)
 		_, _ = db.Exec(cleanupCtx, "DELETE FROM messages WHERE domain = $1", domainName)

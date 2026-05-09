@@ -56,7 +56,7 @@ func TestMain(m *testing.M) {
 	eb = envelope.NewBuilder(q, statssec.NewStatsService(q))
 	ma = mailapi.NewMailerAPIV1(q, db, delivery.DefaultBackoff)
 	adminAPI = adminapi.CreateAdminAPIService(q, db)
-	claimer = pool.NewClaimer(sqlc.NewDeliveryRepository(q, delivery.DefaultBackoff))
+	claimer = pool.NewClaimer(sqlc.NewDeliveryRepository(db, delivery.DefaultBackoff))
 
 	code := m.Run()
 

@@ -14,6 +14,6 @@ func (deliveryTestHelper) CreateBatch(t *testing.T) (batch.ID, string) {
 }
 
 func TestDeliveryRepository(t *testing.T) {
-	repo := NewDeliveryRepository(q, delivery.DefaultBackoff)
+	repo := NewDeliveryRepository(db, delivery.DefaultBackoff)
 	delivery.RunRepoSpec(t, repo, deliveryTestHelper{})
 }
