@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/kannon-email/kannon/internal/batch"
 	"github.com/kannon-email/kannon/internal/delivery"
@@ -20,18 +21,33 @@ type deliveryRepository struct {
 // policy is applied to every Delivery rehydrated from a row, so the
 // repository's reschedule path uses the canonical curve threaded through the
 // Container (see x/container.Container.BackoffPolicy).
-func NewDeliveryRepository(q *Queries, backoff delivery.BackoffPolicy) delivery.Repository {
-	return &deliveryRepository{q: q, backoff: backoff}
+func NewDeliveryRepository(db *pgxpool.Pool, backoff delivery.BackoffPolicy) delivery.Repository {
+	return &deliveryRepository{q: New(db), backoff: backoff}
 }
 
-func (r *deliveryRepository) Schedule(ctx context.Context, d *delivery.Delivery) error {
-	return r.q.CreatePool(ctx, CreatePoolParams{
-		MessageID:     d.BatchID().String(),
-		Email:         d.Email(),
-		Fields:        toCustomFields(d.Fields()),
-		ScheduledTime: PgTimestampFromTime(d.ScheduledTime()),
-		Domain:        d.Domain(),
-	})
+func (r *deliveryRepository) Schedule(ctx context.Context, ds ...*delivery.Delivery) error {
+	if len(ds) == 0 {
+		return nil
+	}
+
+	rows := make([]CreatePoolParams, len(ds))
+	for i, d := range ds {
+		ts := PgTimestampFromTime(d.ScheduledTime())
+		rows[i] = CreatePoolParams{
+			Email:                 d.Email(),
+			Status:                SendingPoolStatusToValidate,
+			ScheduledTime:         ts,
+			OriginalScheduledTime: ts,
+			MessageID:             d.BatchID().String(),
+			Fields:                toCustomFields(d.Fields()),
+			Domain:                d.Domain(),
+		}
+	}
+
+	if _, err := r.q.CreatePool(ctx, rows); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (r *deliveryRepository) PrepareForSend(ctx context.Context, max int) ([]*delivery.Delivery, error) {

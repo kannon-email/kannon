@@ -8,8 +8,9 @@ import (
 
 // Repository persists Delivery entities (per-recipient sending pool rows).
 type Repository interface {
-	// Schedule persists a new Delivery row in the pool.
-	Schedule(ctx context.Context, d *Delivery) error
+	// Schedule persists one or more Delivery rows in the pool atomically:
+	// all rows are inserted, or none are.
+	Schedule(ctx context.Context, ds ...*Delivery) error
 
 	// PrepareForSend atomically claims up to max scheduled deliveries for
 	// dispatch and returns them.

@@ -47,7 +47,7 @@ func TestMain(m *testing.M) {
 	}
 
 	q = sqlc.New(db)
-	claimer := pool.NewClaimer(sqlc.NewDeliveryRepository(q, delivery.DefaultBackoff))
+	claimer := pool.NewClaimer(sqlc.NewDeliveryRepository(db, delivery.DefaultBackoff))
 	vt = validator.NewValidator(claimer, &mp)
 
 	ts = mailapi.NewMailerAPIV1(q, db, delivery.DefaultBackoff)

@@ -55,10 +55,34 @@ func newDelivery(t *testing.T, batchID batch.ID, domain, email string) *Delivery
 }
 
 func testSchedule(t *testing.T, repo Repository, helper RepoTestHelper) {
-	ctx := t.Context()
-	batchID, domain := helper.CreateBatch(t)
-	d := newDelivery(t, batchID, domain, "to@"+domain)
-	require.NoError(t, repo.Schedule(ctx, d))
+	t.Run("Single", func(t *testing.T) {
+		ctx := t.Context()
+		batchID, domain := helper.CreateBatch(t)
+		d := newDelivery(t, batchID, domain, "to@"+domain)
+		require.NoError(t, repo.Schedule(ctx, d))
+	})
+
+	t.Run("Many", func(t *testing.T) {
+		ctx := t.Context()
+		batchID, domain := helper.CreateBatch(t)
+		ds := []*Delivery{
+			newDelivery(t, batchID, domain, "a@"+domain),
+			newDelivery(t, batchID, domain, "b@"+domain),
+			newDelivery(t, batchID, domain, "c@"+domain),
+		}
+		require.NoError(t, repo.Schedule(ctx, ds...))
+
+		for _, d := range ds {
+			got, err := repo.Get(ctx, batchID, d.Email())
+			require.NoError(t, err)
+			assert.Equal(t, d.Email(), got.Email())
+		}
+	})
+
+	t.Run("Empty", func(t *testing.T) {
+		ctx := t.Context()
+		require.NoError(t, repo.Schedule(ctx))
+	})
 }
 
 func testGet(t *testing.T, repo Repository, helper RepoTestHelper) {
