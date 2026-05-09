@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/nats-io/nats.go"
-	"github.com/ory/dockertest/v3"
-	"github.com/ory/dockertest/v3/docker"
+	"github.com/ory/dockertest/v4"
 
 	schema "github.com/kannon-email/kannon/db"
 )
@@ -35,27 +35,30 @@ func (infra *TestInfrastructure) Cleanup() {
 func setupTestInfrastructure(ctx context.Context) (*TestInfrastructure, error) {
 	infra := &TestInfrastructure{}
 
-	pool, err := dockertest.NewPool("")
+	pool, err := dockertest.NewPool(ctx, "")
 	if err != nil {
 		return infra, fmt.Errorf("could not connect to docker: %w", err)
 	}
+	infra.cleanup = append(infra.cleanup, func() error {
+		return pool.Close(ctx)
+	})
 
 	// Start PostgreSQL
-	pgRes, err := createDatabase(pool)
+	pgRes, err := createDatabase(ctx, pool)
 	if err != nil {
 		return infra, err
 	}
 	infra.cleanup = append(infra.cleanup, func() error {
-		return pool.Purge(pgRes)
+		return pgRes.Close(ctx)
 	})
 
 	// Start NATS
-	natsRes, err := createNats(pool)
+	natsRes, err := createNats(ctx, pool)
 	if err != nil {
 		return infra, fmt.Errorf("could not start nats: %w", err)
 	}
 	infra.cleanup = append(infra.cleanup, func() error {
-		return pool.Purge(natsRes)
+		return natsRes.Close(ctx)
 	})
 
 	// Get connection URLs
@@ -64,7 +67,7 @@ func setupTestInfrastructure(ctx context.Context) (*TestInfrastructure, error) {
 
 	// Wait for PostgreSQL to be ready
 	var db *pgxpool.Pool
-	err = pool.Retry(func() error {
+	err = pool.Retry(ctx, 60*time.Second, func() error {
 		var err error
 		tmpDb, err := pgxpool.New(ctx, dbURL)
 		if err != nil {
@@ -91,7 +94,7 @@ func setupTestInfrastructure(ctx context.Context) (*TestInfrastructure, error) {
 	db.Close()
 
 	// Wait for NATS to be ready with JetStream
-	err = pool.Retry(func() error {
+	err = pool.Retry(ctx, 60*time.Second, func() error {
 		return testNatsConnection(natsURL)
 	})
 	if err != nil {
@@ -117,46 +120,31 @@ func setupTestInfrastructure(ctx context.Context) (*TestInfrastructure, error) {
 	return infra, nil
 }
 
-func createDatabase(pool *dockertest.Pool) (*dockertest.Resource, error) {
-	pgRes, err := pool.RunWithOptions(&dockertest.RunOptions{
-		Repository: "postgres",
-		Tag:        "17-alpine",
-		Env: []string{
+func createDatabase(ctx context.Context, pool dockertest.ClosablePool) (dockertest.ClosableResource, error) {
+	pgRes, err := pool.Run(ctx, "postgres",
+		dockertest.WithTag("17-alpine"),
+		dockertest.WithEnv([]string{
 			"POSTGRES_USER=test",
 			"POSTGRES_PASSWORD=test",
 			"POSTGRES_DB=test",
-		},
-	}, func(config *docker.HostConfig) {
-		config.AutoRemove = true
-		config.RestartPolicy = docker.RestartPolicy{Name: "no"}
-	})
+		}),
+		dockertest.WithoutReuse(),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("could not start postgres: %w", err)
-	}
-
-	if err := pgRes.Expire(300); err != nil {
-		return nil, fmt.Errorf("could not set postgres expiration: %w", err)
 	}
 
 	return pgRes, nil
 }
 
-func createNats(pool *dockertest.Pool) (*dockertest.Resource, error) {
-	natsRes, err := pool.RunWithOptions(&dockertest.RunOptions{
-		Repository:   "nats",
-		Tag:          "2.10-alpine",
-		Cmd:          []string{"-js", "-m", "8222"},
-		ExposedPorts: []string{"4222/tcp", "8222/tcp"},
-	}, func(config *docker.HostConfig) {
-		config.AutoRemove = true
-		config.RestartPolicy = docker.RestartPolicy{Name: "no"}
-	})
+func createNats(ctx context.Context, pool dockertest.ClosablePool) (dockertest.ClosableResource, error) {
+	natsRes, err := pool.Run(ctx, "nats",
+		dockertest.WithTag("2.10-alpine"),
+		dockertest.WithCmd([]string{"-js", "-m", "8222"}),
+		dockertest.WithoutReuse(),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("could not start nats: %w", err)
-	}
-
-	if err := natsRes.Expire(300); err != nil {
-		return nil, fmt.Errorf("could not set nats expiration: %w", err)
 	}
 
 	return natsRes, nil

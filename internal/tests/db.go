@@ -4,11 +4,12 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jmoiron/sqlx"
-	"github.com/ory/dockertest/v3"
-	"github.com/ory/dockertest/v3/docker"
+	"github.com/moby/moby/api/types/container"
+	"github.com/ory/dockertest/v4"
 	"github.com/sirupsen/logrus"
 )
 
@@ -16,45 +17,37 @@ type PurgeFunc func() error
 
 func TestPostgresInit(schema string) (*pgxpool.Pool, PurgeFunc, error) {
 	var db *pgxpool.Pool
+	ctx := context.Background()
 
-	// uses a sensible default on windows (tcp/http) and linux/osx (socket)
-	pool, err := dockertest.NewPool("")
+	pool, err := dockertest.NewPool(ctx, "")
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot connect to docker: %w", err)
 	}
 
-	// pulls an image, creates a container based on it and runs it
-	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
-		Repository: "postgres",
-		Tag:        "17-alpine",
-		Env: []string{
+	resource, err := pool.Run(ctx, "postgres",
+		dockertest.WithTag("17-alpine"),
+		dockertest.WithEnv([]string{
 			"POSTGRES_USER=test",
 			"POSTGRES_PASSWORD=test",
 			"listen_addresses = '*'",
-		},
-	}, func(config *docker.HostConfig) {
-		// set AutoRemove to true so that stopped container goes away by itself
-		config.AutoRemove = true
-		config.RestartPolicy = docker.RestartPolicy{
-			Name: "no",
-		}
-		config.Tmpfs = map[string]string{"/var/lib/postgres": "rw"}
-	})
+		}),
+		dockertest.WithHostConfig(func(hc *container.HostConfig) {
+			hc.Tmpfs = map[string]string{"/var/lib/postgres": "rw"}
+		}),
+		dockertest.WithoutReuse(),
+	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot start resource: %w", err)
 	}
-	if err := resource.Expire(60); err != nil {
-		return nil, nil, fmt.Errorf("cannot expire resource: %w", err)
-	}
 
-	if err = pool.Retry(func() error {
+	if err = pool.Retry(ctx, 60*time.Second, func() error {
 		var err error
 		db, err = initDB(resource.GetPort("5432/tcp"))
 		if err != nil {
 			logrus.Warnf("connection error: %v", err)
 			return err
 		}
-		return db.Ping(context.Background())
+		return db.Ping(ctx)
 	}); err != nil {
 		return nil, nil, fmt.Errorf("cannot connect to docker: %w", err)
 	}
@@ -64,11 +57,10 @@ func TestPostgresInit(schema string) (*pgxpool.Pool, PurgeFunc, error) {
 	}
 
 	var purgeFunc PurgeFunc = func() error {
-		err := pool.Purge(resource)
-		if err != nil {
+		if err := resource.Close(ctx); err != nil {
 			return fmt.Errorf("cannot purge resource: %w", err)
 		}
-		return nil
+		return pool.Close(ctx)
 	}
 
 	return db, purgeFunc, nil
