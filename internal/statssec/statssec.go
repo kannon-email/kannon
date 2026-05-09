@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v5"
 	sqlc "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/utils"
 )
