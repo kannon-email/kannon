@@ -603,6 +603,13 @@ CREATE INDEX messages_message_id_idx ON public.messages USING btree (message_id)
 
 
 --
+-- Name: sending_pool_emails_status_scheduled_time_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sending_pool_emails_status_scheduled_time_idx ON public.sending_pool_emails USING btree (status, scheduled_time) WHERE ((status)::text = ANY ((ARRAY['to_validate'::character varying, 'scheduled'::character varying])::text[]));
+
+
+--
 -- Name: stats_email_message_id_type_timestamp_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -721,4 +728,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20260124120000'),
     ('20260214120000'),
     ('20260214120001'),
-    ('20260214120002');
+    ('20260214120002'),
+    ('20260509102644');
