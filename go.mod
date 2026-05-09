@@ -5,6 +5,7 @@ go 1.26.2
 require (
 	connectrpc.com/connect v1.19.2
 	github.com/amacneil/dbmate/v2 v2.33.0
+	github.com/emersion/go-message v0.18.1
 	github.com/emersion/go-msgauth v0.7.0
 	github.com/emersion/go-smtp v0.24.0
 	github.com/go-faker/faker/v4 v4.7.0
@@ -25,7 +26,6 @@ require (
 	golang.org/x/net v0.53.0
 	golang.org/x/sync v0.20.0
 	google.golang.org/protobuf v1.36.11
-	gopkg.in/mail.v2 v2.3.1
 )
 
 require (
@@ -76,6 +76,5 @@ require (
 	golang.org/x/sys v0.43.0 // indirect
 	golang.org/x/text v0.36.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
-	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

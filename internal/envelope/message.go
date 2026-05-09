@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/emersion/go-message/mail"
 	"github.com/kannon-email/kannon/internal/batch"
 	"github.com/sirupsen/logrus"
-	"gopkg.in/mail.v2"
 )
 
 type headers map[string][]string
@@ -54,24 +54,68 @@ func buildHeaders(subject string, sender batch.Sender, to, poolMessageID, messag
 	return h
 }
 
-func renderMsg(html string, headers headers, attachments Attachments) ([]byte, error) {
-	msg := mail.NewMessage()
-
-	for key, values := range headers {
-		msg.SetHeader(key, values...)
+func renderMsg(html string, hdrs headers, attachments Attachments) ([]byte, error) {
+	var h mail.Header
+	for key, values := range hdrs {
+		h.Set(key, strings.Join(values, ", "))
 	}
-	msg.SetDateHeader("Date", time.Now())
-	msg.SetBody("text/html", html)
-	for name, r := range attachments {
-		msg.AttachReader(name, r)
-	}
+	h.SetDate(time.Now())
 
-	var buff bytes.Buffer
-	if _, err := msg.WriteTo(&buff); err != nil {
+	var buf bytes.Buffer
+	if err := writeMessage(&buf, h, html, attachments); err != nil {
 		logrus.Warnf("🤢 Error writing message: %v\n", err)
 		return nil, err
 	}
-	return buff.Bytes(), nil
+	return buf.Bytes(), nil
+}
+
+func writeMessage(buf *bytes.Buffer, h mail.Header, html string, attachments Attachments) error {
+	if len(attachments) == 0 {
+		h.Set("Content-Type", "text/html; charset=utf-8")
+		w, err := mail.CreateSingleInlineWriter(buf, h)
+		if err != nil {
+			return err
+		}
+		if _, err := io.WriteString(w, html); err != nil {
+			return err
+		}
+		return w.Close()
+	}
+
+	mw, err := mail.CreateWriter(buf, h)
+	if err != nil {
+		return err
+	}
+
+	var ih mail.InlineHeader
+	ih.SetContentType("text/html", map[string]string{"charset": "utf-8"})
+	bw, err := mw.CreateSingleInline(ih)
+	if err != nil {
+		return err
+	}
+	if _, err := io.WriteString(bw, html); err != nil {
+		return err
+	}
+	if err := bw.Close(); err != nil {
+		return err
+	}
+
+	for name, r := range attachments {
+		var ah mail.AttachmentHeader
+		ah.SetFilename(name)
+		aw, err := mw.CreateAttachment(ah)
+		if err != nil {
+			return err
+		}
+		if _, err := io.Copy(aw, r); err != nil {
+			return err
+		}
+		if err := aw.Close(); err != nil {
+			return err
+		}
+	}
+
+	return mw.Close()
 }
 
 func insertTrackLinkInHTML(html, link string) string {
