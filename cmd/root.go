@@ -41,13 +41,16 @@ func run(cmd *cobra.Command, _ []string) {
 		slog.Error("error in reading config", "err", err)
 		os.Exit(1)
 	}
-	bootstrap(cmd, runFlagsFromViper())
+	if err := bootstrap(cmd, runFlagsFromViper()); err != nil {
+		slog.Error("service error", "err", err)
+		os.Exit(1)
+	}
 }
 
 // bootstrap is the single boot path shared by `kannon` and `kannon standalone`.
 // It builds the container, registers every runnable selected by flags, and
 // starts them under a shared errgroup-derived context.
-func bootstrap(cmd *cobra.Command, flags RunFlags) {
+func bootstrap(cmd *cobra.Command, flags RunFlags) error {
 	ctx := cmd.Context()
 
 	cnt := container.New(ctx)
@@ -83,10 +86,7 @@ func bootstrap(cmd *cobra.Command, flags RunFlags) {
 
 	slog.Info(fmt.Sprintf("Starting Kannon runnables: %v", reg.Names()))
 
-	if err := reg.Run(ctx); err != nil {
-		slog.Error("service error", "err", err)
-		os.Exit(1)
-	}
+	return reg.Run(ctx)
 }
 
 func init() {

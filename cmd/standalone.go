@@ -27,7 +27,7 @@ func runStandalone(cmd *cobra.Command, _ []string) {
 		os.Exit(1)
 	}
 	viper.Set("use_embedded_nats", true)
-	bootstrap(cmd, RunFlags{
+	if err := bootstrap(cmd, RunFlags{
 		Sender:     true,
 		Dispatcher: true,
 		Validator:  true,
@@ -35,5 +35,8 @@ func runStandalone(cmd *cobra.Command, _ []string) {
 		Tracker:    true,
 		API:        true,
 		SMTP:       true,
-	})
+	}); err != nil {
+		slog.Error("service error", "err", err)
+		os.Exit(1)
+	}
 }
