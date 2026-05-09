@@ -3,6 +3,8 @@ package container
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"os"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -13,7 +15,6 @@ import (
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )
 
@@ -161,7 +162,7 @@ func (c *Container) Queries() *sqlc.Queries {
 // EmbeddedNatsServer returns a singleton embedded NATS server instance.
 func (c *Container) EmbeddedNatsServer() *server.Server {
 	return c.embeddedNatsServer.MustGet(c.ctx, func(ctx context.Context) (*server.Server, error) {
-		logrus.Info("Starting embedded NATS server...")
+		slog.Info("Starting embedded NATS server...")
 
 		opts := &server.Options{
 			Host:      "127.0.0.1",
@@ -182,10 +183,10 @@ func (c *Container) EmbeddedNatsServer() *server.Server {
 			return nil, fmt.Errorf("NATS server not ready after 10 seconds")
 		}
 
-		logrus.Infof("Embedded NATS server started at %s", ns.ClientURL())
+		slog.Info(fmt.Sprintf("Embedded NATS server started at %s", ns.ClientURL()))
 
 		c.addClosers(func(ctx context.Context) error {
-			logrus.Info("Shutting down embedded NATS server...")
+			slog.Info("Shutting down embedded NATS server...")
 			ns.Shutdown()
 			ns.WaitForShutdown()
 			return nil
@@ -210,7 +211,7 @@ func (c *Container) Nats() *nats.Conn {
 			natsURL = ns.ClientURL()
 		}
 
-		logrus.Debugf("connecting to NATS: %s", natsURL)
+		slog.Debug(fmt.Sprintf("connecting to NATS: %s", natsURL))
 		nc, err := nats.Connect(natsURL)
 		if err != nil {
 			return nil, err
@@ -259,7 +260,7 @@ func (c *Container) Nats() *nats.Conn {
 }
 
 func (c *Container) NatsPublisher() publisher.Publisher {
-	logrus.Debugf("[nats] creating publisher")
+	slog.Debug("[nats] creating publisher")
 	return &publisherWithDebug{
 		nc: c.Nats(),
 	}
@@ -269,7 +270,8 @@ func (c *Container) NatsJetStream() jetstream.JetStream {
 	nc := c.Nats()
 	js, err := jetstream.New(nc)
 	if err != nil {
-		logrus.Fatalf("Failed to create NATS JetStream: %v", err)
+		slog.Error("Failed to create NATS JetStream", "err", err)
+		os.Exit(1)
 	}
 
 	c.addHZ("jetstream", func(ctx context.Context) error {
@@ -337,10 +339,10 @@ func provisionEmbeddedJetStreams(nc *nats.Conn) error {
 
 	for _, s := range streams {
 		if _, err := js.StreamInfo(s.name); err == nil {
-			logrus.Debugf("JetStream stream already exists: %s", s.name)
+			slog.Debug(fmt.Sprintf("JetStream stream already exists: %s", s.name))
 			continue
 		}
-		logrus.Infof("Creating JetStream stream: %s", s.name)
+		slog.Info(fmt.Sprintf("Creating JetStream stream: %s", s.name))
 		if _, err := js.AddStream(&nats.StreamConfig{
 			Name:     s.name,
 			Subjects: s.subjects,
@@ -358,6 +360,6 @@ type publisherWithDebug struct {
 }
 
 func (p *publisherWithDebug) Publish(subj string, data []byte) error {
-	logrus.WithField("subj", subj).Debugf("[nats] publishing message")
+	slog.Debug("[nats] publishing message", "subj", subj)
 	return p.nc.Publish(subj, data)
 }

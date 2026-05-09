@@ -2,6 +2,8 @@ package tracker
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -11,7 +13,6 @@ import (
 	"github.com/kannon-email/kannon/internal/statssec"
 	"github.com/kannon-email/kannon/internal/utils"
 	pb "github.com/kannon-email/kannon/proto/kannon/stats/types"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -23,14 +24,14 @@ func (s *srv) handleClick(w http.ResponseWriter, r *http.Request) {
 	token := strings.Replace(r.URL.Path, "/c/", "", 1)
 	claims, err := s.ss.VerifyLinkToken(ctx, token)
 	if err != nil {
-		logrus.Errorf("cannot verify click token: %v", err)
+		slog.Error("cannot verify click token", "err", err)
 		http.NotFound(w, r)
 		return
 	}
 
 	domain, err := utils.ExtractDomainFromMessageID(claims.MessageID)
 	if err != nil {
-		logrus.Errorf("cannot verify click token: %v", err)
+		slog.Error("cannot verify click token", "err", err)
 		http.NotFound(w, r)
 		return
 	}
@@ -42,11 +43,11 @@ func (s *srv) handleClick(w http.ResponseWriter, r *http.Request) {
 	data := buildClickStat(claims, userAgent, ip, domain)
 
 	if err := publisher.PublishStat(s.pub, data); err != nil {
-		logrus.Errorf("cannot send message on nats: %v", err)
+		slog.Error("cannot send message on nats", "err", err)
 		return
 	}
 
-	logrus.Infof("🔗 %s %s %s %s %s %s", r.Method, claims.URL, claims.MessageID, r.Header["User-Agent"], r.Host, ip)
+	slog.Info(fmt.Sprintf("🔗 %s %s %s %s %s %s", r.Method, claims.URL, claims.MessageID, r.Header["User-Agent"], r.Host, ip))
 }
 
 func writeRedirect(w http.ResponseWriter, r *http.Request, claims *statssec.LinkClaims) {

@@ -3,13 +3,13 @@ package tracker
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/kannon-email/kannon/internal/publisher"
 	"github.com/kannon-email/kannon/internal/statssec"
 	"github.com/kannon-email/kannon/x/container"
-	"github.com/sirupsen/logrus"
 )
 
 type srv struct {
@@ -36,7 +36,7 @@ func (s *srv) Run(ctx context.Context) error {
 	mux.HandleFunc("/c/", s.handleClick)
 
 	addr := fmt.Sprintf("0.0.0.0:%d", s.cfg.Port)
-	logrus.Infof("running tracker on %s", addr)
+	slog.Info(fmt.Sprintf("running tracker on %s", addr))
 
 	server := &http.Server{Addr: addr, Handler: mux}
 
@@ -45,7 +45,7 @@ func (s *srv) Run(ctx context.Context) error {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if err := server.Shutdown(shutdownCtx); err != nil {
-			logrus.Errorf("error shutting down server: %v", err)
+			slog.Error("error shutting down server", "err", err)
 		}
 	}()
 

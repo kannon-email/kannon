@@ -4,8 +4,10 @@ Copyright © 2023 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"log/slog"
+	"os"
+
 	dbschema "github.com/kannon-email/kannon/db"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -16,11 +18,13 @@ var migrateMainCmd = &cobra.Command{
 	Short: "Migrate Main Database to last version",
 	Run: func(_ *cobra.Command, _ []string) {
 		if err := readViperConfig(); err != nil {
-			logrus.Fatalf("error in reading config: %v", err)
+			slog.Error("error in reading config", "err", err)
+			os.Exit(1)
 		}
 
 		if err := dbschema.Migrate(viper.GetString("database_url")); err != nil {
-			logrus.Fatalf("error in migration: %v", err)
+			slog.Error("error in migration", "err", err)
+			os.Exit(1)
 		}
 	},
 }

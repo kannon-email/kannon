@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -18,7 +19,6 @@ import (
 	statsv1connect "github.com/kannon-email/kannon/proto/kannon/stats/apiv1/apiv1connect"
 	statsv2connect "github.com/kannon-email/kannon/proto/kannon/stats/apiv2/apiv2connect"
 	"github.com/kannon-email/kannon/x/container"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 )
@@ -50,7 +50,7 @@ func New(cnt *container.Container) container.Runnable {
 func run(ctx context.Context, config Config, cnt *container.Container) error {
 	port := config.Port
 
-	logrus.Infof("Starting API Service on port %d", port)
+	slog.Info(fmt.Sprintf("Starting API Service on port %d", port))
 
 	db := cnt.DB()
 
@@ -92,10 +92,10 @@ func startAPIServer(ctx context.Context, port uint, adminServer adminv1connect.A
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if err := server.Shutdown(shutdownCtx); err != nil {
-			logrus.Errorf("error shutting down server: %v", err)
+			slog.Error("error shutting down server", "err", err)
 		}
 	}()
 
-	logrus.Infof("Connect API server listening on %s", addr)
+	slog.Info(fmt.Sprintf("Connect API server listening on %s", addr))
 	return server.ListenAndServe()
 }

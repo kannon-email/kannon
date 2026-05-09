@@ -2,10 +2,10 @@ package container
 
 import (
 	"context"
+	"log/slog"
+	"os"
 	"reflect"
 	"sync"
-
-	"github.com/sirupsen/logrus"
 )
 
 type singleton[T any] struct {
@@ -27,7 +27,8 @@ func (s *singleton[T]) MustGet(ctx context.Context, f makeFn[T]) T {
 	value, err := s.Get(ctx, f)
 	if err != nil {
 		typeName := getTypeName[T]()
-		logrus.Fatalf("Failed to initialize singleton of type %s: %v", typeName, err)
+		slog.Error("Failed to initialize singleton of type", "type", typeName, "err", err)
+		os.Exit(1)
 	}
 	return value
 }

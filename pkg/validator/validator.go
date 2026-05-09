@@ -3,6 +3,7 @@ package validator
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"regexp"
 	"strings"
 	"time"
@@ -14,7 +15,6 @@ import (
 	"github.com/kannon-email/kannon/internal/runner"
 	"github.com/kannon-email/kannon/proto/kannon/stats/types"
 	"github.com/kannon-email/kannon/x/container"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -30,8 +30,8 @@ type Validator struct {
 	pub     publisher.Publisher
 }
 
-func (v *Validator) log() *logrus.Entry {
-	return logrus.WithField("component", "validator")
+func (v *Validator) log() *slog.Logger {
+	return slog.With("component", "validator")
 }
 
 // New constructs the validator runnable. The validator has no configurable
@@ -62,11 +62,11 @@ func (d *Validator) Cycle(pctx context.Context) error {
 		return fmt.Errorf("cannot prepare emails for send: %v", err)
 	}
 
-	d.log().Debugf("validating %d emails", len(emails))
+	d.log().Debug(fmt.Sprintf("validating %d emails", len(emails)))
 
 	for _, dlv := range emails {
 		if err := d.handleDelivery(ctx, dlv); err != nil {
-			d.log().WithError(err).Errorf("error handling delivery: %v/%v", dlv.BatchID(), dlv.Email())
+			d.log().Error("error handling delivery", "batch", dlv.BatchID(), "email", dlv.Email(), "err", err)
 		}
 	}
 	return nil
@@ -115,7 +115,7 @@ func newAcceptedStatData() *types.StatsData {
 
 func validateDelivery(d *delivery.Delivery) error {
 	if err := validateEmail(d.Email()); err != nil {
-		logrus.Errorf("invalid email %s: %v", d.Email(), err)
+		slog.Error("invalid email", "email", d.Email(), "err", err)
 		return err
 	}
 	return nil

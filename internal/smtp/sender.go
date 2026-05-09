@@ -8,12 +8,12 @@ package smtp
 import (
 	"crypto/tls"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/smtp"
 	"net/textproto"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"golang.org/x/net/idna"
 )
 
@@ -65,7 +65,7 @@ func (s *sender) SenderName() string {
 // Send email
 func (s *sender) Send(from, to string, msg []byte) SenderError {
 	toDomain, err := GetEmailDomain(to)
-	logrus.Printf("domain %v\n", toDomain)
+	slog.Info(fmt.Sprintf("domain %v\n", toDomain))
 	if err != nil {
 		// CHECK: 510: indiritto email errato
 		return newSMTPError(err, true, 510)
@@ -83,7 +83,7 @@ func (s *sender) Send(from, to string, msg []byte) SenderError {
 			return nil
 		}
 		if err.code > 200 {
-			logrus.WithError(err).Infof("Error sending email to %v, cannot retry other MXs", to)
+			slog.Info(fmt.Sprintf("Error sending email to %v, cannot retry other MXs", to), "err", err)
 			return err
 		}
 
@@ -97,27 +97,27 @@ func deliver(from, to string, msg []byte, mx string, insecure bool, domain strin
 	smtpURL := fmt.Sprintf("%v:%v", mx, smtpPort)
 	conn, err := net.DialTimeout("tcp", smtpURL, smtpDialTimeout)
 	if err != nil {
-		logrus.Debugf("Could not dial: %v", err)
+		slog.Debug(fmt.Sprintf("Could not dial: %v", err))
 		// TODO: add error code
 		// Cannot dial SMTP 111
 		return newSMTPError(err, false, 111)
 	}
 	defer conn.Close()
 	if err := conn.SetDeadline(time.Now().Add(smtpTotalTimeout)); err != nil {
-		logrus.Debugf("Cannot set deadline: %v", err)
+		slog.Debug(fmt.Sprintf("Cannot set deadline: %v", err))
 		// TODO: add error code
 		return newSMTPError(err, false, 111)
 	}
 
 	c, err := smtp.NewClient(conn, mx)
 	if err != nil {
-		logrus.Debugf("Error creating client: %v", err)
+		slog.Debug(fmt.Sprintf("Error creating client: %v", err))
 		// TODO: add error code
 		return newSMTPError(err, false, 111)
 	}
 
 	if err = c.Hello(domain); err != nil {
-		logrus.Debugf("Error saying hello: %v", err)
+		slog.Debug(fmt.Sprintf("Error saying hello: %v", err))
 		// TODO: add error code
 		return newSMTPError(err, false, 111)
 	}
@@ -132,44 +132,44 @@ func deliver(from, to string, msg []byte, mx string, insecure bool, domain strin
 			// Unfortunately, many servers use self-signed certs, so if we
 			// fail verification we just try again without validating.
 			if insecure {
-				logrus.Debugf("TLS error: %v", err)
+				slog.Debug(fmt.Sprintf("TLS error: %v", err))
 				// TODO: add error code
 				return newSMTPError(err, false, 111)
 			}
-			logrus.Debugf("TLS error, retrying insecurely\n")
+			slog.Debug("TLS error, retrying insecurely\n")
 			return deliver(from, to, msg, mx, true, domain)
 		}
 	}
 
 	if err := c.Mail(from); err != nil {
-		logrus.Debugf("err: %v\n", err)
+		slog.Debug(fmt.Sprintf("err: %v\n", err))
 		return newSMTPErrorFromSTMP(err)
 	}
 
 	if err := c.Rcpt(to); err != nil {
-		logrus.Debugf("err: %v\n", err)
+		slog.Debug(fmt.Sprintf("err: %v\n", err))
 		return newSMTPErrorFromSTMP(err)
 	}
 
 	w, err := c.Data()
 	if err != nil {
-		logrus.Debugf("err: %v\n", err)
+		slog.Debug(fmt.Sprintf("err: %v\n", err))
 		return newSMTPErrorFromSTMP(err)
 	}
 	_, err = w.Write(msg)
 	if err != nil {
-		logrus.Debugf("err: %v\n", err)
+		slog.Debug(fmt.Sprintf("err: %v\n", err))
 		return newSMTPErrorFromSTMP(err)
 	}
 
 	err = w.Close()
 	if err != nil {
-		logrus.Debugf("err: %v\n", err)
+		slog.Debug(fmt.Sprintf("err: %v\n", err))
 		return newSMTPErrorFromSTMP(err)
 	}
 
 	if err := c.Quit(); err != nil {
-		logrus.Debugf("err: %v\n", err)
+		slog.Debug(fmt.Sprintf("err: %v\n", err))
 		return newSMTPErrorFromSTMP(err)
 	}
 
@@ -190,12 +190,12 @@ func lookupMXs(domain string) ([]string, *smtpError) {
 		// TODO: Better handle Temporary errors.
 		dnsErr, ok := err.(*net.DNSError)
 		if !ok || !dnsErr.IsNotFound {
-			logrus.Debugf("MX lookup error: %v", err)
+			slog.Debug(fmt.Sprintf("MX lookup error: %v", err))
 			// TODO: add error code
 			return nil, newSMTPError(dnsErr, !dnsErr.Temporary(), 512)
 		}
 		// Permanent error, we assume MX does not exist and fall back to A.
-		logrus.Debugf("failed to resolve MX for %s, falling back to A", domain)
+		slog.Debug(fmt.Sprintf("failed to resolve MX for %s, falling back to A", domain))
 		mxs = []string{domain}
 	} else {
 		// Convert the DNS records to a plain string slice. They're already
@@ -215,7 +215,7 @@ func lookupMXs(domain string) ([]string, *smtpError) {
 		mxs = mxs[:5]
 	}
 
-	logrus.Debugf("MXs: %v", mxs)
+	slog.Debug(fmt.Sprintf("MXs: %v", mxs))
 	return mxs, nil
 }
 

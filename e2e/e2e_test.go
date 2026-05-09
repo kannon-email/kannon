@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"regexp"
 	"strings"
@@ -12,7 +13,6 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/go-faker/faker/v4"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -120,7 +120,7 @@ func runKannon(t *testing.T, infra *TestInfrastructure, senderMock *senderMock) 
 	)
 	t.Cleanup(func() {
 		if err := cnt.CloseWithTimeout(30 * time.Second); err != nil {
-			logrus.Errorf("error closing container: %v", err)
+			slog.Error("error closing container", "err", err)
 		}
 	})
 
@@ -139,7 +139,7 @@ func runKannon(t *testing.T, infra *TestInfrastructure, senderMock *senderMock) 
 
 	go func() {
 		if err := reg.Run(ctx); err != nil {
-			logrus.Errorf("error in running kannon: %v", err)
+			slog.Error("error in running kannon", "err", err)
 		}
 	}()
 }
@@ -389,7 +389,7 @@ func waitHZ(t *testing.T, clientFactory *clientFactory, infra *TestInfrastructur
 
 		results := hzResp.Msg.Result
 
-		logrus.Infof("HZ results: %+v", results)
+		slog.Info(fmt.Sprintf("HZ results: %+v", results))
 
 		assert.Equal(t, "", results["db"])
 		assert.Equal(t, "", results["nats"])

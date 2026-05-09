@@ -3,6 +3,7 @@ package dispatcher
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/kannon-email/kannon/internal/batch"
@@ -13,7 +14,6 @@ import (
 	"github.com/kannon-email/kannon/internal/utils"
 	statstypes "github.com/kannon-email/kannon/proto/kannon/stats/types"
 	"github.com/nats-io/nats.go/jetstream"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -25,8 +25,8 @@ type disp struct {
 	js      jetstream.JetStream
 }
 
-func (d *disp) log() *logrus.Entry {
-	return logrus.WithField("component", "dispatcher")
+func (d *disp) log() *slog.Logger {
+	return slog.With("component", "dispatcher")
 }
 
 func (d *disp) DispatchCycle(ctx context.Context) error {
@@ -37,28 +37,28 @@ func (d *disp) DispatchCycle(ctx context.Context) error {
 		return fmt.Errorf("cannot prepare emails for send: %v", err)
 	}
 
-	d.log().Debugf("seding %d emails", len(emails))
+	d.log().Debug(fmt.Sprintf("seding %d emails", len(emails)))
 
 	for _, dlv := range emails {
 		log := d.log()
 		env, err := d.eb.Build(ctx, dlv)
 
 		if err != nil {
-			log.WithError(err).Errorf("Cannot send email")
+			log.With("err", err).Error("Cannot send email")
 			continue
 		}
 
-		log = log.WithField("email", utils.ObfuscateEmail(env.To())).WithField("email_id", env.EmailID())
+		log = log.With("email", utils.ObfuscateEmail(env.To()), "email_id", env.EmailID())
 
 		if err := publisher.SendEmail(d.pub, env); err != nil {
-			log.WithError(err).Errorf("Cannot send email")
+			log.With("err", err).Error("Cannot send email")
 			continue
 		}
 
-		log.Infof("[✅ accepted]")
+		log.Info("[✅ accepted]")
 	}
 
-	d.log().Debugf("done sending emails")
+	d.log().Debug("done sending emails")
 	return nil
 }
 
@@ -138,7 +138,7 @@ func (d *disp) handleMsg(ctx context.Context, sbj, subName string, parse parseFu
 	defer c.Drain()
 
 	<-ctx.Done()
-	d.log().Infof("Consumer %s stopped", subName)
+	d.log().Info(fmt.Sprintf("Consumer %s stopped", subName))
 	return ctx.Err()
 }
 
@@ -146,11 +146,11 @@ func (d *disp) handleWithAck(ctx context.Context, msg jetstream.Msg, f func(ctx 
 	err := f(ctx, msg)
 	if err != nil {
 		if err := msg.Nak(); err != nil {
-			d.log().Errorf("Cannot nak msg to nats: %v", err)
+			d.log().Error("Cannot nak msg to nats", "err", err)
 		}
 	} else {
 		if err := msg.Ack(); err != nil {
-			d.log().Errorf("Cannot hack msg to nats: %v", err)
+			d.log().Error("Cannot hack msg to nats", "err", err)
 		}
 	}
 }

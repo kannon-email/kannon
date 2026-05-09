@@ -2,9 +2,9 @@ package container
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )
 
@@ -35,7 +35,7 @@ func ApplyDeprecatedAliases() {
 		if !viper.GetBool(a.oldKey) {
 			continue
 		}
-		logrus.Warnf("config key %q is deprecated and will be removed in a future major version; use %q instead", a.oldKey, a.newKey)
+		slog.Warn(fmt.Sprintf("config key %q is deprecated and will be removed in a future major version; use %q instead", a.oldKey, a.newKey))
 		viper.Set(a.newKey, true)
 	}
 
@@ -56,7 +56,7 @@ func ApplyDeprecatedAliases() {
 		oldSection := strings.SplitN(a.oldKey, ".", 2)[0]
 		newSection := strings.SplitN(a.newKey, ".", 2)[0]
 		if !warnedSections[oldSection] {
-			logrus.Warnf("config section %q is deprecated and will be removed in a future major version; use %q instead", oldSection, newSection)
+			slog.Warn(fmt.Sprintf("config section %q is deprecated and will be removed in a future major version; use %q instead", oldSection, newSection))
 			warnedSections[oldSection] = true
 		}
 		if !viper.IsSet(a.newKey) {

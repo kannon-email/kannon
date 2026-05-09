@@ -2,6 +2,8 @@ package stats
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -12,7 +14,6 @@ import (
 	"github.com/kannon-email/kannon/internal/utils"
 	"github.com/kannon-email/kannon/proto/kannon/stats/types"
 	"github.com/kannon-email/kannon/x/container"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/nats-io/nats.go/jetstream"
@@ -89,7 +90,7 @@ func (h *statsHandler) handleStats(ctx context.Context) error {
 	con := utils.MustGetPullSubscriber(ctx, h.js, "kannon-stats", "kannon.stats.*", "kannon-stats-logs")
 	c, err := con.Consume(func(msg jetstream.Msg) {
 		if err := h.handleStatsMsg(ctx, msg); err != nil {
-			logrus.Errorf("Cannot handle stats msg: %v", err)
+			slog.Error("Cannot handle stats msg", "err", err)
 		}
 	})
 	if err != nil {
@@ -114,7 +115,7 @@ func (h *statsHandler) cleanupCycle(ctx context.Context) error {
 	}
 
 	if deletedStats > 0 || deletedKeys > 0 {
-		logrus.Infof("stats cleanup: deleted %d stats and %d expired keys", deletedStats, deletedKeys)
+		slog.Info(fmt.Sprintf("stats cleanup: deleted %d stats and %d expired keys", deletedStats, deletedKeys))
 	}
 
 	return nil
@@ -127,7 +128,7 @@ func (h *statsHandler) handleAggregatedStats(ctx context.Context) error {
 	con := utils.MustGetPullSubscriber(ctx, h.js, "kannon-stats", "kannon.stats.*", "kannon-aggregated-stats")
 	c, err := con.Consume(func(msg jetstream.Msg) {
 		if err := h.handleAggregatedStatsMsg(ctx, msg); err != nil {
-			logrus.Errorf("Cannot handle aggregated stats msg: %v", err)
+			slog.Error("Cannot handle aggregated stats msg", "err", err)
 		}
 	})
 	if err != nil {
@@ -148,7 +149,7 @@ func (h *statsHandler) handleAggregatedStatsMsg(ctx context.Context, msg jetstre
 
 	statType := stats.DetermineTypeFromStats(data)
 	if err := h.service.IncrementAggregatedStat(ctx, data.Domain, data.Timestamp.AsTime(), statType); err != nil {
-		logrus.Errorf("cannot increment aggregated stat: %v", err)
+		slog.Error("cannot increment aggregated stat", "err", err)
 		return msg.Nak()
 	}
 
@@ -164,10 +165,10 @@ func (h *statsHandler) handleStatsMsg(ctx context.Context, msg jetstream.Msg) er
 
 	stat := stats.NewStat(data.Email, data.MessageId, data.Domain, data.Timestamp.AsTime(), data.Data)
 
-	logrus.Printf("[%s] %s %s", stats.DisplayName[stat.Type], utils.ObfuscateEmail(data.Email), data.MessageId)
+	slog.Info(fmt.Sprintf("[%s] %s %s", stats.DisplayName[stat.Type], utils.ObfuscateEmail(data.Email), data.MessageId))
 	err = h.service.InsertStat(ctx, stat)
 	if err != nil {
-		logrus.Errorf("cannot insert %v stat: %v", stat.Type, err)
+		slog.Error("cannot insert stat", "type", stat.Type, "err", err)
 		return msg.Nak()
 	}
 

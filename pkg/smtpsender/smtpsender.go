@@ -3,6 +3,8 @@ package smtpsender
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"os"
 	"time"
 
 	msgtypes "github.com/kannon-email/kannon/proto/kannon/mailer/types"
@@ -13,7 +15,6 @@ import (
 	"github.com/kannon-email/kannon/internal/utils"
 	"github.com/kannon-email/kannon/x/container"
 	"github.com/nats-io/nats.go/jetstream"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -58,9 +59,8 @@ func NewSMTPSender(publisher publisher.Publisher, js jetstream.JetStream, s smtp
 }
 
 func (s *smtpSender) Run(ctx context.Context) error {
-	logrus.WithField("hostname", s.sender.SenderName()).
-		WithField("max_jobs", s.cfg.MaxJobs).
-		Infof("Starting SMTPSender Service")
+	slog.With("hostname", s.sender.SenderName(), "max_jobs", s.cfg.MaxJobs).
+		Info("Starting SMTPSender Service")
 	mustConfigureStatsJS(ctx, s.js)
 
 	consumer := utils.MustGetPullSubscriber(ctx, s.js, "kannon-sending", "kannon.sending", "kannon-sending-pool")
@@ -69,7 +69,7 @@ func (s *smtpSender) Run(ctx context.Context) error {
 }
 
 func (s *smtpSender) handleSend(ctx context.Context, consumer jetstream.Consumer) error {
-	logrus.Infof("🚀 Ready to send!\n")
+	slog.Info("🚀 Ready to send!\n")
 
 	maxJobs := s.cfg.MaxJobs
 
@@ -89,20 +89,20 @@ func (s *smtpSender) handleSend(ctx context.Context, consumer jetstream.Consumer
 	<-ctx.Done()
 	tasks.WaitAndClose()
 
-	logrus.Infof("👋 Shutting down SMTPSender Service")
+	slog.Info("👋 Shutting down SMTPSender Service")
 	return ctx.Err()
 }
 
 func (s *smtpSender) handleMsgAck(msg jetstream.Msg, err error) {
 	if err != nil {
-		logrus.Errorf("error in handling message: %v\n", err.Error())
+		slog.Error("error in handling message", "err", err)
 		if err := msg.Nak(); err != nil {
-			logrus.Errorf("cannot nak message: %v\n", err.Error())
+			slog.Error("cannot nak message", "err", err)
 		}
 		return
 	}
 	if err := msg.Ack(); err != nil {
-		logrus.Errorf("cannot ack message: %v\n", err.Error())
+		slog.Error("cannot ack message", "err", err)
 	}
 }
 
@@ -114,10 +114,10 @@ func (s *smtpSender) handleMessage(msg jetstream.Msg) error {
 	}
 	sendErr := s.sender.Send(data.ReturnPath, data.To, data.Body)
 	if sendErr != nil {
-		logrus.Infof("Cannot send email %v - %v: %v", utils.ObfuscateEmail(data.To), data.EmailId, sendErr.Error())
+		slog.Info(fmt.Sprintf("Cannot send email %v - %v: %v", utils.ObfuscateEmail(data.To), data.EmailId, sendErr.Error()))
 		return s.handleSendError(sendErr, data)
 	}
-	logrus.Infof("Email delivered: %v - %v", utils.ObfuscateEmail(data.To), data.EmailId)
+	slog.Info(fmt.Sprintf("Email delivered: %v - %v", utils.ObfuscateEmail(data.To), data.EmailId))
 	return s.handleSendSuccess(data)
 }
 
@@ -201,8 +201,9 @@ func mustConfigureStatsJS(ctx context.Context, js jetstream.JetStream) {
 	}
 	_, err := js.CreateOrUpdateStream(ctx, confs)
 	if err != nil {
-		logrus.Fatalf("cannot create js stream: %v", err)
+		slog.Error("cannot create js stream", "err", err)
+		os.Exit(1)
 	}
 
-	logrus.Infof("created js stream: %v", name)
+	slog.Info(fmt.Sprintf("created js stream: %v", name))
 }

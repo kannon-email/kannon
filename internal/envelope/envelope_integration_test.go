@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"io"
+	"log/slog"
 	"net/mail"
 	"os"
 	"strings"
@@ -23,7 +24,6 @@ import (
 	"github.com/kannon-email/kannon/pkg/api/adminapi"
 	"github.com/kannon-email/kannon/pkg/api/mailapi"
 	pb "github.com/kannon-email/kannon/proto/kannon/mailer/types"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -46,7 +46,8 @@ func TestMain(m *testing.M) {
 
 	db, purge, err = tests.TestPostgresInit(schema.Schema)
 	if err != nil {
-		logrus.Fatalf("Could not start resource: %s", err)
+		slog.Error("Could not start resource", "err", err)
+		os.Exit(1)
 	}
 
 	q = sqlc.New(db)
@@ -59,7 +60,8 @@ func TestMain(m *testing.M) {
 	code := m.Run()
 
 	if err := purge(); err != nil {
-		logrus.Fatalf("Could not purge resource: %s", err)
+		slog.Error("Could not purge resource", "err", err)
+		os.Exit(1)
 	}
 
 	os.Exit(code)

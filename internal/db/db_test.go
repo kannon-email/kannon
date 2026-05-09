@@ -3,6 +3,7 @@ package sqlc
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"testing"
 
@@ -10,7 +11,6 @@ import (
 	schema "github.com/kannon-email/kannon/db"
 	"github.com/kannon-email/kannon/internal/apikeys"
 	"github.com/kannon-email/kannon/internal/tests"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -24,7 +24,8 @@ func TestMain(m *testing.M) {
 
 	db, purge, err = tests.TestPostgresInit(schema.Schema)
 	if err != nil {
-		logrus.Fatalf("Could not start resource: %s", err)
+		slog.Error("Could not start resource", "err", err)
+		os.Exit(1)
 	}
 
 	q = New(db)
@@ -33,7 +34,8 @@ func TestMain(m *testing.M) {
 
 	// You can't defer this because os.Exit doesn't care for defer
 	if err := purge(); err != nil {
-		logrus.Fatalf("Could not purge resource: %s", err)
+		slog.Error("Could not purge resource", "err", err)
+		os.Exit(1)
 	}
 
 	os.Exit(code)

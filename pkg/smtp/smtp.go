@@ -2,7 +2,9 @@ package smtp
 
 import (
 	"bufio"
+	"fmt"
 	"io"
+	"log/slog"
 	"net/mail"
 	"regexp"
 	"strconv"
@@ -11,7 +13,6 @@ import (
 	"github.com/kannon-email/kannon/internal/utils"
 	st "github.com/kannon-email/kannon/proto/kannon/stats/types"
 	"github.com/nats-io/nats.go"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -39,7 +40,7 @@ func (s *Session) AuthPlain(username, password string) error {
 }
 
 func (s *Session) Mail(from string, opts *smtp.MailOptions) error {
-	logrus.Debugf("Mail from: %s", from)
+	slog.Debug(fmt.Sprintf("Mail from: %s", from))
 	s.From = from
 	return nil
 }
@@ -57,7 +58,7 @@ func (s *Session) Data(r io.Reader) error {
 
 	email, messageID, domain, found, err := utils.ParseBounceReturnPath(s.To)
 	if err != nil {
-		logrus.Warnf("Error parsing bounce return path: %s", err)
+		slog.Warn(fmt.Sprintf("Error parsing bounce return path: %s", err))
 		return nil
 	}
 
@@ -83,17 +84,17 @@ func (s *Session) Data(r io.Reader) error {
 		},
 	}
 
-	logrus.Infof("[🤷 got bounce] %vs - %d - %s", utils.ObfuscateEmail(email), code, errMsg)
+	slog.Info(fmt.Sprintf("[🤷 got bounce] %vs - %d - %s", utils.ObfuscateEmail(email), code, errMsg))
 
 	msg, err := proto.Marshal(m)
 	if err != nil {
-		logrus.Errorf("Cannot marshal data: %v", err)
+		slog.Error("Cannot marshal data", "err", err)
 		return nil
 	}
 
 	err = s.nc.Publish("kannon.stats.soft-bounce", msg)
 	if err != nil {
-		logrus.Errorf("Cannot publish data: %v", err)
+		slog.Error("Cannot publish data", "err", err)
 		return nil
 	}
 

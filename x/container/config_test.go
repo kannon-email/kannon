@@ -2,12 +2,21 @@ package container
 
 import (
 	"bytes"
+	"log/slog"
 	"strings"
 	"testing"
 
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )
+
+func captureSlog(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+	return &buf
+}
 
 func TestLoadConfig_HappyPath(t *testing.T) {
 	viper.Reset()
@@ -54,10 +63,7 @@ func TestApplyDeprecatedAliases_RunVerifier(t *testing.T) {
 	viper.Reset()
 	t.Cleanup(viper.Reset)
 
-	var buf bytes.Buffer
-	prev := logrus.StandardLogger().Out
-	logrus.SetOutput(&buf)
-	t.Cleanup(func() { logrus.SetOutput(prev) })
+	buf := captureSlog(t)
 
 	viper.Set("run-verifier", true)
 
@@ -75,10 +81,7 @@ func TestApplyDeprecatedAliases_BumpPort(t *testing.T) {
 	viper.Reset()
 	t.Cleanup(viper.Reset)
 
-	var buf bytes.Buffer
-	prev := logrus.StandardLogger().Out
-	logrus.SetOutput(&buf)
-	t.Cleanup(func() { logrus.SetOutput(prev) })
+	buf := captureSlog(t)
 
 	viper.Set("bump.port", 1234)
 

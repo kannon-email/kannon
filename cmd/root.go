@@ -1,6 +1,9 @@
 package cmd
 
 import (
+	"fmt"
+	"log/slog"
+	"os"
 	"time"
 
 	"github.com/kannon-email/kannon/pkg/api"
@@ -11,7 +14,6 @@ import (
 	"github.com/kannon-email/kannon/pkg/tracker"
 	"github.com/kannon-email/kannon/pkg/validator"
 	"github.com/kannon-email/kannon/x/container"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -36,7 +38,8 @@ func Execute() error {
 
 func run(cmd *cobra.Command, _ []string) {
 	if err := readViperConfig(); err != nil {
-		logrus.Fatalf("error in reading config: %v", err)
+		slog.Error("error in reading config", "err", err)
+		os.Exit(1)
 	}
 	bootstrap(cmd, runFlagsFromViper())
 }
@@ -50,7 +53,7 @@ func bootstrap(cmd *cobra.Command, flags RunFlags) {
 	cnt := container.New(ctx)
 	defer func() {
 		if err := cnt.CloseWithTimeout(shutdownTimeout); err != nil {
-			logrus.Errorf("Shutdown errors: %v", err)
+			slog.Error("Shutdown errors", "err", err)
 		}
 	}()
 
@@ -78,10 +81,11 @@ func bootstrap(cmd *cobra.Command, flags RunFlags) {
 		reg.Register(smtp.New(cnt))
 	}
 
-	logrus.Infof("Starting Kannon runnables: %v", reg.Names())
+	slog.Info(fmt.Sprintf("Starting Kannon runnables: %v", reg.Names()))
 
 	if err := reg.Run(ctx); err != nil {
-		logrus.Fatalf("service error: %v", err)
+		slog.Error("service error", "err", err)
+		os.Exit(1)
 	}
 }
 
@@ -106,6 +110,7 @@ func createBoolFlagAndBindToViper(name string, defaultValue bool, usage string) 
 	rootCmd.PersistentFlags().Bool(name, defaultValue, usage)
 	err := viper.BindPFlag(name, rootCmd.PersistentFlags().Lookup(name))
 	if err != nil {
-		logrus.Fatalf("cannot set flat '%v': %v", name, err)
+		slog.Error("cannot set flat", "name", name, "err", err)
+		os.Exit(1)
 	}
 }

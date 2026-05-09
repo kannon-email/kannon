@@ -211,6 +211,6 @@ func TestSingleton_ContextPassing(t *testing.T) {
 	}
 }
 
-// Note: Testing error handling would require intercepting logrus.Fatalf
+// Note: Testing error handling would require intercepting os.Exit
 // or modifying the singleton to make it testable, which might break the API
 // For now, we focus on testing the successful path and concurrent behavior

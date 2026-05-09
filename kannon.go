@@ -1,12 +1,15 @@
 package main
 
 import (
+	"log/slog"
+	"os"
+
 	"github.com/kannon-email/kannon/cmd"
-	"github.com/sirupsen/logrus"
 )
 
 func main() {
 	if err := cmd.Execute(); err != nil {
-		logrus.Fatalf("Error: %v", err)
+		slog.Error("Error", "err", err)
+		os.Exit(1)
 	}
 }

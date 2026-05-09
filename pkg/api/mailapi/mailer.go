@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -21,7 +22,6 @@ import (
 	pb "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1"
 	mailerv1connect "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1/apiv1connect"
 	mailertypes "github.com/kannon-email/kannon/proto/kannon/mailer/types"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -44,7 +44,7 @@ func (s mailAPIService) SendHTML(ctx context.Context, req *connect.Request[pb.Se
 
 	template, err := s.createTransientTemplate(ctx, domain.Domain(), req.Msg.Html)
 	if err != nil {
-		logrus.Errorf("cannot create template %v\n", err)
+		slog.Error("cannot create template", "err", err)
 		return nil, fmt.Errorf("cannot create template %v", err)
 	}
 
@@ -74,13 +74,13 @@ func (s mailAPIService) SendTemplate(ctx context.Context, req *connect.Request[p
 func (s mailAPIService) sendTemplate(ctx context.Context, domain *domains.Domain, req *connect.Request[pb.SendTemplateReq]) (*connect.Response[pb.SendRes], error) {
 	template, err := s.templates.FindByDomain(ctx, domain.Domain(), req.Msg.TemplateId)
 	if err != nil {
-		logrus.Errorf("cannot find template %v\n", err)
+		slog.Error("cannot find template", "err", err)
 		return nil, fmt.Errorf("cannot find template with id: %v", req.Msg.TemplateId)
 	}
 
 	template, err = s.createTemplateWithGlobalFields(ctx, template, req.Msg.GlobalFields)
 	if err != nil {
-		logrus.Errorf("cannot create transient template %v\n", err)
+		slog.Error("cannot create transient template", "err", err)
 		return nil, fmt.Errorf("cannot create template %v", err)
 	}
 
@@ -110,7 +110,7 @@ func (s mailAPIService) sendTemplate(ctx context.Context, domain *domains.Domain
 	}
 
 	if err := s.scheduleBatch(ctx, b, req.Msg.Recipients, scheduled); err != nil {
-		logrus.Errorf("cannot create pool %v\n", err)
+		slog.Error("cannot create pool", "err", err)
 		return nil, err
 	}
 
@@ -132,7 +132,7 @@ func (s mailAPIService) scheduleBatch(ctx context.Context, b *batch.Batch, recip
 	ds := make([]*delivery.Delivery, 0, len(recipients))
 	for _, r := range recipients {
 		if strings.TrimSpace(r.Email) == "" {
-			logrus.Warnf("skipping recipient with empty email in batch %s", b.ID().String())
+			slog.Warn(fmt.Sprintf("skipping recipient with empty email in batch %s", b.ID().String()))
 			continue
 		}
 		d, err := delivery.New(delivery.NewParams{
@@ -144,7 +144,7 @@ func (s mailAPIService) scheduleBatch(ctx context.Context, b *batch.Batch, recip
 			Backoff:       s.backoff,
 		})
 		if err != nil {
-			logrus.Warnf("skipping recipient %q in batch %s: %v", r.Email, b.ID().String(), err)
+			slog.Warn(fmt.Sprintf("skipping recipient %q in batch %s: %v", r.Email, b.ID().String(), err))
 			continue
 		}
 		ds = append(ds, d)

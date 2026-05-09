@@ -2,12 +2,13 @@ package smtp
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/emersion/go-smtp"
 	"github.com/kannon-email/kannon/x/container"
 	"github.com/nats-io/nats.go"
-	"github.com/sirupsen/logrus"
 )
 
 // New constructs the SMTP server runnable, loading its slice of configuration
@@ -28,7 +29,7 @@ func run(ctx context.Context, nc *nats.Conn, config Config) error {
 	s := buildServer(config, nc)
 	defer s.Close()
 
-	logrus.Printf("Starting server at: %v", s.Addr)
+	slog.Info(fmt.Sprintf("Starting server at: %v", s.Addr))
 
 	go func() {
 		<-ctx.Done()
@@ -37,7 +38,7 @@ func run(ctx context.Context, nc *nats.Conn, config Config) error {
 		defer cancel()
 
 		if err := s.Shutdown(ctx); err != nil {
-			logrus.Errorf("error shutting down server: %v", err)
+			slog.Error("error shutting down server", "err", err)
 		}
 	}()
 

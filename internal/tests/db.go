@@ -3,6 +3,7 @@ package tests
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"time"
 
@@ -10,7 +11,6 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/moby/moby/api/types/container"
 	"github.com/ory/dockertest/v4"
-	"github.com/sirupsen/logrus"
 )
 
 type PurgeFunc func() error
@@ -44,7 +44,7 @@ func TestPostgresInit(schema string) (*pgxpool.Pool, PurgeFunc, error) {
 		var err error
 		db, err = initDB(resource.GetPort("5432/tcp"))
 		if err != nil {
-			logrus.Warnf("connection error: %v", err)
+			slog.Warn(fmt.Sprintf("connection error: %v", err))
 			return err
 		}
 		return db.Ping(ctx)

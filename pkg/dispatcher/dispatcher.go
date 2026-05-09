@@ -2,6 +2,9 @@ package dispatcher
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
+	"os"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -12,7 +15,6 @@ import (
 	"github.com/kannon-email/kannon/internal/runner"
 	"github.com/kannon-email/kannon/internal/statssec"
 	"github.com/kannon-email/kannon/x/container"
-	"github.com/sirupsen/logrus"
 
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -84,7 +86,8 @@ func mustConfigureSendingStream(ctx context.Context, js jetstream.JetStream) {
 	}
 	_, err := js.CreateOrUpdateStream(ctx, confs)
 	if err != nil {
-		logrus.Fatalf("cannot create js stream: %v", err)
+		slog.Error("cannot create js stream", "err", err)
+		os.Exit(1)
 	}
-	logrus.Infof("created js stream: %v", name)
+	slog.Info(fmt.Sprintf("created js stream: %v", name))
 }

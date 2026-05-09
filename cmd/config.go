@@ -2,14 +2,22 @@ package cmd
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 
 	"github.com/kannon-email/kannon/x/container"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
+
+// logLevel is the dynamic level for the slog default handler installed at
+// package init. readViperConfig flips it to Debug when the debug flag is set.
+var logLevel = new(slog.LevelVar)
+
+func init() {
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: logLevel})))
+}
 
 // RunFlags collects the seven boolean flags that select which runnables
 // kannon starts. It is driven by cobra flags, never viper-loaded — config
@@ -60,7 +68,7 @@ func readViperConfig() error {
 	container.ApplyDeprecatedAliases()
 
 	if viper.GetBool("debug") {
-		logrus.SetLevel(logrus.DebugLevel)
+		logLevel.Set(slog.LevelDebug)
 	}
 
 	return nil

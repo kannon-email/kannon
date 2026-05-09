@@ -5,13 +5,13 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"log/slog"
 	"regexp"
 	"strings"
 	"time"
 
 	"github.com/emersion/go-message/mail"
 	"github.com/kannon-email/kannon/internal/batch"
-	"github.com/sirupsen/logrus"
 )
 
 type headers map[string][]string
@@ -63,7 +63,7 @@ func renderMsg(html string, hdrs headers, attachments Attachments) ([]byte, erro
 
 	var buf bytes.Buffer
 	if err := writeMessage(&buf, h, html, attachments); err != nil {
-		logrus.Warnf("🤢 Error writing message: %v\n", err)
+		slog.Warn(fmt.Sprintf("🤢 Error writing message: %v\n", err))
 		return nil, err
 	}
 	return buf.Bytes(), nil

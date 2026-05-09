@@ -1,7 +1,9 @@
 package cmd
 
 import (
-	"github.com/sirupsen/logrus"
+	"log/slog"
+	"os"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -21,7 +23,8 @@ func init() {
 
 func runStandalone(cmd *cobra.Command, _ []string) {
 	if err := readViperConfig(); err != nil {
-		logrus.Fatalf("error in reading config: %v", err)
+		slog.Error("error in reading config", "err", err)
+		os.Exit(1)
 	}
 	viper.Set("use_embedded_nats", true)
 	bootstrap(cmd, RunFlags{

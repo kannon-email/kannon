@@ -2,10 +2,11 @@ package utils
 
 import (
 	"context"
+	"log/slog"
+	"os"
 	"time"
 
 	"github.com/nats-io/nats.go/jetstream"
-	"github.com/sirupsen/logrus"
 )
 
 func MustGetPullSubscriber(ctx context.Context, js jetstream.JetStream, stream string, subj string, durable string) jetstream.Consumer {
@@ -21,11 +22,12 @@ func MustGetPullSubscriber(ctx context.Context, js jetstream.JetStream, stream s
 			return conn
 		}
 
-		logrus.Errorf("cannot create pull subscriber %v: %v", durable, err)
+		slog.Error("cannot create pull subscriber", "durable", durable, "err", err)
 		time.Sleep(1 * time.Second)
 		lastErr = err
 	}
 
-	logrus.Fatalf("cannot create pull subscriber %v: %v", durable, lastErr)
+	slog.Error("cannot create pull subscriber", "durable", durable, "err", lastErr)
+	os.Exit(1)
 	return nil
 }

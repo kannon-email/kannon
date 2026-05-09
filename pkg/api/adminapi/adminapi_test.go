@@ -2,6 +2,7 @@ package adminapi_test
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"testing"
 
@@ -13,7 +14,6 @@ import (
 	"github.com/kannon-email/kannon/pkg/api/adminapi"
 	pb "github.com/kannon-email/kannon/proto/kannon/admin/apiv1"
 	adminv1connect "github.com/kannon-email/kannon/proto/kannon/admin/apiv1/apiv1connect"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -26,7 +26,8 @@ func TestMain(m *testing.M) {
 
 	db, purge, err = tests.TestPostgresInit(schema.Schema)
 	if err != nil {
-		logrus.Fatalf("Could not start resource: %s", err)
+		slog.Error("Could not start resource", "err", err)
+		os.Exit(1)
 	}
 
 	testservice = adminapi.CreateAdminAPIService(db)
@@ -35,7 +36,8 @@ func TestMain(m *testing.M) {
 
 	// You can't defer this because os.Exit doesn't care for defer
 	if err := purge(); err != nil {
-		logrus.Fatalf("Could not purge resource: %s", err)
+		slog.Error("Could not purge resource", "err", err)
+		os.Exit(1)
 	}
 
 	os.Exit(code)

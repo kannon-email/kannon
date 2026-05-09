@@ -2,6 +2,7 @@ package stats
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"testing"
 	"time"
@@ -14,7 +15,6 @@ import (
 	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/internal/tests"
 	"github.com/kannon-email/kannon/proto/kannon/stats/types"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -28,7 +28,8 @@ func TestMain(m *testing.M) {
 
 	db, purge, err = tests.TestPostgresInit(schema.Schema)
 	if err != nil {
-		logrus.Fatalf("Could not start resource: %s", err)
+		slog.Error("Could not start resource", "err", err)
+		os.Exit(1)
 	}
 
 	q = sq.New(db)
@@ -36,7 +37,8 @@ func TestMain(m *testing.M) {
 	code := m.Run()
 
 	if err := purge(); err != nil {
-		logrus.Fatalf("Could not purge resource: %s", err)
+		slog.Error("Could not purge resource", "err", err)
+		os.Exit(1)
 	}
 
 	os.Exit(code)
