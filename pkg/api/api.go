@@ -19,8 +19,6 @@ import (
 	statsv1connect "github.com/kannon-email/kannon/proto/kannon/stats/apiv1/apiv1connect"
 	statsv2connect "github.com/kannon-email/kannon/proto/kannon/stats/apiv2/apiv2connect"
 	"github.com/kannon-email/kannon/x/container"
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
 )
 
 type Config struct {
@@ -84,9 +82,11 @@ func startAPIServer(ctx context.Context, port uint, adminServer adminv1connect.A
 	mux.Handle(statsV2Path, statsV2Handler)
 	mux.Handle(hzPath, hzHandler)
 
-	handler := h2c.NewHandler(mux, &http2.Server{})
+	protocols := new(http.Protocols)
+	protocols.SetHTTP1(true)
+	protocols.SetUnencryptedHTTP2(true)
 
-	server := &http.Server{Addr: addr, Handler: handler}
+	server := &http.Server{Addr: addr, Handler: mux, Protocols: protocols}
 	go func() {
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
