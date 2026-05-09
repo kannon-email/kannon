@@ -1,7 +1,6 @@
 package sqlc
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -43,7 +42,7 @@ func TestMain(m *testing.M) {
 
 func TestDomains(t *testing.T) {
 	// when user create a domain
-	domain, err := q.CreateDomain(context.Background(), CreateDomainParams{
+	domain, err := q.CreateDomain(t.Context(), CreateDomainParams{
 		Domain:         "test@test.com",
 		DkimPrivateKey: "test",
 		DkimPublicKey:  "test",
@@ -52,17 +51,17 @@ func TestDomains(t *testing.T) {
 	assert.Equal(t, domain.Domain, "test@test.com")
 
 	// can list all domains present
-	domains, err := q.GetDomains(context.Background())
+	domains, err := q.GetDomains(t.Context())
 	assert.Nil(t, err)
 	assert.Equal(t, len(domains), 1)
 
 	// can search a domain for domain
-	d, err := q.FindDomain(context.Background(), "test@test.com")
+	d, err := q.FindDomain(t.Context(), "test@test.com")
 	assert.Nil(t, err)
 	assert.Equal(t, d.ID, domain.ID)
 
 	// cleanup
-	_, err = db.Exec(context.Background(), "DELETE FROM domains")
+	_, err = db.Exec(t.Context(), "DELETE FROM domains")
 	assert.Nil(t, err)
 }
 
@@ -78,7 +77,7 @@ func TestHashKeyMatchesPostgres(t *testing.T) {
 			goHash := apikeys.HashKey(input)
 
 			var pgHash string
-			err := db.QueryRow(context.Background(),
+			err := db.QueryRow(t.Context(),
 				"SELECT encode(digest($1, 'sha256'), 'hex')", input,
 			).Scan(&pgHash)
 			require.NoError(t, err)
@@ -89,7 +88,7 @@ func TestHashKeyMatchesPostgres(t *testing.T) {
 }
 
 func TestTemplates(t *testing.T) {
-	domain, err := q.CreateDomain(context.Background(), CreateDomainParams{
+	domain, err := q.CreateDomain(t.Context(), CreateDomainParams{
 		Domain:         "test@test.com",
 		DkimPrivateKey: "test",
 		DkimPublicKey:  "test",
@@ -97,7 +96,7 @@ func TestTemplates(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, domain.Domain, "test@test.com")
 
-	template, err := q.CreateTemplate(context.Background(), CreateTemplateParams{
+	template, err := q.CreateTemplate(t.Context(), CreateTemplateParams{
 		TemplateID: "template id",
 		Html:       "template",
 		Domain:     domain.Domain,
@@ -106,7 +105,7 @@ func TestTemplates(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, template.Html, "template")
 
-	tmp, err := q.FindTemplate(context.Background(), FindTemplateParams{
+	tmp, err := q.FindTemplate(t.Context(), FindTemplateParams{
 		TemplateID: "template id",
 		Domain:     domain.Domain,
 	})
@@ -114,8 +113,8 @@ func TestTemplates(t *testing.T) {
 	assert.Equal(t, template, tmp)
 
 	// cleanup
-	_, err = db.Exec(context.Background(), "DELETE FROM templates")
+	_, err = db.Exec(t.Context(), "DELETE FROM templates")
 	assert.Nil(t, err)
-	_, err = db.Exec(context.Background(), "DELETE FROM domains")
+	_, err = db.Exec(t.Context(), "DELETE FROM domains")
 	assert.Nil(t, err)
 }

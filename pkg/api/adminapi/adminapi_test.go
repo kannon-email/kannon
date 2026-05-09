@@ -1,7 +1,6 @@
 package adminapi_test
 
 import (
-	"context"
 	"log/slog"
 	"os"
 	"testing"
@@ -43,7 +42,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestEmptyDatabase(t *testing.T) {
-	res, err := testservice.GetDomains(context.Background(), connect.NewRequest(&pb.GetDomainsReq{}))
+	res, err := testservice.GetDomains(t.Context(), connect.NewRequest(&pb.GetDomainsReq{}))
 	assert.Nil(t, err)
 	assert.Empty(t, len(res.Msg.Domains))
 }
@@ -56,7 +55,7 @@ func TestCreateANewDomain(t *testing.T) {
 	// When I create a domain
 	t.Run("When I create a domain", func(t *testing.T) {
 		var err error
-		res, err := testservice.CreateDomain(context.Background(), connect.NewRequest(&pb.CreateDomainRequest{
+		res, err := testservice.CreateDomain(t.Context(), connect.NewRequest(&pb.CreateDomainRequest{
 			Domain: newDomain,
 		}))
 		domain = res.Msg
@@ -66,13 +65,13 @@ func TestCreateANewDomain(t *testing.T) {
 	})
 
 	t.Run("I Should find 1 domain in the datastore", func(t *testing.T) {
-		resGetDomains, err := testservice.GetDomains(context.Background(), connect.NewRequest(&pb.GetDomainsReq{}))
+		resGetDomains, err := testservice.GetDomains(t.Context(), connect.NewRequest(&pb.GetDomainsReq{}))
 		assert.Nil(t, err)
 		assert.Equal(t, 1, len(resGetDomains.Msg.Domains))
 	})
 
 	t.Run("I Should query the created domain", func(t *testing.T) {
-		resGetDomain, err := testservice.GetDomain(context.Background(), connect.NewRequest(&pb.GetDomainReq{
+		resGetDomain, err := testservice.GetDomain(t.Context(), connect.NewRequest(&pb.GetDomainReq{
 			Domain: newDomain,
 		}))
 		assert.Nil(t, err)
@@ -84,7 +83,7 @@ func TestCreateANewDomain(t *testing.T) {
 
 func createTestDomain(t *testing.T) *pb.Domain {
 	domain := tests.FakeDomain(t)
-	res, err := testservice.CreateDomain(context.Background(), connect.NewRequest(&pb.CreateDomainRequest{
+	res, err := testservice.CreateDomain(t.Context(), connect.NewRequest(&pb.CreateDomainRequest{
 		Domain: domain,
 	}))
 	assert.Nil(t, err)
@@ -92,12 +91,12 @@ func createTestDomain(t *testing.T) *pb.Domain {
 }
 
 func cleanDB(t *testing.T) {
-	_, err := db.Exec(context.Background(), "DELETE FROM domains")
+	_, err := db.Exec(t.Context(), "DELETE FROM domains")
 	assert.Nil(t, err)
 
-	_, err = db.Exec(context.Background(), "DELETE FROM sending_pool_emails")
+	_, err = db.Exec(t.Context(), "DELETE FROM sending_pool_emails")
 	assert.Nil(t, err)
 
-	_, err = db.Exec(context.Background(), "DELETE FROM templates")
+	_, err = db.Exec(t.Context(), "DELETE FROM templates")
 	assert.Nil(t, err)
 }

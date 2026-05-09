@@ -23,7 +23,7 @@ func TestRegistry_RunInvokesAllAndShareCtx(t *testing.T) {
 	var reg Registry
 	var ranA, ranB atomic.Bool
 	type ctxKey struct{}
-	parent := context.WithValue(context.Background(), ctxKey{}, "shared")
+	parent := context.WithValue(t.Context(), ctxKey{}, "shared")
 	parent, cancel := context.WithCancel(parent)
 
 	reg.Register(Runnable{Name: "a", Run: func(ctx context.Context) error {
@@ -77,7 +77,7 @@ func TestRegistry_ErrorCancelsSibling(t *testing.T) {
 		return ctx.Err()
 	}})
 
-	err := reg.Run(context.Background())
+	err := reg.Run(t.Context())
 	if !errors.Is(err, boom) {
 		t.Errorf("expected boom, got %v", err)
 	}

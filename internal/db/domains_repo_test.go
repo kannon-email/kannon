@@ -13,7 +13,7 @@ func TestDomainsRepository(t *testing.T) {
 		//nolint:errcheck // best-effort test cleanup
 		db.Exec(context.Background(), "DELETE FROM domains CASCADE")
 	})
-	_, err := db.Exec(context.Background(), "DELETE FROM domains CASCADE")
+	_, err := db.Exec(t.Context(), "DELETE FROM domains CASCADE")
 	require.NoError(t, err)
 
 	repo := NewDomainsRepository(db)

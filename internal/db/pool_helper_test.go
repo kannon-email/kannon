@@ -1,7 +1,6 @@
 package sqlc
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -16,7 +15,7 @@ import (
 // and benchmarks for the delivery / pool packages.
 func seedBatchFixture(tb testing.TB) (batch.ID, string) {
 	tb.Helper()
-	ctx := context.Background()
+	ctx := tb.Context()
 	domainName := fmt.Sprintf("test-pool-%d.com", time.Now().UnixNano())
 	_, err := q.CreateDomain(ctx, CreateDomainParams{
 		Domain:         domainName,
@@ -48,7 +47,7 @@ func seedBatchFixture(tb testing.TB) (batch.ID, string) {
 	require.NoError(tb, err)
 
 	tb.Cleanup(func() {
-		cleanupCtx := context.Background()
+		cleanupCtx := tb.Context()
 		//nolint:errcheck // best-effort test cleanup
 		db.Exec(cleanupCtx, "DELETE FROM sending_pool_emails WHERE domain = $1", domainName)
 		//nolint:errcheck // best-effort test cleanup

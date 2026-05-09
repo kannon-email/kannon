@@ -1,7 +1,6 @@
 package stats_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -20,7 +19,7 @@ func newTestServiceWithAggregated() *stats.Service {
 
 func TestInsertAndQueryStats(t *testing.T) {
 	svc := newTestService()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	now := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	tr := stats.TimeRange{Start: now.Add(-time.Hour), Stop: now.Add(time.Hour)}
@@ -54,7 +53,7 @@ func TestInsertAndQueryStats(t *testing.T) {
 
 func TestQueryStats_Pagination(t *testing.T) {
 	svc := newTestService()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	base := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	tr := stats.TimeRange{Start: base.Add(-time.Hour), Stop: base.Add(time.Hour)}
@@ -90,7 +89,7 @@ func TestQueryStats_Pagination(t *testing.T) {
 
 func TestQueryStats_FiltersByDomain(t *testing.T) {
 	svc := newTestService()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	now := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	tr := stats.TimeRange{Start: now.Add(-time.Hour), Stop: now.Add(time.Hour)}
@@ -118,7 +117,7 @@ func TestQueryStats_FiltersByDomain(t *testing.T) {
 
 func TestQueryStats_FiltersByTimeRange(t *testing.T) {
 	svc := newTestService()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	base := time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)
 	tr := stats.TimeRange{Start: base, Stop: base.Add(2 * time.Hour)}
@@ -150,7 +149,7 @@ func TestQueryStats_FiltersByTimeRange(t *testing.T) {
 
 func TestQueryTimeline(t *testing.T) {
 	svc := newTestService()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	base := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	tr := stats.TimeRange{Start: base, Stop: base.Add(3 * time.Hour)}
@@ -190,7 +189,7 @@ func TestQueryTimeline(t *testing.T) {
 
 func TestCleanup(t *testing.T) {
 	svc := newTestService()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	now := time.Now().UTC()
 	old := now.Add(-48 * time.Hour)
@@ -251,7 +250,7 @@ func TestDetermineType(t *testing.T) {
 
 func TestIncrementAggregatedStat(t *testing.T) {
 	svc := newTestServiceWithAggregated()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	ts := time.Date(2026, 1, 15, 14, 30, 0, 0, time.UTC)
 
@@ -284,7 +283,7 @@ func TestIncrementAggregatedStat(t *testing.T) {
 
 func TestIncrementAggregatedStat_SeparateEntries(t *testing.T) {
 	svc := newTestServiceWithAggregated()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	day1 := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	day2 := time.Date(2026, 1, 16, 14, 0, 0, 0, time.UTC)
@@ -316,7 +315,7 @@ func TestIncrementAggregatedStat_SeparateEntries(t *testing.T) {
 
 func TestQueryAggregatedStats_FiltersByDomainAndTimeRange(t *testing.T) {
 	svc := newTestServiceWithAggregated()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	ts := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 

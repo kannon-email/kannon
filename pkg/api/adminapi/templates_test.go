@@ -13,7 +13,7 @@ import (
 
 func TestCreateTemplate(t *testing.T) {
 	d := createTestDomain(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	res, err := testservice.CreateTemplate(ctx, connect.NewRequest(&pb.CreateTemplateReq{
 		Html:   "Hello {{ name }}",
@@ -27,7 +27,7 @@ func TestCreateTemplate(t *testing.T) {
 
 func TestGetTemplate(t *testing.T) {
 	d := createTestDomain(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t1 := createTemplate(t, ctx, d, "Hello {{ name }}")
 
@@ -41,7 +41,7 @@ func TestGetTemplate(t *testing.T) {
 
 func TestDeleteTemplate(t *testing.T) {
 	d := createTestDomain(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t1 := createTemplate(t, ctx, d, "Hello {{ name }}")
 
@@ -63,7 +63,7 @@ func TestDeleteTemplate(t *testing.T) {
 
 func TestGetTemplates(t *testing.T) {
 	d := createTestDomain(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t1 := createTemplate(t, ctx, d, "Hello {{ name }}")
 	t2 := createTemplate(t, ctx, d, "Hello 2 {{ name }}")
@@ -84,7 +84,7 @@ func TestGetTemplates(t *testing.T) {
 
 func TestUpdateTemplates(t *testing.T) {
 	d := createTestDomain(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t1 := createTemplate(t, ctx, d, "Hello {{ name }}")
 

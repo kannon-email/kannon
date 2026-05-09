@@ -1,7 +1,6 @@
 package mailapi_test
 
 import (
-	"context"
 	"strings"
 	"testing"
 	"time"
@@ -41,7 +40,7 @@ func TestInsertMail(t *testing.T) {
 
 	authRequest(req, d)
 
-	res, err := ts.SendHTML(context.Background(), req)
+	res, err := ts.SendHTML(t.Context(), req)
 
 	assert.Nil(t, err)
 	assert.NotEmpty(t, res.Msg.MessageId)
@@ -49,7 +48,7 @@ func TestInsertMail(t *testing.T) {
 	assert.True(t, strings.HasSuffix(res.Msg.MessageId, "@"+d.Domain.Domain))
 	assert.True(t, strings.HasSuffix(res.Msg.TemplateId, "@"+d.Domain.Domain))
 
-	sp, err := q.GetSendingPoolsEmails(context.Background(), sqlc.GetSendingPoolsEmailsParams{
+	sp, err := q.GetSendingPoolsEmails(t.Context(), sqlc.GetSendingPoolsEmailsParams{
 		MessageID: res.Msg.MessageId,
 		Limit:     100,
 		Offset:    0,
@@ -113,7 +112,7 @@ func TestSendMailWithInvalidHeaders(t *testing.T) {
 			})
 			authRequest(req, d)
 
-			_, err := ts.SendHTML(context.Background(), req)
+			_, err := ts.SendHTML(t.Context(), req)
 			assert.NotNil(t, err)
 			assert.Contains(t, err.Error(), tc.errMsg)
 			assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
@@ -145,12 +144,12 @@ func TestSendMailSkipsRecipientsWithEmptyEmail(t *testing.T) {
 	})
 	authRequest(req, d)
 
-	res, err := ts.SendHTML(context.Background(), req)
+	res, err := ts.SendHTML(t.Context(), req)
 
 	assert.Nil(t, err)
 	assert.NotEmpty(t, res.Msg.MessageId)
 
-	sp, err := q.GetSendingPoolsEmails(context.Background(), sqlc.GetSendingPoolsEmailsParams{
+	sp, err := q.GetSendingPoolsEmails(t.Context(), sqlc.GetSendingPoolsEmailsParams{
 		MessageID: res.Msg.MessageId,
 		Limit:     100,
 		Offset:    0,
@@ -182,12 +181,12 @@ func TestSendMailWithAllEmptyRecipientsSucceedsWithEmptyPool(t *testing.T) {
 	})
 	authRequest(req, d)
 
-	res, err := ts.SendHTML(context.Background(), req)
+	res, err := ts.SendHTML(t.Context(), req)
 
 	assert.Nil(t, err)
 	assert.NotEmpty(t, res.Msg.MessageId)
 
-	sp, err := q.GetSendingPoolsEmails(context.Background(), sqlc.GetSendingPoolsEmailsParams{
+	sp, err := q.GetSendingPoolsEmails(t.Context(), sqlc.GetSendingPoolsEmailsParams{
 		MessageID: res.Msg.MessageId,
 		Limit:     100,
 		Offset:    0,
@@ -217,13 +216,13 @@ func TestSendMailWithGlobalFields(t *testing.T) {
 	})
 	authRequest(req, d)
 
-	res, err := ts.SendHTML(context.Background(), req)
+	res, err := ts.SendHTML(t.Context(), req)
 
 	assert.Nil(t, err)
 	assert.NotEmpty(t, res.Msg.MessageId)
 	assert.NotEmpty(t, res.Msg.TemplateId)
 
-	template, err := q.GetTemplate(context.Background(), res.Msg.TemplateId)
+	template, err := q.GetTemplate(t.Context(), res.Msg.TemplateId)
 	assert.NoError(t, err)
 	assert.Equal(t, "Hello Global", template.Html)
 }
@@ -235,7 +234,7 @@ func TestSendTemplateWithGlobalFields(t *testing.T) {
 
 	schedTime := time.Now().Add(10 * time.Minute).Truncate(1 * time.Second)
 
-	tmp, err := q.CreateTemplate(context.Background(), sqlc.CreateTemplateParams{
+	tmp, err := q.CreateTemplate(t.Context(), sqlc.CreateTemplateParams{
 		Html:       "Hello {{ name }}",
 		TemplateID: "test-template",
 		Title:      "Test",
@@ -258,13 +257,13 @@ func TestSendTemplateWithGlobalFields(t *testing.T) {
 	})
 	authRequest(req, d)
 
-	res, err := ts.SendTemplate(context.Background(), req)
+	res, err := ts.SendTemplate(t.Context(), req)
 
 	assert.Nil(t, err)
 	assert.NotEmpty(t, res.Msg.MessageId)
 	assert.NotEmpty(t, res.Msg.TemplateId)
 
-	template, err := q.GetTemplate(context.Background(), res.Msg.TemplateId)
+	template, err := q.GetTemplate(t.Context(), res.Msg.TemplateId)
 	assert.NoError(t, err)
 	assert.NotEqual(t, tmp.ID, template.ID)
 	assert.Equal(t, "Hello Global", template.Html)

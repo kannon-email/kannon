@@ -1,7 +1,6 @@
 package stats
 
 import (
-	"context"
 	"log/slog"
 	"os"
 	"testing"
@@ -59,7 +58,7 @@ func newTestHandler() statsHandler {
 func TestCleanupCycle_DeletesOldStats(t *testing.T) {
 	cleanDB(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Insert an old stat (2 years ago)
 	oldTime := time.Now().Add(-2 * 365 * 24 * time.Hour)
@@ -103,7 +102,7 @@ func TestCleanupCycle_DeletesOldStats(t *testing.T) {
 func TestCleanupCycle_KeepsRecentStats(t *testing.T) {
 	cleanDB(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Insert two recent stats
 	for _, email := range []string{"a@test.com", "b@test.com"} {
@@ -135,7 +134,7 @@ func TestCleanupCycle_KeepsRecentStats(t *testing.T) {
 func TestCleanupCycle_DeletesExpiredStatsKeys(t *testing.T) {
 	cleanDB(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Insert an expired key
 	_, err := q.CreateStatsKeys(ctx, sq.CreateStatsKeysParams{
@@ -182,7 +181,7 @@ func TestCleanupCycle_DeletesExpiredStatsKeys(t *testing.T) {
 func TestCleanupCycle_NoRowsToDelete(t *testing.T) {
 	cleanDB(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	h := newTestHandler()
 
@@ -193,7 +192,7 @@ func TestCleanupCycle_NoRowsToDelete(t *testing.T) {
 
 func cleanDB(t *testing.T) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	_, err := db.Exec(ctx, "DELETE FROM stats")
 	require.NoError(t, err)
 	_, err = db.Exec(ctx, "DELETE FROM stats_keys")
