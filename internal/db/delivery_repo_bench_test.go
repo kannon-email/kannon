@@ -11,58 +11,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// seedBenchBatch is a benchmark variant of seedBatchFixture that does not
-// register a t.Cleanup (benchmarks may run many iterations and the test
-// framework also runs them under TestMain so cleanup is best-effort).
-func seedBenchBatch(b *testing.B) (batch.ID, string) {
-	b.Helper()
-	ctx := context.Background()
-	domainName := fmt.Sprintf("bench-pool-%d.com", time.Now().UnixNano())
-	_, err := q.CreateDomain(ctx, CreateDomainParams{
-		Domain:         domainName,
-		DkimPrivateKey: "bench-private",
-		DkimPublicKey:  "bench-public",
-	})
-	require.NoError(b, err)
-
-	tplID := fmt.Sprintf("bench-tpl-%d", time.Now().UnixNano())
-	_, err = q.CreateTemplate(ctx, CreateTemplateParams{
-		TemplateID: tplID,
-		Html:       "<p>hi</p>",
-		Domain:     domainName,
-		Type:       TemplateTypeTransient,
-	})
-	require.NoError(b, err)
-
-	bID := batch.NewID(domainName)
-	_, err = q.CreateMessage(ctx, CreateMessageParams{
-		MessageID:   bID.String(),
-		Subject:     "hello",
-		SenderEmail: "from@" + domainName,
-		SenderAlias: "From",
-		TemplateID:  tplID,
-		Domain:      domainName,
-		Attachments: Attachments{},
-		Headers:     Headers{},
-	})
-	require.NoError(b, err)
-
-	b.Cleanup(func() {
-		cleanupCtx := context.Background()
-		_, _ = db.Exec(cleanupCtx, "DELETE FROM sending_pool_emails WHERE domain = $1", domainName)
-		_, _ = db.Exec(cleanupCtx, "DELETE FROM messages WHERE domain = $1", domainName)
-		_, _ = db.Exec(cleanupCtx, "DELETE FROM templates WHERE domain = $1", domainName)
-		_, _ = db.Exec(cleanupCtx, "DELETE FROM domains WHERE domain = $1", domainName)
-	})
-
-	return bID, domainName
-}
-
 func buildDeliveries(b *testing.B, batchID batch.ID, domain string, n, iter int) []*delivery.Delivery {
 	b.Helper()
 	now := time.Now().UTC()
 	out := make([]*delivery.Delivery, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		d, err := delivery.New(delivery.NewParams{
 			BatchID:       batchID,
 			Email:         fmt.Sprintf("u%d-%d@%s", iter, i, domain),
@@ -83,9 +36,9 @@ func BenchmarkScheduleMany(b *testing.B) {
 
 	for _, n := range []int{10, 100, 1000, 10_000} {
 		b.Run(fmt.Sprintf("N=%d", n), func(b *testing.B) {
-			batchID, domain := seedBenchBatch(b)
+			batchID, domain := seedBatchFixture(b)
 			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
+			for i := range b.N {
 				b.StopTimer()
 				ds := buildDeliveries(b, batchID, domain, n, i)
 				b.StartTimer()
