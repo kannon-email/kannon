@@ -9,13 +9,12 @@
 package templates
 
 import (
-	"crypto/rand"
 	"errors"
 	"fmt"
 	"time"
 
 	pb "github.com/kannon-email/kannon/proto/kannon/admin/apiv1"
-	"github.com/lucsky/cuid"
+	"github.com/nrednav/cuid2"
 )
 
 // Domain errors.
@@ -56,12 +55,8 @@ func NewPersistent(domain, html, title string) (*Template, error) {
 	if domain == "" {
 		return nil, fmt.Errorf("domain is required")
 	}
-	id, err := newTemplateID(domain)
-	if err != nil {
-		return nil, err
-	}
 	return &Template{
-		templateID: id,
+		templateID: newTemplateID(domain),
 		html:       html,
 		title:      title,
 		domain:     domain,
@@ -74,12 +69,8 @@ func NewTransient(domain, html string) (*Template, error) {
 	if domain == "" {
 		return nil, fmt.Errorf("domain is required")
 	}
-	id, err := newTemplateID(domain)
-	if err != nil {
-		return nil, err
-	}
 	return &Template{
-		templateID: id,
+		templateID: newTemplateID(domain),
 		html:       html,
 		domain:     domain,
 		typ:        TypeTransient,
@@ -138,10 +129,6 @@ func (t *Template) Pb() *pb.Template {
 	}
 }
 
-func newTemplateID(domain string) (string, error) {
-	id, err := cuid.NewCrypto(rand.Reader)
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("template_%v@%v", id, domain), nil
+func newTemplateID(domain string) string {
+	return fmt.Sprintf("template_%v@%v", cuid2.Generate(), domain)
 }

@@ -11,10 +11,10 @@ require (
 	github.com/go-faker/faker/v4 v4.7.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/jackc/pgx/v5 v5.9.2
-	github.com/lucsky/cuid v1.2.1
 	github.com/moby/moby/api v1.54.2
 	github.com/nats-io/nats-server/v2 v2.14.0
 	github.com/nats-io/nats.go v1.51.0
+	github.com/nrednav/cuid2 v1.1.0
 	github.com/ory/dockertest/v4 v4.0.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0

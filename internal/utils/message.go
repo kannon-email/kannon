@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/lucsky/cuid"
+	"github.com/nrednav/cuid2"
 )
 
 var extractMsgIDReg = regexp.MustCompile(`<.+\/(?P<messageId>.+)>`)
@@ -35,7 +35,7 @@ func ExtractMsgIDAndDomainFromEmailID(emailID string) (msgID string, domain stri
 }
 
 func CreateMessageID(domain string) string {
-	return fmt.Sprintf("msg_%v@%v", cuid.New(), domain)
+	return fmt.Sprintf("msg_%v@%v", cuid2.Generate(), domain)
 }
 
 var parseReturnPath = regexp.MustCompile(`bump_(?P<emailHash>[^+]*)\+(?P<messageID>.*)`)

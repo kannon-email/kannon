@@ -125,10 +125,7 @@ func (s *service) generateNewKeyPairs(ctx context.Context) (*rsa.PrivateKey, *rs
 		return nil, nil, "", err
 	}
 
-	id, err := utils.NewID("key")
-	if err != nil {
-		return nil, nil, "", err
-	}
+	id := utils.NewID("key")
 
 	exp := sqlc.PgTimestampFromTime(s.now().Add(2 * tokenExpirePeriod))
 

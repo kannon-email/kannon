@@ -1,11 +1,10 @@
 package apikeys
 
 import (
-	"crypto/rand"
 	"fmt"
 	"strings"
 
-	"github.com/lucsky/cuid"
+	"github.com/nrednav/cuid2"
 )
 
 const IDPrefix = "key_"
@@ -14,12 +13,8 @@ const IDPrefix = "key_"
 type ID string
 
 // NewID generates a new API key ID with prefix
-func NewID() (ID, error) {
-	c, err := cuid.NewCrypto(rand.Reader)
-	if err != nil {
-		return "", err
-	}
-	return ID(IDPrefix + c), nil
+func NewID() ID {
+	return ID(IDPrefix + cuid2.Generate())
 }
 
 // ParseID validates and parses a string into an ID

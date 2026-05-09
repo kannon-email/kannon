@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/lucsky/cuid"
+	"github.com/nrednav/cuid2"
 )
 
 const IDPrefix = "msg_"
@@ -14,7 +14,7 @@ type ID string
 
 // NewID generates a new Batch ID for the given domain.
 func NewID(domain string) ID {
-	return ID(fmt.Sprintf("%s%s@%s", IDPrefix, cuid.New(), domain))
+	return ID(fmt.Sprintf("%s%s@%s", IDPrefix, cuid2.Generate(), domain))
 }
 
 // ParseID validates and parses a string into an ID.

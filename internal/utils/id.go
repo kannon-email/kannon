@@ -1,17 +1,11 @@
 package utils
 
 import (
-	"crypto/rand"
 	"fmt"
 
-	"github.com/lucsky/cuid"
+	"github.com/nrednav/cuid2"
 )
 
-func NewID(prefix string) (string, error) {
-	id, err := cuid.NewCrypto(rand.Reader)
-	if err != nil {
-		return "", err
-	}
-
-	return fmt.Sprintf("%v_%v", prefix, id), nil
+func NewID(prefix string) string {
+	return fmt.Sprintf("%v_%v", prefix, cuid2.Generate())
 }

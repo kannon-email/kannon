@@ -120,10 +120,7 @@ func NewAPIKey(domain, name string, expiresAt *time.Time) (*CreateResult, error)
 		return nil, err
 	}
 
-	id, err := NewID()
-	if err != nil {
-		return nil, err
-	}
+	id := NewID()
 
 	plaintext, err := generateKey()
 	if err != nil {
