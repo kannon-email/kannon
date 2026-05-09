@@ -176,7 +176,7 @@ func (q *Queries) GetSendingData(ctx context.Context, messageID string) (GetSend
 }
 
 const getSendingPoolsEmails = `-- name: GetSendingPoolsEmails :many
-SELECT id, scheduled_time, original_scheduled_time, send_attempts_cnt, email, message_id, fields, status, created_at, domain FROM sending_pool_emails WHERE message_id = $1 LIMIT $2 OFFSET $3
+SELECT id, scheduled_time, original_scheduled_time, send_attempts_cnt, email, message_id, fields, status, created_at, domain FROM sending_pool_emails WHERE message_id = $1 ORDER BY id LIMIT $2 OFFSET $3
 `
 
 type GetSendingPoolsEmailsParams struct {

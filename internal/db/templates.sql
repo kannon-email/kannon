@@ -19,7 +19,7 @@ DELETE FROM templates WHERE template_id = $1
 SELECT * FROM templates WHERE template_id = $1;
 
 -- name: GetTemplates :many
-SELECT * FROM templates WHERE domain = @domain AND type = 'template' LIMIT @take OFFSET @skip;
+SELECT * FROM templates WHERE domain = @domain AND type = 'template' ORDER BY id LIMIT @take OFFSET @skip;
 
 -- name: CountTemplates :one
 SELECT COUNT(*) FROM templates WHERE domain = @domain AND type = 'template';

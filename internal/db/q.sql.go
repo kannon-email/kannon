@@ -86,6 +86,7 @@ const getAllDomains = `-- name: GetAllDomains :many
 SELECT
     id, domain, created_at, dkim_private_key, dkim_public_key
 FROM domains
+ORDER BY id
 `
 
 func (q *Queries) GetAllDomains(ctx context.Context) ([]Domain, error) {
@@ -115,7 +116,7 @@ func (q *Queries) GetAllDomains(ctx context.Context) ([]Domain, error) {
 }
 
 const getDomains = `-- name: GetDomains :many
-SELECT id, domain, created_at, dkim_private_key, dkim_public_key FROM domains
+SELECT id, domain, created_at, dkim_private_key, dkim_public_key FROM domains ORDER BY id
 `
 
 func (q *Queries) GetDomains(ctx context.Context) ([]Domain, error) {

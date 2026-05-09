@@ -1,5 +1,5 @@
 -- name: GetDomains :many
-SELECT * FROM domains;
+SELECT * FROM domains ORDER BY id;
 
 -- name: FindDomain :one
 SELECT
@@ -12,6 +12,7 @@ FROM domains
 SELECT
     *
 FROM domains
+ORDER BY id
 ;
 
 -- name: CreateDomain :one

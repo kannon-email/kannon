@@ -41,7 +41,7 @@ SELECT * FROM  sending_pool_emails
 WHERE email = @email AND message_id = @message_id;
 
 -- name: GetSendingPoolsEmails :many
-SELECT * FROM sending_pool_emails WHERE message_id = $1 LIMIT $2 OFFSET $3;
+SELECT * FROM sending_pool_emails WHERE message_id = $1 ORDER BY id LIMIT $2 OFFSET $3;
 
 -- name: CreateMessage :one
 INSERT INTO messages

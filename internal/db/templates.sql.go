@@ -98,7 +98,7 @@ func (q *Queries) GetTemplate(ctx context.Context, templateID string) (Template,
 }
 
 const getTemplates = `-- name: GetTemplates :many
-SELECT id, template_id, html, domain, type, title, created_at, updated_at FROM templates WHERE domain = $1 AND type = 'template' LIMIT $3 OFFSET $2
+SELECT id, template_id, html, domain, type, title, created_at, updated_at FROM templates WHERE domain = $1 AND type = 'template' ORDER BY id LIMIT $3 OFFSET $2
 `
 
 type GetTemplatesParams struct {
