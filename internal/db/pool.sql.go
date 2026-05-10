@@ -222,6 +222,7 @@ UPDATE sending_pool_emails AS sp
     FROM (
             SELECT id FROM sending_pool_emails
             WHERE scheduled_time <= NOW() AND status = 'scheduled'
+            FOR UPDATE SKIP LOCKED
             LIMIT $1
         ) AS t
     WHERE sp.id = t.id
@@ -265,6 +266,7 @@ UPDATE sending_pool_emails AS sp
     FROM (
             SELECT id FROM sending_pool_emails
             WHERE status = 'to_validate'
+            FOR UPDATE SKIP LOCKED
             LIMIT $1
         ) AS t
     WHERE sp.id = t.id
