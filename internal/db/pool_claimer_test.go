@@ -17,9 +17,9 @@ func (h claimerTestHelper) CreateBatch(t *testing.T) (batch.ID, string) {
 	return seedBatchFixture(t)
 }
 
-func (h claimerTestHelper) Schedule(t *testing.T, d *delivery.Delivery) {
+func (h claimerTestHelper) Schedule(t *testing.T, ds ...*delivery.Delivery) {
 	t.Helper()
-	require.NoError(t, h.deliveries.Schedule(t.Context(), d))
+	require.NoError(t, h.deliveries.Schedule(t.Context(), ds...))
 }
 
 func TestPoolClaimer(t *testing.T) {

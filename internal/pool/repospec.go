@@ -1,6 +1,8 @@
 package pool
 
 import (
+	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -19,9 +21,10 @@ type ClaimerTestHelper interface {
 	// and returns the BatchID and Domain.
 	CreateBatch(t *testing.T) (batch.ID, string)
 
-	// Schedule seeds a fresh Delivery in the pool. The Claimer does not
-	// own initial scheduling — the harness must persist it directly.
-	Schedule(t *testing.T, d *delivery.Delivery)
+	// Schedule seeds one or more fresh Deliveries in the pool. The
+	// Claimer does not own initial scheduling — the harness must persist
+	// them directly.
+	Schedule(t *testing.T, ds ...*delivery.Delivery)
 }
 
 // RunClaimerSpec exercises any Claimer implementation against the
@@ -89,6 +92,59 @@ func RunClaimerSpec(t *testing.T, c Claimer, helper ClaimerTestHelper) {
 		batchID, domain := helper.CreateBatch(t)
 		_, err := c.Lookup(ctx, batchID, "missing@"+domain)
 		assert.ErrorIs(t, err, delivery.ErrDeliveryNotFound)
+	})
+
+	t.Run("ClaimForDispatch_NoDuplicatesUnderConcurrency", func(t *testing.T) {
+		ctx := t.Context()
+
+		const (
+			rounds  = 5
+			total   = 200
+			workers = 4
+		)
+		for round := 0; round < rounds; round++ {
+			batchID, domain := helper.CreateBatch(t)
+
+			ds := make([]*delivery.Delivery, total)
+			for i := range ds {
+				ds[i] = mustNewDelivery(t, batchID, domain, fmt.Sprintf("c%d@%s", i, domain))
+			}
+			helper.Schedule(t, ds...)
+			for _, d := range ds {
+				require.NoError(t, c.MarkValidated(ctx, d))
+			}
+
+			var (
+				wg      sync.WaitGroup
+				start   = make(chan struct{})
+				results = make([][]*delivery.Delivery, workers)
+				errs    = make([]error, workers)
+			)
+			for w := 0; w < workers; w++ {
+				wg.Add(1)
+				go func(idx int) {
+					defer wg.Done()
+					<-start
+					got, err := c.ClaimForDispatch(ctx, total)
+					results[idx] = got
+					errs[idx] = err
+				}(w)
+			}
+			close(start)
+			wg.Wait()
+
+			seen := make(map[string]int, total)
+			for w, got := range results {
+				require.NoError(t, errs[w])
+				for _, d := range got {
+					seen[d.BatchID().String()+"|"+d.Email()]++
+				}
+			}
+			for k, n := range seen {
+				assert.Equal(t, 1, n,
+					"round %d: delivery %s claimed %d times across concurrent dispatchers (must be 1)", round, k, n)
+			}
+		}
 	})
 }
 
