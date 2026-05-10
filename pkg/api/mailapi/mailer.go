@@ -73,6 +73,10 @@ func (s mailAPIService) SendTemplate(ctx context.Context, req *connect.Request[p
 }
 
 func (s mailAPIService) sendTemplate(ctx context.Context, domain *domains.Domain, req *connect.Request[pb.SendTemplateReq]) (*connect.Response[pb.SendRes], error) {
+	if err := assertHeaderSafe("subject", req.Msg.Subject); err != nil {
+		return nil, err
+	}
+
 	template, err := s.templates.FindByDomain(ctx, domain.Domain(), req.Msg.TemplateId)
 	if err != nil {
 		slog.Error("cannot find template", "err", err)
@@ -83,6 +87,10 @@ func (s mailAPIService) sendTemplate(ctx context.Context, domain *domains.Domain
 	if err != nil {
 		slog.Error("cannot create transient template", "err", err)
 		return nil, fmt.Errorf("cannot create template %w", err)
+	}
+
+	if err := validateSender(req.Msg.Sender, domain.Domain()); err != nil {
+		return nil, err
 	}
 
 	sender := batch.Sender{
@@ -218,6 +226,35 @@ func (s mailAPIService) getCallDomainFromHeaders(ctx context.Context, headers ht
 	}
 
 	return domain, nil
+}
+
+func validateSender(s *mailertypes.Sender, tenantDomain string) error {
+	if s == nil {
+		return connect.NewError(connect.CodeInvalidArgument, errors.New("sender is required"))
+	}
+	if err := assertHeaderSafe("sender alias", s.Alias); err != nil {
+		return err
+	}
+	fromDomain, err := smtputils.GetEmailDomain(s.Email)
+	if err != nil {
+		return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid sender email %q: %w", s.Email, err))
+	}
+	if fromDomain != tenantDomain {
+		return connect.NewError(connect.CodePermissionDenied,
+			fmt.Errorf("sender domain %q does not match authenticated tenant %q", fromDomain, tenantDomain))
+	}
+	return nil
+}
+
+// assertHeaderSafe rejects strings containing CR or LF, which would let an
+// attacker inject arbitrary SMTP headers when the value is interpolated into
+// a header line.
+func assertHeaderSafe(field, v string) error {
+	if strings.ContainsAny(v, "\r\n") {
+		return connect.NewError(connect.CodeInvalidArgument,
+			fmt.Errorf("%s contains forbidden CR/LF", field))
+	}
+	return nil
 }
 
 func validateHeaders(h *mailertypes.Headers) (batch.Headers, error) {

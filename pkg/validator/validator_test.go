@@ -110,7 +110,7 @@ func sendEmail(t *testing.T, domainWithKey *tests.DomainWithKey, email string) {
 
 	req := connect.NewRequest(&mailerapiv1.SendHTMLReq{
 		Sender: &mailertypes.Sender{
-			Email: "test@email.com",
+			Email: "test@" + domainWithKey.Domain.Domain,
 			Alias: "test",
 		},
 		Subject:       "Ciao",

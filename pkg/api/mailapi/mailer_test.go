@@ -14,6 +14,124 @@ import (
 	types "github.com/kannon-email/kannon/proto/kannon/mailer/types"
 )
 
+func TestSendMail_RejectsCrossDomainSender(t *testing.T) {
+	defer cleanDB(t)
+
+	d := createTestDomain(t)
+
+	req := connect.NewRequest(&mailerv1.SendHTMLReq{
+		Sender: &types.Sender{
+			Email: "ceo@other-tenant.com",
+			Alias: "CEO",
+		},
+		Recipients: []*types.Recipient{
+			{Email: "victim@example.com"},
+		},
+		Subject:       "Spoofed",
+		Html:          "<p>hi</p>",
+		ScheduledTime: timestamppb.Now(),
+	})
+	authRequest(req, d)
+
+	_, err := ts.SendHTML(t.Context(), req)
+	assert.NotNil(t, err)
+	assert.Equal(t, connect.CodePermissionDenied, connect.CodeOf(err))
+}
+
+func TestSendMail_RejectsCRLFInputs(t *testing.T) {
+	defer cleanDB(t)
+
+	d := createTestDomain(t)
+	good := "test@" + d.Domain.Domain
+
+	tests := []struct {
+		name   string
+		mutate func(req *mailerv1.SendHTMLReq)
+	}{
+		{
+			name: "CRLF in sender email",
+			mutate: func(req *mailerv1.SendHTMLReq) {
+				req.Sender.Email = "a@" + d.Domain.Domain + "\r\nBcc: evil@x.com"
+			},
+		},
+		{
+			name: "CRLF in sender alias",
+			mutate: func(req *mailerv1.SendHTMLReq) {
+				req.Sender.Alias = "Bob\r\nBcc: evil@x.com"
+			},
+		},
+		{
+			name: "CRLF in subject",
+			mutate: func(req *mailerv1.SendHTMLReq) {
+				req.Subject = "Hi\r\nBcc: evil@x.com"
+			},
+		},
+		{
+			name: "CRLF in custom To header",
+			mutate: func(req *mailerv1.SendHTMLReq) {
+				req.Headers = &types.Headers{
+					To: []string{"a@b.com\r\nBcc: evil@x.com"},
+				}
+			},
+		},
+		{
+			name: "CRLF in custom Cc header",
+			mutate: func(req *mailerv1.SendHTMLReq) {
+				req.Headers = &types.Headers{
+					Cc: []string{"a@b.com\r\nBcc: evil@x.com"},
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := connect.NewRequest(&mailerv1.SendHTMLReq{
+				Sender: &types.Sender{
+					Email: good,
+					Alias: "Test",
+				},
+				Recipients: []*types.Recipient{
+					{Email: "recipient@example.com"},
+				},
+				Subject:       "Test",
+				Html:          "<p>Hello</p>",
+				ScheduledTime: timestamppb.Now(),
+			})
+			tc.mutate(req.Msg)
+			authRequest(req, d)
+
+			_, err := ts.SendHTML(t.Context(), req)
+			assert.NotNil(t, err)
+			assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
+		})
+	}
+}
+
+func TestSendMail_AcceptsValidAliasWithApostrophe(t *testing.T) {
+	defer cleanDB(t)
+
+	d := createTestDomain(t)
+
+	req := connect.NewRequest(&mailerv1.SendHTMLReq{
+		Sender: &types.Sender{
+			Email: "test@" + d.Domain.Domain,
+			Alias: "O'Brien Mailing",
+		},
+		Recipients: []*types.Recipient{
+			{Email: "recipient@example.com"},
+		},
+		Subject:       "Test",
+		Html:          "<p>Hello</p>",
+		ScheduledTime: timestamppb.Now(),
+	})
+	authRequest(req, d)
+
+	res, err := ts.SendHTML(t.Context(), req)
+	assert.Nil(t, err)
+	assert.NotEmpty(t, res.Msg.MessageId)
+}
+
 func TestInsertMail(t *testing.T) {
 	defer cleanDB(t)
 
@@ -22,7 +140,7 @@ func TestInsertMail(t *testing.T) {
 	schedTime := time.Now().Add(10 * time.Minute).Truncate(1 * time.Second)
 	req := connect.NewRequest(&mailerv1.SendHTMLReq{
 		Sender: &types.Sender{
-			Email: "test@test.com",
+			Email: "test@" + d.Domain.Domain,
 			Alias: "Test",
 		},
 		Recipients: []*types.Recipient{
@@ -99,7 +217,7 @@ func TestSendMailWithInvalidHeaders(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			req := connect.NewRequest(&mailerv1.SendHTMLReq{
 				Sender: &types.Sender{
-					Email: "test@test.com",
+					Email: "test@" + d.Domain.Domain,
 					Alias: "Test",
 				},
 				Recipients: []*types.Recipient{
@@ -128,7 +246,7 @@ func TestSendMailSkipsRecipientsWithEmptyEmail(t *testing.T) {
 	schedTime := time.Now().Add(10 * time.Minute).Truncate(1 * time.Second)
 	req := connect.NewRequest(&mailerv1.SendHTMLReq{
 		Sender: &types.Sender{
-			Email: "test@test.com",
+			Email: "test@" + d.Domain.Domain,
 			Alias: "Test",
 		},
 		Recipients: []*types.Recipient{
@@ -168,7 +286,7 @@ func TestSendMailWithAllEmptyRecipientsSucceedsWithEmptyPool(t *testing.T) {
 
 	req := connect.NewRequest(&mailerv1.SendHTMLReq{
 		Sender: &types.Sender{
-			Email: "test@test.com",
+			Email: "test@" + d.Domain.Domain,
 			Alias: "Test",
 		},
 		Recipients: []*types.Recipient{
@@ -204,7 +322,7 @@ func TestSendMailWithGlobalFields(t *testing.T) {
 
 	req := connect.NewRequest(&mailerv1.SendHTMLReq{
 		Sender: &types.Sender{
-			Email: "test@test.com",
+			Email: "test@" + d.Domain.Domain,
 			Alias: "Test",
 		},
 		Subject:       "Test",
@@ -245,7 +363,7 @@ func TestSendTemplateWithGlobalFields(t *testing.T) {
 
 	req := connect.NewRequest(&mailerv1.SendTemplateReq{
 		Sender: &types.Sender{
-			Email: "test@test.com",
+			Email: "test@" + d.Domain.Domain,
 			Alias: "Test",
 		},
 		Subject:       "Test",

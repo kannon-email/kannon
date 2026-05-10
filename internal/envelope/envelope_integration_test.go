@@ -137,7 +137,7 @@ func TestPrepareMailWithAttachments(t *testing.T) {
 	assert.Nil(t, err)
 
 	req := connect.NewRequest(&mailerapiv1.SendHTMLReq{
-		Sender:        &pb.Sender{Email: "test@test.com", Alias: "Test"},
+		Sender:        &pb.Sender{Email: "test@test2.com", Alias: "Test"},
 		Subject:       "Test {{ name }}",
 		Html:          "test {{name }}",
 		ScheduledTime: timestamppb.Now(),
@@ -162,7 +162,7 @@ func TestPrepareMailWithAttachments(t *testing.T) {
 	assert.Nil(t, err)
 
 	assert.Equal(t, "test@emailtest.com", parsed.Header.Get("To"))
-	assert.Equal(t, "Test <test@test.com>", parsed.Header.Get("From"))
+	assert.Equal(t, "Test <test@test2.com>", parsed.Header.Get("From"))
 	assert.Equal(t, "multipart/mixed", strings.Split(parsed.Header.Get("Content-Type"), ";")[0])
 }
 
