@@ -38,6 +38,61 @@ func TestSendMail_RejectsCrossDomainSender(t *testing.T) {
 	assert.Equal(t, connect.CodePermissionDenied, connect.CodeOf(err))
 }
 
+func TestSendMail_AcceptsSenderFromParentDomain(t *testing.T) {
+	defer cleanDB(t)
+
+	d := createTestDomain(t)
+
+	// Test domains look like "<cuid>.example.com"; authenticated as that
+	// subdomain, the tenant must still be able to send from the parent
+	// "@example.com" address.
+	parent := d.Domain.Domain[strings.Index(d.Domain.Domain, ".")+1:]
+
+	req := connect.NewRequest(&mailerv1.SendHTMLReq{
+		Sender: &types.Sender{
+			Email: "ludovico@" + parent,
+			Alias: "Ludovico",
+		},
+		Recipients: []*types.Recipient{
+			{Email: "recipient@example.com"},
+		},
+		Subject:       "Test",
+		Html:          "<p>Hello</p>",
+		ScheduledTime: timestamppb.Now(),
+	})
+	authRequest(req, d)
+
+	res, err := ts.SendHTML(t.Context(), req)
+	assert.Nil(t, err)
+	assert.NotEmpty(t, res.Msg.MessageId)
+}
+
+func TestSendMail_RejectsLookalikeParentDomain(t *testing.T) {
+	defer cleanDB(t)
+
+	d := createTestDomain(t)
+
+	// Tenant is "<cuid>.example.com"; sending from "@notexample.com" must be
+	// rejected — the parent-domain relaxation must not match by raw substring.
+	req := connect.NewRequest(&mailerv1.SendHTMLReq{
+		Sender: &types.Sender{
+			Email: "evil@not" + d.Domain.Domain[strings.Index(d.Domain.Domain, ".")+1:],
+			Alias: "Evil",
+		},
+		Recipients: []*types.Recipient{
+			{Email: "victim@example.com"},
+		},
+		Subject:       "Spoofed",
+		Html:          "<p>hi</p>",
+		ScheduledTime: timestamppb.Now(),
+	})
+	authRequest(req, d)
+
+	_, err := ts.SendHTML(t.Context(), req)
+	assert.NotNil(t, err)
+	assert.Equal(t, connect.CodePermissionDenied, connect.CodeOf(err))
+}
+
 func TestSendMail_RejectsCRLFInputs(t *testing.T) {
 	defer cleanDB(t)
 

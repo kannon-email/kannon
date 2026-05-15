@@ -239,11 +239,27 @@ func validateSender(s *mailertypes.Sender, tenantDomain string) error {
 	if err != nil {
 		return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid sender email %q: %w", s.Email, err))
 	}
-	if fromDomain != tenantDomain {
+	if !senderDomainAllowed(fromDomain, tenantDomain) {
 		return connect.NewError(connect.CodePermissionDenied,
-			fmt.Errorf("sender domain %q does not match authenticated tenant %q", fromDomain, tenantDomain))
+			fmt.Errorf("sender domain %q is not authorized for tenant %q", fromDomain, tenantDomain))
 	}
 	return nil
+}
+
+// senderDomainAllowed reports whether a Sender.Email whose host is fromDomain
+// is permitted for a tenant authenticated as tenantDomain. The sender domain
+// is allowed when it equals the tenant domain or is a parent of it — e.g.
+// tenant "k.example.com" may legitimately send from "@example.com".
+func senderDomainAllowed(fromDomain, tenantDomain string) bool {
+	from := strings.ToLower(strings.TrimSuffix(fromDomain, "."))
+	tenant := strings.ToLower(strings.TrimSuffix(tenantDomain, "."))
+	if from == "" || tenant == "" {
+		return false
+	}
+	if from == tenant {
+		return true
+	}
+	return strings.HasSuffix(tenant, "."+from)
 }
 
 // assertHeaderSafe rejects strings containing CR or LF, which would let an
