@@ -148,10 +148,7 @@ func testSingleRecipientEmail(t *testing.T, clientFactory *clientFactory, sender
 
 	testEmail := tests.FakeEmail(t)
 	sendReq := &mailerapiv1.SendHTMLReq{
-		Sender: &mailertypes.Sender{
-			Email: "sender@test.example.com",
-			Alias: "Test Sender",
-		},
+		Sender: client.Sender(),
 		Recipients: []*mailertypes.Recipient{
 			{
 				Email: testEmail,
@@ -173,7 +170,7 @@ func testSingleRecipientEmail(t *testing.T, clientFactory *clientFactory, sender
 	t.Run("EmailContent", func(t *testing.T) {
 		assert.Contains(t, msg.Body, "Hello Test User!")
 		assert.Contains(t, msg.Body, "This is a test email from Test Corp.")
-		assert.Equal(t, "Test Sender <sender@test.example.com>", msg.From)
+		assert.Equal(t, client.SenderFrom(), msg.From)
 		assert.Equal(t, testEmail, msg.To)
 		assert.Equal(t, "Test Email from E2E Test", msg.Subject)
 	})
@@ -212,10 +209,7 @@ func testMultipleRecipientsEmail(t *testing.T, clientFactory *clientFactory, smt
 	}
 
 	sendReq := &mailerapiv1.SendHTMLReq{
-		Sender: &mailertypes.Sender{
-			Email: "sender@test.example.com",
-			Alias: "Test Sender",
-		},
+		Sender:        client.Sender(),
 		Recipients:    recipients,
 		Subject:       "Bulk Email Test - {{name}}",
 		Html:          "<h1>Hello {{name}}!</h1><p>Your ID is: {{id}}</p>",
@@ -230,7 +224,7 @@ func testMultipleRecipientsEmail(t *testing.T, clientFactory *clientFactory, smt
 			msg := requireGetEmail(t, smtpServer, email)
 			assert.Contains(t, msg.Body, fmt.Sprintf("Hello Test User %d", id+1))
 			assert.Contains(t, msg.Body, fmt.Sprintf("Your ID is: ID-%d", id+1))
-			assert.Equal(t, "Test Sender <sender@test.example.com>", msg.From)
+			assert.Equal(t, client.SenderFrom(), msg.From)
 			assert.Equal(t, email, msg.To)
 			assert.Equal(t, fmt.Sprintf("Bulk Email Test - Test User %d", id+1), msg.Subject)
 		})
@@ -249,17 +243,14 @@ func testMassiveSend(t *testing.T, clientFactory *clientFactory, infra *TestInfr
 
 	recipients := make([]*mailertypes.Recipient, numRecipients)
 
-	for i := 0; i < numRecipients; i++ {
+	for i := range recipients {
 		recipients[i] = &mailertypes.Recipient{
 			Email: tests.FakeEmail(t),
 		}
 	}
 
 	sendReq := &mailerapiv1.SendHTMLReq{
-		Sender: &mailertypes.Sender{
-			Email: "sender@test.example.com",
-			Alias: "Test Sender",
-		},
+		Sender:        client.Sender(),
 		Recipients:    recipients,
 		Subject:       "Bulk Email Test - {{name}}",
 		Html:          "<h1>Hello {{name}}!</h1><p>Your ID is: {{id}}</p>",
@@ -283,10 +274,7 @@ func testEmailWithAttachments(t *testing.T, clientFactory *clientFactory, smtpSe
 	email := tests.FakeEmail(t)
 
 	sendReq := &mailerapiv1.SendHTMLReq{
-		Sender: &mailertypes.Sender{
-			Email: "sender@test.example.com",
-			Alias: "Test Sender",
-		},
+		Sender: client.Sender(),
 		Recipients: []*mailertypes.Recipient{
 			{
 				Email: email,
@@ -329,10 +317,7 @@ func testEmailWithHeaders(t *testing.T, clientFactory *clientFactory, senderMock
 
 	testEmail := tests.FakeEmail(t)
 	sendReq := &mailerapiv1.SendHTMLReq{
-		Sender: &mailertypes.Sender{
-			Email: "sender@test.example.com",
-			Alias: "Test Sender",
-		},
+		Sender: client.Sender(),
 		Recipients: []*mailertypes.Recipient{
 			{
 				Email: testEmail,
@@ -359,7 +344,7 @@ func testEmailWithHeaders(t *testing.T, clientFactory *clientFactory, senderMock
 	t.Run("EmailContent", func(t *testing.T) {
 		assert.Contains(t, msg.Body, "Hello Test User!")
 		assert.Contains(t, msg.Body, "This is a test email from Test Corp.")
-		assert.Equal(t, "Test Sender <sender@test.example.com>", msg.From)
+		assert.Equal(t, client.SenderFrom(), msg.From)
 		// The visible To header should be the control header value, not the actual recipient
 		assert.Equal(t, "visible-to@example.com", msg.To)
 		// The Cc header should contain the control header cc values
@@ -419,10 +404,7 @@ func testAggregatedStats(t *testing.T, clientFactory *clientFactory, _ *senderMo
 
 	testEmail := tests.FakeEmail(t)
 	sendReq := &mailerapiv1.SendHTMLReq{
-		Sender: &mailertypes.Sender{
-			Email: "sender@test.example.com",
-			Alias: "Test Sender",
-		},
+		Sender: client.Sender(),
 		Recipients: []*mailertypes.Recipient{
 			{
 				Email: testEmail,
@@ -486,10 +468,7 @@ func testPermanentBounce(t *testing.T, clientFactory *clientFactory, senderMock 
 	to := fmt.Sprintf("bounce.%s@%s", tests.FakeUsername(t), client.domain)
 
 	sendReq := &mailerapiv1.SendHTMLReq{
-		Sender: &mailertypes.Sender{
-			Email: "sender@test.example.com",
-			Alias: "Test Sender",
-		},
+		Sender: client.Sender(),
 		Recipients: []*mailertypes.Recipient{
 			{Email: to},
 		},
@@ -522,10 +501,7 @@ func testTransientThenDeliver(t *testing.T, clientFactory *clientFactory, sender
 	to := fmt.Sprintf("transient.x%d.%s@%s", transientFailures, tests.FakeUsername(t), client.domain)
 
 	sendReq := &mailerapiv1.SendHTMLReq{
-		Sender: &mailertypes.Sender{
-			Email: "sender@test.example.com",
-			Alias: "Test Sender",
-		},
+		Sender: client.Sender(),
 		Recipients: []*mailertypes.Recipient{
 			{Email: to},
 		},
@@ -586,10 +562,7 @@ func testOpened(t *testing.T, clientFactory *clientFactory, senderMock *senderMo
 
 	to := tests.FakeEmail(t)
 	sendReq := &mailerapiv1.SendHTMLReq{
-		Sender: &mailertypes.Sender{
-			Email: "sender@test.example.com",
-			Alias: "Test Sender",
-		},
+		Sender: client.Sender(),
 		Recipients: []*mailertypes.Recipient{
 			{Email: to},
 		},
@@ -622,10 +595,7 @@ func testClicked(t *testing.T, clientFactory *clientFactory, senderMock *senderM
 	const landingURL = "https://example.com/landing"
 	to := tests.FakeEmail(t)
 	sendReq := &mailerapiv1.SendHTMLReq{
-		Sender: &mailertypes.Sender{
-			Email: "sender@test.example.com",
-			Alias: "Test Sender",
-		},
+		Sender: client.Sender(),
 		Recipients: []*mailertypes.Recipient{
 			{Email: to},
 		},

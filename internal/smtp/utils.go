@@ -6,11 +6,11 @@ import (
 	"strings"
 )
 
+var emailValidator = regexp.MustCompile(`^[^@ \t\r\n]+@[^@ \t\r\n]+\.[^@ \t\r\n]{2,}$`)
+
 // Validate if email address is formally correct
 func Validate(addr string) bool {
-	emailValidator := regexp.MustCompile(`[^@ \t\r\n]+@[^@ \t\r\n]+\.[^@ \t\r\n]{2,}`)
-	valid := emailValidator.MatchString(addr)
-	return valid
+	return emailValidator.MatchString(addr)
 }
 
 // GetEmailDomain extracts domain host from a given email address
