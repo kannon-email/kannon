@@ -39,7 +39,7 @@ func TestE2EEmailSending(t *testing.T) {
 	}
 
 	infra, err := setupTestInfrastructure(t.Context())
-	defer infra.Cleanup()
+	t.Cleanup(infra.Cleanup)
 	if err != nil {
 		t.Fatalf("Failed to setup test infrastructure: %v", err)
 	}
@@ -56,46 +56,54 @@ func TestE2EEmailSending(t *testing.T) {
 	waitHZ(t, factory, infra)
 
 	t.Run("SingleRecipientEmail", func(t *testing.T) {
+		t.Parallel()
 		testSingleRecipientEmail(t, factory, senderMock, infra)
 	})
 
 	t.Run("MultipleRecipientsEmail", func(t *testing.T) {
+		t.Parallel()
 		testMultipleRecipientsEmail(t, factory, senderMock, infra)
 	})
 
 	t.Run("MassiveSend", func(t *testing.T) {
+		t.Parallel()
 		testMassiveSend(t, factory, infra)
 	})
 
 	t.Run("EmailWithAttachments", func(t *testing.T) {
+		t.Parallel()
 		testEmailWithAttachments(t, factory, senderMock, infra)
 	})
 
 	t.Run("EmailWithHeaders", func(t *testing.T) {
+		t.Parallel()
 		testEmailWithHeaders(t, factory, senderMock, infra)
 	})
 
 	t.Run("AggregatedStats", func(t *testing.T) {
+		t.Parallel()
 		testAggregatedStats(t, factory, senderMock, infra)
 	})
 
 	t.Run("PermanentBounce", func(t *testing.T) {
+		t.Parallel()
 		testPermanentBounce(t, factory, senderMock, infra)
 	})
 
 	t.Run("TransientThenDeliver", func(t *testing.T) {
+		t.Parallel()
 		testTransientThenDeliver(t, factory, senderMock, infra)
 	})
 
 	t.Run("Opened", func(t *testing.T) {
+		t.Parallel()
 		testOpened(t, factory, senderMock, infra)
 	})
 
 	t.Run("Clicked", func(t *testing.T) {
+		t.Parallel()
 		testClicked(t, factory, senderMock, infra)
 	})
-
-	t.Log("🎉 E2E email sending test completed successfully!")
 }
 
 func runKannon(t *testing.T, infra *TestInfrastructure, senderMock *senderMock) {
@@ -133,7 +141,10 @@ func runKannon(t *testing.T, infra *TestInfrastructure, senderMock *senderMock) 
 	// Custom SMTPSender wired against the test sender mock; the package's
 	// New(c) builds a real SMTP sender from the container, which the e2e
 	// suite can't use because it asserts on the captured payloads.
-	sender := smtpsender.NewSMTPSender(cnt.NatsPublisher(), cnt.NatsJetStream(), senderMock, smtpsender.Config{MaxJobs: 5})
+	// MaxJobs sized for the parallel subtest burst: the suite ships ~120+
+	// messages concurrently (mostly from MassiveSend), and a too-small
+	// worker pool blows the per-subtest EventuallyWithT windows.
+	sender := smtpsender.NewSMTPSender(cnt.NatsPublisher(), cnt.NatsJetStream(), senderMock, smtpsender.Config{MaxJobs: 50})
 	reg.Register(container.Runnable{Name: "smtpsender", Run: sender.Run})
 
 	go func() {
@@ -182,7 +193,7 @@ func testSingleRecipientEmail(t *testing.T, clientFactory *clientFactory, sender
 
 		require.EqualValues(tt, testEmail, stats.Stats[0].Email)
 		require.Equal(tt, testEmail, stats.Stats[1].Email)
-	}, 10*time.Second, 1*time.Second, "Stats should be available within 60 seconds")
+	}, 30*time.Second, 1*time.Second, "Stats should be available within 60 seconds")
 }
 
 // testMultipleRecipientsEmail tests sending to multiple recipients
@@ -233,7 +244,7 @@ func testMultipleRecipientsEmail(t *testing.T, clientFactory *clientFactory, smt
 	assert.EventuallyWithT(t, func(tt *assert.CollectT) {
 		stats := client.GetStats(t)
 		require.EqualValues(tt, 6, stats.Total)
-	}, 10*time.Second, 1*time.Second, "Stats should be available within 60 seconds")
+	}, 30*time.Second, 1*time.Second, "Stats should be available within 60 seconds")
 }
 
 func testMassiveSend(t *testing.T, clientFactory *clientFactory, infra *TestInfrastructure) {
@@ -262,7 +273,7 @@ func testMassiveSend(t *testing.T, clientFactory *clientFactory, infra *TestInfr
 	assert.EventuallyWithT(t, func(tt *assert.CollectT) {
 		stats := client.GetStats(t)
 		require.EqualValues(tt, 2*numRecipients, stats.Total)
-	}, 10*time.Second, 1*time.Second, "Stats should be available within 60 seconds")
+	}, 30*time.Second, 1*time.Second, "Stats should be available within 60 seconds")
 }
 
 // testEmailWithAttachments tests sending emails with attachments
@@ -359,7 +370,7 @@ func testEmailWithHeaders(t *testing.T, clientFactory *clientFactory, senderMock
 
 		require.EqualValues(tt, testEmail, stats.Stats[0].Email)
 		require.Equal(tt, testEmail, stats.Stats[1].Email)
-	}, 10*time.Second, 1*time.Second, "Stats should be available within 60 seconds")
+	}, 30*time.Second, 1*time.Second, "Stats should be available within 60 seconds")
 }
 
 func waitHZ(t *testing.T, clientFactory *clientFactory, infra *TestInfrastructure) {
@@ -421,7 +432,7 @@ func testAggregatedStats(t *testing.T, clientFactory *clientFactory, _ *senderMo
 	assert.EventuallyWithT(t, func(tt *assert.CollectT) {
 		stats := client.GetStats(t)
 		require.EqualValues(tt, 2, stats.Total)
-	}, 10*time.Second, 1*time.Second, "Raw stats should be available")
+	}, 30*time.Second, 1*time.Second, "Raw stats should be available")
 
 	// Then check aggregated stats
 	assert.EventuallyWithT(t, func(tt *assert.CollectT) {
@@ -435,7 +446,7 @@ func testAggregatedStats(t *testing.T, clientFactory *clientFactory, _ *senderMo
 
 		require.Greater(tt, typeMap["accepted"], int64(0))
 		require.Greater(tt, typeMap["delivered"], int64(0))
-	}, 10*time.Second, 1*time.Second, "Aggregated stats should be available")
+	}, 30*time.Second, 1*time.Second, "Aggregated stats should be available")
 }
 
 // requireStat polls the Stats API until at least `count` events of
