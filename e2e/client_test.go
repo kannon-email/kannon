@@ -13,6 +13,7 @@ import (
 	adminv1connect "github.com/kannon-email/kannon/proto/kannon/admin/apiv1/apiv1connect"
 	mailerapiv1 "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1"
 	mailerv1connect "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1/apiv1connect"
+	mailertypes "github.com/kannon-email/kannon/proto/kannon/mailer/types"
 	statsapiv1 "github.com/kannon-email/kannon/proto/kannon/stats/apiv1"
 	statsv1connect "github.com/kannon-email/kannon/proto/kannon/stats/apiv1/apiv1connect"
 	statsapiv2 "github.com/kannon-email/kannon/proto/kannon/stats/apiv2"
@@ -20,6 +21,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+const defaultSenderAlias = "Test Sender"
 
 type clientTest struct {
 	mailerClient  mailerv1connect.MailerClient
@@ -29,6 +32,22 @@ type clientTest struct {
 	statsV2Client statsv2connect.StatsApiV2Client
 	authToken     string
 	domain        string
+}
+
+// Sender returns the default sender for the client's domain. Tests
+// compose this into SendHTMLReq.Sender so the local-part stays
+// consistent with what SenderFrom asserts on the receiving end.
+func (c *clientTest) Sender() *mailertypes.Sender {
+	return &mailertypes.Sender{
+		Email: "sender@" + c.domain,
+		Alias: defaultSenderAlias,
+	}
+}
+
+// SenderFrom returns the RFC-5322 "Alias <addr>" rendering of Sender(),
+// matching what the SMTP layer puts in the From header.
+func (c *clientTest) SenderFrom() string {
+	return fmt.Sprintf("%s <sender@%s>", defaultSenderAlias, c.domain)
 }
 
 func (c *clientTest) SendEmail(t *testing.T, email *mailerapiv1.SendHTMLReq) {
