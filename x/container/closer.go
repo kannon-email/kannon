@@ -35,7 +35,7 @@ func (c *Container) CloseWithTimeout(timeout time.Duration) error {
 	}
 
 	var errs []error
-	for i := 0; i < len(closers); i++ {
+	for range closers {
 		select {
 		case err := <-errCh:
 			if err != nil {

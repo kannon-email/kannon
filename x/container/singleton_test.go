@@ -83,7 +83,7 @@ func TestSingleton_ConcurrentAccess(t *testing.T) {
 	results := make(chan string, numGoroutines)
 
 	// Start multiple goroutines trying to initialize concurrently
-	for i := 0; i < numGoroutines; i++ {
+	for range numGoroutines {
 		go func() {
 			result := s.MustGet(ctx, initFunc)
 			results <- result
@@ -91,7 +91,7 @@ func TestSingleton_ConcurrentAccess(t *testing.T) {
 	}
 
 	// Collect all results
-	for i := 0; i < numGoroutines; i++ {
+	for range numGoroutines {
 		result := <-results
 		if result != initialized {
 			t.Errorf("Expected %q, got %s", initialized, result)

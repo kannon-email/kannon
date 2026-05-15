@@ -58,7 +58,7 @@ func TestQueryStats_Pagination(t *testing.T) {
 	base := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	tr := stats.TimeRange{Start: base.Add(-time.Hour), Stop: base.Add(time.Hour)}
 
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		s := stats.NewStat("user@example.com", "msg-1", "example.com", base.Add(time.Duration(i)*time.Minute), &types.StatsData{
 			Data: &types.StatsData_Delivered{},
 		})
@@ -255,7 +255,7 @@ func TestIncrementAggregatedStat(t *testing.T) {
 	ts := time.Date(2026, 1, 15, 14, 30, 0, 0, time.UTC)
 
 	// Increment the same domain/day/type 3 times.
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		if err := svc.IncrementAggregatedStat(ctx, "example.com", ts, stats.TypeDelivered); err != nil {
 			t.Fatalf("IncrementAggregatedStat: %v", err)
 		}

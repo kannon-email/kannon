@@ -3,6 +3,7 @@ linters:
   default: none
   enable:
     - bodyclose
+    - copyloopvar
     - dogsled
     - dupl
     - errcheck
@@ -12,6 +13,7 @@ linters:
     - goprintffuncname
     - govet
     - ineffassign
+    - intrange
     - misspell
     - nolintlint
     - perfsprint
@@ -20,6 +22,7 @@ linters:
     - unconvert
     - unparam
     - unused
+    - usestdlibvars
     - whitespace
   settings:
     dupl:

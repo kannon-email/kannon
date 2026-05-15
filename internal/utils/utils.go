@@ -12,7 +12,7 @@ import (
 func MustGetPullSubscriber(ctx context.Context, js jetstream.JetStream, stream string, subj string, durable string) jetstream.Consumer {
 	var lastErr error
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		conn, err := js.CreateOrUpdateConsumer(ctx, stream, jetstream.ConsumerConfig{
 			Name:          durable,
 			Durable:       durable,
