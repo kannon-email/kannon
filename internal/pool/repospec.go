@@ -102,7 +102,7 @@ func RunClaimerSpec(t *testing.T, c Claimer, helper ClaimerTestHelper) {
 			total   = 200
 			workers = 4
 		)
-		for round := 0; round < rounds; round++ {
+		for round := range rounds {
 			batchID, domain := helper.CreateBatch(t)
 
 			ds := make([]*delivery.Delivery, total)
@@ -120,7 +120,7 @@ func RunClaimerSpec(t *testing.T, c Claimer, helper ClaimerTestHelper) {
 				results = make([][]*delivery.Delivery, workers)
 				errs    = make([]error, workers)
 			)
-			for w := 0; w < workers; w++ {
+			for w := range workers {
 				wg.Add(1)
 				go func(idx int) {
 					defer wg.Done()

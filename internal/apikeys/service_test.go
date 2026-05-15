@@ -107,7 +107,7 @@ func TestService_ListKeys(t *testing.T) {
 		domain := testDomain
 
 		// Create 3 keys
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			_, err := service.CreateKey(ctx, domain, "test-key", nil)
 			require.NoError(t, err)
 		}
@@ -126,7 +126,7 @@ func TestService_ListKeys(t *testing.T) {
 		domain := testDomain
 
 		// Create 2 active keys
-		for i := 0; i < 2; i++ {
+		for range 2 {
 			_, err := service.CreateKey(ctx, domain, "active-key", nil)
 			require.NoError(t, err)
 		}
@@ -163,7 +163,7 @@ func TestService_ListKeys(t *testing.T) {
 		domain := testDomain
 
 		// Create 5 keys
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			_, err := service.CreateKey(ctx, domain, "test-key", nil)
 			require.NoError(t, err)
 		}
