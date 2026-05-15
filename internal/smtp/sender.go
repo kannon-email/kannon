@@ -77,6 +77,10 @@ func (s *sender) Send(from, to string, msg []byte) SenderError {
 		return lerr
 	}
 
+	if len(mxs) == 0 {
+		return newSMTPError(errors.New("recipient domain has null MX"), true, 550)
+	}
+
 	var lastErr *smtpError
 	for _, mx := range mxs {
 		err := deliver(from, to, msg, mx, false, s.Hostname)
