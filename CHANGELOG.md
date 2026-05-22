@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.5.1](https://github.com/kannon-email/kannon/compare/v0.5.0...v0.5.1) (2026-05-22)
+
+
+### Bug Fixes
+
+* **dispatcher:** stop Nak-redelivery hot loop on permanent stat errors ([#396](https://github.com/kannon-email/kannon/issues/396)) ([98c5cd0](https://github.com/kannon-email/kannon/commit/98c5cd03ac5c6c87aae458048a971356d14b7e3e))
+* **pool:** race-safe claims with FOR UPDATE SKIP LOCKED ([#384](https://github.com/kannon-email/kannon/issues/384)) ([6734790](https://github.com/kannon-email/kannon/commit/673479008a8f3ef975f9c1dfd823d9eefd2c71a6)), closes [#374](https://github.com/kannon-email/kannon/issues/374)
+* **security:** tenant isolation in mailer API ([#386](https://github.com/kannon-email/kannon/issues/386)) ([bf63ee1](https://github.com/kannon-email/kannon/commit/bf63ee1c3248bdb440947392f4e852f9715e47fb))
+* **smtp:** guard null-MX domain in Send to avoid nil panic ([#379](https://github.com/kannon-email/kannon/issues/379)) ([#387](https://github.com/kannon-email/kannon/issues/387)) ([cd39628](https://github.com/kannon-email/kannon/commit/cd39628e8a2d7183e3a4ccde4573502339691674))
+
 ## [0.5.0](https://github.com/kannon-email/kannon/compare/v0.4.1...v0.5.0) (2026-05-09)
 
 
