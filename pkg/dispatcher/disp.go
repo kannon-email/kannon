@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/kannon-email/kannon/internal/batch"
+	"github.com/kannon-email/kannon/internal/delivery"
 	"github.com/kannon-email/kannon/internal/envelope"
 	"github.com/kannon-email/kannon/internal/pool"
 	"github.com/kannon-email/kannon/internal/publisher"
@@ -143,15 +144,31 @@ func (d *disp) handleMsg(ctx context.Context, sbj, subName string, parse parseFu
 	return ctx.Err()
 }
 
+// nakDelay is the redelivery delay applied to transient stat-processing
+// failures. Bare msg.Nak() triggers *instant* redelivery on the JetStream
+// server, which turns any permanent error (e.g. lookup of an already-cleaned
+// delivery) into a tight hot loop that pins a CPU. A delay caps the
+// re-attempt rate even if MaxDeliver is misconfigured upstream.
+const nakDelay = 5 * time.Second
+
 func (d *disp) handleWithAck(ctx context.Context, msg jetstream.Msg, f func(ctx context.Context, msg jetstream.Msg) error) {
 	err := f(ctx, msg)
-	if err != nil {
-		if err := msg.Nak(); err != nil {
-			d.log().Error("Cannot nak msg to nats", "err", err)
-		}
-	} else {
+	switch {
+	case err == nil:
 		if err := msg.Ack(); err != nil {
-			d.log().Error("Cannot hack msg to nats", "err", err)
+			d.log().Error("Cannot ack msg to nats", "err", err)
+		}
+	case errors.Is(err, delivery.ErrDeliveryNotFound):
+		// Permanent: the delivery row is gone from the pool, so no amount of
+		// redelivery will make Lookup succeed. Term the stat to keep the
+		// consumer from spinning.
+		d.log().Debug("dropping stat for unknown delivery", "err", err)
+		if err := msg.Term(); err != nil {
+			d.log().Error("Cannot term msg to nats", "err", err)
+		}
+	default:
+		if err := msg.NakWithDelay(nakDelay); err != nil {
+			d.log().Error("Cannot nak msg to nats", "err", err)
 		}
 	}
 }
