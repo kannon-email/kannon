@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -93,6 +94,11 @@ func TestE2EEmailSending(t *testing.T) {
 	t.Run("TransientThenDeliver", func(t *testing.T) {
 		t.Parallel()
 		testTransientThenDeliver(t, factory, senderMock, infra)
+	})
+
+	t.Run("DispatchFailureRecovery", func(t *testing.T) {
+		t.Parallel()
+		testDispatchFailureRecovery(t, factory, senderMock, infra)
 	})
 
 	t.Run("Opened", func(t *testing.T) {
@@ -541,6 +547,78 @@ func testTransientThenDeliver(t *testing.T, clientFactory *clientFactory, sender
 
 	assert.Len(t, senderMock.History(to), transientFailures+1,
 		"senderMock should have observed %d transient attempts plus one success", transientFailures)
+}
+
+// testDispatchFailureRecovery reproduces the failure mode of #400 through
+// the whole stack: a Delivery whose Envelope build fails after the claim
+// must be handed back to the pool (NOT stranded in Pool status 'sending')
+// and must be delivered once the failure clears.
+//
+// The build failure is injected with reversible SQL surgery: renaming the
+// Batch's template makes GetSendingData's messages×templates join come up
+// empty, so the real Dispatcher's Build genuinely errors; renaming it back
+// heals the path. Before the fix this test stalls at the anti-stranding
+// assertion: the Delivery sits in 'sending' with zero attempts forever.
+func testDispatchFailureRecovery(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
+	client := clientFactory.NewClient(t, infra)
+
+	db, err := pgxpool.New(t.Context(), infra.dbURL)
+	require.NoError(t, err)
+	t.Cleanup(db.Close)
+
+	to := fmt.Sprintf("recovery.%s@%s", tests.FakeUsername(t), client.domain)
+
+	// Schedule slightly in the future: the gap is the window for breaking
+	// the template BEFORE the Dispatcher can claim the Delivery. The
+	// Validator ignores scheduled_time, so validation still happens now.
+	sendReq := &mailerapiv1.SendHTMLReq{
+		Sender:        client.Sender(),
+		Recipients:    []*mailertypes.Recipient{{Email: to}},
+		Subject:       "Dispatch Failure Recovery Test",
+		Html:          "<h1>Hello!</h1>",
+		ScheduledTime: timestamppb.New(time.Now().Add(3 * time.Second)),
+	}
+	msgID := client.SendEmail(t, sendReq)
+
+	var templateID string
+	require.NoError(t, db.QueryRow(t.Context(),
+		`SELECT template_id FROM messages WHERE message_id = $1`, msgID).Scan(&templateID))
+	_, err = db.Exec(t.Context(),
+		`UPDATE templates SET template_id = $1 WHERE template_id = $2`, templateID+".broken", templateID)
+	require.NoError(t, err)
+
+	// The #400 anti-stranding assertion: the claimed-then-failed Delivery
+	// must come back to 'scheduled' with a bumped attempt counter instead
+	// of dying silently in 'sending'.
+	require.EventuallyWithT(t, func(tt *assert.CollectT) {
+		var status string
+		var attempts int
+		require.NoError(tt, db.QueryRow(t.Context(),
+			`SELECT status, send_attempts_cnt FROM sending_pool_emails WHERE message_id = $1 AND email = $2`,
+			msgID, to).Scan(&status, &attempts))
+		require.GreaterOrEqual(tt, attempts, 1, "the failed dispatch must bump the attempt counter")
+		require.Equal(tt, "scheduled", status, "the failed Delivery must be handed back to the pool")
+	}, 30*time.Second, 100*time.Millisecond,
+		"Delivery must be rescheduled after a dispatch failure, not stranded in 'sending'")
+
+	// Heal the template; the next dispatch cycles must pick the Delivery
+	// up again and the email must actually go out.
+	_, err = db.Exec(t.Context(),
+		`UPDATE templates SET template_id = $1 WHERE template_id = $2`, templateID, templateID+".broken")
+	require.NoError(t, err)
+
+	msg := requireGetEmail(t, senderMock, to)
+	assert.Equal(t, "Dispatch Failure Recovery Test", msg.Subject)
+
+	requireStat(t, client, to, "delivered", 1)
+
+	// Terminal outcome: the Delivery leaves the Pool entirely.
+	require.EventuallyWithT(t, func(tt *assert.CollectT) {
+		var n int
+		require.NoError(tt, db.QueryRow(t.Context(),
+			`SELECT count(*) FROM sending_pool_emails WHERE message_id = $1`, msgID).Scan(&n))
+		require.Zero(tt, n, "delivered Deliveries must be cleaned from the pool")
+	}, 30*time.Second, 500*time.Millisecond, "pool must drain for the batch")
 }
 
 // openTokenRe extracts the JWT-style token from a `/o/<token>` tracking

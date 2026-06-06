@@ -94,6 +94,45 @@ func RunClaimerSpec(t *testing.T, c Claimer, helper ClaimerTestHelper) {
 		assert.ErrorIs(t, err, delivery.ErrDeliveryNotFound)
 	})
 
+	t.Run("ClaimForDispatch_RespectsMax", func(t *testing.T) {
+		ctx := t.Context()
+		batchID, domain := helper.CreateBatch(t)
+
+		const (
+			eligible = 50
+			max      = 20
+		)
+		ds := make([]*delivery.Delivery, eligible)
+		for i := range ds {
+			ds[i] = mustNewDelivery(t, batchID, domain, fmt.Sprintf("m%d@%s", i, domain))
+		}
+		helper.Schedule(t, ds...)
+		for _, d := range ds {
+			require.NoError(t, c.MarkValidated(ctx, d))
+		}
+
+		got, err := c.ClaimForDispatch(ctx, max)
+		require.NoError(t, err)
+
+		// The core invariant: a single claim must never hand back more than
+		// max deliveries, no matter how many are eligible. (Hypothesis under
+		// test: a runaway claim returning the whole due backlog at once.)
+		assert.LessOrEqual(t, len(got), max,
+			"ClaimForDispatch returned %d deliveries with %d eligible — must be capped at max=%d",
+			len(got), eligible, max)
+		assert.Len(t, got, max,
+			"with %d eligible deliveries a claim of max=%d should fill exactly one page", eligible, max)
+
+		// And no delivery appears twice within the same claim.
+		seen := make(map[string]int, len(got))
+		for _, d := range got {
+			seen[d.BatchID().String()+"|"+d.Email()]++
+		}
+		for k, n := range seen {
+			assert.Equal(t, 1, n, "delivery %s returned %d times within a single claim (must be 1)", k, n)
+		}
+	})
+
 	t.Run("ClaimForDispatch_NoDuplicatesUnderConcurrency", func(t *testing.T) {
 		ctx := t.Context()
 

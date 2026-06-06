@@ -50,7 +50,9 @@ func (c *clientTest) SenderFrom() string {
 	return fmt.Sprintf("%s <sender@%s>", defaultSenderAlias, c.domain)
 }
 
-func (c *clientTest) SendEmail(t *testing.T, email *mailerapiv1.SendHTMLReq) {
+// SendEmail submits the request and returns the Batch id (message_id) so
+// callers can correlate pool/stats state for their own Batch.
+func (c *clientTest) SendEmail(t *testing.T, email *mailerapiv1.SendHTMLReq) string {
 	sendReq := connect.NewRequest(email)
 	sendReq.Header().Set("Authorization", "Basic "+c.authToken)
 
@@ -59,6 +61,7 @@ func (c *clientTest) SendEmail(t *testing.T, email *mailerapiv1.SendHTMLReq) {
 	require.NotNil(t, sendResp.Msg)
 
 	t.Logf("✅ Email queued with message ID: %s", sendResp.Msg.MessageId)
+	return sendResp.Msg.MessageId
 }
 
 func (f *clientTest) GetAggregatedStats(t *testing.T) *statsapiv2.GetAggregatedStatsRes {
