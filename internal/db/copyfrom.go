@@ -36,6 +36,7 @@ func (r iteratorForCreatePool) Values() ([]interface{}, error) {
 		r.rows[0].MessageID,
 		r.rows[0].Fields,
 		r.rows[0].Domain,
+		r.rows[0].Tracking,
 	}, nil
 }
 
@@ -44,5 +45,5 @@ func (r iteratorForCreatePool) Err() error {
 }
 
 func (q *Queries) CreatePool(ctx context.Context, arg []CreatePoolParams) (int64, error) {
-	return q.db.CopyFrom(ctx, []string{"sending_pool_emails"}, []string{"email", "status", "scheduled_time", "original_scheduled_time", "message_id", "fields", "domain"}, &iteratorForCreatePool{rows: arg})
+	return q.db.CopyFrom(ctx, []string{"sending_pool_emails"}, []string{"email", "status", "scheduled_time", "original_scheduled_time", "message_id", "fields", "domain", "tracking"}, &iteratorForCreatePool{rows: arg})
 }

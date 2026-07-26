@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	tracking "github.com/kannon-email/kannon/internal/tracking"
 )
 
 const cleanPool = `-- name: CleanPool :exec
@@ -77,6 +78,7 @@ type CreatePoolParams struct {
 	MessageID             string
 	Fields                CustomFields
 	Domain                string
+	Tracking              tracking.Policy
 }
 
 const getMessage = `-- name: GetMessage :one

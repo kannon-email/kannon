@@ -54,8 +54,8 @@ INSERT INTO messages
 SELECT * FROM messages WHERE message_id = $1;
 
 -- name: CreatePool :copyfrom
-INSERT INTO sending_pool_emails (email, status, scheduled_time, original_scheduled_time, message_id, fields, domain) VALUES
-    ($1, $2, $3, $4, $5, $6, $7);
+INSERT INTO sending_pool_emails (email, status, scheduled_time, original_scheduled_time, message_id, fields, domain, tracking) VALUES
+    ($1, $2, $3, $4, $5, $6, $7, $8);
 
 -- name: GetSendingData :one
 SELECT
