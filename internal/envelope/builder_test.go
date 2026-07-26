@@ -32,11 +32,24 @@ type stubTokens struct {
 	link, open string
 }
 
-func (s stubTokens) CreateLinkToken(ctx context.Context, messageID, email, url string) (string, error) {
+func (s stubTokens) CreateLinkToken(ctx context.Context, messageID, email, url string, mode tracking.Mode) (string, error) {
 	return s.link, nil
 }
-func (s stubTokens) CreateOpenToken(ctx context.Context, messageID, email string) (string, error) {
+func (s stubTokens) CreateOpenToken(ctx context.Context, messageID, email string, mode tracking.Mode) (string, error) {
 	return s.open, nil
+}
+
+// modeEchoTokens mints a token that spells out the Mode it was asked for, so a
+// test can read off the rendered message which Mode was minted into which axis
+// without reaching into the token issuer.
+type modeEchoTokens struct{}
+
+func (modeEchoTokens) CreateLinkToken(ctx context.Context, messageID, email, url string, mode tracking.Mode) (string, error) {
+	return "link-" + string(mode), nil
+}
+
+func (modeEchoTokens) CreateOpenToken(ctx context.Context, messageID, email string, mode tracking.Mode) (string, error) {
+	return "open-" + string(mode), nil
 }
 
 // mustDelivery builds a Delivery carrying the Tracking Policy a fresh Domain
@@ -201,6 +214,43 @@ func TestBuilderHonoursFrozenTrackingPolicy(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestBuilderMintsTokensCarryingTheFrozenMode pins the per-axis wiring: the opens
+// Mode governs the pixel token and the links Mode governs the link token, taken
+// from the Policy frozen on the Delivery. The two axes are independent, so the
+// case that matters is the one where they differ.
+func TestBuilderMintsTokensCarryingTheFrozenMode(t *testing.T) {
+	priv := newDKIMKeys(t)
+	src := stubSource{data: envelope.SendingData{
+		Subject:        "S",
+		HTML:           `<html><body><a href="https://example.com/landing">x</a></body></html>`,
+		Domain:         "test.com",
+		MessageID:      "msg-1",
+		SenderEmail:    "noreply@test.com",
+		SenderAlias:    "Test",
+		DkimPrivateKey: priv,
+	}}
+	b := envelope.NewBuilderWith(src, modeEchoTokens{})
+
+	d := mustDeliveryTracked(t, batch.ID("msg-1@test.com"), "rcpt@example.com", nil, tracking.Policy{
+		Opens: tracking.ModeFull,
+		Links: tracking.ModeIdentified,
+	})
+	env, err := b.Build(t.Context(), d)
+	assert.Nil(t, err)
+
+	parsed, err := mail.ReadMessage(bytes.NewReader(env.Body()))
+	assert.Nil(t, err)
+	bodyBytes, err := io.ReadAll(parsed.Body)
+	assert.Nil(t, err)
+	decoded, err := decodeQuotedPrintable(bodyBytes)
+	assert.Nil(t, err)
+
+	assert.True(t, strings.Contains(decoded, "https://stats.test.com/o/open-full"),
+		"the open token must carry the opens Mode, got %q", decoded)
+	assert.True(t, strings.Contains(decoded, "https://stats.test.com/c/link-identified"),
+		"the link token must carry the links Mode, got %q", decoded)
 }
 
 func decodeQuotedPrintable(b []byte) (string, error) {

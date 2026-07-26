@@ -96,7 +96,7 @@ Permanent delivery failure. Two sources:
 Carries `permanent`, `code`, `msg`. The `permanent` flag is true in both cases today; transient failures are not Bounces (see Errored).
 
 **Opened**:
-A tracking pixel was retrieved. Engagement event — non-terminal, may fire multiple times per Delivery. Only occurs when the Delivery's Tracking Policy allows opens; under Anonymous it is counted but not attributed to the Recipient.
+A tracking pixel was retrieved. Engagement event — non-terminal, may fire multiple times per Delivery. Only occurs when the Delivery's Tracking Policy allows opens; under Anonymous it is counted but not attributed to the Recipient. Carries the Tracking Mode that governed it, and carries `ip` / `user_agent` only under Full — under Identified it names the Recipient and nothing more. The Mode reaches the Tracker as a signed claim in the token, not from a database lookup: the Delivery may already be gone, and a Recipient must not be able to choose how much is retained about them.
 
 **Clicked**:
 A tracked link was followed. Engagement event — non-terminal, may fire multiple times per Delivery. Carries `url`. Subject to the Delivery's Tracking Policy on the same terms as Opened.

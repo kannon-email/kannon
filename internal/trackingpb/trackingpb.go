@@ -64,9 +64,17 @@ var domainModes = func() map[tracking.Mode]pb.TrackingMode {
 // build does not know becomes unspecified, since the two zero values coincide.
 func FromPolicy(p tracking.Policy) *pb.TrackingPolicy {
 	return &pb.TrackingPolicy{
-		Opens: domainModes[p.Opens],
-		Links: domainModes[p.Links],
+		Opens: FromMode(p.Opens),
+		Links: FromMode(p.Links),
 	}
+}
+
+// FromMode translates a single Mode into its wire representation, for the
+// boundaries that state one Mode rather than a whole Policy — a stat event
+// describes one engagement channel, so it carries one Mode. A Mode this build
+// does not know becomes unspecified, since the two zero values coincide.
+func FromMode(m tracking.Mode) pb.TrackingMode {
+	return domainModes[m]
 }
 
 func toMode(m pb.TrackingMode) (tracking.Mode, error) {

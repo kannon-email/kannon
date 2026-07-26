@@ -36,10 +36,13 @@ type SendingDataSource interface {
 	GetSendingData(ctx context.Context, batchID batch.ID) (SendingData, error)
 }
 
-// TokenIssuer mints click/open tokens for tracking link rewriting.
+// TokenIssuer mints click/open tokens for tracking link rewriting. Each token
+// carries the Tracking Mode of the axis it belongs to — the opens Mode on an
+// open token, the links Mode on a link token — signed, so the Tracker can trust
+// it without a Delivery row to look it up in.
 type TokenIssuer interface {
-	CreateLinkToken(ctx context.Context, messageID, email, url string) (string, error)
-	CreateOpenToken(ctx context.Context, messageID, email string) (string, error)
+	CreateLinkToken(ctx context.Context, messageID, email, url string, mode tracking.Mode) (string, error)
+	CreateOpenToken(ctx context.Context, messageID, email string, mode tracking.Mode) (string, error)
 }
 
 // Builder renders a Delivery into an outgoing Envelope.
@@ -149,12 +152,16 @@ func signMessage(domain, dkimPrivateKey string, msg []byte, hasCc bool) ([]byte,
 // pixel is injected for opens, no href is rewritten for links. A Mode that
 // states nothing imposes no restriction, so every Mode other than Off is tracked
 // as before.
+//
+// Whatever the Mode of a tracked axis is, it is minted into the token of that
+// axis, so the Tracker acts on the Policy frozen on this Delivery rather than on
+// whatever is configured when the engagement arrives.
 func (b *defaultBuilder) preparedHTML(ctx context.Context, d *delivery.Delivery, data SendingData) (string, error) {
 	policy := d.TrackingPolicy()
 	html := utils.ReplaceCustomFields(data.HTML, d.Fields())
 
 	if policy.Links != tracking.ModeOff {
-		rewritten, err := b.replaceAllLinks(ctx, html, d.Email(), data.MessageID, data.Domain)
+		rewritten, err := b.replaceAllLinks(ctx, html, d.Email(), data.MessageID, data.Domain, policy.Links)
 		if err != nil {
 			return "", err
 		}
@@ -164,33 +171,33 @@ func (b *defaultBuilder) preparedHTML(ctx context.Context, d *delivery.Delivery,
 	if policy.Opens == tracking.ModeOff {
 		return html, nil
 	}
-	return b.addTrackPixel(ctx, html, d.Email(), data.MessageID, data.Domain)
+	return b.addTrackPixel(ctx, html, d.Email(), data.MessageID, data.Domain, policy.Opens)
 }
 
-func (b *defaultBuilder) replaceAllLinks(ctx context.Context, html, email, messageID, domain string) (string, error) {
+func (b *defaultBuilder) replaceAllLinks(ctx context.Context, html, email, messageID, domain string, mode tracking.Mode) (string, error) {
 	return replaceLinks(html, func(link string) (string, error) {
-		return b.buildTrackClickLink(ctx, link, email, messageID, domain)
+		return b.buildTrackClickLink(ctx, link, email, messageID, domain, mode)
 	})
 }
 
-func (b *defaultBuilder) addTrackPixel(ctx context.Context, html, email, messageID, domain string) (string, error) {
-	link, err := b.buildTrackOpenLink(ctx, email, messageID, domain)
+func (b *defaultBuilder) addTrackPixel(ctx context.Context, html, email, messageID, domain string, mode tracking.Mode) (string, error) {
+	link, err := b.buildTrackOpenLink(ctx, email, messageID, domain, mode)
 	if err != nil {
 		return "", err
 	}
 	return insertTrackLinkInHTML(html, link), nil
 }
 
-func (b *defaultBuilder) buildTrackClickLink(ctx context.Context, url, email, messageID, domain string) (string, error) {
-	token, err := b.tokens.CreateLinkToken(ctx, messageID, email, url)
+func (b *defaultBuilder) buildTrackClickLink(ctx context.Context, url, email, messageID, domain string, mode tracking.Mode) (string, error) {
+	token, err := b.tokens.CreateLinkToken(ctx, messageID, email, url, mode)
 	if err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("https://stats.%v/c/%v", domain, token), nil
 }
 
-func (b *defaultBuilder) buildTrackOpenLink(ctx context.Context, email, messageID, domain string) (string, error) {
-	token, err := b.tokens.CreateOpenToken(ctx, messageID, email)
+func (b *defaultBuilder) buildTrackOpenLink(ctx context.Context, email, messageID, domain string, mode tracking.Mode) (string, error) {
+	token, err := b.tokens.CreateOpenToken(ctx, messageID, email, mode)
 	if err != nil {
 		return "", err
 	}

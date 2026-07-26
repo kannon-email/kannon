@@ -12,20 +12,38 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	sqlc "github.com/kannon-email/kannon/internal/db"
+	"github.com/kannon-email/kannon/internal/tracking"
 )
 
 const tokenExpirePeriod = time.Hour * 24 * 30 * 3 // 3 months
 
+// OpenClaims are the claims of an open token: what the Tracker is allowed to
+// know about the request that retrieved the tracking pixel.
+//
+// Mode is the Tracking Mode governing opens for the Delivery the token was
+// minted for, frozen at intake (ADR 0003). It travels in the token rather than
+// being looked up because Pool rows are deleted on terminal outcomes, so by the
+// time an open arrives there may be no Delivery row left to consult — and
+// because the token is signed, so a recipient can neither escalate their own
+// tracking nor suppress it to skew a sender's statistics.
+//
+// A token minted before the Mode became a claim carries none, which states
+// nothing and therefore never reaches Full: the absence can only ever restrict
+// what the Tracker retains, never widen it.
 type OpenClaims struct {
-	MessageID string `json:"message_id"`
-	Email     string `json:"email"`
+	MessageID string        `json:"message_id"`
+	Email     string        `json:"email"`
+	Mode      tracking.Mode `json:"mode,omitempty"`
 	jwt.RegisteredClaims
 }
 
+// LinkClaims are the claims of a link token. Mode governs links rather than
+// opens, and carries the same guarantees as OpenClaims.Mode.
 type LinkClaims struct {
-	MessageID string `json:"message_id"`
-	Email     string `json:"email"`
-	URL       string `json:"url"`
+	MessageID string        `json:"message_id"`
+	Email     string        `json:"email"`
+	URL       string        `json:"url"`
+	Mode      tracking.Mode `json:"mode,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -39,10 +57,11 @@ func generateKeyPair() (*rsa.PrivateKey, *rsa.PublicKey, error) {
 	return privatekey, publickey.(*rsa.PublicKey), nil //nolint:errcheck // RSA private key always returns *rsa.PublicKey
 }
 
-func createOpenToken(privateKey *rsa.PrivateKey, kid string, now time.Time, messageID string, email string) (string, error) {
+func createOpenToken(privateKey *rsa.PrivateKey, kid string, now time.Time, messageID string, email string, mode tracking.Mode) (string, error) {
 	claims := &OpenClaims{
 		MessageID: messageID,
 		Email:     email,
+		Mode:      mode,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(now.Add(tokenExpirePeriod)),
 			Audience:  []string{"stats"},
@@ -58,11 +77,12 @@ func createOpenToken(privateKey *rsa.PrivateKey, kid string, now time.Time, mess
 	return token, nil
 }
 
-func createLinkToken(privateKey *rsa.PrivateKey, kid string, now time.Time, messageID string, email string, url string) (string, error) {
+func createLinkToken(privateKey *rsa.PrivateKey, kid string, now time.Time, messageID string, email string, url string, mode tracking.Mode) (string, error) {
 	claims := &LinkClaims{
 		MessageID: messageID,
 		Email:     email,
 		URL:       url,
+		Mode:      mode,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(now.Add(tokenExpirePeriod)),
 			Audience:  []string{"stats"},
