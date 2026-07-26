@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/kannon-email/kannon/internal/batch"
+	"github.com/kannon-email/kannon/internal/tracking"
 )
 
 // Domain errors.
@@ -25,6 +26,7 @@ type Delivery struct {
 	scheduledTime         time.Time
 	originalScheduledTime time.Time
 	backoff               BackoffPolicy
+	tracking              tracking.Policy
 }
 
 // NewParams contains all fields needed to create a fresh Delivery.
@@ -35,9 +37,14 @@ type NewParams struct {
 	Domain        string
 	ScheduledTime time.Time
 	Backoff       BackoffPolicy
+	// Tracking is the effective Tracking Policy for this Delivery, already
+	// resolved by the caller at intake (ADR 0003).
+	Tracking tracking.Policy
 }
 
-// New creates a new Delivery scheduled for first attempt.
+// New creates a new Delivery scheduled for first attempt. The Tracking Policy
+// is normalised, so a fresh Delivery — and therefore the Pool row it becomes —
+// always carries a concrete Policy, never one that states nothing.
 func New(p NewParams) (*Delivery, error) {
 	if p.BatchID.IsZero() {
 		return nil, errors.New("batch ID is required")
@@ -56,6 +63,7 @@ func New(p NewParams) (*Delivery, error) {
 		scheduledTime:         p.ScheduledTime,
 		originalScheduledTime: p.ScheduledTime,
 		backoff:               policyOrDefault(p.Backoff),
+		tracking:              p.Tracking.Normalized(),
 	}, nil
 }
 
@@ -69,6 +77,7 @@ type LoadParams struct {
 	ScheduledTime         time.Time
 	OriginalScheduledTime time.Time
 	Backoff               BackoffPolicy
+	Tracking              tracking.Policy
 }
 
 // Load rehydrates a Delivery from stored data (used by repository implementations).
@@ -82,6 +91,7 @@ func Load(p LoadParams) *Delivery {
 		scheduledTime:         p.ScheduledTime,
 		originalScheduledTime: p.OriginalScheduledTime,
 		backoff:               policyOrDefault(p.Backoff),
+		tracking:              p.Tracking,
 	}
 }
 
@@ -96,6 +106,12 @@ func (d *Delivery) ScheduledTime() time.Time  { return d.scheduledTime }
 func (d *Delivery) OriginalScheduledTime() time.Time {
 	return d.originalScheduledTime
 }
+
+// TrackingPolicy is the Tracking Policy that governs this Delivery. It is
+// carried state: the Domain/Batch/Recipient cascade was resolved when the Batch
+// was created and frozen here, so the Delivery records the Policy that actually
+// applied to it (ADR 0003). Nothing downstream resolves it again.
+func (d *Delivery) TrackingPolicy() tracking.Policy { return d.tracking }
 
 // NextRetryAt returns the time at which this Delivery should next be
 // attempted, given its current attempt count and the original scheduled
