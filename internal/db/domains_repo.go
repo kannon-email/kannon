@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/kannon-email/kannon/internal/domains"
+	"github.com/kannon-email/kannon/internal/tracking"
 )
 
 type domainsRepository struct {
@@ -31,6 +32,21 @@ func (r *domainsRepository) Create(ctx context.Context, d *domains.Domain) error
 	}
 	*d = *rowToDomain(row)
 	return nil
+}
+
+func (r *domainsRepository) SetTrackingPolicy(ctx context.Context, fqdn string, p tracking.Policy) (*domains.Domain, error) {
+	q := New(r.db)
+	row, err := q.SetDomainTracking(ctx, SetDomainTrackingParams{
+		Domain:   fqdn,
+		Tracking: p.Normalized(),
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, domains.ErrDomainNotFound
+		}
+		return nil, err
+	}
+	return rowToDomain(row), nil
 }
 
 func (r *domainsRepository) FindByName(ctx context.Context, fqdn string) (*domains.Domain, error) {
@@ -65,5 +81,6 @@ func rowToDomain(row Domain) *domains.Domain {
 		DkimPrivateKey: row.DkimPrivateKey,
 		DkimPublicKey:  row.DkimPublicKey,
 		CreatedAt:      row.CreatedAt.Time,
+		Tracking:       row.Tracking,
 	})
 }

@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	tracking "github.com/kannon-email/kannon/internal/tracking"
 	pbtypes "github.com/kannon-email/kannon/proto/kannon/stats/types"
 )
 
@@ -79,6 +80,7 @@ type Domain struct {
 	CreatedAt      pgtype.Timestamp
 	DkimPrivateKey string
 	DkimPublicKey  string
+	Tracking       tracking.Policy
 }
 
 type Message struct {
@@ -90,6 +92,7 @@ type Message struct {
 	Domain      string
 	Attachments Attachments
 	Headers     Headers
+	Tracking    tracking.Policy
 }
 
 type SendingPoolEmail struct {
@@ -103,6 +106,7 @@ type SendingPoolEmail struct {
 	Status                SendingPoolStatus
 	CreatedAt             pgtype.Timestamp
 	Domain                string
+	Tracking              tracking.Policy
 }
 
 type Stat struct {

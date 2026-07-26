@@ -38,3 +38,12 @@ sql:
               type: "StatsData"
               package: pbtypes
               pointer: true
+          - column: "domains.tracking"
+            go_type: &tracking_policy
+              import: "github.com/kannon-email/kannon/internal/tracking"
+              type: "Policy"
+              package: tracking
+          - column: "messages.tracking"
+            go_type: *tracking_policy
+          - column: "sending_pool_emails.tracking"
+            go_type: *tracking_policy
