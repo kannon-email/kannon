@@ -359,3 +359,32 @@ func TestRetainedIsGatedOnMode(t *testing.T) {
 		})
 	}
 }
+
+// TestATokenReplayedOnTheOtherChannelIsRefused is the observable half of the
+// channel binding. A link token carries the Mode governing *links*, so replaying
+// one against the open endpoint would apply the more permissive of a Domain's two
+// axes to both: on `opens=off, links=full` it would record an identified open,
+// with the requester's IP, for a Domain that asked for no open tracking at all.
+// The tokens here are genuine and unmodified — only the endpoint is wrong.
+func TestATokenReplayedOnTheOtherChannelIsRefused(t *testing.T) {
+	openToken, err := ss.CreateOpenToken(t.Context(), testMessageID, testRecipient, tracking.ModeFull)
+	require.NoError(t, err)
+	linkToken, err := ss.CreateLinkToken(t.Context(), testMessageID, testRecipient, testLandingURL, tracking.ModeFull)
+	require.NoError(t, err)
+
+	cases := []struct {
+		name string
+		path string
+	}{
+		{name: "LinkTokenOnTheOpenEndpoint", path: "/o/" + linkToken},
+		{name: "OpenTokenOnTheClickEndpoint", path: "/c/" + openToken},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			resp, published := engage(t, tc.path)
+			assert.Equal(t, http.StatusNotFound, resp.status, "a token minted for the other channel must be refused")
+			assert.Empty(t, published, "a refused request must publish no stat")
+		})
+	}
+}

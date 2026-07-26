@@ -8,6 +8,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -16,6 +17,27 @@ import (
 )
 
 const tokenExpirePeriod = time.Hour * 24 * 30 * 3 // 3 months
+
+// A token is bound to the engagement channel it was minted for by its audience,
+// and the Tracker's two endpoints accept only their own.
+//
+// Without that binding the two token types are interchangeable: their claim
+// shapes differ only by a field JSON parsing ignores when absent, so a link
+// token parses cleanly as open claims and hands the Tracker the Mode governing
+// *links*. Any Domain whose two axes differ would then have its more permissive
+// axis apply to both endpoints — a Domain on `opens=off, links=full` could be
+// made to record an identified open, with the requester's IP, by replaying a
+// link token against /o/. Since the Domain's Policy is the only guarantee an
+// operator has (ADR 0003), the Mode has to be bound to the channel it governs
+// and not merely present.
+const (
+	audienceOpen = "stats:open"
+	audienceLink = "stats:link"
+	// audienceLegacy is what both token types carried before the Tracking Mode
+	// became a claim, when nothing distinguished them. Accepted only from a token
+	// that states no Mode: see assertAudience.
+	audienceLegacy = "stats"
+)
 
 // OpenClaims are the claims of an open token: what the Tracker is allowed to
 // know about the request that retrieved the tracking pixel.
@@ -88,7 +110,7 @@ func createOpenToken(privateKey *rsa.PrivateKey, kid string, now time.Time, mess
 		Mode:      mode,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(now.Add(tokenExpirePeriod)),
-			Audience:  []string{"stats"},
+			Audience:  []string{audienceOpen},
 			IssuedAt:  jwt.NewNumericDate(now),
 		},
 	}
@@ -109,7 +131,7 @@ func createLinkToken(privateKey *rsa.PrivateKey, kid string, now time.Time, mess
 		Mode:      mode,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(now.Add(tokenExpirePeriod)),
-			Audience:  []string{"stats"},
+			Audience:  []string{audienceLink},
 			IssuedAt:  jwt.NewNumericDate(now),
 		},
 	}
@@ -163,38 +185,86 @@ func exportRsaPublicKeyAsPemStr(pubkey *rsa.PublicKey) (string, error) {
 	return string(pubkeyPem), nil
 }
 
+// channelClaims is what the two token types have in common at verification time:
+// the channel a token was minted for, and the Mode it carries. Both are needed
+// together, because whether a Mode may be honoured depends on which channel
+// signed it.
+type channelClaims interface {
+	jwt.Claims
+	boundTo() (jwt.ClaimStrings, tracking.Mode)
+}
+
+func (c *OpenClaims) boundTo() (jwt.ClaimStrings, tracking.Mode) { return c.Audience, c.Mode }
+func (c *LinkClaims) boundTo() (jwt.ClaimStrings, tracking.Mode) { return c.Audience, c.Mode }
+
 func verifyOpenToken(ctx context.Context, tokenString string, q *sqlc.Queries) (*OpenClaims, error) {
-	token, err := jwt.ParseWithClaims(tokenString, &OpenClaims{}, getVerifyTokenFunc(ctx, q))
-	if err != nil {
-		return nil, fmt.Errorf("cannot parse jwt: %w", err)
-	}
-
-	if !token.Valid {
-		return nil, errors.New("invalit token")
-	}
-
-	claims, ok := token.Claims.(*OpenClaims)
-	if !ok {
-		return nil, errors.New("cannot unstructure claims")
-	}
-	return claims, nil
+	return verifyToken(ctx, tokenString, q, &OpenClaims{}, audienceOpen)
 }
 
 func verifyLinkToken(ctx context.Context, tokenString string, q *sqlc.Queries) (*LinkClaims, error) {
-	token, err := jwt.ParseWithClaims(tokenString, &LinkClaims{}, getVerifyTokenFunc(ctx, q))
+	return verifyToken(ctx, tokenString, q, &LinkClaims{}, audienceLink)
+}
+
+// verifyToken checks a stats token's signature, its registered claims and the
+// channel it was minted for, returning the claims only if all three hold. The two
+// channels share it so that a check added for one can never be forgotten for the
+// other — the shape of the two token types differs only in a URL.
+func verifyToken[C channelClaims](ctx context.Context, tokenString string, q *sqlc.Queries, into C, want string) (C, error) {
+	var none C
+
+	token, err := jwt.ParseWithClaims(tokenString, into, getVerifyTokenFunc(ctx, q), verifyOptions()...)
 	if err != nil {
-		return nil, fmt.Errorf("cannot parse jwt: %w", err)
+		return none, fmt.Errorf("cannot parse jwt: %w", err)
 	}
 
 	if !token.Valid {
-		return nil, errors.New("invalit token")
+		return none, errors.New("invalid token")
 	}
 
-	claims, ok := token.Claims.(*LinkClaims)
+	claims, ok := token.Claims.(C)
 	if !ok {
-		return nil, errors.New("cannot unstructure claims")
+		return none, errors.New("cannot unstructure claims")
 	}
+
+	audience, mode := claims.boundTo()
+	if err := assertAudience(audience, mode, want); err != nil {
+		return none, err
+	}
+
 	return claims, nil
+}
+
+// verifyOptions pins what every stats token must satisfy regardless of channel:
+// the signing method Kannon actually mints with, and an expiry. Both are true of
+// every token this codebase has ever produced; stating them here means a future
+// mint path cannot quietly drop either.
+func verifyOptions() []jwt.ParserOption {
+	return []jwt.ParserOption{
+		jwt.WithValidMethods([]string{jwt.SigningMethodRS512.Alg()}),
+		jwt.WithExpirationRequired(),
+	}
+}
+
+// assertAudience refuses a token minted for a different engagement channel, so
+// that the Tracking Mode a token carries can only ever govern the channel it was
+// signed for.
+//
+// The audience is checked here rather than through jwt.WithAudience because the
+// rule is not a single expected value: a token minted before the Mode became a
+// claim carries the one legacy audience and no Mode, and refusing those outright
+// would silently drop every open and click from mail already in flight, for up to
+// tokenExpirePeriod after an upgrade. Such a token is accepted, and states
+// nothing, so it can never widen what the Tracker retains — and because this
+// build always signs a Mode into a token, a Mode-bearing token can never take
+// the legacy path. The exception disappears on its own as those tokens expire.
+func assertAudience(audience jwt.ClaimStrings, mode tracking.Mode, want string) error {
+	if slices.Contains(audience, want) {
+		return nil
+	}
+	if mode == tracking.ModeUnspecified && slices.Contains(audience, audienceLegacy) {
+		return nil
+	}
+	return fmt.Errorf("token audience %v is not valid for %q", audience, want)
 }
 
 func getVerifyTokenFunc(ctx context.Context, q *sqlc.Queries) func(token *jwt.Token) (interface{}, error) {

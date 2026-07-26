@@ -175,3 +175,39 @@ func tamperModeClaim(t *testing.T, token string, mode tracking.Mode) string {
 	parts[1] = base64.RawURLEncoding.EncodeToString(rewritten)
 	return strings.Join(parts, ".")
 }
+
+// TestATokenIsBoundToItsChannel covers the one way the Tracking Mode could be
+// applied to a channel it was not signed for. The two claim shapes differ only by
+// a field JSON parsing ignores when absent, so before the audience was checked a
+// link token verified cleanly as open claims and handed over the Mode governing
+// *links* — letting a Domain on `opens=off, links=full` be made to record an
+// identified open with the requester's IP.
+func TestATokenIsBoundToItsChannel(t *testing.T) {
+	const messageID = "<xxxx/test@test.com>"
+	const email = "test@test.com"
+
+	openToken, err := s.CreateOpenToken(t.Context(), messageID, email, tracking.ModeIdentified)
+	assert.Nil(t, err)
+	linkToken, err := s.CreateLinkToken(t.Context(), messageID, email, "https://example.com", tracking.ModeFull)
+	assert.Nil(t, err)
+
+	t.Run("A link token is refused as an open", func(t *testing.T) {
+		_, err := s.VerifyOpenToken(t.Context(), linkToken)
+		assert.NotNil(t, err, "a link token must not verify as an open token")
+	})
+
+	t.Run("An open token is refused as a click", func(t *testing.T) {
+		_, err := s.VerifyLinkToken(t.Context(), openToken)
+		assert.NotNil(t, err, "an open token must not verify as a link token")
+	})
+
+	t.Run("Each verifies on its own channel", func(t *testing.T) {
+		open, err := s.VerifyOpenToken(t.Context(), openToken)
+		assert.Nil(t, err)
+		assert.Equal(t, tracking.ModeIdentified, open.Mode)
+
+		link, err := s.VerifyLinkToken(t.Context(), linkToken)
+		assert.Nil(t, err)
+		assert.Equal(t, tracking.ModeFull, link.Mode)
+	})
+}
