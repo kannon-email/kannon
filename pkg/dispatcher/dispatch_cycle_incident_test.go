@@ -45,6 +45,7 @@ import (
 	"github.com/kannon-email/kannon/internal/envelope"
 	"github.com/kannon-email/kannon/internal/pool"
 	"github.com/kannon-email/kannon/internal/tests"
+	"github.com/kannon-email/kannon/internal/tracking"
 	mailertypes "github.com/kannon-email/kannon/proto/kannon/mailer/types"
 )
 
@@ -91,11 +92,11 @@ func (s *gateSource) GetSendingData(ctx context.Context, _ batch.ID) (envelope.S
 
 type noopTokens struct{}
 
-func (noopTokens) CreateLinkToken(_ context.Context, _, _, _ string) (string, error) {
+func (noopTokens) CreateLinkToken(_ context.Context, _, _, _ string, _ tracking.Mode) (string, error) {
 	return "tok", nil
 }
 
-func (noopTokens) CreateOpenToken(_ context.Context, _, _ string) (string, error) {
+func (noopTokens) CreateOpenToken(_ context.Context, _, _ string, _ tracking.Mode) (string, error) {
 	return "tok", nil
 }
 
