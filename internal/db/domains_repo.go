@@ -81,6 +81,13 @@ func rowToDomain(row Domain) *domains.Domain {
 		DkimPrivateKey: row.DkimPrivateKey,
 		DkimPublicKey:  row.DkimPublicKey,
 		CreatedAt:      row.CreatedAt.Time,
-		Tracking:       row.Tracking,
+		// Normalised on the way out, so a Domain always states a ceiling on both
+		// axes. Writes through this repository already normalise, and the column
+		// default states both, but a ceiling that states nothing enforces nothing
+		// (ADR 0003) — and that invariant should rest on one enforcement point
+		// rather than on the column default, the write path and the migration all
+		// holding at once. A row edited by hand now enforces the floor instead of
+		// dissolving the ceiling.
+		Tracking: row.Tracking.Normalized(),
 	})
 }

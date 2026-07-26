@@ -157,23 +157,28 @@ func (s mailAPIService) Close() error {
 	return nil
 }
 
-// Stable, machine-readable reasons a Recipient can be Rejected at intake. They
-// are part of the API contract — a caller branches on them — so they are
-// documented on SendRes.rejected_recipients in
-// .proto/kannon/mailer/apiv1/mailerapiv1.proto and must not be reworded here
-// without changing that.
+// rejectionReason is why one Recipient was refused at intake, in the stable
+// machine-readable form a caller branches on. It has its own type so it cannot be
+// swapped with the operator-facing detail beside it, which is free-form and never
+// returned.
+//
+// The values are part of the API contract, documented on
+// SendRes.rejected_recipients in .proto/kannon/mailer/apiv1/mailerapiv1.proto;
+// they must not be reworded here without changing that.
+type rejectionReason string
+
 const (
 	// reasonInvalidEmail covers every address Kannon cannot deliver to: empty,
 	// whitespace-only, or otherwise refused when the Delivery is built.
-	reasonInvalidEmail = "invalid_email"
+	reasonInvalidEmail rejectionReason = "invalid_email"
 	// reasonTrackingAboveCeiling is a Recipient whose Tracking Policy asks for
 	// more than its Domain allows (ADR 0003).
-	reasonTrackingAboveCeiling = "tracking_above_ceiling"
+	reasonTrackingAboveCeiling rejectionReason = "tracking_above_ceiling"
 	// reasonUnsupportedTrackingMode is a Recipient stating a Tracking Mode this
 	// build will not act on: the reserved `pseudonymous`, or a wire value from a
 	// newer schema. Both leave the caller the same work — restate the Policy —
 	// so they share one reason.
-	reasonUnsupportedTrackingMode = "unsupported_tracking_mode"
+	reasonUnsupportedTrackingMode rejectionReason = "unsupported_tracking_mode"
 )
 
 // intake is what became of a Batch's Recipients as they were taken in: those
@@ -193,10 +198,16 @@ type intake struct {
 // it and none will be attempted. reason is the stable token returned to the
 // caller; detail is logged for an operator and deliberately not returned, since
 // it may name internals.
-func (in *intake) reject(email, reason, detail string) {
+//
+// The address is obfuscated in the log, as everywhere else in the codebase, but
+// returned to the caller in full: a caller may reconcile against its own input,
+// while a log a caller can drive the volume of — one line per submitted Recipient
+// — must not become a route for recipient addresses into log aggregators. That
+// would be a poor trade in a feature whose purpose is to retain less.
+func (in *intake) reject(email string, reason rejectionReason, detail string) {
 	slog.Warn("rejecting recipient at intake",
-		"batch", in.batchID, "email", email, "reason", reason, "detail", detail)
-	in.rejected = append(in.rejected, &pb.RejectedRecipient{Email: email, Reason: reason})
+		"batch", in.batchID, "email", utils.ObfuscateEmail(email), "reason", reason, "detail", detail)
+	in.rejected = append(in.rejected, &pb.RejectedRecipient{Email: email, Reason: string(reason)})
 }
 
 func (s mailAPIService) scheduleBatch(ctx context.Context, domain *domains.Domain, b *batch.Batch, recipients []*mailertypes.Recipient, scheduled time.Time) (*intake, error) {
@@ -244,7 +255,7 @@ func (s mailAPIService) scheduleBatch(ctx context.Context, domain *domains.Domai
 // recipientRejection is why one Recipient was refused, split into the stable
 // reason the caller branches on and the detail only an operator needs.
 type recipientRejection struct {
-	reason string
+	reason rejectionReason
 	detail string
 }
 
