@@ -255,6 +255,26 @@ The optional `headers` field allows overriding the `To` and adding a `Cc` header
 
 This is useful for scenarios where you want the email to appear addressed to a group or alias while delivering to individual recipients.
 
+#### Link tracking
+
+When the Tracking Policy governing a message allows link tracking, every `<a href="...">` in the HTML is rewritten into a `https://stats.<your-domain>/c/<token>` redirect that records the click and forwards the recipient to the original URL.
+
+A single link can opt out, which is what unsubscribe and preference links usually want:
+
+```html
+<a href="https://yourdomain.com/preferences" data-no-track>Manage preferences</a>
+```
+
+Such a link is delivered with its `href` exactly as authored, and the `data-no-track` attribute is removed from the delivered HTML — whatever the Tracking Policy says, so it never reaches the recipient even when link tracking is off anyway.
+
+The attribute name is case-insensitive and works by **presence**: any value opts the link out, so `data-no-track`, `data-no-track=""`, `data-no-track="true"` and even `data-no-track="false"` all mean the same thing. To track a link again, remove the attribute.
+
+Links a redirect cannot serve are never rewritten and need no attribute: `mailto:`, `tel:`, `sms:`, and in-page anchors such as `#section`.
+
+#### Open tracking
+
+When the Tracking Policy governing a message allows open tracking, a hidden 1-pixel image is inserted immediately before the closing `</body>` tag. HTML with no closing tag — a bare fragment such as `<h1>Hello</h1>` — has no end of body to place it at, so it is delivered without an open pixel.
+
 See the [proto files](./proto/kannon/) for all fields and options.
 
 ## Deployment

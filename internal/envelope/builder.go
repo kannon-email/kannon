@@ -178,6 +178,13 @@ func (b *defaultBuilder) preparedHTML(ctx context.Context, d *delivery.Delivery,
 		html = rewritten
 	}
 
+	// A link that opted out of tracking has now been left as authored — but the
+	// attribute that asked for it is addressed to Kannon, not to the recipient, so
+	// it is dropped here rather than inside the rewriting step. That is what keeps
+	// it out of the delivered HTML under a links Mode of Off too, where nothing was
+	// rewritten and no link was even looked at.
+	html = stripNoTrackAttrs(html)
+
 	if policy.Opens == tracking.ModeOff {
 		return html, nil
 	}

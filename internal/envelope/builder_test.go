@@ -255,6 +255,63 @@ func TestBuilderHonoursFrozenTrackingPolicy(t *testing.T) {
 	}
 }
 
+// TestBuilderHonoursThePerLinkOptOut is the delivered-message half of the
+// opt-out: the tracked link is rewritten, the opted-out one carries the href its
+// author wrote, and the attribute that asked for that reaches nobody. A links
+// Mode of Off is the case worth pinning, because under it no link is rewritten
+// at all, so nothing on the rewriting path would have removed the attribute.
+func TestBuilderHonoursThePerLinkOptOut(t *testing.T) {
+	const (
+		trackedLink  = "https://example.com/promo"
+		optedOutLink = "https://example.com/preferences"
+	)
+	priv := newDKIMKeys(t)
+	src := stubSource{data: envelope.SendingData{
+		Subject: "S",
+		HTML: fmt.Sprintf(
+			`<html><body><a href=%q>promo</a><a href=%q data-no-track>preferences</a></body></html>`,
+			trackedLink, optedOutLink),
+		Domain:         "test.com",
+		MessageID:      "msg-1",
+		SenderEmail:    "noreply@test.com",
+		SenderAlias:    "Test",
+		DkimPrivateKey: priv,
+	}}
+	b := envelope.NewBuilderWith(src, stubTokens{link: "LTOK", open: "OTOK"})
+
+	cases := []struct {
+		name          string
+		links         tracking.Mode
+		wantRewritten bool
+	}{
+		{name: "LinksTracked", links: tracking.ModeIdentified, wantRewritten: true},
+		{name: "LinksOff", links: tracking.ModeOff, wantRewritten: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			policy := tracking.Policy{Opens: tracking.ModeIdentified, Links: tc.links}
+			d := mustDeliveryTracked(t, batch.ID("msg-1@test.com"), "rcpt@example.com", nil, policy)
+			env, err := b.Build(t.Context(), d)
+			assert.Nil(t, err)
+
+			parsed, err := mail.ReadMessage(bytes.NewReader(env.Body()))
+			assert.Nil(t, err)
+			bodyBytes, err := io.ReadAll(parsed.Body)
+			assert.Nil(t, err)
+			decoded, err := decodeQuotedPrintable(bodyBytes)
+			assert.Nil(t, err)
+
+			assert.False(t, strings.Contains(decoded, "data-no-track"),
+				"the opt-out attribute must not reach the recipient, got %q", decoded)
+			assert.True(t, strings.Contains(decoded, fmt.Sprintf("href=%q", optedOutLink)),
+				"an opted-out link must be delivered as authored, got %q", decoded)
+			assert.Equal(t, tc.wantRewritten, strings.Contains(decoded, "https://stats.test.com/c/LTOK"),
+				"rewritten link presence mismatch in %q", decoded)
+		})
+	}
+}
+
 // TestBuilderMintsTokensCarryingTheFrozenMode pins the per-axis wiring: the opens
 // Mode governs the pixel token and the links Mode governs the link token, taken
 // from the Policy frozen on the Delivery. The two axes are independent, so the
