@@ -119,7 +119,7 @@ func (s mailAPIService) sendTemplate(ctx context.Context, domain *domains.Domain
 
 	batchPolicy, err := trackingpb.ToPolicy(req.Msg.Tracking)
 	if err != nil {
-		return nil, trackingPolicyError(err)
+		return nil, sendTrackingPolicyError(err)
 	}
 	// The Batch may only restrict what the Domain allows, never widen it
 	// (ADR 0003). Checked here, at intake, so the caller can tell a policy
@@ -385,19 +385,25 @@ func assertHeaderSafe(field, v string) error {
 	return nil
 }
 
-// trackingPolicyError maps a failure to translate the wire Tracking Policy
-// onto a Connect code: a reserved Mode (pseudonymous) is unimplemented, and a
-// Mode this build does not know is a bad argument. Mirrors
-// pkg/api/adminapi.trackingPolicyError, which does the same translation for
-// the Admin API's SetTrackingPolicy.
-func trackingPolicyError(err error) error {
+// sendTrackingPolicyError maps a failure to translate a Batch's wire Tracking
+// Policy onto a Connect code: a reserved Mode (pseudonymous) is unimplemented,
+// and a Mode this build does not know is a bad argument.
+//
+// It answers those two `trackingpb` sentinels exactly as
+// pkg/api/adminapi.trackingPolicyError does, deliberately, so that one bad Mode
+// does not mean two different things depending on which API was asked; the two
+// are a pair and should change together. It is named apart from that one
+// because the rest of its mapping differs — anything else a send can fail on is
+// the caller's argument, never a missing Domain.
+func sendTrackingPolicyError(err error) error {
 	switch {
 	case errors.Is(err, trackingpb.ErrUnsupportedMode):
 		return connect.NewError(connect.CodeUnimplemented, err)
+	case errors.Is(err, trackingpb.ErrUnknownMode):
+		return connect.NewError(connect.CodeInvalidArgument, err)
 	default:
-		// Covers trackingpb.ErrUnknownMode and anything else ToPolicy might
-		// return: a caller sending a Tracking Policy Kannon cannot make sense
-		// of is a bad argument, not a server fault.
+		// A caller sending a Tracking Policy Kannon cannot make sense of is a
+		// bad argument, not a server fault.
 		return connect.NewError(connect.CodeInvalidArgument, err)
 	}
 }
