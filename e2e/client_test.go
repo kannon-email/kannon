@@ -78,6 +78,19 @@ func (c *clientTest) SendEmail(t *testing.T, email *mailerapiv1.SendHTMLReq) str
 	return sendResp.Msg.MessageId
 }
 
+// SendEmailExpectingFailure submits the request and returns the error the
+// call failed with, for tests asserting an intake rejection — e.g. a Batch
+// asking for a Tracking Policy above its Domain's ceiling (ADR 0003).
+func (c *clientTest) SendEmailExpectingFailure(t *testing.T, email *mailerapiv1.SendHTMLReq) error {
+	t.Helper()
+	sendReq := connect.NewRequest(email)
+	sendReq.Header().Set("Authorization", "Basic "+c.authToken)
+
+	_, err := c.mailerClient.SendHTML(t.Context(), sendReq)
+	require.Error(t, err)
+	return err
+}
+
 func (f *clientTest) GetAggregatedStats(t *testing.T) *statsapiv2.GetAggregatedStatsRes {
 	// Aggregated stats are bucketed by day (truncated to midnight UTC),
 	// so the query range must span at least a full day to include today's bucket.

@@ -116,6 +116,11 @@ func TestE2EEmailSending(t *testing.T) {
 		t.Parallel()
 		testTrackingOff(t, factory, senderMock, infra)
 	})
+
+	t.Run("BatchAboveDomainTrackingCeiling", func(t *testing.T) {
+		t.Parallel()
+		testBatchAboveDomainTrackingCeiling(t, factory, senderMock, infra)
+	})
 }
 
 func runKannon(t *testing.T, infra *TestInfrastructure, senderMock *senderMock) {
@@ -763,6 +768,37 @@ func testTrackingOff(t *testing.T, clientFactory *clientFactory, senderMock *sen
 		"the authored link must be delivered unrewritten")
 	assert.NotContains(t, msg.Body, "stats."+client.domain,
 		"an untracked message must carry no tracking hostname")
+}
+
+// testBatchAboveDomainTrackingCeiling is the ceiling counterpart of
+// testTrackingOff: a Batch stating a Tracking Mode above its Domain's ceiling
+// must fail the send call outright rather than being silently clamped to the
+// ceiling (ADR 0003 — "exceeding the ceiling is an error, not a silent
+// clamp"). The Domain is set to Off on both axes; the Batch asks for Full on
+// opens, which is strictly above it.
+func testBatchAboveDomainTrackingCeiling(t *testing.T, clientFactory *clientFactory, _ *senderMock, infra *TestInfrastructure) {
+	client := clientFactory.NewClient(t, infra)
+
+	client.SetTrackingPolicy(t, &trackingtypes.TrackingPolicy{
+		Opens: trackingtypes.TrackingMode_TRACKING_MODE_OFF,
+		Links: trackingtypes.TrackingMode_TRACKING_MODE_OFF,
+	})
+
+	to := tests.FakeEmail(t)
+	sendReq := &mailerapiv1.SendHTMLReq{
+		Sender:        client.Sender(),
+		Recipients:    []*mailertypes.Recipient{{Email: to}},
+		Subject:       "Batch Above Domain Ceiling Test",
+		Html:          "<h1>Hello!</h1>",
+		ScheduledTime: timestamppb.Now(),
+		Tracking: &trackingtypes.TrackingPolicy{
+			Opens: trackingtypes.TrackingMode_TRACKING_MODE_FULL,
+		},
+	}
+
+	err := client.SendEmailExpectingFailure(t, sendReq)
+	assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
+	assert.Contains(t, err.Error(), "opens", "the error must name the violating axis")
 }
 
 func requireGetEmail(t *testing.T, s *senderMock, email string) ParsedEmail {
