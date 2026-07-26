@@ -3,6 +3,7 @@ option go_package = "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1";
 
 import "google/protobuf/timestamp.proto";
 import "kannon/mailer/types/send.proto";
+import "kannon/tracking/types/tracking.proto";
 
 package pkg.kannon.mailer.apiv1;
 
@@ -25,6 +26,10 @@ message SendHTMLReq {
   repeated Attachment attachments = 7;
   map<string, string> global_fields = 8;
   optional pkg.kannon.mailer.types.Headers headers = 9;
+  // The Batch-level Tracking Policy. States nothing when omitted, which
+  // imposes no restriction of its own and resolves to the Domain's ceiling
+  // (ADR 0003). A Mode above that ceiling fails the call.
+  optional pkg.kannon.tracking.types.TrackingPolicy tracking = 10;
 }
 
 message SendTemplateReq {
@@ -36,6 +41,10 @@ message SendTemplateReq {
   repeated Attachment attachments = 7;
   map<string, string> global_fields = 8;
   optional pkg.kannon.mailer.types.Headers headers = 9;
+  // The Batch-level Tracking Policy. States nothing when omitted, which
+  // imposes no restriction of its own and resolves to the Domain's ceiling
+  // (ADR 0003). A Mode above that ceiling fails the call.
+  optional pkg.kannon.tracking.types.TrackingPolicy tracking = 10;
 }
 
 message SendRes {

@@ -8,6 +8,7 @@ package apiv1
 
 import (
 	types "github.com/kannon-email/kannon/proto/kannon/mailer/types"
+	types1 "github.com/kannon-email/kannon/proto/kannon/tracking/types"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
@@ -85,6 +86,10 @@ type SendHTMLReq struct {
 	Attachments   []*Attachment          `protobuf:"bytes,7,rep,name=attachments,proto3" json:"attachments,omitempty"`
 	GlobalFields  map[string]string      `protobuf:"bytes,8,rep,name=global_fields,json=globalFields,proto3" json:"global_fields,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	Headers       *types.Headers         `protobuf:"bytes,9,opt,name=headers,proto3,oneof" json:"headers,omitempty"`
+	// The Batch-level Tracking Policy. States nothing when omitted, which
+	// imposes no restriction of its own and resolves to the Domain's ceiling
+	// (ADR 0003). A Mode above that ceiling fails the call.
+	Tracking      *types1.TrackingPolicy `protobuf:"bytes,10,opt,name=tracking,proto3,oneof" json:"tracking,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -175,6 +180,13 @@ func (x *SendHTMLReq) GetHeaders() *types.Headers {
 	return nil
 }
 
+func (x *SendHTMLReq) GetTracking() *types1.TrackingPolicy {
+	if x != nil {
+		return x.Tracking
+	}
+	return nil
+}
+
 type SendTemplateReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Sender        *types.Sender          `protobuf:"bytes,1,opt,name=sender,proto3" json:"sender,omitempty"`
@@ -185,6 +197,10 @@ type SendTemplateReq struct {
 	Attachments   []*Attachment          `protobuf:"bytes,7,rep,name=attachments,proto3" json:"attachments,omitempty"`
 	GlobalFields  map[string]string      `protobuf:"bytes,8,rep,name=global_fields,json=globalFields,proto3" json:"global_fields,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	Headers       *types.Headers         `protobuf:"bytes,9,opt,name=headers,proto3,oneof" json:"headers,omitempty"`
+	// The Batch-level Tracking Policy. States nothing when omitted, which
+	// imposes no restriction of its own and resolves to the Domain's ceiling
+	// (ADR 0003). A Mode above that ceiling fails the call.
+	Tracking      *types1.TrackingPolicy `protobuf:"bytes,10,opt,name=tracking,proto3,oneof" json:"tracking,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -275,6 +291,13 @@ func (x *SendTemplateReq) GetHeaders() *types.Headers {
 	return nil
 }
 
+func (x *SendTemplateReq) GetTracking() *types1.TrackingPolicy {
+	if x != nil {
+		return x.Tracking
+	}
+	return nil
+}
+
 type SendRes struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	MessageId     string                 `protobuf:"bytes,1,opt,name=message_id,json=messageId,proto3" json:"message_id,omitempty"`
@@ -339,11 +362,11 @@ var File_kannon_mailer_apiv1_mailerapiv1_proto protoreflect.FileDescriptor
 
 const file_kannon_mailer_apiv1_mailerapiv1_proto_rawDesc = "" +
 	"\n" +
-	"%kannon/mailer/apiv1/mailerapiv1.proto\x12\x17pkg.kannon.mailer.apiv1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1ekannon/mailer/types/send.proto\"B\n" +
+	"%kannon/mailer/apiv1/mailerapiv1.proto\x12\x17pkg.kannon.mailer.apiv1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1ekannon/mailer/types/send.proto\x1a$kannon/tracking/types/tracking.proto\"B\n" +
 	"\n" +
 	"Attachment\x12\x1a\n" +
 	"\bfilename\x18\x01 \x01(\tR\bfilename\x12\x18\n" +
-	"\acontent\x18\x02 \x01(\fR\acontent\"\xc5\x04\n" +
+	"\acontent\x18\x02 \x01(\fR\acontent\"\x9e\x05\n" +
 	"\vSendHTMLReq\x127\n" +
 	"\x06sender\x18\x01 \x01(\v2\x1f.pkg.kannon.mailer.types.SenderR\x06sender\x12\x18\n" +
 	"\asubject\x18\x03 \x01(\tR\asubject\x12\x12\n" +
@@ -354,13 +377,16 @@ const file_kannon_mailer_apiv1_mailerapiv1_proto_rawDesc = "" +
 	"recipients\x12E\n" +
 	"\vattachments\x18\a \x03(\v2#.pkg.kannon.mailer.apiv1.AttachmentR\vattachments\x12[\n" +
 	"\rglobal_fields\x18\b \x03(\v26.pkg.kannon.mailer.apiv1.SendHTMLReq.GlobalFieldsEntryR\fglobalFields\x12?\n" +
-	"\aheaders\x18\t \x01(\v2 .pkg.kannon.mailer.types.HeadersH\x01R\aheaders\x88\x01\x01\x1a?\n" +
+	"\aheaders\x18\t \x01(\v2 .pkg.kannon.mailer.types.HeadersH\x01R\aheaders\x88\x01\x01\x12J\n" +
+	"\btracking\x18\n" +
+	" \x01(\v2).pkg.kannon.tracking.types.TrackingPolicyH\x02R\btracking\x88\x01\x01\x1a?\n" +
 	"\x11GlobalFieldsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\x11\n" +
 	"\x0f_scheduled_timeB\n" +
 	"\n" +
-	"\b_headers\"\xda\x04\n" +
+	"\b_headersB\v\n" +
+	"\t_tracking\"\xb3\x05\n" +
 	"\x0fSendTemplateReq\x127\n" +
 	"\x06sender\x18\x01 \x01(\v2\x1f.pkg.kannon.mailer.types.SenderR\x06sender\x12\x18\n" +
 	"\asubject\x18\x03 \x01(\tR\asubject\x12\x1f\n" +
@@ -372,13 +398,16 @@ const file_kannon_mailer_apiv1_mailerapiv1_proto_rawDesc = "" +
 	"recipients\x12E\n" +
 	"\vattachments\x18\a \x03(\v2#.pkg.kannon.mailer.apiv1.AttachmentR\vattachments\x12_\n" +
 	"\rglobal_fields\x18\b \x03(\v2:.pkg.kannon.mailer.apiv1.SendTemplateReq.GlobalFieldsEntryR\fglobalFields\x12?\n" +
-	"\aheaders\x18\t \x01(\v2 .pkg.kannon.mailer.types.HeadersH\x01R\aheaders\x88\x01\x01\x1a?\n" +
+	"\aheaders\x18\t \x01(\v2 .pkg.kannon.mailer.types.HeadersH\x01R\aheaders\x88\x01\x01\x12J\n" +
+	"\btracking\x18\n" +
+	" \x01(\v2).pkg.kannon.tracking.types.TrackingPolicyH\x02R\btracking\x88\x01\x01\x1a?\n" +
 	"\x11GlobalFieldsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\x11\n" +
 	"\x0f_scheduled_timeB\n" +
 	"\n" +
-	"\b_headers\"\x8c\x01\n" +
+	"\b_headersB\v\n" +
+	"\t_tracking\"\x8c\x01\n" +
 	"\aSendRes\x12\x1d\n" +
 	"\n" +
 	"message_id\x18\x01 \x01(\tR\tmessageId\x12\x1f\n" +
@@ -414,6 +443,7 @@ var file_kannon_mailer_apiv1_mailerapiv1_proto_goTypes = []any{
 	(*timestamppb.Timestamp)(nil), // 7: google.protobuf.Timestamp
 	(*types.Recipient)(nil),       // 8: pkg.kannon.mailer.types.Recipient
 	(*types.Headers)(nil),         // 9: pkg.kannon.mailer.types.Headers
+	(*types1.TrackingPolicy)(nil), // 10: pkg.kannon.tracking.types.TrackingPolicy
 }
 var file_kannon_mailer_apiv1_mailerapiv1_proto_depIdxs = []int32{
 	6,  // 0: pkg.kannon.mailer.apiv1.SendHTMLReq.sender:type_name -> pkg.kannon.mailer.types.Sender
@@ -422,22 +452,24 @@ var file_kannon_mailer_apiv1_mailerapiv1_proto_depIdxs = []int32{
 	0,  // 3: pkg.kannon.mailer.apiv1.SendHTMLReq.attachments:type_name -> pkg.kannon.mailer.apiv1.Attachment
 	4,  // 4: pkg.kannon.mailer.apiv1.SendHTMLReq.global_fields:type_name -> pkg.kannon.mailer.apiv1.SendHTMLReq.GlobalFieldsEntry
 	9,  // 5: pkg.kannon.mailer.apiv1.SendHTMLReq.headers:type_name -> pkg.kannon.mailer.types.Headers
-	6,  // 6: pkg.kannon.mailer.apiv1.SendTemplateReq.sender:type_name -> pkg.kannon.mailer.types.Sender
-	7,  // 7: pkg.kannon.mailer.apiv1.SendTemplateReq.scheduled_time:type_name -> google.protobuf.Timestamp
-	8,  // 8: pkg.kannon.mailer.apiv1.SendTemplateReq.recipients:type_name -> pkg.kannon.mailer.types.Recipient
-	0,  // 9: pkg.kannon.mailer.apiv1.SendTemplateReq.attachments:type_name -> pkg.kannon.mailer.apiv1.Attachment
-	5,  // 10: pkg.kannon.mailer.apiv1.SendTemplateReq.global_fields:type_name -> pkg.kannon.mailer.apiv1.SendTemplateReq.GlobalFieldsEntry
-	9,  // 11: pkg.kannon.mailer.apiv1.SendTemplateReq.headers:type_name -> pkg.kannon.mailer.types.Headers
-	7,  // 12: pkg.kannon.mailer.apiv1.SendRes.scheduled_time:type_name -> google.protobuf.Timestamp
-	1,  // 13: pkg.kannon.mailer.apiv1.Mailer.SendHTML:input_type -> pkg.kannon.mailer.apiv1.SendHTMLReq
-	2,  // 14: pkg.kannon.mailer.apiv1.Mailer.SendTemplate:input_type -> pkg.kannon.mailer.apiv1.SendTemplateReq
-	3,  // 15: pkg.kannon.mailer.apiv1.Mailer.SendHTML:output_type -> pkg.kannon.mailer.apiv1.SendRes
-	3,  // 16: pkg.kannon.mailer.apiv1.Mailer.SendTemplate:output_type -> pkg.kannon.mailer.apiv1.SendRes
-	15, // [15:17] is the sub-list for method output_type
-	13, // [13:15] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	10, // 6: pkg.kannon.mailer.apiv1.SendHTMLReq.tracking:type_name -> pkg.kannon.tracking.types.TrackingPolicy
+	6,  // 7: pkg.kannon.mailer.apiv1.SendTemplateReq.sender:type_name -> pkg.kannon.mailer.types.Sender
+	7,  // 8: pkg.kannon.mailer.apiv1.SendTemplateReq.scheduled_time:type_name -> google.protobuf.Timestamp
+	8,  // 9: pkg.kannon.mailer.apiv1.SendTemplateReq.recipients:type_name -> pkg.kannon.mailer.types.Recipient
+	0,  // 10: pkg.kannon.mailer.apiv1.SendTemplateReq.attachments:type_name -> pkg.kannon.mailer.apiv1.Attachment
+	5,  // 11: pkg.kannon.mailer.apiv1.SendTemplateReq.global_fields:type_name -> pkg.kannon.mailer.apiv1.SendTemplateReq.GlobalFieldsEntry
+	9,  // 12: pkg.kannon.mailer.apiv1.SendTemplateReq.headers:type_name -> pkg.kannon.mailer.types.Headers
+	10, // 13: pkg.kannon.mailer.apiv1.SendTemplateReq.tracking:type_name -> pkg.kannon.tracking.types.TrackingPolicy
+	7,  // 14: pkg.kannon.mailer.apiv1.SendRes.scheduled_time:type_name -> google.protobuf.Timestamp
+	1,  // 15: pkg.kannon.mailer.apiv1.Mailer.SendHTML:input_type -> pkg.kannon.mailer.apiv1.SendHTMLReq
+	2,  // 16: pkg.kannon.mailer.apiv1.Mailer.SendTemplate:input_type -> pkg.kannon.mailer.apiv1.SendTemplateReq
+	3,  // 17: pkg.kannon.mailer.apiv1.Mailer.SendHTML:output_type -> pkg.kannon.mailer.apiv1.SendRes
+	3,  // 18: pkg.kannon.mailer.apiv1.Mailer.SendTemplate:output_type -> pkg.kannon.mailer.apiv1.SendRes
+	17, // [17:19] is the sub-list for method output_type
+	15, // [15:17] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_kannon_mailer_apiv1_mailerapiv1_proto_init() }
