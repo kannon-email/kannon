@@ -222,8 +222,9 @@ func isTrackableLink(link string) bool {
 	if link == "" || strings.HasPrefix(link, "#") {
 		return false
 	}
+	lower := strings.ToLower(link)
 	for _, scheme := range nonTrackableSchemes {
-		if strings.HasPrefix(strings.ToLower(link), scheme) {
+		if strings.HasPrefix(lower, scheme) {
 			return false
 		}
 	}

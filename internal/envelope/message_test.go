@@ -384,6 +384,14 @@ func TestReplaceLinks(t *testing.T) {
 			name: "upper case href attribute",
 			html: `<a HREF="https://example.com">go</a>`,
 		},
+		{
+			// An upper-case tag name, on the other hand, is now tracked: matching the
+			// tag case-insensitively is what lets the opt-out and the scheme check
+			// reach it at all.
+			name:     "upper case tag name",
+			html:     `<A href="https://example.com">go</A>`,
+			expected: `<A href="https://example.comx">go</A>`,
+		},
 	}
 
 	for _, tt := range tests {
