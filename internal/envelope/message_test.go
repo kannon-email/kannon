@@ -379,18 +379,35 @@ func TestReplaceLinks(t *testing.T) {
 			html: `<a href="https://example.com/preferences" DATA-NO-TRACK>preferences</a>`,
 		},
 		{
-			// Pre-existing behaviour, unchanged by the opt-out work: an upper-case
-			// HREF has never been rewritten.
-			name: "upper case href attribute",
-			html: `<a HREF="https://example.com">go</a>`,
-		},
-		{
-			// An upper-case tag name, on the other hand, is now tracked: matching the
-			// tag case-insensitively is what lets the opt-out and the scheme check
-			// reach it at all.
+			// Tag and attribute names are case-insensitive in HTML, so an upper-case
+			// tag or HREF names the very same link. Matching them that way is also
+			// what lets the opt-out and the scheme check reach such a tag at all.
 			name:     "upper case tag name",
 			html:     `<A href="https://example.com">go</A>`,
 			expected: `<A href="https://example.comx">go</A>`,
+		},
+		{
+			name:     "upper case href attribute",
+			html:     `<a HREF="https://example.com">go</a>`,
+			expected: `<a HREF="https://example.comx">go</a>`,
+		},
+		{
+			name:     "mixed case href attribute",
+			html:     `<a Href="https://example.com">go</a>`,
+			expected: `<a Href="https://example.comx">go</a>`,
+		},
+		{
+			name:     "upper case tag and href",
+			html:     `<A HREF="https://example.com">go</A>`,
+			expected: `<A HREF="https://example.comx">go</A>`,
+		},
+		{
+			name: "upper case href on a non-trackable scheme",
+			html: `<a HREF="mailto:info@example.com">write us</a>`,
+		},
+		{
+			name: "upper case href opted out",
+			html: `<a HREF="https://example.com/preferences" data-no-track>preferences</a>`,
 		},
 	}
 

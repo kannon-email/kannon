@@ -128,9 +128,10 @@ var (
 	// attributes it carries. A quoted attribute value may hold a raw '>', so
 	// quoted spans are matched as units instead of scanning for the first '>'.
 	regATag = regexp.MustCompile(`(?i)<a\s(?:[^>"']|"[^"]*"|'[^']*')*>`)
-	// regHref captures the href value of a tag. The leading whitespace keeps a
+	// regHref captures the href value of a tag. Attribute names are case-insensitive
+	// in HTML, so HREF is the same attribute as href. The leading whitespace keeps a
 	// look-alike attribute such as data-href out of the match.
-	regHref = regexp.MustCompile(`\shref=["'](.+?)["']`)
+	regHref = regexp.MustCompile(`(?i)\shref=["'](.+?)["']`)
 	// regNoTrack matches the data-no-track opt-out attribute in every spelling a
 	// sender may reach for — valueless, quoted, unquoted, any case — together with
 	// the character that terminates it, which the replacement puts back.
