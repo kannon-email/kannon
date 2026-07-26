@@ -116,6 +116,16 @@ func TestE2EEmailSending(t *testing.T) {
 		t.Parallel()
 		testTrackingOff(t, factory, senderMock, infra)
 	})
+
+	t.Run("TrackingIdentified", func(t *testing.T) {
+		t.Parallel()
+		testTrackingIdentified(t, factory, senderMock, infra)
+	})
+
+	t.Run("TrackingFull", func(t *testing.T) {
+		t.Parallel()
+		testTrackingFull(t, factory, senderMock, infra)
+	})
 }
 
 func runKannon(t *testing.T, infra *TestInfrastructure, senderMock *senderMock) {
@@ -652,6 +662,130 @@ func extractClickToken(t *testing.T, body string) string {
 	return m[1]
 }
 
+// What a recipient's mail client carries into a tracking request. Under Full the
+// Tracker retains exactly these two values; under any lower Mode, neither.
+const (
+	engagementIP        = "203.0.113.9"
+	engagementUserAgent = "kannon-e2e-agent/1.0"
+)
+
+// requireTrackerHit issues one tracking request the way a recipient's client
+// would — with an IP address and a user agent for the Tracker to retain or drop —
+// and returns the Location header, so the click path can assert the redirect.
+// Redirect-following is disabled: the tests assert the 307 + Location directly,
+// not that example.com is reachable from CI.
+func requireTrackerHit(t *testing.T, url string, wantStatus int) string {
+	t.Helper()
+
+	httpClient := &http.Client{
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	var location string
+	require.EventuallyWithT(t, func(tt *assert.CollectT) {
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, url, nil)
+		require.NoError(tt, err)
+		req.Header.Set("User-Agent", engagementUserAgent)
+		req.Header.Set("X-Real-Ip", engagementIP)
+
+		resp, err := httpClient.Do(req)
+		require.NoError(tt, err)
+		defer resp.Body.Close()
+		_, _ = io.Copy(io.Discard, resp.Body) //nolint:errcheck // draining body before close
+		require.Equal(tt, wantStatus, resp.StatusCode)
+		location = resp.Header.Get("Location")
+	}, 10*time.Second, 200*time.Millisecond, "Tracker endpoint %s should answer %d", url, wantStatus)
+
+	return location
+}
+
+// trackEngagement sends one tracked message, retrieves its pixel and follows its
+// tracked link, and returns the resulting Opened and Clicked stats — so a test can
+// assert on both axes of the Policy from a single send. The Domain's Tracking
+// Policy must already be set: it is resolved at intake and frozen on the Delivery.
+func trackEngagement(t *testing.T, client *clientTest, senderMock *senderMock, infra *TestInfrastructure, subject string) (opened, clicked *statstypes.Stats) {
+	t.Helper()
+
+	const landingURL = "https://example.com/landing"
+	to := tests.FakeEmail(t)
+
+	client.SendEmail(t, &mailerapiv1.SendHTMLReq{
+		Sender:        client.Sender(),
+		Recipients:    []*mailertypes.Recipient{{Email: to}},
+		Subject:       subject,
+		Html:          fmt.Sprintf(`<html><body><h1>Hello!</h1><a href=%q>click</a></body></html>`, landingURL),
+		ScheduledTime: timestamppb.Now(),
+	})
+
+	msg := requireGetEmail(t, senderMock, to)
+
+	requireTrackerHit(t,
+		fmt.Sprintf("http://localhost:%d/o/%s", infra.trackerPort, extractOpenToken(t, msg.Body)),
+		http.StatusOK)
+	location := requireTrackerHit(t,
+		fmt.Sprintf("http://localhost:%d/c/%s", infra.trackerPort, extractClickToken(t, msg.Body)),
+		http.StatusTemporaryRedirect)
+	assert.Equal(t, landingURL, location, "click redirect must round-trip the originally-authored URL")
+
+	openedStats := requireStat(t, client, to, "opened", 1)
+	clickedStats := requireStat(t, client, to, "clicked", 1)
+
+	assert.EqualValues(t, to, openedStats[0].Email, "an attributed open names the Recipient")
+	assert.EqualValues(t, to, clickedStats[0].Email, "an attributed click names the Recipient")
+
+	return openedStats[0], clickedStats[0]
+}
+
+// testTrackingIdentified is the default a fresh Domain resolves to, stated
+// explicitly here: engagement events are attributed to the Recipient, and neither
+// the IP address nor the user agent of the request survives into the stat.
+func testTrackingIdentified(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
+	client := clientFactory.NewClient(t, infra)
+
+	client.SetTrackingPolicy(t, &trackingtypes.TrackingPolicy{
+		Opens: trackingtypes.TrackingMode_TRACKING_MODE_IDENTIFIED,
+		Links: trackingtypes.TrackingMode_TRACKING_MODE_IDENTIFIED,
+	})
+
+	opened, clicked := trackEngagement(t, client, senderMock, infra, "Tracking Identified Test")
+
+	openedData := opened.Data.GetOpened()
+	require.NotNil(t, openedData)
+	assert.Empty(t, openedData.Ip, "an Identified open must retain no IP address")
+	assert.Empty(t, openedData.UserAgent, "an Identified open must retain no user agent")
+
+	clickedData := clicked.Data.GetClicked()
+	require.NotNil(t, clickedData)
+	assert.Empty(t, clickedData.Ip, "an Identified click must retain no IP address")
+	assert.Empty(t, clickedData.UserAgent, "an Identified click must retain no user agent")
+}
+
+// testTrackingFull is the only Mode under which Kannon keeps anything about the
+// request itself: an operator who has selected Full gets the IP address and user
+// agent on both axes.
+func testTrackingFull(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
+	client := clientFactory.NewClient(t, infra)
+
+	client.SetTrackingPolicy(t, &trackingtypes.TrackingPolicy{
+		Opens: trackingtypes.TrackingMode_TRACKING_MODE_FULL,
+		Links: trackingtypes.TrackingMode_TRACKING_MODE_FULL,
+	})
+
+	opened, clicked := trackEngagement(t, client, senderMock, infra, "Tracking Full Test")
+
+	openedData := opened.Data.GetOpened()
+	require.NotNil(t, openedData)
+	assert.Equal(t, engagementIP, openedData.Ip, "a Full open must retain the IP address")
+	assert.Equal(t, engagementUserAgent, openedData.UserAgent, "a Full open must retain the user agent")
+
+	clickedData := clicked.Data.GetClicked()
+	require.NotNil(t, clickedData)
+	assert.Equal(t, engagementIP, clickedData.Ip, "a Full click must retain the IP address")
+	assert.Equal(t, engagementUserAgent, clickedData.UserAgent, "a Full click must retain the user agent")
+}
+
 func testOpened(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
 	client := clientFactory.NewClient(t, infra)
 
@@ -671,17 +805,17 @@ func testOpened(t *testing.T, clientFactory *clientFactory, senderMock *senderMo
 	msg := requireGetEmail(t, senderMock, to)
 	token := extractOpenToken(t, msg.Body)
 
-	url := fmt.Sprintf("http://localhost:%d/o/%s", infra.trackerPort, token)
-	require.EventuallyWithT(t, func(tt *assert.CollectT) {
-		resp, err := http.Get(url)
-		require.NoError(tt, err)
-		defer resp.Body.Close()
-		_, _ = io.Copy(io.Discard, resp.Body) //nolint:errcheck // draining body before close
-		require.Equal(tt, http.StatusOK, resp.StatusCode)
-	}, 10*time.Second, 200*time.Millisecond, "Tracker open endpoint should be reachable")
+	requireTrackerHit(t, fmt.Sprintf("http://localhost:%d/o/%s", infra.trackerPort, token), http.StatusOK)
 
 	matched := requireStat(t, client, to, "opened", 1)
 	assert.EqualValues(t, to, matched[0].Email)
+
+	// A fresh Domain resolves to Identified (ADR 0003), so the open is attributed
+	// to the Recipient and nothing about the request itself is retained.
+	opened := matched[0].Data.GetOpened()
+	require.NotNil(t, opened, "opened stat should carry typed Opened data")
+	assert.Empty(t, opened.Ip, "an Identified open must retain no IP address")
+	assert.Empty(t, opened.UserAgent, "an Identified open must retain no user agent")
 }
 
 func testClicked(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
@@ -704,24 +838,9 @@ func testClicked(t *testing.T, clientFactory *clientFactory, senderMock *senderM
 	msg := requireGetEmail(t, senderMock, to)
 	token := extractClickToken(t, msg.Body)
 
-	// Redirect-following disabled: the test asserts the 307 + Location
-	// directly, not that example.com is reachable from CI.
-	httpClient := &http.Client{
-		CheckRedirect: func(*http.Request, []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
-
-	url := fmt.Sprintf("http://localhost:%d/c/%s", infra.trackerPort, token)
-	var location string
-	require.EventuallyWithT(t, func(tt *assert.CollectT) {
-		resp, err := httpClient.Get(url)
-		require.NoError(tt, err)
-		defer resp.Body.Close()
-		_, _ = io.Copy(io.Discard, resp.Body) //nolint:errcheck // draining body before close
-		require.Equal(tt, http.StatusTemporaryRedirect, resp.StatusCode)
-		location = resp.Header.Get("Location")
-	}, 10*time.Second, 200*time.Millisecond, "Tracker click endpoint should be reachable")
+	location := requireTrackerHit(t,
+		fmt.Sprintf("http://localhost:%d/c/%s", infra.trackerPort, token),
+		http.StatusTemporaryRedirect)
 
 	assert.Equal(t, landingURL, location, "click redirect must round-trip the originally-authored URL")
 
@@ -730,6 +849,11 @@ func testClicked(t *testing.T, clientFactory *clientFactory, senderMock *senderM
 	clicked := matched[0].Data.GetClicked()
 	require.NotNil(t, clicked, "clicked stat should carry typed Clicked data")
 	assert.Equal(t, landingURL, clicked.Url, "clicked stat URL must match the originally-authored URL")
+
+	// As for opens: a fresh Domain is Identified, so the click is attributed and
+	// nothing about the request itself is retained.
+	assert.Empty(t, clicked.Ip, "an Identified click must retain no IP address")
+	assert.Empty(t, clicked.UserAgent, "an Identified click must retain no user agent")
 }
 
 // testTrackingOff is the counterpart of Opened and Clicked: a Domain whose
