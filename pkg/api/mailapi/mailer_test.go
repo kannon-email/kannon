@@ -7,11 +7,14 @@ import (
 
 	"connectrpc.com/connect"
 	sqlc "github.com/kannon-email/kannon/internal/db"
+	"github.com/kannon-email/kannon/internal/tracking"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	adminv1 "github.com/kannon-email/kannon/proto/kannon/admin/apiv1"
 	mailerv1 "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1"
 	types "github.com/kannon-email/kannon/proto/kannon/mailer/types"
+	trackingtypes "github.com/kannon-email/kannon/proto/kannon/tracking/types"
 )
 
 func TestSendMail_RejectsCrossDomainSender(t *testing.T) {
@@ -233,6 +236,83 @@ func TestInsertMail(t *testing.T) {
 	assert.Equal(t, "Test", sp[0].Fields["name"])
 
 	assert.Equal(t, schedTime.UTC(), sp[0].ScheduledTime.Time.UTC())
+}
+
+// TestSendMailFreezesResolvedTrackingPolicy asserts what a caller can observe
+// after a send: the Policy on every Delivery is the concrete result of resolving
+// the Domain's ceiling at intake, never a Policy that states nothing.
+func TestSendMailFreezesResolvedTrackingPolicy(t *testing.T) {
+	cases := []struct {
+		name   string
+		domain *trackingtypes.TrackingPolicy
+		want   tracking.Policy
+	}{
+		{
+			name: "DomainDefault",
+			want: tracking.Policy{Opens: tracking.ModeIdentified, Links: tracking.ModeIdentified},
+		},
+		{
+			name: "DomainOff",
+			domain: &trackingtypes.TrackingPolicy{
+				Opens: trackingtypes.TrackingMode_TRACKING_MODE_OFF,
+				Links: trackingtypes.TrackingMode_TRACKING_MODE_OFF,
+			},
+			want: tracking.Policy{Opens: tracking.ModeOff, Links: tracking.ModeOff},
+		},
+		{
+			name: "DomainOffForOpensOnly",
+			domain: &trackingtypes.TrackingPolicy{
+				Opens: trackingtypes.TrackingMode_TRACKING_MODE_OFF,
+				Links: trackingtypes.TrackingMode_TRACKING_MODE_IDENTIFIED,
+			},
+			want: tracking.Policy{Opens: tracking.ModeOff, Links: tracking.ModeIdentified},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			defer cleanDB(t)
+
+			d := createTestDomain(t)
+
+			if tc.domain != nil {
+				_, err := adminAPI.SetTrackingPolicy(t.Context(), connect.NewRequest(&adminv1.SetTrackingPolicyReq{
+					Domain:   d.Domain.Domain,
+					Tracking: tc.domain,
+				}))
+				assert.Nil(t, err)
+			}
+
+			req := connect.NewRequest(&mailerv1.SendHTMLReq{
+				Sender: &types.Sender{
+					Email: "test@" + d.Domain.Domain,
+					Alias: "Test",
+				},
+				Recipients: []*types.Recipient{
+					{Email: "first@email.com"},
+					{Email: "second@email.com"},
+				},
+				Subject:       "Test",
+				Html:          "<p>Hello</p>",
+				ScheduledTime: timestamppb.Now(),
+			})
+			authRequest(req, d)
+
+			res, err := ts.SendHTML(t.Context(), req)
+			assert.Nil(t, err)
+
+			sp, err := q.GetSendingPoolsEmails(t.Context(), sqlc.GetSendingPoolsEmailsParams{
+				MessageID: res.Msg.MessageId,
+				Limit:     100,
+				Offset:    0,
+			})
+			assert.Nil(t, err)
+			assert.Equal(t, 2, len(sp))
+			for _, row := range sp {
+				assert.Equal(t, tc.want, row.Tracking, "delivery %s", row.Email)
+			}
+		})
+	}
 }
 
 func TestSendMailWithInvalidHeaders(t *testing.T) {

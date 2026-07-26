@@ -19,6 +19,7 @@ import (
 	"github.com/kannon-email/kannon/internal/domains"
 	smtputils "github.com/kannon-email/kannon/internal/smtp"
 	"github.com/kannon-email/kannon/internal/templates"
+	"github.com/kannon-email/kannon/internal/tracking"
 	"github.com/kannon-email/kannon/internal/utils"
 	pb "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1"
 	mailerv1connect "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1/apiv1connect"
@@ -118,7 +119,7 @@ func (s mailAPIService) sendTemplate(ctx context.Context, domain *domains.Domain
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 
-	if err := s.scheduleBatch(ctx, b, req.Msg.Recipients, scheduled); err != nil {
+	if err := s.scheduleBatch(ctx, domain, b, req.Msg.Recipients, scheduled); err != nil {
 		slog.Error("cannot create pool", "err", err)
 		return nil, err
 	}
@@ -134,7 +135,7 @@ func (s mailAPIService) Close() error {
 	return nil
 }
 
-func (s mailAPIService) scheduleBatch(ctx context.Context, b *batch.Batch, recipients []*mailertypes.Recipient, scheduled time.Time) error {
+func (s mailAPIService) scheduleBatch(ctx context.Context, domain *domains.Domain, b *batch.Batch, recipients []*mailertypes.Recipient, scheduled time.Time) error {
 	if err := s.batches.Create(ctx, b); err != nil {
 		return err
 	}
@@ -144,6 +145,11 @@ func (s mailAPIService) scheduleBatch(ctx context.Context, b *batch.Batch, recip
 			slog.Warn("skipping recipient with empty email in batch " + b.ID().String())
 			continue
 		}
+		// The Tracking Policy cascade is resolved here, at intake, and the
+		// concrete result is frozen on the Delivery (ADR 0003). Only the Domain
+		// states anything today; the Batch and the Recipient state nothing, so
+		// they impose no restriction of their own.
+		policy := tracking.Resolve(domain.TrackingPolicy(), tracking.Policy{}, tracking.Policy{})
 		d, err := delivery.New(delivery.NewParams{
 			BatchID:       b.ID(),
 			Email:         r.Email,
@@ -151,6 +157,7 @@ func (s mailAPIService) scheduleBatch(ctx context.Context, b *batch.Batch, recip
 			Domain:        b.Domain(),
 			ScheduledTime: scheduled,
 			Backoff:       s.backoff,
+			Tracking:      policy,
 		})
 		if err != nil {
 			slog.Warn(fmt.Sprintf("skipping recipient %q in batch %s: %v", r.Email, b.ID().String(), err))
