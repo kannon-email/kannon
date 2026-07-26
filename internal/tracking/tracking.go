@@ -59,6 +59,25 @@ func (m Mode) Rank() (int, bool) {
 	return rank, ok
 }
 
+// IdentifiesRecipient reports whether an engagement event governed by m may name
+// the Recipient it came from. Like every other question about the scale it is a
+// rank comparison: Identified is by definition the rung at which attribution
+// begins, so every rung below it — Off, Anonymous, Pseudonymous — retains nothing
+// that names a Recipient (CONTEXT.md).
+//
+// A Mode with no position on the scale identifies. ModeUnspecified states nothing
+// and so imposes no restriction of its own (ADR 0003), and the only place an
+// unstated Mode is still met is a token minted before the Mode became a claim:
+// such a token was minted to be attributed, so dropping its identity would lose
+// data rather than protect anybody.
+func (m Mode) IdentifiesRecipient() bool {
+	rank, ok := m.Rank()
+	if !ok {
+		return true
+	}
+	return rank >= modeRanks[ModeIdentified]
+}
+
 // Policy is a pair of Modes, one governing opens and one governing links,
 // expressing what may be observed about a Delivery.
 type Policy struct {

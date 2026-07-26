@@ -30,6 +30,9 @@ const tokenExpirePeriod = time.Hour * 24 * 30 * 3 // 3 months
 // A token minted before the Mode became a claim carries none, which states
 // nothing and therefore never reaches Full: the absence can only ever restrict
 // what the Tracker retains, never widen it.
+//
+// Email is empty under a Mode that does not identify the Recipient — see
+// identityUnder.
 type OpenClaims struct {
 	MessageID string        `json:"message_id"`
 	Email     string        `json:"email"`
@@ -38,13 +41,34 @@ type OpenClaims struct {
 }
 
 // LinkClaims are the claims of a link token. Mode governs links rather than
-// opens, and carries the same guarantees as OpenClaims.Mode.
+// opens, and Mode and Email carry the same guarantees as their OpenClaims
+// counterparts.
 type LinkClaims struct {
 	MessageID string        `json:"message_id"`
 	Email     string        `json:"email"`
 	URL       string        `json:"url"`
 	Mode      tracking.Mode `json:"mode,omitempty"`
 	jwt.RegisteredClaims
+}
+
+// identityUnder returns the Recipient identity a token minted under mode may
+// carry: none at all under a Mode that does not identify the Recipient
+// (Anonymous, and the reserved Pseudonymous).
+//
+// That is the privacy property of Anonymous made true in fact rather than in
+// intent — a token holding no address cannot isolate one Recipient from another
+// even if it is captured — and it is what makes the token a function of the Batch
+// instead of the Delivery, so the same one can be issued to every Recipient of a
+// Batch instead of signing RSA-4096 once per Delivery.
+//
+// The drop happens here, where the claim is assembled, rather than in the caller:
+// this is the one place every token passes through, so no caller can mint an
+// Anonymous token that names somebody by forgetting to blank the address first.
+func identityUnder(mode tracking.Mode, email string) string {
+	if !mode.IdentifiesRecipient() {
+		return ""
+	}
+	return email
 }
 
 func generateKeyPair() (*rsa.PrivateKey, *rsa.PublicKey, error) {
@@ -60,7 +84,7 @@ func generateKeyPair() (*rsa.PrivateKey, *rsa.PublicKey, error) {
 func createOpenToken(privateKey *rsa.PrivateKey, kid string, now time.Time, messageID string, email string, mode tracking.Mode) (string, error) {
 	claims := &OpenClaims{
 		MessageID: messageID,
-		Email:     email,
+		Email:     identityUnder(mode, email),
 		Mode:      mode,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(now.Add(tokenExpirePeriod)),
@@ -80,7 +104,7 @@ func createOpenToken(privateKey *rsa.PrivateKey, kid string, now time.Time, mess
 func createLinkToken(privateKey *rsa.PrivateKey, kid string, now time.Time, messageID string, email string, url string, mode tracking.Mode) (string, error) {
 	claims := &LinkClaims{
 		MessageID: messageID,
-		Email:     email,
+		Email:     identityUnder(mode, email),
 		URL:       url,
 		Mode:      mode,
 		RegisteredClaims: jwt.RegisteredClaims{

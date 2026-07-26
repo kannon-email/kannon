@@ -18,6 +18,11 @@ import (
 // Tracking Mode is minted into the token, so what the Tracker may observe about
 // a request is fixed by a signature at send time rather than looked up when the
 // engagement arrives.
+//
+// The Mode also decides whether the email address given to a Create call reaches
+// the token at all: under a Mode that does not identify the Recipient it is
+// dropped, so the minted token names nobody and is therefore the same token for
+// every Recipient of a Batch (see identityUnder).
 type StatsService interface {
 	CreateOpenToken(ctx context.Context, messageID string, email string, mode tracking.Mode) (string, error)
 	CreateLinkToken(ctx context.Context, messageID string, email string, url string, mode tracking.Mode) (string, error)

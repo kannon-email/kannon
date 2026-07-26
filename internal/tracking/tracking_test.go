@@ -174,3 +174,30 @@ func TestPolicyNormalized(t *testing.T) {
 		})
 	}
 }
+
+// TestModeIdentifiesRecipient pins where on the scale attribution begins, which
+// is the line the aggregate-statistics carve-out from the consent requirement
+// follows: an event governed by a Mode below Identified may not name anybody.
+func TestModeIdentifiesRecipient(t *testing.T) {
+	cases := []struct {
+		name string
+		mode tracking.Mode
+		want bool
+	}{
+		{name: "Off", mode: tracking.ModeOff, want: false},
+		{name: "Anonymous", mode: tracking.ModeAnonymous, want: false},
+		{name: "Pseudonymous", mode: tracking.ModePseudonymous, want: false},
+		{name: "Identified", mode: tracking.ModeIdentified, want: true},
+		{name: "Full", mode: tracking.ModeFull, want: true},
+		// A Mode that states nothing imposes no restriction of its own, so it
+		// leaves attribution exactly as it found it.
+		{name: "Unspecified states nothing", mode: tracking.ModeUnspecified, want: true},
+		{name: "Unknown value", mode: tracking.Mode("shadow"), want: true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, tc.mode.IdentifiesRecipient())
+		})
+	}
+}
