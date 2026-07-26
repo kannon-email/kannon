@@ -10,12 +10,17 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	sqlc "github.com/kannon-email/kannon/internal/db"
+	"github.com/kannon-email/kannon/internal/tracking"
 	"github.com/kannon-email/kannon/internal/utils"
 )
 
+// StatsService mints and verifies the signed tokens the Tracker acts on. The
+// Tracking Mode is minted into the token, so what the Tracker may observe about
+// a request is fixed by a signature at send time rather than looked up when the
+// engagement arrives.
 type StatsService interface {
-	CreateOpenToken(ctx context.Context, messageID string, email string) (string, error)
-	CreateLinkToken(ctx context.Context, messageID string, email string, url string) (string, error)
+	CreateOpenToken(ctx context.Context, messageID string, email string, mode tracking.Mode) (string, error)
+	CreateLinkToken(ctx context.Context, messageID string, email string, url string, mode tracking.Mode) (string, error)
 	VerifyOpenToken(ctx context.Context, token string) (*OpenClaims, error)
 	VerifyLinkToken(ctx context.Context, token string) (*LinkClaims, error)
 }
@@ -32,13 +37,13 @@ type service struct {
 	now func() time.Time
 }
 
-func (s *service) CreateOpenToken(ctx context.Context, messageID string, email string) (string, error) {
+func (s *service) CreateOpenToken(ctx context.Context, messageID string, email string, mode tracking.Mode) (string, error) {
 	privateKey, kid, err := s.getSignKeys(ctx)
 	if err != nil {
 		return "", err
 	}
 
-	token, err := createOpenToken(privateKey, kid, s.now(), messageID, email)
+	token, err := createOpenToken(privateKey, kid, s.now(), messageID, email, mode)
 	if err != nil {
 		return "", err
 	}
@@ -46,13 +51,13 @@ func (s *service) CreateOpenToken(ctx context.Context, messageID string, email s
 	return token, nil
 }
 
-func (s *service) CreateLinkToken(ctx context.Context, messageID string, email string, url string) (string, error) {
+func (s *service) CreateLinkToken(ctx context.Context, messageID string, email string, url string, mode tracking.Mode) (string, error) {
 	privateKey, kid, err := s.getSignKeys(ctx)
 	if err != nil {
 		return "", err
 	}
 
-	token, err := createLinkToken(privateKey, kid, s.now(), messageID, email, url)
+	token, err := createLinkToken(privateKey, kid, s.now(), messageID, email, url, mode)
 	if err != nil {
 		return "", err
 	}
