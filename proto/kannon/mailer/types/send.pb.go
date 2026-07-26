@@ -7,6 +7,7 @@
 package types
 
 import (
+	types "github.com/kannon-email/kannon/proto/kannon/tracking/types"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -74,9 +75,20 @@ func (x *Sender) GetAlias() string {
 }
 
 type Recipient struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Email         string                 `protobuf:"bytes,1,opt,name=email,proto3" json:"email,omitempty"`
-	Fields        map[string]string      `protobuf:"bytes,2,rep,name=fields,proto3" json:"fields,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Email  string                 `protobuf:"bytes,1,opt,name=email,proto3" json:"email,omitempty"`
+	Fields map[string]string      `protobuf:"bytes,2,rep,name=fields,proto3" json:"fields,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// The Recipient-level Tracking Policy — the most specific level of the
+	// cascade, where a caller states the consent it holds in its own CRM
+	// (ADR 0002). States nothing when omitted, which imposes no restriction of
+	// its own and leaves the Batch and Domain levels to decide.
+	//
+	// Consent may only narrow: an `off` here wins over a Domain-level `full`,
+	// but a `full` here does not win over a Domain-level `off`. A Recipient
+	// stating a Mode above its Domain's ceiling is Rejected on its own, with a
+	// reason in SendRes.rejected_recipients, while the rest of the Batch
+	// proceeds — one bad row does not fail a send of thousands.
+	Tracking      *types.TrackingPolicy `protobuf:"bytes,3,opt,name=tracking,proto3,oneof" json:"tracking,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -121,6 +133,13 @@ func (x *Recipient) GetEmail() string {
 func (x *Recipient) GetFields() map[string]string {
 	if x != nil {
 		return x.Fields
+	}
+	return nil
+}
+
+func (x *Recipient) GetTracking() *types.TrackingPolicy {
+	if x != nil {
+		return x.Tracking
 	}
 	return nil
 }
@@ -181,16 +200,18 @@ var File_kannon_mailer_types_send_proto protoreflect.FileDescriptor
 
 const file_kannon_mailer_types_send_proto_rawDesc = "" +
 	"\n" +
-	"\x1ekannon/mailer/types/send.proto\x12\x17pkg.kannon.mailer.types\"4\n" +
+	"\x1ekannon/mailer/types/send.proto\x12\x17pkg.kannon.mailer.types\x1a$kannon/tracking/types/tracking.proto\"4\n" +
 	"\x06Sender\x12\x14\n" +
 	"\x05email\x18\x01 \x01(\tR\x05email\x12\x14\n" +
-	"\x05alias\x18\x02 \x01(\tR\x05alias\"\xa4\x01\n" +
+	"\x05alias\x18\x02 \x01(\tR\x05alias\"\xfd\x01\n" +
 	"\tRecipient\x12\x14\n" +
 	"\x05email\x18\x01 \x01(\tR\x05email\x12F\n" +
-	"\x06fields\x18\x02 \x03(\v2..pkg.kannon.mailer.types.Recipient.FieldsEntryR\x06fields\x1a9\n" +
+	"\x06fields\x18\x02 \x03(\v2..pkg.kannon.mailer.types.Recipient.FieldsEntryR\x06fields\x12J\n" +
+	"\btracking\x18\x03 \x01(\v2).pkg.kannon.tracking.types.TrackingPolicyH\x00R\btracking\x88\x01\x01\x1a9\n" +
 	"\vFieldsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\")\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\v\n" +
+	"\t_tracking\")\n" +
 	"\aHeaders\x12\x0e\n" +
 	"\x02to\x18\x01 \x03(\tR\x02to\x12\x0e\n" +
 	"\x02cc\x18\x02 \x03(\tR\x02ccB\xe2\x01\n" +
@@ -210,18 +231,20 @@ func file_kannon_mailer_types_send_proto_rawDescGZIP() []byte {
 
 var file_kannon_mailer_types_send_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_kannon_mailer_types_send_proto_goTypes = []any{
-	(*Sender)(nil),    // 0: pkg.kannon.mailer.types.Sender
-	(*Recipient)(nil), // 1: pkg.kannon.mailer.types.Recipient
-	(*Headers)(nil),   // 2: pkg.kannon.mailer.types.Headers
-	nil,               // 3: pkg.kannon.mailer.types.Recipient.FieldsEntry
+	(*Sender)(nil),               // 0: pkg.kannon.mailer.types.Sender
+	(*Recipient)(nil),            // 1: pkg.kannon.mailer.types.Recipient
+	(*Headers)(nil),              // 2: pkg.kannon.mailer.types.Headers
+	nil,                          // 3: pkg.kannon.mailer.types.Recipient.FieldsEntry
+	(*types.TrackingPolicy)(nil), // 4: pkg.kannon.tracking.types.TrackingPolicy
 }
 var file_kannon_mailer_types_send_proto_depIdxs = []int32{
 	3, // 0: pkg.kannon.mailer.types.Recipient.fields:type_name -> pkg.kannon.mailer.types.Recipient.FieldsEntry
-	1, // [1:1] is the sub-list for method output_type
-	1, // [1:1] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	4, // 1: pkg.kannon.mailer.types.Recipient.tracking:type_name -> pkg.kannon.tracking.types.TrackingPolicy
+	2, // [2:2] is the sub-list for method output_type
+	2, // [2:2] is the sub-list for method input_type
+	2, // [2:2] is the sub-list for extension type_name
+	2, // [2:2] is the sub-list for extension extendee
+	0, // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_kannon_mailer_types_send_proto_init() }
@@ -229,6 +252,7 @@ func file_kannon_mailer_types_send_proto_init() {
 	if File_kannon_mailer_types_send_proto != nil {
 		return
 	}
+	file_kannon_mailer_types_send_proto_msgTypes[1].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

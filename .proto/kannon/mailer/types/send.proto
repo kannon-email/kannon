@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package pkg.kannon.mailer.types;
 
+import "kannon/tracking/types/tracking.proto";
+
 option go_package = "github.com/kannon-email/kannon/proto/kannon/mailer/types";
 
 message Sender {
@@ -12,6 +14,17 @@ message Sender {
 message Recipient {
   string email = 1;
   map<string, string> fields = 2;
+  // The Recipient-level Tracking Policy — the most specific level of the
+  // cascade, where a caller states the consent it holds in its own CRM
+  // (ADR 0002). States nothing when omitted, which imposes no restriction of
+  // its own and leaves the Batch and Domain levels to decide.
+  //
+  // Consent may only narrow: an `off` here wins over a Domain-level `full`,
+  // but a `full` here does not win over a Domain-level `off`. A Recipient
+  // stating a Mode above its Domain's ceiling is Rejected on its own, with a
+  // reason in SendRes.rejected_recipients, while the rest of the Batch
+  // proceeds — one bad row does not fail a send of thousands.
+  optional pkg.kannon.tracking.types.TrackingPolicy tracking = 3;
 }
 
 message Headers {
