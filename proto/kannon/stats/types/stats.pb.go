@@ -7,6 +7,7 @@
 package types
 
 import (
+	types "github.com/kannon-email/kannon/proto/kannon/tracking/types"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
@@ -83,13 +84,19 @@ func (x *StatsAggregated) GetCount() int64 {
 }
 
 type Stats struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	MessageId     string                 `protobuf:"bytes,1,opt,name=message_id,json=messageId,proto3" json:"message_id,omitempty"`
-	Domain        string                 `protobuf:"bytes,2,opt,name=domain,proto3" json:"domain,omitempty"`
-	Email         string                 `protobuf:"bytes,3,opt,name=email,proto3" json:"email,omitempty"`
-	Timestamp     *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
-	Type          string                 `protobuf:"bytes,5,opt,name=type,proto3" json:"type,omitempty"`
-	Data          *StatsData             `protobuf:"bytes,6,opt,name=data,proto3" json:"data,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	MessageId string                 `protobuf:"bytes,1,opt,name=message_id,json=messageId,proto3" json:"message_id,omitempty"`
+	Domain    string                 `protobuf:"bytes,2,opt,name=domain,proto3" json:"domain,omitempty"`
+	Email     string                 `protobuf:"bytes,3,opt,name=email,proto3" json:"email,omitempty"`
+	Timestamp *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	Type      string                 `protobuf:"bytes,5,opt,name=type,proto3" json:"type,omitempty"`
+	Data      *StatsData             `protobuf:"bytes,6,opt,name=data,proto3" json:"data,omitempty"`
+	// The Tracking Mode that governed the engagement channel this event came
+	// from, so a consumer can tell an event with no ip / user_agent because the
+	// Mode forbade retaining them from one that merely lacks them. Only
+	// engagement events (opened, clicked) state a Mode; every other outcome
+	// leaves it unspecified.
+	TrackingMode  types.TrackingMode `protobuf:"varint,7,opt,name=tracking_mode,json=trackingMode,proto3,enum=pkg.kannon.tracking.types.TrackingMode" json:"tracking_mode,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -164,6 +171,13 @@ func (x *Stats) GetData() *StatsData {
 		return x.Data
 	}
 	return nil
+}
+
+func (x *Stats) GetTrackingMode() types.TrackingMode {
+	if x != nil {
+		return x.TrackingMode
+	}
+	return types.TrackingMode(0)
 }
 
 type StatsData struct {
@@ -724,11 +738,11 @@ var File_kannon_stats_types_stats_proto protoreflect.FileDescriptor
 
 const file_kannon_stats_types_stats_proto_rawDesc = "" +
 	"\n" +
-	"\x1ekannon/stats/types/stats.proto\x12\x16pkg.kannon.stats.types\x1a\x1fgoogle/protobuf/timestamp.proto\"u\n" +
+	"\x1ekannon/stats/types/stats.proto\x12\x16pkg.kannon.stats.types\x1a\x1fgoogle/protobuf/timestamp.proto\x1a$kannon/tracking/types/tracking.proto\"u\n" +
 	"\x0fStatsAggregated\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\tR\x04type\x128\n" +
 	"\ttimestamp\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12\x14\n" +
-	"\x05count\x18\x03 \x01(\x03R\x05count\"\xd9\x01\n" +
+	"\x05count\x18\x03 \x01(\x03R\x05count\"\xa7\x02\n" +
 	"\x05Stats\x12\x1d\n" +
 	"\n" +
 	"message_id\x18\x01 \x01(\tR\tmessageId\x12\x16\n" +
@@ -736,7 +750,8 @@ const file_kannon_stats_types_stats_proto_rawDesc = "" +
 	"\x05email\x18\x03 \x01(\tR\x05email\x128\n" +
 	"\ttimestamp\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12\x12\n" +
 	"\x04type\x18\x05 \x01(\tR\x04type\x125\n" +
-	"\x04data\x18\x06 \x01(\v2!.pkg.kannon.stats.types.StatsDataR\x04data\"\xc3\x04\n" +
+	"\x04data\x18\x06 \x01(\v2!.pkg.kannon.stats.types.StatsDataR\x04data\x12L\n" +
+	"\rtracking_mode\x18\a \x01(\x0e2'.pkg.kannon.tracking.types.TrackingModeR\ftrackingMode\"\xc3\x04\n" +
 	"\tStatsData\x12G\n" +
 	"\baccepted\x18\x01 \x01(\v2).pkg.kannon.stats.types.StatsDataAcceptedH\x00R\baccepted\x12J\n" +
 	"\tdelivered\x18\x02 \x01(\v2*.pkg.kannon.stats.types.StatsDataDeliveredH\x00R\tdelivered\x12A\n" +
@@ -797,24 +812,26 @@ var file_kannon_stats_types_stats_proto_goTypes = []any{
 	(*StatsDataOpened)(nil),       // 9: pkg.kannon.stats.types.StatsDataOpened
 	(*StatsDataClicked)(nil),      // 10: pkg.kannon.stats.types.StatsDataClicked
 	(*timestamppb.Timestamp)(nil), // 11: google.protobuf.Timestamp
+	(types.TrackingMode)(0),       // 12: pkg.kannon.tracking.types.TrackingMode
 }
 var file_kannon_stats_types_stats_proto_depIdxs = []int32{
 	11, // 0: pkg.kannon.stats.types.StatsAggregated.timestamp:type_name -> google.protobuf.Timestamp
 	11, // 1: pkg.kannon.stats.types.Stats.timestamp:type_name -> google.protobuf.Timestamp
 	2,  // 2: pkg.kannon.stats.types.Stats.data:type_name -> pkg.kannon.stats.types.StatsData
-	3,  // 3: pkg.kannon.stats.types.StatsData.accepted:type_name -> pkg.kannon.stats.types.StatsDataAccepted
-	5,  // 4: pkg.kannon.stats.types.StatsData.delivered:type_name -> pkg.kannon.stats.types.StatsDataDelivered
-	6,  // 5: pkg.kannon.stats.types.StatsData.failed:type_name -> pkg.kannon.stats.types.StatsDataFailed
-	7,  // 6: pkg.kannon.stats.types.StatsData.bounced:type_name -> pkg.kannon.stats.types.StatsDataBounced
-	9,  // 7: pkg.kannon.stats.types.StatsData.opened:type_name -> pkg.kannon.stats.types.StatsDataOpened
-	10, // 8: pkg.kannon.stats.types.StatsData.clicked:type_name -> pkg.kannon.stats.types.StatsDataClicked
-	4,  // 9: pkg.kannon.stats.types.StatsData.rejected:type_name -> pkg.kannon.stats.types.StatsDataRejected
-	8,  // 10: pkg.kannon.stats.types.StatsData.error:type_name -> pkg.kannon.stats.types.StatsDataError
-	11, // [11:11] is the sub-list for method output_type
-	11, // [11:11] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	12, // 3: pkg.kannon.stats.types.Stats.tracking_mode:type_name -> pkg.kannon.tracking.types.TrackingMode
+	3,  // 4: pkg.kannon.stats.types.StatsData.accepted:type_name -> pkg.kannon.stats.types.StatsDataAccepted
+	5,  // 5: pkg.kannon.stats.types.StatsData.delivered:type_name -> pkg.kannon.stats.types.StatsDataDelivered
+	6,  // 6: pkg.kannon.stats.types.StatsData.failed:type_name -> pkg.kannon.stats.types.StatsDataFailed
+	7,  // 7: pkg.kannon.stats.types.StatsData.bounced:type_name -> pkg.kannon.stats.types.StatsDataBounced
+	9,  // 8: pkg.kannon.stats.types.StatsData.opened:type_name -> pkg.kannon.stats.types.StatsDataOpened
+	10, // 9: pkg.kannon.stats.types.StatsData.clicked:type_name -> pkg.kannon.stats.types.StatsDataClicked
+	4,  // 10: pkg.kannon.stats.types.StatsData.rejected:type_name -> pkg.kannon.stats.types.StatsDataRejected
+	8,  // 11: pkg.kannon.stats.types.StatsData.error:type_name -> pkg.kannon.stats.types.StatsDataError
+	12, // [12:12] is the sub-list for method output_type
+	12, // [12:12] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_kannon_stats_types_stats_proto_init() }
