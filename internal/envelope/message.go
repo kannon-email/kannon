@@ -122,22 +122,91 @@ func insertTrackLinkInHTML(html, link string) string {
 	return strings.Replace(html, "</body>", fmt.Sprintf(`<img src="%s" style="display:none;"/></body>`, link), 1)
 }
 
-var regLink = regexp.MustCompile(`<a\s+(?:[^>]*?\s+)?href=["'](.+?)["']`)
+var (
+	// regATag matches an opening <a> tag as a whole. The tag — not the bare href —
+	// is the unit of work, because whether a link is tracked depends on the other
+	// attributes it carries.
+	regATag = regexp.MustCompile(`<a\s[^>]*>`)
+	// regHref captures the href value of a tag. The leading whitespace keeps a
+	// look-alike attribute such as data-href out of the match.
+	regHref = regexp.MustCompile(`\shref=["'](.+?)["']`)
+	// regNoTrack matches the data-no-track opt-out attribute in every spelling a
+	// sender may reach for — valueless, quoted, unquoted, any case — together with
+	// the character that terminates it, which the replacement puts back.
+	regNoTrack = regexp.MustCompile(`(?i)\s+data-no-track(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*))?([\s/>]|$)`)
+)
 
+// nonTrackableSchemes are the href schemes a click redirect cannot serve: the
+// Tracker answers a /c/ hit with an HTTP redirect, and a Location pointing at a
+// mailto:/tel:/sms: URI is not something a mail client will follow. Rewriting
+// such an href breaks the link outright, so it is left alone.
+var nonTrackableSchemes = []string{"mailto:", "tel:", "sms:"}
+
+// replaceLinks routes every trackable href in the HTML through replace, which
+// mints the click-tracking redirect for it.
+//
+// Two kinds of link are handed back untouched: one whose scheme no redirect can
+// serve (see nonTrackableSchemes, plus in-page anchors), and one whose <a> tag
+// opts out with data-no-track. The opt-out is a sender-side decision — it exists
+// for unsubscribe and preference links, where recording the click is not
+// something to do silently — and it costs no token, because replace is never
+// called for a link that is skipped.
+//
+// The attribute is stripped from every <a> tag it appears on, opted out or not,
+// so it never reaches the delivered HTML. Stripping stays scoped to the tag: the
+// same string in body text is content, and is left as written.
 func replaceLinks(html string, replace func(link string) (string, error)) (string, error) {
-	matches := regLink.FindAllStringSubmatch(html, -1)
-	for _, match := range matches {
-		if len(match) != 2 {
-			continue
-		}
-		link := match[1]
-		newLink, err := replace(link)
+	var out strings.Builder
+	last := 0
+	for _, span := range regATag.FindAllStringIndex(html, -1) {
+		tag, err := rewriteATag(html[span[0]:span[1]], replace)
 		if err != nil {
 			return "", err
 		}
-		oldHref := match[0]
-		newHref := strings.Replace(oldHref, link, newLink, 1)
-		html = strings.Replace(html, oldHref, newHref, 1)
+		out.WriteString(html[last:span[0]])
+		out.WriteString(tag)
+		last = span[1]
 	}
-	return html, nil
+	out.WriteString(html[last:])
+	return out.String(), nil
+}
+
+// rewriteATag applies the rewrite to a single opening <a> tag, returning it as
+// it should be delivered.
+func rewriteATag(tag string, replace func(link string) (string, error)) (string, error) {
+	optedOut := regNoTrack.MatchString(tag)
+	tag = regNoTrack.ReplaceAllString(tag, "${1}")
+	if optedOut {
+		return tag, nil
+	}
+
+	href := regHref.FindStringSubmatchIndex(tag)
+	if href == nil {
+		return tag, nil
+	}
+	// Indices 2 and 3 delimit the href value, so the rewrite lands on the value
+	// alone even when the same string appears elsewhere in the tag.
+	link := tag[href[2]:href[3]]
+	if !isTrackableLink(link) {
+		return tag, nil
+	}
+
+	newLink, err := replace(link)
+	if err != nil {
+		return "", err
+	}
+	return tag[:href[2]] + newLink + tag[href[3]:], nil
+}
+
+func isTrackableLink(link string) bool {
+	link = strings.TrimSpace(link)
+	if link == "" || strings.HasPrefix(link, "#") {
+		return false
+	}
+	for _, scheme := range nonTrackableSchemes {
+		if strings.HasPrefix(strings.ToLower(link), scheme) {
+			return false
+		}
+	}
+	return true
 }
