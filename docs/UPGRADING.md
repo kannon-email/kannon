@@ -88,6 +88,23 @@ Tracking Policy per Batch and per Recipient, but only to *restrict* what the
 Domain allows. A caller asking for more than the ceiling is refused rather than
 silently downgraded, so a policy decision cannot be mistaken for a bug.
 
+### Opting a single link out
+
+A Mode governs a whole Delivery. To keep one link out of click tracking while the
+rest of the message stays tracked, say so on the `<a>` tag in the HTML you author:
+
+```html
+<a href="https://yourdomain.com/preferences" data-no-track>Manage preferences</a>
+```
+
+That link is delivered with its `href` as authored, and the attribute is stripped
+before delivery, so it never reaches the recipient. Unsubscribe and preference
+links are the reason this exists.
+
+Links no redirect could serve — `mailto:`, `tel:`, `sms:` and in-page anchors —
+are now left alone whether or not they carry the attribute. Before this release
+they were rewritten too, into a redirect no mail client could follow.
+
 ### If you call the API
 
 Nothing is required of existing callers. The new fields on `SendHTML`,

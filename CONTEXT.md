@@ -46,6 +46,8 @@ _Avoid_: Tracking Level (collides with the Domain/Batch/Recipient level), Tracki
 
 **Tracking Policy**:
 A pair of Tracking Modes — one governing opens, one governing links — expressing what may be observed about a Delivery. Stated independently at Domain, Batch and Recipient level, where a lower level may only **restrict** what the level above allows, never widen it: the effective Policy is the most restrictive of the three, and a level that states nothing imposes no restriction of its own. The Domain always states one. Resolved once per Delivery when the Batch is created and frozen there, so a Delivery records the Policy that actually governed it rather than whatever is configured now.
+
+A Policy states what *may* be observed, not what must be: the authored HTML may keep a single link out of click tracking with a `data-no-track` attribute on its `<a>` tag. That is an authoring decision taken inside an already-resolved Policy — it narrows what that Delivery's Policy allows and can never widen it — not a fourth level of the cascade, and it is stripped from the delivered HTML.
 _Avoid_: Tracking Settings, Tracking Config, Consent (a Policy conveys a consent decision taken elsewhere; it is not itself the consent, and Kannon never stores consent)
 
 ### Actors
