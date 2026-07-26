@@ -10,6 +10,7 @@ import (
 	"github.com/kannon-email/kannon/internal/delivery"
 	"github.com/kannon-email/kannon/internal/dkim"
 	"github.com/kannon-email/kannon/internal/statssec"
+	"github.com/kannon-email/kannon/internal/tracking"
 	"github.com/kannon-email/kannon/internal/utils"
 )
 
@@ -112,7 +113,7 @@ func (b *defaultBuilder) Build(ctx context.Context, d *delivery.Delivery) (*Enve
 
 func (b *defaultBuilder) prepareMessage(ctx context.Context, d *delivery.Delivery, data SendingData, attachments Attachments) ([]byte, error) {
 	emailMessageID := buildEmailID(d.Email(), data.MessageID)
-	html, err := b.preparedHTML(ctx, data.HTML, d.Email(), data.Domain, data.MessageID, d.Fields())
+	html, err := b.preparedHTML(ctx, d, data)
 	if err != nil {
 		return nil, err
 	}
@@ -139,13 +140,31 @@ func signMessage(domain, dkimPrivateKey string, msg []byte, hasCc bool) ([]byte,
 	return dkim.SignMessage(signData, bytes.NewReader(msg))
 }
 
-func (b *defaultBuilder) preparedHTML(ctx context.Context, html, email, domain, messageID string, fields map[string]string) (string, error) {
-	html = utils.ReplaceCustomFields(html, fields)
-	html, err := b.replaceAllLinks(ctx, html, email, messageID, domain)
-	if err != nil {
-		return "", err
+// preparedHTML renders the Batch template for one Delivery and applies the
+// Delivery's frozen Tracking Policy. The cascade was already resolved at intake
+// (ADR 0003), so the Builder reads the Policy as it stands: it never resolves it
+// again and never consults configuration.
+//
+// The two axes are independent, and each Off suppresses only its own channel: no
+// pixel is injected for opens, no href is rewritten for links. A Mode that
+// states nothing imposes no restriction, so every Mode other than Off is tracked
+// as before.
+func (b *defaultBuilder) preparedHTML(ctx context.Context, d *delivery.Delivery, data SendingData) (string, error) {
+	policy := d.TrackingPolicy()
+	html := utils.ReplaceCustomFields(data.HTML, d.Fields())
+
+	if policy.Links != tracking.ModeOff {
+		rewritten, err := b.replaceAllLinks(ctx, html, d.Email(), data.MessageID, data.Domain)
+		if err != nil {
+			return "", err
+		}
+		html = rewritten
 	}
-	return b.addTrackPixel(ctx, html, email, messageID, domain)
+
+	if policy.Opens == tracking.ModeOff {
+		return html, nil
+	}
+	return b.addTrackPixel(ctx, html, d.Email(), data.MessageID, data.Domain)
 }
 
 func (b *defaultBuilder) replaceAllLinks(ctx context.Context, html, email, messageID, domain string) (string, error) {

@@ -3,6 +3,7 @@ package envelope_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"mime/quotedprintable"
 	"net/mail"
@@ -14,6 +15,7 @@ import (
 	"github.com/kannon-email/kannon/internal/delivery"
 	"github.com/kannon-email/kannon/internal/dkim"
 	"github.com/kannon-email/kannon/internal/envelope"
+	"github.com/kannon-email/kannon/internal/tracking"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -37,7 +39,19 @@ func (s stubTokens) CreateOpenToken(ctx context.Context, messageID, email string
 	return s.open, nil
 }
 
+// mustDelivery builds a Delivery carrying the Tracking Policy a fresh Domain
+// resolves to, which is identified on both axes (ADR 0003).
 func mustDelivery(t *testing.T, batchID batch.ID, email string, fields map[string]string) *delivery.Delivery {
+	t.Helper()
+	return mustDeliveryTracked(t, batchID, email, fields, tracking.Policy{
+		Opens: tracking.ModeIdentified,
+		Links: tracking.ModeIdentified,
+	})
+}
+
+// mustDeliveryTracked builds a Delivery whose frozen Tracking Policy is stated
+// explicitly, as the Mailer API does at intake.
+func mustDeliveryTracked(t *testing.T, batchID batch.ID, email string, fields map[string]string, p tracking.Policy) *delivery.Delivery {
 	t.Helper()
 	d, err := delivery.New(delivery.NewParams{
 		BatchID:       batchID,
@@ -46,6 +60,7 @@ func mustDelivery(t *testing.T, batchID batch.ID, email string, fields map[strin
 		Domain:        "test.com",
 		ScheduledTime: time.Now(),
 		Backoff:       delivery.DefaultBackoff,
+		Tracking:      p,
 	})
 	assert.Nil(t, err)
 	return d
@@ -111,6 +126,81 @@ func TestBuilderInsertsTrackingPixelAndRewritesLinks(t *testing.T) {
 	assert.Nil(t, err)
 	assert.True(t, strings.Contains(decoded, "https://stats.test.com/c/LTOK"), "click link missing in %q", decoded)
 	assert.True(t, strings.Contains(decoded, "https://stats.test.com/o/OTOK"), "open pixel missing in %q", decoded)
+}
+
+func TestBuilderHonoursFrozenTrackingPolicy(t *testing.T) {
+	const authoredLink = "https://example.com/landing"
+	priv := newDKIMKeys(t)
+	src := stubSource{data: envelope.SendingData{
+		Subject:        "S",
+		HTML:           fmt.Sprintf(`<html><body><a href=%q>x</a></body></html>`, authoredLink),
+		Domain:         "test.com",
+		MessageID:      "msg-1",
+		SenderEmail:    "noreply@test.com",
+		SenderAlias:    "Test",
+		DkimPrivateKey: priv,
+	}}
+	b := envelope.NewBuilderWith(src, stubTokens{link: "LTOK", open: "OTOK"})
+
+	cases := []struct {
+		name          string
+		policy        tracking.Policy
+		wantPixel     bool
+		wantRewritten bool
+	}{
+		{
+			name:          "BothIdentified",
+			policy:        tracking.Policy{Opens: tracking.ModeIdentified, Links: tracking.ModeIdentified},
+			wantPixel:     true,
+			wantRewritten: true,
+		},
+		{
+			name:          "OpensOffLinksTracked",
+			policy:        tracking.Policy{Opens: tracking.ModeOff, Links: tracking.ModeIdentified},
+			wantPixel:     false,
+			wantRewritten: true,
+		},
+		{
+			name:          "LinksOffOpensTracked",
+			policy:        tracking.Policy{Opens: tracking.ModeIdentified, Links: tracking.ModeOff},
+			wantPixel:     true,
+			wantRewritten: false,
+		},
+		{
+			name:          "BothOff",
+			policy:        tracking.Policy{Opens: tracking.ModeOff, Links: tracking.ModeOff},
+			wantPixel:     false,
+			wantRewritten: false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			d := mustDeliveryTracked(t, batch.ID("msg-1@test.com"), "rcpt@example.com", nil, tc.policy)
+			env, err := b.Build(t.Context(), d)
+			assert.Nil(t, err)
+
+			parsed, err := mail.ReadMessage(bytes.NewReader(env.Body()))
+			assert.Nil(t, err)
+			bodyBytes, err := io.ReadAll(parsed.Body)
+			assert.Nil(t, err)
+			decoded, err := decodeQuotedPrintable(bodyBytes)
+			assert.Nil(t, err)
+
+			assert.Equal(t, tc.wantPixel, strings.Contains(decoded, "https://stats.test.com/o/OTOK"),
+				"open pixel presence mismatch in %q", decoded)
+			assert.Equal(t, tc.wantRewritten, strings.Contains(decoded, "https://stats.test.com/c/LTOK"),
+				"rewritten link presence mismatch in %q", decoded)
+			if !tc.wantRewritten {
+				assert.True(t, strings.Contains(decoded, authoredLink),
+					"an untracked link must be delivered as authored, got %q", decoded)
+			}
+			if !tc.wantPixel && !tc.wantRewritten {
+				assert.False(t, strings.Contains(decoded, "stats.test.com"),
+					"an untracked Delivery must carry no tracking hostname, got %q", decoded)
+			}
+		})
+	}
 }
 
 func decodeQuotedPrintable(b []byte) (string, error) {
