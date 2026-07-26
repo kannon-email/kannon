@@ -36,13 +36,13 @@ _Avoid_: EmailToSend, OutboundMail
 How much a single engagement channel may be observed, on an **ordered** scale of increasing collection:
 
 - **Off** — not observed at all.
-- **Anonymous** — counted in aggregate only. Nothing is retained that could isolate one Recipient from another: the event moves the Domain's daily counters and leaves no per-Delivery record, and the token it arrives on names no Recipient and is therefore the *same* token for every Recipient of a Batch.
+- **Anonymous** — counted in aggregate only. Nothing is retained that could isolate one Recipient from another: the event moves the Domain's daily counters and leaves no per-Delivery record, and the token it arrives on names no Recipient and is therefore the *same* token for every Recipient of a Batch — per Batch for the pixel, and per Batch-and-URL pair for a link. A link whose URL is itself personalised with custom fields is a different URL per Recipient by construction, so it cannot share a token; nothing per-Recipient is retained either way, but such a message is distinguishable to whoever handles it in transit.
 - **Pseudonymous** — events are linkable to each other within a single Batch via an identifier that is regenerated for every Batch and never reused across Batches, but carry no Recipient identity. *Reserved, not yet implemented.*
 - **Identified** — attributed to the Recipient.
 - **Full** — attributed, plus the IP address and user agent of the request.
 
 Only Off and Anonymous retain no personal data; the three upper rungs do, and the Domain is responsible for having a lawful basis before selecting them. Because the scale is ordered, two Modes can be compared and the more restrictive of the two taken.
-_Avoid_: Tracking Level (collides with the Domain/Batch/Recipient axis), Tracking Type, Tracking Flag
+_Avoid_: Tracking Level (collides with the Domain/Batch/Recipient level), Tracking Type, Tracking Flag. "Axis" names the opens/links dimension of a Policy, never the Domain/Batch/Recipient one, which is a **level**.
 
 **Tracking Policy**:
 A pair of Tracking Modes — one governing opens, one governing links — expressing what may be observed about a Delivery. Stated independently at Domain, Batch and Recipient level, where a lower level may only **restrict** what the level above allows, never widen it: the effective Policy is the most restrictive of the three, and a level that states nothing imposes no restriction of its own. The Domain always states one. Resolved once per Delivery when the Batch is created and frozen there, so a Delivery records the Policy that actually governed it rather than whatever is configured now.
@@ -76,14 +76,17 @@ _Avoid_: Bump (legacy package name, removed under PRD #322; the `bump:` config k
 
 ### Outcomes (per Delivery)
 
-These are the domain-visible events that may attach to a Delivery over its lifetime. Each is emitted on the corresponding `kannon.stats.*` NATS topic and recorded as a stat row (`stats` table) — except an engagement event under Anonymous, which by definition attaches to no Recipient and so only increments the Domain's aggregate counters. Multiple events accumulate per Delivery — the "current state" is inferred from the latest non-engagement event.
+These are the domain-visible events that may attach to a Delivery over its lifetime. Each is emitted on the corresponding `kannon.stats.*` NATS topic and recorded as a stat row (`stats` table), with two exceptions: an engagement event under Anonymous, which by definition attaches to no Recipient and so only increments the Domain's aggregate counters; and a Recipient Rejected at intake, which has no Delivery to attach to and is reported to the caller in the send response instead. Multiple events accumulate per Delivery — the "current state" is inferred from the latest non-engagement event.
 
 **Validated**:
 The Validator accepted the recipient address. Emitted once per Delivery on the happy path. Predecessor of any transmission outcome.
 _Avoid_: Accepted (legacy proto/db name; renamed in the refactor — see `docs/REFACTORING.md` §2)
 
 **Rejected**:
-The Recipient was refused and no Delivery will be attempted. Terminal — the Delivery is deleted from the Pool, or never created. Carries a `reason`. Two causes: the Validator refused the recipient address, or the Recipient asked for a Tracking Mode above what its Domain allows.
+The Recipient was refused and no Delivery will be attempted. Terminal — the Delivery is deleted from the Pool, or never created. Carries a `reason`. Two causes, which differ in where they are observable:
+
+- The **Validator** refused the recipient address. The Delivery existed, so this is emitted as a stat and appears in the state machine below.
+- The Recipient was refused **at intake**, for asking a Tracking Mode above what its Domain allows or for stating one this build will not act on. This happens before a Delivery is created, so there is nothing to emit a stat against: it is reported to the caller in the send response, alongside the accepted and rejected counts.
 
 **Delivered**:
 The remote MX accepted the SMTP handoff (e.g. responded `250 OK`). Does **not** mean the message reached an inbox — only that the next hop accepted responsibility. A subsequent asynchronous DSN can still bounce a Delivered Delivery.
@@ -112,6 +115,7 @@ stateDiagram-v2
     [*] --> Created
     Created --> Validated: Validator: address ok
     Created --> Rejected: Validator: address invalid
+    [*] --> Rejected: intake: refused before a Delivery exists\n(reported in the send response, not as a stat)
     Validated --> Delivered: SMTPSender: 250 OK
     Validated --> Bounced: SMTPSender: 5xx (sync)
     Validated --> Validated: transient send error\n(retry with backoff)

@@ -5,7 +5,7 @@ releases that change behaviour of an installation already in production appear
 here; everything else is in [`CHANGELOG.md`](../CHANGELOG.md), which is
 generated from commits.
 
-## 0.6.0 — Tracking Policy
+## Unreleased — Tracking Policy
 
 ### What changes
 
@@ -31,8 +31,8 @@ the new column default in a single statement — no table rewrite, no downtime.
 Tracking is now a per-Domain decision, so restoring the old behaviour means
 putting a Domain back to `full`. Two ways:
 
-Through the Admin API's `SetTrackingPolicy`, which is the auditable route — the
-two axes are set independently:
+Through the Admin API's `SetTrackingPolicy` — the two axes are set
+independently:
 
 ```json
 {
@@ -56,6 +56,14 @@ Note that a Tracking Policy is resolved when a Batch is created and frozen onto
 each Delivery, so **neither route affects Deliveries already queued** — they
 carry the Policy that was in force when they were accepted. The change applies
 from the next send onwards.
+
+> **The Admin API has no authentication of its own and is served on the same
+> listener and port as the Mailer API.** A Domain's Tracking Policy is a security
+> control — it is the ceiling no API caller can exceed — but anyone who can reach
+> the API port can raise any Domain's ceiling, and nothing records who changed a
+> Policy or when. That is not new (`CreateAPIKey` sits on the same surface), but
+> it now bounds what this feature can promise: **the Admin API must not be
+> reachable by tenants or from an untrusted network.**
 
 Before choosing `full`, note that retaining an IP address and a user agent is
 what makes open and click tracking personal-data processing that needs a lawful
@@ -95,3 +103,12 @@ Two things are worth adopting when convenient:
   with a stable machine-readable reason.
 - A send in which *every* Recipient was refused no longer looks like a success
   with an empty Pool.
+
+One sharp edge worth knowing: a Recipient asking for **more** than the Domain
+allows is Rejected, which means that Recipient gets **no email at all** — the
+Policy is not quietly clamped down to what the ceiling permits. That is
+deliberate (ADR 0003: an instruction above the ceiling is a contradictory
+instruction, and silently reinterpreting it would make policy
+indistinguishable from a bug), but it means a caller passing `full` for
+everybody under a Domain on `identified` stops delivering to everybody. Pass
+the Policy you have consent for, or omit it and let the Domain decide.

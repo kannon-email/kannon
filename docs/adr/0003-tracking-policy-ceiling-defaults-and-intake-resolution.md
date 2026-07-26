@@ -127,6 +127,24 @@ an unstated Mode can be stored.
   skip the per-recipient row under `anonymous` while
   `handleAggregatedStats` continues to count — the two are already
   independent NATS consumers, so the aggregate path is unchanged.
+- **Under `anonymous`, counter inflation becomes undetectable.** The tracker
+  endpoints have no deduplication or rate limiting, so replaying a captured
+  tracking URL inflates a Domain's counters. Under `identified` that at least
+  leaves anomalous repeated rows against one recipient; under `anonymous` one
+  captured URL is shared by the whole Batch and only the aggregate counter
+  moves, with nothing retained that could correlate the requests. Accepted as
+  inherent: the property that makes the Mode defensible — retaining nothing
+  that isolates one Recipient — is the same property that removes the signal.
+  Anyone relying on `anonymous` figures for anything but trend should know
+  they are unauthenticated counts.
+- **A Tracking Policy is only as strong as access to the Admin API.** The
+  Domain ceiling is a security control, but `SetTrackingPolicy` sits on the
+  same unauthenticated surface as the rest of the Admin API, on the same
+  listener as the Mailer API, and nothing records who changed a Policy or
+  when. This ADR's claim that the Domain setting is the operator's one
+  guarantee holds only where that surface is not reachable by tenants. Fixing
+  it is out of scope here; `docs/UPGRADING.md` states the deployment
+  requirement.
 
 ## Rejected alternatives
 
