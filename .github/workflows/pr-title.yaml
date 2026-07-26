@@ -1,0 +1,46 @@
+name: PR Title
+
+# PRs are squash-merged, so the PR title becomes the commit message on `main`
+# and is what release-please parses to compute the version and the changelog.
+# Keep the type list in sync with CONTRIBUTING.md#commit-messages.
+
+on:
+  pull_request:
+    types:
+      - opened
+      - edited
+      - reopened
+      - synchronize
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  conventional-title:
+    name: Conventional Commit title
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    steps:
+      - uses: amannn/action-semantic-pull-request@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            perf
+            revert
+            docs
+            refactor
+            test
+            build
+            ci
+            chore
+          subjectPattern: ^.+[^.]$
+          subjectPatternError: |
+            The subject "{subject}" of the pull request title "{title}" must not be empty and must not end with a period.
+          # GitHub pre-fills the squash commit message with the commit message
+          # when a PR has a single commit, so that one must be valid too.
+          validateSingleCommit: true

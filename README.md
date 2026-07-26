@@ -369,6 +369,7 @@ We welcome contributions! Please:
 
 - Use [feature request](.github/ISSUE_TEMPLATE/feature_request.md) and [bug report](.github/ISSUE_TEMPLATE/bug_report.md) templates for issues
 - Follow the [pull request template](.github/PULL_REQUEST_TEMPLATE.md)
+- Write [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) and title your PR the same way—releases are generated from them (see [Commit Messages](./CONTRIBUTING.md#commit-messages))
 - See the [Apache 2.0 License](./LICENSE)
 - **Read our [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines, code style, and the full contribution process.**
 
