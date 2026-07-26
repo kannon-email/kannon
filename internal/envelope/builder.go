@@ -171,7 +171,7 @@ func (b *defaultBuilder) preparedHTML(ctx context.Context, d *delivery.Delivery,
 	html := utils.ReplaceCustomFields(data.HTML, d.Fields())
 
 	if policy.Links != tracking.ModeOff {
-		rewritten, err := b.replaceAllLinks(ctx, html, d.Email(), data.MessageID, data.Domain, policy.Links)
+		rewritten, err := b.replaceAllLinks(ctx, html, trackTargetFor(d, data, policy.Links))
 		if err != nil {
 			return "", err
 		}
@@ -181,75 +181,92 @@ func (b *defaultBuilder) preparedHTML(ctx context.Context, d *delivery.Delivery,
 	if policy.Opens == tracking.ModeOff {
 		return html, nil
 	}
-	return b.addTrackPixel(ctx, html, d.Email(), data.MessageID, data.Domain, policy.Opens)
+	return b.addTrackPixel(ctx, html, trackTargetFor(d, data, policy.Opens))
 }
 
-func (b *defaultBuilder) replaceAllLinks(ctx context.Context, html, email, messageID, domain string, mode tracking.Mode) (string, error) {
+// trackTarget is what one channel's tracking URL is minted against: which
+// Recipient, in which Batch and Domain, under which Mode. The four travel
+// together through every step of rewriting, and the Mode is the one that decides
+// whether the resulting token may be shared across the Batch.
+type trackTarget struct {
+	email     string
+	messageID string
+	domain    string
+	mode      tracking.Mode
+}
+
+// trackTargetFor is the target for one axis of a Delivery, taking the Mode of
+// that axis from the Policy frozen on it — so the Tracker acts on the Policy that
+// governed this Delivery rather than on whatever is configured when the
+// engagement arrives.
+func trackTargetFor(d *delivery.Delivery, data SendingData, mode tracking.Mode) trackTarget {
+	return trackTarget{
+		email:     d.Email(),
+		messageID: data.MessageID,
+		domain:    data.Domain,
+		mode:      mode,
+	}
+}
+
+func (b *defaultBuilder) replaceAllLinks(ctx context.Context, html string, t trackTarget) (string, error) {
 	return replaceLinks(html, func(link string) (string, error) {
-		return b.buildTrackClickLink(ctx, link, email, messageID, domain, mode)
+		return b.buildTrackClickLink(ctx, link, t)
 	})
 }
 
-func (b *defaultBuilder) addTrackPixel(ctx context.Context, html, email, messageID, domain string, mode tracking.Mode) (string, error) {
-	link, err := b.buildTrackOpenLink(ctx, email, messageID, domain, mode)
+func (b *defaultBuilder) addTrackPixel(ctx context.Context, html string, t trackTarget) (string, error) {
+	link, err := b.buildTrackOpenLink(ctx, t)
 	if err != nil {
 		return "", err
 	}
 	return insertTrackLinkInHTML(html, link), nil
 }
 
-func (b *defaultBuilder) buildTrackClickLink(ctx context.Context, url, email, messageID, domain string, mode tracking.Mode) (string, error) {
-	token, err := b.linkToken(ctx, url, email, messageID, domain, mode)
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("https://stats.%v/c/%v", domain, token), nil
-}
-
-func (b *defaultBuilder) buildTrackOpenLink(ctx context.Context, email, messageID, domain string, mode tracking.Mode) (string, error) {
-	token, err := b.openToken(ctx, email, messageID, domain, mode)
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("https://stats.%v/o/%v", domain, token), nil
-}
-
-// linkToken is the link token for one Delivery and one tracked URL. Under a Mode
-// that names the Recipient it is minted per Delivery, because that is what it
-// commits to. Under a Mode that names nobody it commits only to the Batch, the URL
-// and the Mode, so every Delivery of the Batch carries the very same token.
-func (b *defaultBuilder) linkToken(ctx context.Context, url, email, messageID, domain string, mode tracking.Mode) (string, error) {
-	mint := func() (string, error) {
-		return b.tokens.CreateLinkToken(ctx, messageID, email, url, mode)
-	}
-	if mode.IdentifiesRecipient() {
-		return mint()
-	}
-	return b.shared.reuse(sharedTokenKey{
+func (b *defaultBuilder) buildTrackClickLink(ctx context.Context, url string, t trackTarget) (string, error) {
+	token, err := b.token(sharedTokenKey{
 		axis:      tracking.AxisLinks,
-		domain:    domain,
-		messageID: messageID,
+		domain:    t.domain,
+		messageID: t.messageID,
 		url:       url,
-		mode:      mode,
-	}, mint)
+		mode:      t.mode,
+	}, func() (string, error) {
+		return b.tokens.CreateLinkToken(ctx, t.messageID, t.email, url, t.mode)
+	})
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("https://stats.%v/c/%v", t.domain, token), nil
 }
 
-// openToken is the pixel token for one Delivery, shared across the Batch on the
-// same terms as linkToken — with no URL to distinguish, one token covers the whole
-// Batch.
-func (b *defaultBuilder) openToken(ctx context.Context, email, messageID, domain string, mode tracking.Mode) (string, error) {
-	mint := func() (string, error) {
-		return b.tokens.CreateOpenToken(ctx, messageID, email, mode)
+func (b *defaultBuilder) buildTrackOpenLink(ctx context.Context, t trackTarget) (string, error) {
+	token, err := b.token(sharedTokenKey{
+		axis:      tracking.AxisOpens,
+		domain:    t.domain,
+		messageID: t.messageID,
+		mode:      t.mode,
+	}, func() (string, error) {
+		return b.tokens.CreateOpenToken(ctx, t.messageID, t.email, t.mode)
+	})
+	if err != nil {
+		return "", err
 	}
-	if mode.IdentifiesRecipient() {
+	return fmt.Sprintf("https://stats.%v/o/%v", t.domain, token), nil
+}
+
+// token returns the token for one channel of one Delivery. Under a Mode that
+// names the Recipient it is minted per Delivery, because that is what it commits
+// to. Under a Mode that names nobody it commits only to what the key holds, so
+// every Delivery of the Batch carries the very same token — the privacy property
+// of such a Mode, and the reason one signature covers a whole Batch.
+//
+// The rule lives here once, for both channels, so that the key and the decision
+// to share cannot drift apart: a key missing anything the token commits to would
+// hand one Recipient's token to another.
+func (b *defaultBuilder) token(key sharedTokenKey, mint func() (string, error)) (string, error) {
+	if key.mode.IdentifiesRecipient() {
 		return mint()
 	}
-	return b.shared.reuse(sharedTokenKey{
-		axis:      tracking.AxisOpens,
-		domain:    domain,
-		messageID: messageID,
-		mode:      mode,
-	}, mint)
+	return b.shared.reuse(key, mint)
 }
 
 // sqlcSource adapts the sqlc-generated GetSendingData query into the

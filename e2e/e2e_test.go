@@ -141,6 +141,11 @@ func TestE2EEmailSending(t *testing.T) {
 		t.Parallel()
 		testMixedRecipientTrackingPolicies(t, factory, senderMock, infra)
 	})
+
+	t.Run("EveryRecipientRejected", func(t *testing.T) {
+		t.Parallel()
+		testEveryRecipientRejected(t, factory, senderMock, infra)
+	})
 }
 
 func runKannon(t *testing.T, infra *TestInfrastructure, senderMock *senderMock) {
@@ -839,6 +844,10 @@ func testTrackingAnonymous(t *testing.T, clientFactory *clientFactory, senderMoc
 	// own delivered row, so the per-recipient consumer is alive and current. The
 	// absence is then re-checked over a window, because a row arriving late would
 	// be just as much of a leak as one arriving at once.
+	//
+	// Polled by hand rather than with require.Never, which runs its condition in a
+	// goroutine it does not wait for: when GetStats outlives the subtest that turns
+	// into a "Fail in goroutine after the test has completed" panic.
 	requireStat(t, client, first, "delivered", 1)
 	requireStat(t, client, second, "delivered", 1)
 
@@ -1091,4 +1100,46 @@ func requireGetEmail(t *testing.T, s *senderMock, email string) ParsedEmail {
 	}, 60*time.Second, 2*time.Second, "Email should be received within 60 seconds")
 
 	return msg
+}
+
+// testEveryRecipientRejected is the other half of #364: before it, a caller
+// submitting a batch in which nothing was accepted got a Batch id and a 200, with
+// no way to discover that the Pool was empty. The response must now account for
+// every submitted Recipient.
+func testEveryRecipientRejected(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
+	client := clientFactory.NewClient(t, infra)
+
+	client.SetTrackingPolicy(t, &trackingtypes.TrackingPolicy{
+		Opens: trackingtypes.TrackingMode_TRACKING_MODE_IDENTIFIED,
+		Links: trackingtypes.TrackingMode_TRACKING_MODE_IDENTIFIED,
+	})
+
+	greedy := tests.FakeEmail(t)
+
+	res := client.SendEmailResponse(t, &mailerapiv1.SendHTMLReq{
+		Sender: client.Sender(),
+		Recipients: []*mailertypes.Recipient{
+			{Email: ""},
+			{Email: greedy, Tracking: &trackingtypes.TrackingPolicy{
+				Opens: trackingtypes.TrackingMode_TRACKING_MODE_FULL,
+				Links: trackingtypes.TrackingMode_TRACKING_MODE_FULL,
+			}},
+		},
+		Subject:       "Every Recipient Rejected Test",
+		Html:          `<html><body><h1>Hello!</h1></body></html>`,
+		ScheduledTime: timestamppb.Now(),
+	})
+
+	assert.EqualValues(t, 0, res.AcceptedCount, "nothing was queued and the response must say so")
+	assert.EqualValues(t, 2, res.RejectedCount)
+	require.Len(t, res.RejectedRecipients, 2)
+
+	reasons := map[string]string{}
+	for _, r := range res.RejectedRecipients {
+		reasons[r.Email] = r.Reason
+	}
+	assert.Equal(t, "invalid_email", reasons[""])
+	assert.Equal(t, "tracking_above_ceiling", reasons[greedy])
+
+	assert.Nil(t, senderMock.GetEmail(greedy), "a Rejected Recipient must not be delivered to")
 }
