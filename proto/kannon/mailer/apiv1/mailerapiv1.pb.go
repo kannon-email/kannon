@@ -303,8 +303,18 @@ type SendRes struct {
 	MessageId     string                 `protobuf:"bytes,1,opt,name=message_id,json=messageId,proto3" json:"message_id,omitempty"`
 	TemplateId    string                 `protobuf:"bytes,2,opt,name=template_id,json=templateId,proto3" json:"template_id,omitempty"`
 	ScheduledTime *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=scheduled_time,json=scheduledTime,proto3" json:"scheduled_time,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// How many Recipients were accepted and are queued for delivery.
+	AcceptedCount int32 `protobuf:"varint,4,opt,name=accepted_count,json=acceptedCount,proto3" json:"accepted_count,omitempty"`
+	// How many Recipients were Rejected at intake. Equals the length of
+	// rejected_recipients, and is zero for a send in which nothing was refused.
+	RejectedCount int32 `protobuf:"varint,5,opt,name=rejected_count,json=rejectedCount,proto3" json:"rejected_count,omitempty"`
+	// Every Recipient refused at intake, so a caller can reconcile what was
+	// actually queued without polling stats. A send in which every Recipient is
+	// refused still returns here — with accepted_count zero and every refusal
+	// listed — rather than reporting an empty success.
+	RejectedRecipients []*RejectedRecipient `protobuf:"bytes,6,rep,name=rejected_recipients,json=rejectedRecipients,proto3" json:"rejected_recipients,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *SendRes) Reset() {
@@ -358,6 +368,94 @@ func (x *SendRes) GetScheduledTime() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *SendRes) GetAcceptedCount() int32 {
+	if x != nil {
+		return x.AcceptedCount
+	}
+	return 0
+}
+
+func (x *SendRes) GetRejectedCount() int32 {
+	if x != nil {
+		return x.RejectedCount
+	}
+	return 0
+}
+
+func (x *SendRes) GetRejectedRecipients() []*RejectedRecipient {
+	if x != nil {
+		return x.RejectedRecipients
+	}
+	return nil
+}
+
+// RejectedRecipient is one Recipient refused at intake: no Delivery was created
+// for it and none will be attempted.
+type RejectedRecipient struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Email string                 `protobuf:"bytes,1,opt,name=email,proto3" json:"email,omitempty"`
+	// Why the Recipient was refused. A stable, machine-readable token, safe to
+	// branch on. The values this build emits:
+	//
+	//	invalid_email              the address is empty or otherwise unusable
+	//	tracking_above_ceiling     the Recipient's Tracking Policy asks for more
+	//	                           than its Domain's Policy allows; consent may
+	//	                           narrow what is collected, never widen it
+	//	unsupported_tracking_mode  the Recipient stated a Tracking Mode this
+	//	                           build will not act on — the reserved
+	//	                           `pseudonymous`, or a value from a newer schema
+	//
+	// Treat an unrecognised value as a refusal of unknown cause: the set grows as
+	// new causes are added.
+	Reason        string `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RejectedRecipient) Reset() {
+	*x = RejectedRecipient{}
+	mi := &file_kannon_mailer_apiv1_mailerapiv1_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RejectedRecipient) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RejectedRecipient) ProtoMessage() {}
+
+func (x *RejectedRecipient) ProtoReflect() protoreflect.Message {
+	mi := &file_kannon_mailer_apiv1_mailerapiv1_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RejectedRecipient.ProtoReflect.Descriptor instead.
+func (*RejectedRecipient) Descriptor() ([]byte, []int) {
+	return file_kannon_mailer_apiv1_mailerapiv1_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *RejectedRecipient) GetEmail() string {
+	if x != nil {
+		return x.Email
+	}
+	return ""
+}
+
+func (x *RejectedRecipient) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
 var File_kannon_mailer_apiv1_mailerapiv1_proto protoreflect.FileDescriptor
 
 const file_kannon_mailer_apiv1_mailerapiv1_proto_rawDesc = "" +
@@ -407,13 +505,19 @@ const file_kannon_mailer_apiv1_mailerapiv1_proto_rawDesc = "" +
 	"\x0f_scheduled_timeB\n" +
 	"\n" +
 	"\b_headersB\v\n" +
-	"\t_tracking\"\x8c\x01\n" +
+	"\t_tracking\"\xb7\x02\n" +
 	"\aSendRes\x12\x1d\n" +
 	"\n" +
 	"message_id\x18\x01 \x01(\tR\tmessageId\x12\x1f\n" +
 	"\vtemplate_id\x18\x02 \x01(\tR\n" +
 	"templateId\x12A\n" +
-	"\x0escheduled_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\rscheduledTime2\xbc\x01\n" +
+	"\x0escheduled_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\rscheduledTime\x12%\n" +
+	"\x0eaccepted_count\x18\x04 \x01(\x05R\racceptedCount\x12%\n" +
+	"\x0erejected_count\x18\x05 \x01(\x05R\rrejectedCount\x12[\n" +
+	"\x13rejected_recipients\x18\x06 \x03(\v2*.pkg.kannon.mailer.apiv1.RejectedRecipientR\x12rejectedRecipients\"A\n" +
+	"\x11RejectedRecipient\x12\x14\n" +
+	"\x05email\x18\x01 \x01(\tR\x05email\x12\x16\n" +
+	"\x06reason\x18\x02 \x01(\tR\x06reason2\xbc\x01\n" +
 	"\x06Mailer\x12T\n" +
 	"\bSendHTML\x12$.pkg.kannon.mailer.apiv1.SendHTMLReq\x1a .pkg.kannon.mailer.apiv1.SendRes\"\x00\x12\\\n" +
 	"\fSendTemplate\x12(.pkg.kannon.mailer.apiv1.SendTemplateReq\x1a .pkg.kannon.mailer.apiv1.SendRes\"\x00B\xe9\x01\n" +
@@ -431,45 +535,47 @@ func file_kannon_mailer_apiv1_mailerapiv1_proto_rawDescGZIP() []byte {
 	return file_kannon_mailer_apiv1_mailerapiv1_proto_rawDescData
 }
 
-var file_kannon_mailer_apiv1_mailerapiv1_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_kannon_mailer_apiv1_mailerapiv1_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_kannon_mailer_apiv1_mailerapiv1_proto_goTypes = []any{
 	(*Attachment)(nil),            // 0: pkg.kannon.mailer.apiv1.Attachment
 	(*SendHTMLReq)(nil),           // 1: pkg.kannon.mailer.apiv1.SendHTMLReq
 	(*SendTemplateReq)(nil),       // 2: pkg.kannon.mailer.apiv1.SendTemplateReq
 	(*SendRes)(nil),               // 3: pkg.kannon.mailer.apiv1.SendRes
-	nil,                           // 4: pkg.kannon.mailer.apiv1.SendHTMLReq.GlobalFieldsEntry
-	nil,                           // 5: pkg.kannon.mailer.apiv1.SendTemplateReq.GlobalFieldsEntry
-	(*types.Sender)(nil),          // 6: pkg.kannon.mailer.types.Sender
-	(*timestamppb.Timestamp)(nil), // 7: google.protobuf.Timestamp
-	(*types.Recipient)(nil),       // 8: pkg.kannon.mailer.types.Recipient
-	(*types.Headers)(nil),         // 9: pkg.kannon.mailer.types.Headers
-	(*types1.TrackingPolicy)(nil), // 10: pkg.kannon.tracking.types.TrackingPolicy
+	(*RejectedRecipient)(nil),     // 4: pkg.kannon.mailer.apiv1.RejectedRecipient
+	nil,                           // 5: pkg.kannon.mailer.apiv1.SendHTMLReq.GlobalFieldsEntry
+	nil,                           // 6: pkg.kannon.mailer.apiv1.SendTemplateReq.GlobalFieldsEntry
+	(*types.Sender)(nil),          // 7: pkg.kannon.mailer.types.Sender
+	(*timestamppb.Timestamp)(nil), // 8: google.protobuf.Timestamp
+	(*types.Recipient)(nil),       // 9: pkg.kannon.mailer.types.Recipient
+	(*types.Headers)(nil),         // 10: pkg.kannon.mailer.types.Headers
+	(*types1.TrackingPolicy)(nil), // 11: pkg.kannon.tracking.types.TrackingPolicy
 }
 var file_kannon_mailer_apiv1_mailerapiv1_proto_depIdxs = []int32{
-	6,  // 0: pkg.kannon.mailer.apiv1.SendHTMLReq.sender:type_name -> pkg.kannon.mailer.types.Sender
-	7,  // 1: pkg.kannon.mailer.apiv1.SendHTMLReq.scheduled_time:type_name -> google.protobuf.Timestamp
-	8,  // 2: pkg.kannon.mailer.apiv1.SendHTMLReq.recipients:type_name -> pkg.kannon.mailer.types.Recipient
+	7,  // 0: pkg.kannon.mailer.apiv1.SendHTMLReq.sender:type_name -> pkg.kannon.mailer.types.Sender
+	8,  // 1: pkg.kannon.mailer.apiv1.SendHTMLReq.scheduled_time:type_name -> google.protobuf.Timestamp
+	9,  // 2: pkg.kannon.mailer.apiv1.SendHTMLReq.recipients:type_name -> pkg.kannon.mailer.types.Recipient
 	0,  // 3: pkg.kannon.mailer.apiv1.SendHTMLReq.attachments:type_name -> pkg.kannon.mailer.apiv1.Attachment
-	4,  // 4: pkg.kannon.mailer.apiv1.SendHTMLReq.global_fields:type_name -> pkg.kannon.mailer.apiv1.SendHTMLReq.GlobalFieldsEntry
-	9,  // 5: pkg.kannon.mailer.apiv1.SendHTMLReq.headers:type_name -> pkg.kannon.mailer.types.Headers
-	10, // 6: pkg.kannon.mailer.apiv1.SendHTMLReq.tracking:type_name -> pkg.kannon.tracking.types.TrackingPolicy
-	6,  // 7: pkg.kannon.mailer.apiv1.SendTemplateReq.sender:type_name -> pkg.kannon.mailer.types.Sender
-	7,  // 8: pkg.kannon.mailer.apiv1.SendTemplateReq.scheduled_time:type_name -> google.protobuf.Timestamp
-	8,  // 9: pkg.kannon.mailer.apiv1.SendTemplateReq.recipients:type_name -> pkg.kannon.mailer.types.Recipient
+	5,  // 4: pkg.kannon.mailer.apiv1.SendHTMLReq.global_fields:type_name -> pkg.kannon.mailer.apiv1.SendHTMLReq.GlobalFieldsEntry
+	10, // 5: pkg.kannon.mailer.apiv1.SendHTMLReq.headers:type_name -> pkg.kannon.mailer.types.Headers
+	11, // 6: pkg.kannon.mailer.apiv1.SendHTMLReq.tracking:type_name -> pkg.kannon.tracking.types.TrackingPolicy
+	7,  // 7: pkg.kannon.mailer.apiv1.SendTemplateReq.sender:type_name -> pkg.kannon.mailer.types.Sender
+	8,  // 8: pkg.kannon.mailer.apiv1.SendTemplateReq.scheduled_time:type_name -> google.protobuf.Timestamp
+	9,  // 9: pkg.kannon.mailer.apiv1.SendTemplateReq.recipients:type_name -> pkg.kannon.mailer.types.Recipient
 	0,  // 10: pkg.kannon.mailer.apiv1.SendTemplateReq.attachments:type_name -> pkg.kannon.mailer.apiv1.Attachment
-	5,  // 11: pkg.kannon.mailer.apiv1.SendTemplateReq.global_fields:type_name -> pkg.kannon.mailer.apiv1.SendTemplateReq.GlobalFieldsEntry
-	9,  // 12: pkg.kannon.mailer.apiv1.SendTemplateReq.headers:type_name -> pkg.kannon.mailer.types.Headers
-	10, // 13: pkg.kannon.mailer.apiv1.SendTemplateReq.tracking:type_name -> pkg.kannon.tracking.types.TrackingPolicy
-	7,  // 14: pkg.kannon.mailer.apiv1.SendRes.scheduled_time:type_name -> google.protobuf.Timestamp
-	1,  // 15: pkg.kannon.mailer.apiv1.Mailer.SendHTML:input_type -> pkg.kannon.mailer.apiv1.SendHTMLReq
-	2,  // 16: pkg.kannon.mailer.apiv1.Mailer.SendTemplate:input_type -> pkg.kannon.mailer.apiv1.SendTemplateReq
-	3,  // 17: pkg.kannon.mailer.apiv1.Mailer.SendHTML:output_type -> pkg.kannon.mailer.apiv1.SendRes
-	3,  // 18: pkg.kannon.mailer.apiv1.Mailer.SendTemplate:output_type -> pkg.kannon.mailer.apiv1.SendRes
-	17, // [17:19] is the sub-list for method output_type
-	15, // [15:17] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	6,  // 11: pkg.kannon.mailer.apiv1.SendTemplateReq.global_fields:type_name -> pkg.kannon.mailer.apiv1.SendTemplateReq.GlobalFieldsEntry
+	10, // 12: pkg.kannon.mailer.apiv1.SendTemplateReq.headers:type_name -> pkg.kannon.mailer.types.Headers
+	11, // 13: pkg.kannon.mailer.apiv1.SendTemplateReq.tracking:type_name -> pkg.kannon.tracking.types.TrackingPolicy
+	8,  // 14: pkg.kannon.mailer.apiv1.SendRes.scheduled_time:type_name -> google.protobuf.Timestamp
+	4,  // 15: pkg.kannon.mailer.apiv1.SendRes.rejected_recipients:type_name -> pkg.kannon.mailer.apiv1.RejectedRecipient
+	1,  // 16: pkg.kannon.mailer.apiv1.Mailer.SendHTML:input_type -> pkg.kannon.mailer.apiv1.SendHTMLReq
+	2,  // 17: pkg.kannon.mailer.apiv1.Mailer.SendTemplate:input_type -> pkg.kannon.mailer.apiv1.SendTemplateReq
+	3,  // 18: pkg.kannon.mailer.apiv1.Mailer.SendHTML:output_type -> pkg.kannon.mailer.apiv1.SendRes
+	3,  // 19: pkg.kannon.mailer.apiv1.Mailer.SendTemplate:output_type -> pkg.kannon.mailer.apiv1.SendRes
+	18, // [18:20] is the sub-list for method output_type
+	16, // [16:18] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_kannon_mailer_apiv1_mailerapiv1_proto_init() }
@@ -485,7 +591,7 @@ func file_kannon_mailer_apiv1_mailerapiv1_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_kannon_mailer_apiv1_mailerapiv1_proto_rawDesc), len(file_kannon_mailer_apiv1_mailerapiv1_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
