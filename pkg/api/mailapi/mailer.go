@@ -20,6 +20,7 @@ import (
 	smtputils "github.com/kannon-email/kannon/internal/smtp"
 	"github.com/kannon-email/kannon/internal/templates"
 	"github.com/kannon-email/kannon/internal/tracking"
+	"github.com/kannon-email/kannon/internal/trackingpb"
 	"github.com/kannon-email/kannon/internal/utils"
 	pb "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1"
 	mailerv1connect "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1/apiv1connect"
@@ -59,6 +60,7 @@ func (s mailAPIService) SendHTML(ctx context.Context, req *connect.Request[pb.Se
 		Attachments:   req.Msg.Attachments,
 		GlobalFields:  nil,
 		Headers:       req.Msg.Headers,
+		Tracking:      req.Msg.Tracking,
 	}
 
 	return s.sendTemplate(ctx, domain, connect.NewRequest(res))
@@ -114,7 +116,18 @@ func (s mailAPIService) sendTemplate(ctx context.Context, domain *domains.Domain
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 
-	b, err := batch.New(domain.Domain(), req.Msg.Subject, sender, template.TemplateID(), attachments, customHeaders)
+	batchPolicy, err := trackingpb.ToPolicy(req.Msg.Tracking)
+	if err != nil {
+		return nil, trackingPolicyError(err)
+	}
+	// The Batch may only restrict what the Domain allows, never widen it
+	// (ADR 0003). Checked here, at intake, so the caller can tell a policy
+	// decision from a bug rather than having it silently clamped.
+	if violations := tracking.CeilingViolations(domain.TrackingPolicy(), batchPolicy); len(violations) > 0 {
+		return nil, batchTrackingCeilingError(violations)
+	}
+
+	b, err := batch.New(domain.Domain(), req.Msg.Subject, sender, template.TemplateID(), attachments, customHeaders, batchPolicy)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
@@ -146,10 +159,10 @@ func (s mailAPIService) scheduleBatch(ctx context.Context, domain *domains.Domai
 			continue
 		}
 		// The Tracking Policy cascade is resolved here, at intake, and the
-		// concrete result is frozen on the Delivery (ADR 0003). Only the Domain
-		// states anything today; the Batch and the Recipient state nothing, so
-		// they impose no restriction of their own.
-		policy := tracking.Resolve(domain.TrackingPolicy(), tracking.Policy{}, tracking.Policy{})
+		// concrete result is frozen on the Delivery (ADR 0003). The Batch
+		// already passed its ceiling check in sendTemplate; the Recipient
+		// states nothing today (#419), so it imposes no restriction of its own.
+		policy := tracking.Resolve(domain.TrackingPolicy(), b.TrackingPolicy(), tracking.Policy{})
 		d, err := delivery.New(delivery.NewParams{
 			BatchID:       b.ID(),
 			Email:         r.Email,
@@ -278,6 +291,37 @@ func assertHeaderSafe(field, v string) error {
 			fmt.Errorf("%s contains forbidden CR/LF", field))
 	}
 	return nil
+}
+
+// trackingPolicyError maps a failure to translate the wire Tracking Policy
+// onto a Connect code: a reserved Mode (pseudonymous) is unimplemented, and a
+// Mode this build does not know is a bad argument. Mirrors
+// pkg/api/adminapi.trackingPolicyError, which does the same translation for
+// the Admin API's SetTrackingPolicy.
+func trackingPolicyError(err error) error {
+	switch {
+	case errors.Is(err, trackingpb.ErrUnsupportedMode):
+		return connect.NewError(connect.CodeUnimplemented, err)
+	default:
+		// Covers trackingpb.ErrUnknownMode and anything else ToPolicy might
+		// return: a caller sending a Tracking Policy Kannon cannot make sense
+		// of is a bad argument, not a server fault.
+		return connect.NewError(connect.CodeInvalidArgument, err)
+	}
+}
+
+// batchTrackingCeilingError builds the error for a Batch stating a Tracking
+// Mode above its Domain's ceiling (ADR 0003). Silent clamping would make the
+// ceiling indistinguishable from a bug, so the message names every violating
+// axis, what the ceiling allows, and what was asked for.
+func batchTrackingCeilingError(violations []tracking.CeilingViolation) error {
+	reasons := make([]string, 0, len(violations))
+	for _, v := range violations {
+		reasons = append(reasons, fmt.Sprintf(
+			"%s: batch asked for %q, which exceeds the domain ceiling %q", v.Axis, v.Stated, v.Ceiling))
+	}
+	return connect.NewError(connect.CodeInvalidArgument,
+		fmt.Errorf("batch tracking policy exceeds domain ceiling: %s", strings.Join(reasons, "; ")))
 }
 
 func validateHeaders(h *mailertypes.Headers) (batch.Headers, error) {

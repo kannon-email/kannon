@@ -29,8 +29,8 @@ func (q *Queries) CleanPool(ctx context.Context, arg CleanPoolParams) error {
 
 const createMessage = `-- name: CreateMessage :one
 INSERT INTO messages
-    (message_id, subject, sender_email, sender_alias, template_id, domain, attachments, headers) VALUES
-    ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING message_id, subject, sender_email, sender_alias, template_id, domain, attachments, headers, tracking
+    (message_id, subject, sender_email, sender_alias, template_id, domain, attachments, headers, tracking) VALUES
+    ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING message_id, subject, sender_email, sender_alias, template_id, domain, attachments, headers, tracking
 `
 
 type CreateMessageParams struct {
@@ -42,6 +42,7 @@ type CreateMessageParams struct {
 	Domain      string
 	Attachments Attachments
 	Headers     Headers
+	Tracking    tracking.Policy
 }
 
 func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (Message, error) {
@@ -54,6 +55,7 @@ func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (M
 		arg.Domain,
 		arg.Attachments,
 		arg.Headers,
+		arg.Tracking,
 	)
 	var i Message
 	err := row.Scan(

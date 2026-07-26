@@ -45,6 +45,7 @@ import (
 	"github.com/kannon-email/kannon/internal/envelope"
 	"github.com/kannon-email/kannon/internal/pool"
 	"github.com/kannon-email/kannon/internal/tests"
+	"github.com/kannon-email/kannon/internal/tracking"
 	mailertypes "github.com/kannon-email/kannon/proto/kannon/mailer/types"
 )
 
@@ -140,7 +141,7 @@ func TestDispatchCycle_BudgetDeathMidPage_NoDeliveryLost(t *testing.T) {
 
 	b, err := batch.New(domain, "incident repro",
 		batch.Sender{Email: "noreply@" + domain, Alias: "Incident"},
-		tpl.TemplateID, batch.Attachments{}, batch.Headers{})
+		tpl.TemplateID, batch.Attachments{}, batch.Headers{}, tracking.Policy{})
 	require.NoError(t, err)
 	require.NoError(t, sqlc.NewBatchRepository(testDB).Create(ctx, b))
 

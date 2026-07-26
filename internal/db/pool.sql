@@ -47,8 +47,8 @@ SELECT * FROM sending_pool_emails WHERE message_id = $1 ORDER BY id LIMIT $2 OFF
 
 -- name: CreateMessage :one
 INSERT INTO messages
-    (message_id, subject, sender_email, sender_alias, template_id, domain, attachments, headers) VALUES
-    ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *;
+    (message_id, subject, sender_email, sender_alias, template_id, domain, attachments, headers, tracking) VALUES
+    ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
 
 -- name: GetMessage :one
 SELECT * FROM messages WHERE message_id = $1;

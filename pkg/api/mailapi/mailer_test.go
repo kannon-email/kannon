@@ -315,6 +315,219 @@ func TestSendMailFreezesResolvedTrackingPolicy(t *testing.T) {
 	}
 }
 
+// TestSendMailBatchTrackingPolicy covers the Batch level of the Tracking
+// Policy cascade (#417): a Batch may state a Policy at or below its Domain's
+// ceiling, which is resolved onto every Delivery and kept verbatim on the
+// Batch row as provenance; a Batch stating more than the ceiling allows fails
+// the call outright rather than being silently clamped, naming the offending
+// axis (ADR 0003); the two axes are evaluated independently; and a Batch
+// stating the reserved `pseudonymous` Mode is rejected as unimplemented.
+func TestSendMailBatchTrackingPolicy(t *testing.T) {
+	t.Run("AtOrBelowCeilingIsAcceptedAndApplied", func(t *testing.T) {
+		cases := []struct {
+			name  string
+			batch *trackingtypes.TrackingPolicy
+			want  tracking.Policy
+		}{
+			{
+				name: "EqualToCeiling",
+				batch: &trackingtypes.TrackingPolicy{
+					Opens: trackingtypes.TrackingMode_TRACKING_MODE_IDENTIFIED,
+					Links: trackingtypes.TrackingMode_TRACKING_MODE_IDENTIFIED,
+				},
+				want: tracking.Policy{Opens: tracking.ModeIdentified, Links: tracking.ModeIdentified},
+			},
+			{
+				name: "BelowCeiling",
+				batch: &trackingtypes.TrackingPolicy{
+					Opens: trackingtypes.TrackingMode_TRACKING_MODE_OFF,
+					Links: trackingtypes.TrackingMode_TRACKING_MODE_ANONYMOUS,
+				},
+				want: tracking.Policy{Opens: tracking.ModeOff, Links: tracking.ModeAnonymous},
+			},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				defer cleanDB(t)
+
+				// createTestDomain leaves the Domain at its identified/identified default.
+				d := createTestDomain(t)
+
+				req := connect.NewRequest(&mailerv1.SendHTMLReq{
+					Sender: &types.Sender{
+						Email: "test@" + d.Domain.Domain,
+						Alias: "Test",
+					},
+					Recipients:    []*types.Recipient{{Email: "first@email.com"}},
+					Subject:       "Test",
+					Html:          "<p>Hello</p>",
+					ScheduledTime: timestamppb.Now(),
+					Tracking:      tc.batch,
+				})
+				authRequest(req, d)
+
+				res, err := ts.SendHTML(t.Context(), req)
+				assert.Nil(t, err)
+
+				sp, err := q.GetSendingPoolsEmails(t.Context(), sqlc.GetSendingPoolsEmailsParams{
+					MessageID: res.Msg.MessageId,
+					Limit:     100,
+					Offset:    0,
+				})
+				assert.Nil(t, err)
+				assert.Equal(t, 1, len(sp))
+				assert.Equal(t, tc.want, sp[0].Tracking, "the resolved Policy must be frozen on the Delivery")
+
+				msg, err := q.GetMessage(t.Context(), res.Msg.MessageId)
+				assert.Nil(t, err)
+				assert.Equal(t, tc.want, msg.Tracking, "the stated Policy must be kept verbatim on the Batch as provenance")
+			})
+		}
+	})
+
+	t.Run("AboveCeilingFailsTheCall", func(t *testing.T) {
+		defer cleanDB(t)
+
+		d := createTestDomain(t)
+		_, err := adminAPI.SetTrackingPolicy(t.Context(), connect.NewRequest(&adminv1.SetTrackingPolicyReq{
+			Domain: d.Domain.Domain,
+			Tracking: &trackingtypes.TrackingPolicy{
+				Opens: trackingtypes.TrackingMode_TRACKING_MODE_OFF,
+				Links: trackingtypes.TrackingMode_TRACKING_MODE_OFF,
+			},
+		}))
+		assert.Nil(t, err)
+
+		req := connect.NewRequest(&mailerv1.SendHTMLReq{
+			Sender: &types.Sender{
+				Email: "test@" + d.Domain.Domain,
+				Alias: "Test",
+			},
+			Recipients:    []*types.Recipient{{Email: "first@email.com"}},
+			Subject:       "Test",
+			Html:          "<p>Hello</p>",
+			ScheduledTime: timestamppb.Now(),
+			Tracking: &trackingtypes.TrackingPolicy{
+				Opens: trackingtypes.TrackingMode_TRACKING_MODE_FULL,
+			},
+		})
+		authRequest(req, d)
+
+		_, err = ts.SendHTML(t.Context(), req)
+		assert.NotNil(t, err)
+		assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
+		assert.Contains(t, err.Error(), "opens")
+
+		// The ceiling is checked before the Batch is persisted or any Delivery
+		// scheduled: a rejected call must leave nothing behind.
+		var msgCount int
+		err = db.QueryRow(t.Context(), "SELECT count(*) FROM messages WHERE domain = $1", d.Domain.Domain).Scan(&msgCount)
+		assert.Nil(t, err)
+		assert.Equal(t, 0, msgCount, "a Batch violating its Domain's ceiling must not be created")
+	})
+
+	t.Run("AxesAreEvaluatedIndependently", func(t *testing.T) {
+		defer cleanDB(t)
+
+		d := createTestDomain(t)
+		_, err := adminAPI.SetTrackingPolicy(t.Context(), connect.NewRequest(&adminv1.SetTrackingPolicyReq{
+			Domain: d.Domain.Domain,
+			Tracking: &trackingtypes.TrackingPolicy{
+				Opens: trackingtypes.TrackingMode_TRACKING_MODE_IDENTIFIED,
+				Links: trackingtypes.TrackingMode_TRACKING_MODE_OFF,
+			},
+		}))
+		assert.Nil(t, err)
+
+		req := connect.NewRequest(&mailerv1.SendHTMLReq{
+			Sender: &types.Sender{
+				Email: "test@" + d.Domain.Domain,
+				Alias: "Test",
+			},
+			Recipients:    []*types.Recipient{{Email: "first@email.com"}},
+			Subject:       "Test",
+			Html:          "<p>Hello</p>",
+			ScheduledTime: timestamppb.Now(),
+			Tracking: &trackingtypes.TrackingPolicy{
+				// Opens asks for less than its ceiling: fine on its own.
+				Opens: trackingtypes.TrackingMode_TRACKING_MODE_ANONYMOUS,
+				// Links asks for more than its ceiling (off): must violate.
+				Links: trackingtypes.TrackingMode_TRACKING_MODE_FULL,
+			},
+		})
+		authRequest(req, d)
+
+		_, err = ts.SendHTML(t.Context(), req)
+		assert.NotNil(t, err)
+		assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
+		assert.Contains(t, err.Error(), "links")
+		assert.NotContains(t, err.Error(), "opens", "only the violating axis should be named")
+	})
+
+	t.Run("PseudonymousIsRejectedAsUnimplemented", func(t *testing.T) {
+		defer cleanDB(t)
+
+		d := createTestDomain(t)
+
+		req := connect.NewRequest(&mailerv1.SendHTMLReq{
+			Sender: &types.Sender{
+				Email: "test@" + d.Domain.Domain,
+				Alias: "Test",
+			},
+			Recipients:    []*types.Recipient{{Email: "first@email.com"}},
+			Subject:       "Test",
+			Html:          "<p>Hello</p>",
+			ScheduledTime: timestamppb.Now(),
+			Tracking: &trackingtypes.TrackingPolicy{
+				Opens: trackingtypes.TrackingMode_TRACKING_MODE_PSEUDONYMOUS,
+			},
+		})
+		authRequest(req, d)
+
+		_, err := ts.SendHTML(t.Context(), req)
+		assert.NotNil(t, err)
+		assert.Equal(t, connect.CodeUnimplemented, connect.CodeOf(err))
+	})
+
+	t.Run("OmittingTheFieldBehavesExactlyAsBefore", func(t *testing.T) {
+		defer cleanDB(t)
+
+		d := createTestDomain(t)
+
+		req := connect.NewRequest(&mailerv1.SendHTMLReq{
+			Sender: &types.Sender{
+				Email: "test@" + d.Domain.Domain,
+				Alias: "Test",
+			},
+			Recipients:    []*types.Recipient{{Email: "first@email.com"}},
+			Subject:       "Test",
+			Html:          "<p>Hello</p>",
+			ScheduledTime: timestamppb.Now(),
+			// Tracking left nil: states nothing, imposes no restriction of
+			// its own, resolves to the Domain value.
+		})
+		authRequest(req, d)
+
+		res, err := ts.SendHTML(t.Context(), req)
+		assert.Nil(t, err)
+
+		sp, err := q.GetSendingPoolsEmails(t.Context(), sqlc.GetSendingPoolsEmailsParams{
+			MessageID: res.Msg.MessageId,
+			Limit:     100,
+			Offset:    0,
+		})
+		assert.Nil(t, err)
+		assert.Equal(t, 1, len(sp))
+		assert.Equal(t, tracking.Policy{Opens: tracking.ModeIdentified, Links: tracking.ModeIdentified}, sp[0].Tracking)
+
+		msg, err := q.GetMessage(t.Context(), res.Msg.MessageId)
+		assert.Nil(t, err)
+		assert.Equal(t, tracking.Policy{}, msg.Tracking,
+			"an omitted Batch Policy states nothing and must not be normalised at rest")
+	})
+}
+
 func TestSendMailWithInvalidHeaders(t *testing.T) {
 	defer cleanDB(t)
 
