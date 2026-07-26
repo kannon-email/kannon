@@ -92,10 +92,17 @@ func (p *fakePublisher) published() []*statstypes.Stats {
 	return append([]*statstypes.Stats(nil), p.stats...)
 }
 
+// answer is what a recipient observes from a tracking request: the status, and
+// where a tracked link sent them.
+type answer struct {
+	status   int
+	location string
+}
+
 // engage sends one tracking request through the tracker's routing table, with the
-// headers a real recipient's client would carry, and returns the response
-// together with everything the tracker published for it.
-func engage(t *testing.T, path string) (*http.Response, []*statstypes.Stats) {
+// headers a real recipient's client would carry, and returns what the recipient
+// observes together with everything the tracker published for it.
+func engage(t *testing.T, path string) (answer, []*statstypes.Stats) {
 	t.Helper()
 
 	pub := &fakePublisher{}
@@ -108,7 +115,7 @@ func engage(t *testing.T, path string) (*http.Response, []*statstypes.Stats) {
 	rec := httptest.NewRecorder()
 	srv.handler().ServeHTTP(rec, req)
 
-	return rec.Result(), pub.published()
+	return answer{status: rec.Code, location: rec.Header().Get("Location")}, pub.published()
 }
 
 // TestOpenRetainsRequestDataOnlyUnderFull is the compliance property for opens:
@@ -121,7 +128,7 @@ func TestOpenRetainsRequestDataOnlyUnderFull(t *testing.T) {
 			require.NoError(t, err)
 
 			resp, published := engage(t, "/o/"+token)
-			assert.Equal(t, http.StatusOK, resp.StatusCode)
+			assert.Equal(t, http.StatusOK, resp.status)
 
 			require.Len(t, published, 1)
 			stat := published[0]
@@ -147,8 +154,8 @@ func TestClickRetainsRequestDataOnlyUnderFull(t *testing.T) {
 			require.NoError(t, err)
 
 			resp, published := engage(t, "/c/"+token)
-			assert.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
-			assert.Equal(t, testLandingURL, resp.Header.Get("Location"))
+			assert.Equal(t, http.StatusTemporaryRedirect, resp.status)
+			assert.Equal(t, testLandingURL, resp.location)
 
 			require.Len(t, published, 1)
 			stat := published[0]
@@ -218,7 +225,7 @@ func TestForgedModeClaimIsRefused(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			resp, published := engage(t, tc.path)
-			assert.Equal(t, http.StatusNotFound, resp.StatusCode, "a forged token must be refused")
+			assert.Equal(t, http.StatusNotFound, resp.status, "a forged token must be refused")
 			assert.Empty(t, published, "a refused request must publish no stat")
 		})
 	}
