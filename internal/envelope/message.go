@@ -118,8 +118,23 @@ func writeMessage(buf *bytes.Buffer, h mail.Header, html string, attachments Att
 	return mw.Close()
 }
 
+// regBodyClose matches the closing </body> tag. Tag names are case-insensitive in
+// HTML and whitespace is allowed before the '>', so </BODY> and </body > close the
+// same body.
+var regBodyClose = regexp.MustCompile(`(?i)</body\s*>`)
+
+// insertTrackLinkInHTML puts the open pixel at the end of the body, immediately
+// before the closing tag, which is left exactly as its author wrote it.
+//
+// An HTML fragment with no closing tag at all is returned unchanged: there is no
+// end of body to place the pixel at, so such a message carries no open pixel.
 func insertTrackLinkInHTML(html, link string) string {
-	return strings.Replace(html, "</body>", fmt.Sprintf(`<img src="%s" style="display:none;"/></body>`, link), 1)
+	at := regBodyClose.FindStringIndex(html)
+	if at == nil {
+		return html
+	}
+	pixel := fmt.Sprintf(`<img src="%s" style="display:none;"/>`, link)
+	return html[:at[0]] + pixel + html[at[0]:]
 }
 
 var (

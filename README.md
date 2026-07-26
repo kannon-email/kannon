@@ -271,6 +271,10 @@ The attribute name is case-insensitive and works by **presence**: any value opts
 
 Links a redirect cannot serve are never rewritten and need no attribute: `mailto:`, `tel:`, `sms:`, and in-page anchors such as `#section`.
 
+#### Open tracking
+
+When the Tracking Policy governing a message allows open tracking, a hidden 1-pixel image is inserted immediately before the closing `</body>` tag. HTML with no closing tag — a bare fragment such as `<h1>Hello</h1>` — has no end of body to place it at, so it is delivered without an open pixel.
+
 See the [proto files](./proto/kannon/) for all fields and options.
 
 ## Deployment

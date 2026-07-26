@@ -70,9 +70,59 @@ func TestBuildHeadersBothToAndCC(t *testing.T) {
 }
 
 func TestInsertTrackOpen(t *testing.T) {
-	html := `<html><body></body></html>`
-	expected := `<html><body><img src="https://test.com/o/xxx" style="display:none;"/></body></html>`
-	assert.Equal(t, expected, insertTrackLinkInHTML(html, "https://test.com/o/xxx"))
+	const pixel = `<img src="https://test.com/o/xxx" style="display:none;"/>`
+
+	tests := []struct {
+		name     string
+		html     string
+		expected string
+	}{
+		{
+			name:     "lower case closing tag",
+			html:     `<html><body></body></html>`,
+			expected: `<html><body>` + pixel + `</body></html>`,
+		},
+		{
+			// The closing tag is delivered as it was authored, upper case and all.
+			name:     "upper case closing tag",
+			html:     `<HTML><BODY></BODY></HTML>`,
+			expected: `<HTML><BODY>` + pixel + `</BODY></HTML>`,
+		},
+		{
+			name:     "mixed case closing tag",
+			html:     `<html><Body></Body></html>`,
+			expected: `<html><Body>` + pixel + `</Body></html>`,
+		},
+		{
+			name:     "whitespace before the bracket",
+			html:     `<html><body></body ></html>`,
+			expected: `<html><body>` + pixel + `</body ></html>`,
+		},
+		{
+			name:     "content is kept before the pixel",
+			html:     `<html><body><p>hi</p></body></html>`,
+			expected: `<html><body><p>hi</p>` + pixel + `</body></html>`,
+		},
+		{
+			// Only the first closing tag is used, as before.
+			name:     "two closing tags",
+			html:     `<html><body></body></html></body>`,
+			expected: `<html><body>` + pixel + `</body></html></body>`,
+		},
+		{
+			// A fragment has no end of body to place the pixel at. Pre-existing
+			// behaviour, pinned here because it is easy to mistake for the bug above.
+			name:     "no closing tag",
+			html:     `<h1>Hello</h1>`,
+			expected: `<h1>Hello</h1>`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, insertTrackLinkInHTML(tt.html, "https://test.com/o/xxx"))
+		})
+	}
 }
 
 func TestInsertTrackLink(t *testing.T) {
