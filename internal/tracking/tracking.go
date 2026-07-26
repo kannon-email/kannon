@@ -52,11 +52,30 @@ var modeRanks = map[Mode]int{
 
 // Rank returns m's position on the scale, where a lower rank collects less, so
 // that comparing two Modes is a rank comparison rather than a tree of special
-// cases. It reports false for a Mode that states nothing: ModeUnspecified, and
-// any value this build does not know.
+// cases. It reports false for a Mode with no position on the scale:
+// ModeUnspecified, and any value this build does not know.
 func (m Mode) Rank() (int, bool) {
 	rank, ok := modeRanks[m]
 	return rank, ok
+}
+
+// states reports whether m says anything at all. Only ModeUnspecified says
+// nothing; every other value is a statement, including one this build cannot
+// read.
+func (m Mode) states() bool { return m != ModeUnspecified }
+
+// collection returns the Mode this build will actually act on for m, and its
+// rank. A stated Mode this build cannot read collapses to ModeOff: it must
+// never be confused with silence, because silence defers to the level above and
+// would therefore let an unreadable value *widen* what is collected. The
+// Domain's Policy is the only guarantee an operator has (ADR 0003), so a Domain
+// row written by a newer build has to keep enforcing something rather than
+// dissolving into no ceiling at all.
+func (m Mode) collection() (Mode, int) {
+	if rank, ok := m.Rank(); ok {
+		return m, rank
+	}
+	return ModeOff, modeRanks[ModeOff]
 }
 
 // Policy is a pair of Modes, one governing opens and one governing links,
@@ -88,17 +107,19 @@ func (p Policy) Normalized() Policy {
 }
 
 // mostRestrictive returns the lowest-ranked of the stated modes, skipping
-// those that state nothing, and ModeOff when none states anything.
+// those that state nothing, and ModeOff when none states anything. A stated
+// Mode this build cannot read collects nothing (see Mode.collection), so it
+// resolves to ModeOff rather than deferring to another level.
 func mostRestrictive(modes ...Mode) Mode {
 	out := ModeOff
 	outRank, found := 0, false
 	for _, m := range modes {
-		rank, ok := m.Rank()
-		if !ok {
+		if !m.states() {
 			continue
 		}
+		mode, rank := m.collection()
 		if !found || rank < outRank {
-			out, outRank, found = m, rank, true
+			out, outRank, found = mode, rank, true
 		}
 	}
 	return out

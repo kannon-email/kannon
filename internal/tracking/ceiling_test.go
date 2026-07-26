@@ -69,6 +69,19 @@ func TestCeilingViolations(t *testing.T) {
 			stated:  tracking.Policy{Opens: tracking.Mode("shadow"), Links: tracking.ModeOff},
 			want:    nil,
 		},
+		{
+			// A ceiling this build cannot read must not become no ceiling at
+			// all: the Domain's Policy is the only guarantee an operator has
+			// (ADR 0003), so an unrecognised value is read as the floor of the
+			// scale rather than as silence. Reachable when a newer build wrote
+			// the row and this one is asked to enforce it.
+			name:    "UnknownCeilingIsReadAsTheFloorNotAsSilence",
+			ceiling: tracking.Policy{Opens: tracking.Mode("shadow"), Links: tracking.ModeFull},
+			stated:  tracking.Policy{Opens: tracking.ModeAnonymous, Links: tracking.ModeFull},
+			want: []tracking.CeilingViolation{
+				{Axis: tracking.AxisOpens, Ceiling: tracking.Mode("shadow"), Stated: tracking.ModeAnonymous},
+			},
+		},
 	}
 
 	for _, tc := range cases {

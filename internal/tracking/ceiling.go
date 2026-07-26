@@ -45,16 +45,23 @@ func CeilingViolations(ceiling, stated Policy) []CeilingViolation {
 	return violations
 }
 
-// axisViolation reports whether stated collects more than ceiling on one
-// Axis. Either side stating nothing (or a Mode this build does not know)
-// short-circuits to "no violation", since there is nothing to compare.
+// axisViolation reports whether stated collects more than ceiling on one Axis.
+// Either side stating nothing short-circuits to "no violation": a ceiling that
+// states nothing has nothing to enforce, and a level that states nothing asks
+// for nothing above it.
+//
+// A stated Mode this build cannot read is compared as ModeOff on both sides
+// (see Mode.collection), so an unreadable ceiling still enforces the floor
+// rather than permitting everything. The violation reports the Modes as they
+// were actually configured, not as they were read, so an operator sees the
+// value that needs fixing.
 func axisViolation(axis Axis, ceiling, stated Mode) (CeilingViolation, bool) {
-	statedRank, statedOK := stated.Rank()
-	if !statedOK {
+	if !stated.states() || !ceiling.states() {
 		return CeilingViolation{}, false
 	}
-	ceilingRank, ceilingOK := ceiling.Rank()
-	if !ceilingOK || statedRank <= ceilingRank {
+	_, statedRank := stated.collection()
+	_, ceilingRank := ceiling.collection()
+	if statedRank <= ceilingRank {
 		return CeilingViolation{}, false
 	}
 	return CeilingViolation{Axis: axis, Ceiling: ceiling, Stated: stated}, true

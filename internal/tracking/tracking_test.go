@@ -114,10 +114,23 @@ func TestResolve(t *testing.T) {
 			want:      tracking.Policy{Opens: tracking.ModeIdentified, Links: tracking.ModeIdentified},
 		},
 		{
-			name:   "UnknownModeStatesNothing",
+			// A Mode this build does not recognise is read as off, never as
+			// silence: silence defers to the level above, which would let an
+			// unreadable value widen what is collected.
+			name:   "UnknownModeIsReadAsOff",
 			domain: tracking.Policy{Opens: tracking.ModeFull, Links: tracking.ModeFull},
 			batch:  tracking.Policy{Opens: tracking.Mode("shadow"), Links: tracking.Mode("shadow")},
-			want:   tracking.Policy{Opens: tracking.ModeFull, Links: tracking.ModeFull},
+			want:   tracking.Policy{Opens: tracking.ModeOff, Links: tracking.ModeOff},
+		},
+		{
+			// The case that matters in practice: the API boundary refuses
+			// unknown wire values, so an unrecognised Mode reaches resolution
+			// only from a Domain row written by a newer build. It must not
+			// dissolve into silence and let the Batch decide.
+			name:   "UnknownDomainModeDoesNotHandTheDecisionToTheBatch",
+			domain: tracking.Policy{Opens: tracking.Mode("shadow"), Links: tracking.Mode("shadow")},
+			batch:  tracking.Policy{Opens: tracking.ModeFull, Links: tracking.ModeFull},
+			want:   tracking.Policy{Opens: tracking.ModeOff, Links: tracking.ModeOff},
 		},
 		{
 			name:   "AxesResolveIndependently",
