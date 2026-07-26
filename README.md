@@ -202,7 +202,7 @@ Kannon exposes a gRPC API for sending mail, managing domains/templates, and retr
   - `SendHTML`: Send a raw HTML email
   - `SendTemplate`: Send an email using a stored template
 - **Admin API** ([proto](./proto/kannon/admin/apiv1/adminapiv1.proto))
-  - **Domains**: `GetDomains`, `GetDomain`, `CreateDomain`
+  - **Domains**: `GetDomains`, `GetDomain`, `CreateDomain`, `SetTrackingPolicy`
   - **Templates**: `CreateTemplate`, `UpdateTemplate`, `DeleteTemplate`, `GetTemplate`, `GetTemplates`
   - **API Keys**: `CreateAPIKey`, `ListAPIKeys`, `GetAPIKey`, `DeactivateAPIKey`
 - **Stats API** ([proto](./proto/kannon/stats/apiv1/statsapiv1.proto))
@@ -357,6 +357,8 @@ We welcome contributions! Please:
 - **[CONTEXT.md](CONTEXT.md)** — Shared language: Batch, Recipient, Delivery, Envelope, Domain, Template, and the per-Delivery outcome state machine
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** — Detailed technical architecture (modules, NATS streams, topics, consumers, message flows)
 - **[REPOSITORY_GUIDE.md](docs/REPOSITORY_GUIDE.md)** — PostgreSQL repository implementation patterns
+- **[UPGRADING.md](docs/UPGRADING.md)** — Behaviour changes an existing installation needs to know about, and how to restore the previous behaviour
+- **[docs/adr/](docs/adr/)** — Architecture Decision Records, with the alternatives that were rejected
 - **[CLAUDE.md](CLAUDE.md)** — AI assistant guidance for working with the codebase
 
 ### Local Development
