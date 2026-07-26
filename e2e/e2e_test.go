@@ -131,6 +131,11 @@ func TestE2EEmailSending(t *testing.T) {
 		t.Parallel()
 		testBatchAboveDomainTrackingCeiling(t, factory, senderMock, infra)
 	})
+
+	t.Run("TrackingAnonymous", func(t *testing.T) {
+		t.Parallel()
+		testTrackingAnonymous(t, factory, senderMock, infra)
+	})
 }
 
 func runKannon(t *testing.T, infra *TestInfrastructure, senderMock *senderMock) {
@@ -765,6 +770,80 @@ func testTrackingIdentified(t *testing.T, clientFactory *clientFactory, senderMo
 	require.NotNil(t, clickedData)
 	assert.Empty(t, clickedData.Ip, "an Identified click must retain no IP address")
 	assert.Empty(t, clickedData.UserAgent, "an Identified click must retain no user agent")
+}
+
+// testTrackingAnonymous is the aggregate-statistics carve-out end to end: a Domain
+// on Anonymous keeps its open and click rates while retaining nothing that could
+// isolate one Recipient from another.
+//
+// One Batch is sent to two Recipients, because both halves of the claim are about
+// the pair. The tokens they receive must be the *same* token — two independently
+// minted ones would carry different iat/exp and so tell the two apart even while
+// naming neither — and after both are exercised the Domain's aggregate counters
+// must have moved with no per-recipient engagement row anywhere.
+func testTrackingAnonymous(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
+	client := clientFactory.NewClient(t, infra)
+
+	client.SetTrackingPolicy(t, &trackingtypes.TrackingPolicy{
+		Opens: trackingtypes.TrackingMode_TRACKING_MODE_ANONYMOUS,
+		Links: trackingtypes.TrackingMode_TRACKING_MODE_ANONYMOUS,
+	})
+
+	const landingURL = "https://example.com/landing"
+	first, second := tests.FakeEmail(t), tests.FakeEmail(t)
+
+	client.SendEmail(t, &mailerapiv1.SendHTMLReq{
+		Sender:        client.Sender(),
+		Recipients:    []*mailertypes.Recipient{{Email: first}, {Email: second}},
+		Subject:       "Tracking Anonymous Test",
+		Html:          fmt.Sprintf(`<html><body><h1>Hello!</h1><a href=%q>click</a></body></html>`, landingURL),
+		ScheduledTime: timestamppb.Now(),
+	})
+
+	firstMsg := requireGetEmail(t, senderMock, first)
+	secondMsg := requireGetEmail(t, senderMock, second)
+
+	openToken := extractOpenToken(t, firstMsg.Body)
+	clickToken := extractClickToken(t, firstMsg.Body)
+	assert.Equal(t, openToken, extractOpenToken(t, secondMsg.Body),
+		"an anonymous pixel names nobody, so both Recipients must receive the same token")
+	assert.Equal(t, clickToken, extractClickToken(t, secondMsg.Body),
+		"an anonymous tracked link names nobody, so both Recipients must receive the same token")
+
+	requireTrackerHit(t,
+		fmt.Sprintf("http://localhost:%d/o/%s", infra.trackerPort, openToken),
+		http.StatusOK)
+	location := requireTrackerHit(t,
+		fmt.Sprintf("http://localhost:%d/c/%s", infra.trackerPort, clickToken),
+		http.StatusTemporaryRedirect)
+	assert.Equal(t, landingURL, location, "the redirect is owed to the recipient under every Mode")
+
+	// The aggregate half: the Domain still gets its rates.
+	require.EventuallyWithT(t, func(tt *assert.CollectT) {
+		counts := make(map[string]int64)
+		for _, s := range client.GetAggregatedStats(t).Stats {
+			counts[s.Type] += s.Count
+		}
+		require.Positive(tt, counts["opened"], "an anonymous open must still be counted in aggregate")
+		require.Positive(tt, counts["clicked"], "an anonymous click must still be counted in aggregate")
+	}, 30*time.Second, 500*time.Millisecond, "aggregated engagement counters must move under Anonymous")
+
+	// The per-recipient half. Two things make the absence meaningful rather than
+	// merely early: the aggregate counter above proves the engagement events were
+	// consumed on the sibling subscription, and both Deliveries already have their
+	// own delivered row, so the per-recipient consumer is alive and current. The
+	// absence is then re-checked over a window, because a row arriving late would
+	// be just as much of a leak as one arriving at once.
+	requireStat(t, client, first, "delivered", 1)
+	requireStat(t, client, second, "delivered", 1)
+
+	for range 6 {
+		for _, s := range client.GetStats(t).Stats {
+			require.NotEqual(t, "opened", s.Type, "an anonymous open must leave no per-recipient row")
+			require.NotEqual(t, "clicked", s.Type, "an anonymous click must leave no per-recipient row")
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
 }
 
 // testTrackingFull is the only Mode under which Kannon keeps anything about the
