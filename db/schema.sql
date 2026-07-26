@@ -169,7 +169,8 @@ CREATE TABLE public.domains (
     domain character varying(254) NOT NULL,
     created_at timestamp without time zone DEFAULT now() NOT NULL,
     dkim_private_key character varying NOT NULL,
-    dkim_public_key character varying NOT NULL
+    dkim_public_key character varying NOT NULL,
+    tracking jsonb DEFAULT '{"links": "identified", "opens": "identified"}'::jsonb NOT NULL
 );
 
 
@@ -205,7 +206,8 @@ CREATE TABLE public.messages (
     template_id character varying NOT NULL,
     domain character varying(254) NOT NULL,
     attachments jsonb,
-    headers jsonb DEFAULT '{}'::jsonb NOT NULL
+    headers jsonb DEFAULT '{}'::jsonb NOT NULL,
+    tracking jsonb DEFAULT '{}'::jsonb NOT NULL
 );
 
 
@@ -232,7 +234,8 @@ CREATE TABLE public.sending_pool_emails (
     fields jsonb DEFAULT '{}'::jsonb NOT NULL,
     status character varying(100) DEFAULT 'initializing'::character varying NOT NULL,
     created_at timestamp without time zone DEFAULT now() NOT NULL,
-    domain character varying NOT NULL
+    domain character varying NOT NULL,
+    tracking jsonb DEFAULT '{"links": "identified", "opens": "identified"}'::jsonb NOT NULL
 );
 
 
@@ -729,4 +732,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20260214120000'),
     ('20260214120001'),
     ('20260214120002'),
-    ('20260509102644');
+    ('20260509102644'),
+    ('20260726084414');
