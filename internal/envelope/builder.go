@@ -40,6 +40,10 @@ type SendingDataSource interface {
 // carries the Tracking Mode of the axis it belongs to — the opens Mode on an
 // open token, the links Mode on a link token — signed, so the Tracker can trust
 // it without a Delivery row to look it up in.
+//
+// A Mode that does not identify the Recipient mints no identity into the token,
+// so the Builder asks for such a token once per Batch and reuses it for every
+// Delivery — see sharedtokens.go.
 type TokenIssuer interface {
 	CreateLinkToken(ctx context.Context, messageID, email, url string, mode tracking.Mode) (string, error)
 	CreateOpenToken(ctx context.Context, messageID, email string, mode tracking.Mode) (string, error)
@@ -57,6 +61,7 @@ func NewBuilder(q *sqlc.Queries, st statssec.StatsService) Builder {
 	return &defaultBuilder{
 		source: sqlcSource{q: q},
 		tokens: st,
+		shared: newSharedTokens(),
 		baseHeaders: headers{
 			"X-Mailer": {"SMTP Mailer"},
 		},
@@ -69,6 +74,7 @@ func NewBuilderWith(source SendingDataSource, tokens TokenIssuer) Builder {
 	return &defaultBuilder{
 		source: source,
 		tokens: tokens,
+		shared: newSharedTokens(),
 		baseHeaders: headers{
 			"X-Mailer": {"SMTP Mailer"},
 		},
@@ -76,8 +82,12 @@ func NewBuilderWith(source SendingDataSource, tokens TokenIssuer) Builder {
 }
 
 type defaultBuilder struct {
-	source      SendingDataSource
-	tokens      TokenIssuer
+	source SendingDataSource
+	tokens TokenIssuer
+	// shared holds the tokens that name no Recipient, so they are issued once per
+	// Batch rather than once per Delivery. It is per-Builder, and a Builder lives
+	// as long as the Dispatcher does.
+	shared      *sharedTokens
 	baseHeaders headers
 }
 
@@ -189,7 +199,7 @@ func (b *defaultBuilder) addTrackPixel(ctx context.Context, html, email, message
 }
 
 func (b *defaultBuilder) buildTrackClickLink(ctx context.Context, url, email, messageID, domain string, mode tracking.Mode) (string, error) {
-	token, err := b.tokens.CreateLinkToken(ctx, messageID, email, url, mode)
+	token, err := b.linkToken(ctx, url, email, messageID, domain, mode)
 	if err != nil {
 		return "", err
 	}
@@ -197,11 +207,49 @@ func (b *defaultBuilder) buildTrackClickLink(ctx context.Context, url, email, me
 }
 
 func (b *defaultBuilder) buildTrackOpenLink(ctx context.Context, email, messageID, domain string, mode tracking.Mode) (string, error) {
-	token, err := b.tokens.CreateOpenToken(ctx, messageID, email, mode)
+	token, err := b.openToken(ctx, email, messageID, domain, mode)
 	if err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("https://stats.%v/o/%v", domain, token), nil
+}
+
+// linkToken is the link token for one Delivery and one tracked URL. Under a Mode
+// that names the Recipient it is minted per Delivery, because that is what it
+// commits to. Under a Mode that names nobody it commits only to the Batch, the URL
+// and the Mode, so every Delivery of the Batch carries the very same token.
+func (b *defaultBuilder) linkToken(ctx context.Context, url, email, messageID, domain string, mode tracking.Mode) (string, error) {
+	mint := func() (string, error) {
+		return b.tokens.CreateLinkToken(ctx, messageID, email, url, mode)
+	}
+	if mode.IdentifiesRecipient() {
+		return mint()
+	}
+	return b.shared.reuse(sharedTokenKey{
+		axis:      tracking.AxisLinks,
+		domain:    domain,
+		messageID: messageID,
+		url:       url,
+		mode:      mode,
+	}, mint)
+}
+
+// openToken is the pixel token for one Delivery, shared across the Batch on the
+// same terms as linkToken — with no URL to distinguish, one token covers the whole
+// Batch.
+func (b *defaultBuilder) openToken(ctx context.Context, email, messageID, domain string, mode tracking.Mode) (string, error) {
+	mint := func() (string, error) {
+		return b.tokens.CreateOpenToken(ctx, messageID, email, mode)
+	}
+	if mode.IdentifiesRecipient() {
+		return mint()
+	}
+	return b.shared.reuse(sharedTokenKey{
+		axis:      tracking.AxisOpens,
+		domain:    domain,
+		messageID: messageID,
+		mode:      mode,
+	}, mint)
 }
 
 // sqlcSource adapts the sqlc-generated GetSendingData query into the

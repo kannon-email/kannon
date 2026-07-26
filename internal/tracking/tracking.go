@@ -78,6 +78,31 @@ func (m Mode) collection() (Mode, int) {
 	return ModeOff, modeRanks[ModeOff]
 }
 
+// IdentifiesRecipient reports whether an engagement event governed by m may name
+// the Recipient it came from. Like every other question about the scale it is a
+// rank comparison: Identified is by definition the rung at which attribution
+// begins, so every rung below it — Off, Anonymous, Pseudonymous — retains nothing
+// that names a Recipient (CONTEXT.md).
+//
+// ModeUnspecified identifies. It states nothing and so imposes no restriction of
+// its own (ADR 0003), and the only place an unstated Mode is still met is a token
+// minted before the Mode became a claim: such a token was minted to be
+// attributed, so dropping its identity would lose data rather than protect
+// anybody.
+//
+// A Mode that states something this build cannot read does *not* identify. It
+// can only come from a token minted by a newer build, whose Mode may well be
+// more restrictive than Identified, and reading an unreadable statement as
+// permission to attribute would be the one direction that cannot be undone (see
+// Mode.collection).
+func (m Mode) IdentifiesRecipient() bool {
+	if !m.states() {
+		return true
+	}
+	_, rank := m.collection()
+	return rank >= modeRanks[ModeIdentified]
+}
+
 // Policy is a pair of Modes, one governing opens and one governing links,
 // expressing what may be observed about a Delivery.
 type Policy struct {

@@ -96,6 +96,50 @@ func TestTokensCarryTheMintedMode(t *testing.T) {
 	}
 }
 
+// TestTokensCarryNoIdentityWhenTheModeDoesNotIdentify is the Anonymous privacy
+// property at the mint: whatever address the caller hands over, an Anonymous
+// token names nobody. It is asserted through Verify, so the claim a Tracker will
+// actually read is the one under test — and the two tokens are compared to each
+// other, because "the claims look the same" is weaker than "the Recipients cannot
+// be told apart".
+func TestTokensCarryNoIdentityWhenTheModeDoesNotIdentify(t *testing.T) {
+	const messageID = "<xxxx/test@test.com>"
+	const url = "https://test.com"
+
+	for _, mode := range []tracking.Mode{tracking.ModeAnonymous, tracking.ModePseudonymous} {
+		t.Run(string(mode), func(t *testing.T) {
+			openToken, err := s.CreateOpenToken(t.Context(), messageID, "first@test.com", mode)
+			assert.Nil(t, err)
+			openClaims, err := s.VerifyOpenToken(t.Context(), openToken)
+			assert.Nil(t, err)
+			assert.Empty(t, openClaims.Email, "an open token under %q must name nobody", mode)
+			assert.Equal(t, messageID, openClaims.MessageID, "the Batch is still named")
+			assert.Equal(t, mode, openClaims.Mode)
+
+			otherClaims, err := s.VerifyOpenToken(t.Context(),
+				mustCreateOpenToken(t, messageID, "second@test.com", mode))
+			assert.Nil(t, err)
+			assert.Equal(t, openClaims.Email, otherClaims.Email,
+				"two Recipients of a Batch must be indistinguishable under %q", mode)
+
+			linkToken, err := s.CreateLinkToken(t.Context(), messageID, "first@test.com", url, mode)
+			assert.Nil(t, err)
+			linkClaims, err := s.VerifyLinkToken(t.Context(), linkToken)
+			assert.Nil(t, err)
+			assert.Empty(t, linkClaims.Email, "a link token under %q must name nobody", mode)
+			assert.Equal(t, url, linkClaims.URL, "the tracked URL is still named")
+			assert.Equal(t, mode, linkClaims.Mode)
+		})
+	}
+}
+
+func mustCreateOpenToken(t *testing.T, messageID, email string, mode tracking.Mode) string {
+	t.Helper()
+	token, err := s.CreateOpenToken(t.Context(), messageID, email, mode)
+	assert.Nil(t, err)
+	return token
+}
+
 // TestTamperedModeClaimIsRefused covers the reason the Mode is signed at all: a
 // recipient rewriting their own Mode to escalate what is retained about them must
 // not get a verified token out of it.

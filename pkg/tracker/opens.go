@@ -43,15 +43,15 @@ func (s *srv) handleOpen(w http.ResponseWriter, r *http.Request) {
 	// The Mode comes from the verified claims: the Delivery row it was frozen on
 	// may be long gone, and reading it from the request would let a recipient
 	// choose how much is retained about them.
-	ip, userAgent := retained(r, claims.Mode)
-	data := buildOpenStat(claims, userAgent, ip, domain)
+	kept := retained(r, claims.Email, claims.Mode)
+	data := buildOpenStat(claims, kept, domain)
 
 	if err := publisher.PublishStat(s.pub, data); err != nil {
 		slog.Error("cannot send message on nats", "err", err)
 		return
 	}
 
-	slog.Info(fmt.Sprintf("👀 %s %s %s %s %s", r.Method, claims.MessageID, userAgent, r.Host, ip))
+	slog.Info(fmt.Sprintf("👀 %s %s %s %s %s", r.Method, claims.MessageID, kept.userAgent, r.Host, kept.ip))
 }
 
 var trackingPixel = image.NewGray(image.Rect(0, 0, 0, 0))
@@ -63,15 +63,15 @@ func writeTrackingPixel(w http.ResponseWriter) {
 	}
 }
 
-func buildOpenStat(claims *statssec.OpenClaims, userAgent string, ip string, domain string) *pb.Stats {
+func buildOpenStat(claims *statssec.OpenClaims, kept engagement, domain string) *pb.Stats {
 	data := &pb.Stats{
 		MessageId: claims.MessageID,
-		Email:     claims.Email,
+		Email:     kept.email,
 		Data: &pb.StatsData{
 			Data: &pb.StatsData_Opened{
 				Opened: &pb.StatsDataOpened{
-					UserAgent: userAgent,
-					Ip:        ip,
+					UserAgent: kept.userAgent,
+					Ip:        kept.ip,
 				},
 			},
 		},
@@ -79,7 +79,8 @@ func buildOpenStat(claims *statssec.OpenClaims, userAgent string, ip string, dom
 		Type:   string(sqlc.StatsTypeOpened),
 		// The Mode travels on the event so a consumer can tell an Opened with no
 		// ip / user_agent because Identified forbade retaining them from one that
-		// merely lacks them.
+		// merely lacks them — and, under Anonymous, an event with no email from a
+		// bug that lost one.
 		TrackingMode: trackingpb.FromMode(claims.Mode),
 		Timestamp:    timestamppb.Now(),
 	}

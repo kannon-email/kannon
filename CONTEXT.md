@@ -36,7 +36,7 @@ _Avoid_: EmailToSend, OutboundMail
 How much a single engagement channel may be observed, on an **ordered** scale of increasing collection:
 
 - **Off** — not observed at all.
-- **Anonymous** — counted in aggregate only. Nothing is retained that could isolate one Recipient from another.
+- **Anonymous** — counted in aggregate only. Nothing is retained that could isolate one Recipient from another: the event moves the Domain's daily counters and leaves no per-Delivery record, and the token it arrives on names no Recipient and is therefore the *same* token for every Recipient of a Batch.
 - **Pseudonymous** — events are linkable to each other within a single Batch via an identifier that is regenerated for every Batch and never reused across Batches, but carry no Recipient identity. *Reserved, not yet implemented.*
 - **Identified** — attributed to the Recipient.
 - **Full** — attributed, plus the IP address and user agent of the request.
@@ -76,7 +76,7 @@ _Avoid_: Bump (legacy package name, removed under PRD #322; the `bump:` config k
 
 ### Outcomes (per Delivery)
 
-These are the domain-visible events that may attach to a Delivery over its lifetime. Each is recorded as a stat row (`stats` table) and emitted on the corresponding `kannon.stats.*` NATS topic. Multiple events accumulate per Delivery — the "current state" is inferred from the latest non-engagement event.
+These are the domain-visible events that may attach to a Delivery over its lifetime. Each is emitted on the corresponding `kannon.stats.*` NATS topic and recorded as a stat row (`stats` table) — except an engagement event under Anonymous, which by definition attaches to no Recipient and so only increments the Domain's aggregate counters. Multiple events accumulate per Delivery — the "current state" is inferred from the latest non-engagement event.
 
 **Validated**:
 The Validator accepted the recipient address. Emitted once per Delivery on the happy path. Predecessor of any transmission outcome.
@@ -96,7 +96,7 @@ Permanent delivery failure. Two sources:
 Carries `permanent`, `code`, `msg`. The `permanent` flag is true in both cases today; transient failures are not Bounces (see Errored).
 
 **Opened**:
-A tracking pixel was retrieved. Engagement event — non-terminal, may fire multiple times per Delivery. Only occurs when the Delivery's Tracking Policy allows opens; under Anonymous it is counted but not attributed to the Recipient. Carries the Tracking Mode that governed it, and carries `ip` / `user_agent` only under Full — under Identified it names the Recipient and nothing more. The Mode reaches the Tracker as a signed claim in the token, not from a database lookup: the Delivery may already be gone, and a Recipient must not be able to choose how much is retained about them.
+A tracking pixel was retrieved. Engagement event — non-terminal, may fire multiple times per Delivery. Only occurs when the Delivery's Tracking Policy allows opens. Carries the Tracking Mode that governed it, and carries `ip` / `user_agent` only under Full — under Identified it names the Recipient and nothing more, and under Anonymous it names nobody at all and leaves no stat row. The Mode reaches the Tracker as a signed claim in the token, not from a database lookup: the Delivery may already be gone, and a Recipient must not be able to choose how much is retained about them. An event that is *not* Anonymous yet arrives naming nobody is a bug, and is logged as an error rather than quietly discarded.
 
 **Clicked**:
 A tracked link was followed. Engagement event — non-terminal, may fire multiple times per Delivery. Carries `url`. Subject to the Delivery's Tracking Policy on the same terms as Opened.

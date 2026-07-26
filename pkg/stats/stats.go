@@ -11,6 +11,8 @@ import (
 	sq "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/runner"
 	"github.com/kannon-email/kannon/internal/stats"
+	"github.com/kannon-email/kannon/internal/tracking"
+	"github.com/kannon-email/kannon/internal/trackingpb"
 	"github.com/kannon-email/kannon/internal/utils"
 	"github.com/kannon-email/kannon/proto/kannon/stats/types"
 	"github.com/kannon-email/kannon/x/container"
@@ -141,6 +143,14 @@ func (h *statsHandler) handleAggregatedStats(ctx context.Context) error {
 	return nil
 }
 
+// handleAggregatedStatsMsg counts one stat event against its Domain's daily
+// counter. It reads only the Domain, the timestamp and the type, so it counts
+// every Mode alike — including Anonymous, whose whole purpose is to reach this
+// counter and no further.
+//
+// Splitting the subject so the two consumers no longer overlap was rejected: both
+// subscribe to the single-token wildcard kannon.stats.*, which matches no longer
+// subject, so the split would silently take the aggregate path down with it.
 func (h *statsHandler) handleAggregatedStatsMsg(ctx context.Context, msg jetstream.Msg) error {
 	data := &types.Stats{}
 	if err := proto.Unmarshal(msg.Data(), data); err != nil {
@@ -156,18 +166,42 @@ func (h *statsHandler) handleAggregatedStatsMsg(ctx context.Context, msg jetstre
 	return msg.Ack()
 }
 
+// handleStatsMsg writes the per-recipient row for one stat event.
+//
+// Under Anonymous it writes none. That Mode is counted in aggregate only —
+// nothing is retained that could isolate one Recipient from another (CONTEXT.md) —
+// and the event carries no Recipient identity to write down in the first place.
+// handleAggregatedStats is an independent subscription on the same subject and
+// counts the event regardless, so the Domain keeps its open and click rates.
+//
+// Every other Mode names its Recipient, and so does every event that is not an
+// engagement. One that does not is a bug upstream, and in a compliance path a loud
+// failure beats a quietly lost row: it is logged as an error rather than dropped in
+// silence. It is Termed and not Nak'd, because the fault is in the message itself —
+// redelivering it could only reproduce the hot loop #396 fixed.
 func (h *statsHandler) handleStatsMsg(ctx context.Context, msg jetstream.Msg) error {
 	data := &types.Stats{}
-	err := proto.Unmarshal(msg.Data(), data)
-	if err != nil {
+	if err := proto.Unmarshal(msg.Data(), data); err != nil {
 		return msg.Term()
 	}
 
 	stat := stats.NewStat(data.Email, data.MessageId, data.Domain, data.Timestamp.AsTime(), data.Data)
+	mode := trackingpb.ToMode(data.TrackingMode)
+
+	if mode == tracking.ModeAnonymous {
+		slog.Debug("anonymous event: counted in aggregate, no per-recipient row",
+			"type", stat.Type, "batch", data.MessageId, "domain", data.Domain)
+		return msg.Ack()
+	}
+
+	if data.Email == "" {
+		slog.Error("stat event carries no recipient identity and is not anonymous",
+			"type", stat.Type, "batch", data.MessageId, "domain", data.Domain, "tracking_mode", mode)
+		return msg.Term()
+	}
 
 	slog.Info(fmt.Sprintf("[%s] %s %s", stats.DisplayName[stat.Type], utils.ObfuscateEmail(data.Email), data.MessageId))
-	err = h.service.InsertStat(ctx, stat)
-	if err != nil {
+	if err := h.service.InsertStat(ctx, stat); err != nil {
 		slog.Error("cannot insert stat", "type", stat.Type, "err", err)
 		return msg.Nak()
 	}
