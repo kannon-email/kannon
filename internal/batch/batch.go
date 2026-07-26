@@ -6,6 +6,8 @@ package batch
 
 import (
 	"errors"
+
+	"github.com/kannon-email/kannon/internal/tracking"
 )
 
 // Domain errors.
@@ -41,10 +43,17 @@ type Batch struct {
 	domain      string
 	attachments Attachments
 	headers     Headers
+	tracking    tracking.Policy
 }
 
 // New creates a new Batch with a freshly generated ID for the given domain.
-func New(domain, subject string, sender Sender, templateID string, attachments Attachments, headers Headers) (*Batch, error) {
+// trackingPolicy is the Tracking Policy as the caller stated it for this
+// Batch — persisted as provenance only (ADR 0003). It is not normalised: an
+// unstated Mode is kept exactly as stated, since the Batch column is the one
+// place an unstated Mode may be stored. The value that actually governs each
+// Delivery is resolved separately, against the Domain's ceiling, and frozen
+// there instead.
+func New(domain, subject string, sender Sender, templateID string, attachments Attachments, headers Headers, trackingPolicy tracking.Policy) (*Batch, error) {
 	if domain == "" {
 		return nil, errors.New("domain is required")
 	}
@@ -65,6 +74,7 @@ func New(domain, subject string, sender Sender, templateID string, attachments A
 		domain:      domain,
 		attachments: attachments,
 		headers:     headers,
+		tracking:    trackingPolicy,
 	}, nil
 }
 
@@ -77,6 +87,7 @@ type LoadParams struct {
 	Domain      string
 	Attachments Attachments
 	Headers     Headers
+	Tracking    tracking.Policy
 }
 
 // Load rehydrates a Batch from stored data (used by repository implementations).
@@ -89,6 +100,7 @@ func Load(p LoadParams) *Batch {
 		domain:      p.Domain,
 		attachments: p.Attachments,
 		headers:     p.Headers,
+		tracking:    p.Tracking,
 	}
 }
 
@@ -101,3 +113,9 @@ func (b *Batch) TemplateID() string       { return b.templateID }
 func (b *Batch) Domain() string           { return b.domain }
 func (b *Batch) Attachments() Attachments { return b.attachments }
 func (b *Batch) Headers() Headers         { return b.headers }
+
+// TrackingPolicy is the Tracking Policy as stated by the caller for this
+// Batch — not the resolved value that governs any Delivery. It participates
+// in resolution as the middle level of the cascade, between the Domain's
+// ceiling and the Recipient (ADR 0003).
+func (b *Batch) TrackingPolicy() tracking.Policy { return b.tracking }

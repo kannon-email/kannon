@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/kannon-email/kannon/internal/batch"
+	"github.com/kannon-email/kannon/internal/tracking"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -38,9 +39,17 @@ func RunRepoSpec(t *testing.T, repo Repository, helper RepoTestHelper) {
 	t.Run("Clean", func(t *testing.T) {
 		testClean(t, repo, helper)
 	})
+	t.Run("TrackingPolicy", func(t *testing.T) {
+		testTrackingPolicy(t, repo, helper)
+	})
 }
 
 func newDelivery(t *testing.T, batchID batch.ID, domain, email string) *Delivery {
+	t.Helper()
+	return newDeliveryTracked(t, batchID, domain, email, tracking.Policy{})
+}
+
+func newDeliveryTracked(t *testing.T, batchID batch.ID, domain, email string, p tracking.Policy) *Delivery {
 	t.Helper()
 	d, err := New(NewParams{
 		BatchID:       batchID,
@@ -49,6 +58,7 @@ func newDelivery(t *testing.T, batchID batch.ID, domain, email string) *Delivery
 		Domain:        domain,
 		ScheduledTime: time.Now().UTC().Add(-time.Minute),
 		Backoff:       DefaultBackoff,
+		Tracking:      p,
 	})
 	require.NoError(t, err)
 	return d
@@ -162,6 +172,35 @@ func testReschedule(t *testing.T, repo Repository, helper RepoTestHelper) {
 	// scheduledTime advanced by at least the floor (5min) past originalScheduledTime
 	assert.True(t, got.ScheduledTime().After(got.OriginalScheduledTime()),
 		"scheduled time should advance after reschedule")
+}
+
+// testTrackingPolicy asserts the Pool round-trips the Policy frozen on the
+// Delivery: the Builder reads it back on the dispatch path, so a Policy that
+// changed shape in storage would silently change what is tracked.
+func testTrackingPolicy(t *testing.T, repo Repository, helper RepoTestHelper) {
+	t.Run("RoundTrip", func(t *testing.T) {
+		ctx := t.Context()
+		batchID, domain := helper.CreateBatch(t)
+		email := "t@" + domain
+		want := tracking.Policy{Opens: tracking.ModeOff, Links: tracking.ModeIdentified}
+		require.NoError(t, repo.Schedule(ctx, newDeliveryTracked(t, batchID, domain, email, want)))
+
+		got, err := repo.Get(ctx, batchID, email)
+		require.NoError(t, err)
+		assert.Equal(t, want, got.TrackingPolicy())
+	})
+
+	t.Run("NeverUnstated", func(t *testing.T) {
+		ctx := t.Context()
+		batchID, domain := helper.CreateBatch(t)
+		email := "u@" + domain
+		require.NoError(t, repo.Schedule(ctx, newDelivery(t, batchID, domain, email)))
+
+		got, err := repo.Get(ctx, batchID, email)
+		require.NoError(t, err)
+		assert.Equal(t, tracking.Policy{Opens: tracking.ModeOff, Links: tracking.ModeOff}, got.TrackingPolicy(),
+			"a Delivery scheduled without a stated Policy must be stored concrete")
+	})
 }
 
 func testClean(t *testing.T, repo Repository, helper RepoTestHelper) {

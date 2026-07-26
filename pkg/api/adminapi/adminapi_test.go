@@ -12,6 +12,7 @@ import (
 	"github.com/kannon-email/kannon/pkg/api/adminapi"
 	pb "github.com/kannon-email/kannon/proto/kannon/admin/apiv1"
 	adminv1connect "github.com/kannon-email/kannon/proto/kannon/admin/apiv1/apiv1connect"
+	trackingtypes "github.com/kannon-email/kannon/proto/kannon/tracking/types"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -76,6 +77,69 @@ func TestCreateANewDomain(t *testing.T) {
 		}))
 		assert.Nil(t, err)
 		assert.Equal(t, newDomain, resGetDomain.Msg.Domain.Domain)
+	})
+
+	cleanDB(t)
+}
+
+func TestTrackingPolicy(t *testing.T) {
+	t.Run("A new domain starts at identified", func(t *testing.T) {
+		domain := createTestDomain(t)
+		assert.Equal(t, trackingtypes.TrackingMode_TRACKING_MODE_IDENTIFIED, domain.Tracking.GetOpens())
+		assert.Equal(t, trackingtypes.TrackingMode_TRACKING_MODE_IDENTIFIED, domain.Tracking.GetLinks())
+	})
+
+	t.Run("A policy I set is readable back", func(t *testing.T) {
+		domain := createTestDomain(t)
+
+		res, err := testservice.SetTrackingPolicy(t.Context(), connect.NewRequest(&pb.SetTrackingPolicyReq{
+			Domain: domain.Domain,
+			Tracking: &trackingtypes.TrackingPolicy{
+				Opens: trackingtypes.TrackingMode_TRACKING_MODE_OFF,
+				Links: trackingtypes.TrackingMode_TRACKING_MODE_ANONYMOUS,
+			},
+		}))
+		assert.Nil(t, err)
+		assert.Equal(t, trackingtypes.TrackingMode_TRACKING_MODE_OFF, res.Msg.Domain.Tracking.GetOpens())
+		assert.Equal(t, trackingtypes.TrackingMode_TRACKING_MODE_ANONYMOUS, res.Msg.Domain.Tracking.GetLinks())
+
+		got, err := testservice.GetDomain(t.Context(), connect.NewRequest(&pb.GetDomainReq{
+			Domain: domain.Domain,
+		}))
+		assert.Nil(t, err)
+		assert.Equal(t, trackingtypes.TrackingMode_TRACKING_MODE_OFF, got.Msg.Domain.Tracking.GetOpens())
+		assert.Equal(t, trackingtypes.TrackingMode_TRACKING_MODE_ANONYMOUS, got.Msg.Domain.Tracking.GetLinks())
+	})
+
+	t.Run("Pseudonymous is rejected as unsupported", func(t *testing.T) {
+		domain := createTestDomain(t)
+
+		_, err := testservice.SetTrackingPolicy(t.Context(), connect.NewRequest(&pb.SetTrackingPolicyReq{
+			Domain: domain.Domain,
+			Tracking: &trackingtypes.TrackingPolicy{
+				Opens: trackingtypes.TrackingMode_TRACKING_MODE_PSEUDONYMOUS,
+				Links: trackingtypes.TrackingMode_TRACKING_MODE_OFF,
+			},
+		}))
+		assert.Equal(t, connect.CodeUnimplemented, connect.CodeOf(err))
+
+		// The refused call must leave the domain as it was.
+		got, err := testservice.GetDomain(t.Context(), connect.NewRequest(&pb.GetDomainReq{
+			Domain: domain.Domain,
+		}))
+		assert.Nil(t, err)
+		assert.Equal(t, trackingtypes.TrackingMode_TRACKING_MODE_IDENTIFIED, got.Msg.Domain.Tracking.GetOpens())
+	})
+
+	t.Run("An unknown domain is not found", func(t *testing.T) {
+		_, err := testservice.SetTrackingPolicy(t.Context(), connect.NewRequest(&pb.SetTrackingPolicyReq{
+			Domain: tests.FakeDomain(t),
+			Tracking: &trackingtypes.TrackingPolicy{
+				Opens: trackingtypes.TrackingMode_TRACKING_MODE_OFF,
+				Links: trackingtypes.TrackingMode_TRACKING_MODE_OFF,
+			},
+		}))
+		assert.Equal(t, connect.CodeNotFound, connect.CodeOf(err))
 	})
 
 	cleanDB(t)

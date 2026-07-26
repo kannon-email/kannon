@@ -6,6 +6,7 @@ import (
 	"github.com/kannon-email/kannon/internal/apikeys"
 	"github.com/kannon-email/kannon/internal/domains"
 	"github.com/kannon-email/kannon/internal/templates"
+	"github.com/kannon-email/kannon/internal/trackingpb"
 
 	pb "github.com/kannon-email/kannon/proto/kannon/admin/apiv1"
 )
@@ -49,4 +50,18 @@ func (s *adminAPIService) CreateDomain(ctx context.Context, in *pb.CreateDomainR
 		return nil, err
 	}
 	return d.Pb(), nil
+}
+
+func (s *adminAPIService) SetTrackingPolicy(ctx context.Context, in *pb.SetTrackingPolicyReq) (*pb.SetTrackingPolicyRes, error) {
+	policy, err := trackingpb.ToPolicy(in.Tracking)
+	if err != nil {
+		return nil, err
+	}
+
+	d, err := s.domains.SetTrackingPolicy(ctx, in.Domain, policy)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.SetTrackingPolicyRes{Domain: d.Pb()}, nil
 }

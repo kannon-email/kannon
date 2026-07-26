@@ -2,10 +2,13 @@ package adminapi
 
 import (
 	"context"
+	"errors"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/kannon-email/kannon/internal/apikeys"
 	sqlc "github.com/kannon-email/kannon/internal/db"
+	"github.com/kannon-email/kannon/internal/domains"
+	"github.com/kannon-email/kannon/internal/trackingpb"
 
 	"connectrpc.com/connect"
 	pb "github.com/kannon-email/kannon/proto/kannon/admin/apiv1"
@@ -40,6 +43,37 @@ func (a *adminAPIConnectAdapter) CreateDomain(ctx context.Context, req *connect.
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	return connect.NewResponse(resp), nil
+}
+
+func (a *adminAPIConnectAdapter) SetTrackingPolicy(ctx context.Context, req *connect.Request[pb.SetTrackingPolicyReq]) (*connect.Response[pb.SetTrackingPolicyRes], error) {
+	resp, err := a.impl.SetTrackingPolicy(ctx, req.Msg)
+	if err != nil {
+		return nil, trackingPolicyError(err)
+	}
+	return connect.NewResponse(resp), nil
+}
+
+// trackingPolicyError maps the ways a Tracking Policy can be refused onto
+// Connect codes, so that a caller can tell a policy decision from a bug: a
+// reserved Mode is unimplemented, a Mode this build does not know is a bad
+// argument, and an unknown Domain is not found.
+//
+// The Mailer API answers the same two `trackingpb` sentinels with the same two
+// codes, in `sendTrackingPolicyError` — the pair is deliberately kept in step so
+// that one bad Mode does not mean two different things depending on which API
+// was asked. Whatever else can go wrong differs: setting a Policy on a Domain
+// can fail to find the Domain, and taking one in on a send cannot.
+func trackingPolicyError(err error) *connect.Error {
+	switch {
+	case errors.Is(err, trackingpb.ErrUnsupportedMode):
+		return connect.NewError(connect.CodeUnimplemented, err)
+	case errors.Is(err, trackingpb.ErrUnknownMode):
+		return connect.NewError(connect.CodeInvalidArgument, err)
+	case errors.Is(err, domains.ErrDomainNotFound):
+		return connect.NewError(connect.CodeNotFound, err)
+	default:
+		return connect.NewError(connect.CodeInternal, err)
+	}
 }
 
 func (a *adminAPIConnectAdapter) CreateTemplate(ctx context.Context, req *connect.Request[pb.CreateTemplateReq]) (*connect.Response[pb.CreateTemplateRes], error) {

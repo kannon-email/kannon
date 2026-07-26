@@ -1,5 +1,6 @@
 syntax = "proto3";
 import "google/protobuf/timestamp.proto";
+import "kannon/tracking/types/tracking.proto";
 
 package pkg.kannon.stats.types;
 
@@ -18,6 +19,12 @@ message Stats {
   google.protobuf.Timestamp timestamp = 4;
   string type = 5;
   StatsData data = 6;
+  // The Tracking Mode that governed the engagement channel this event came
+  // from, so a consumer can tell an event with no ip / user_agent because the
+  // Mode forbade retaining them from one that merely lacks them. Only
+  // engagement events (opened, clicked) state a Mode; every other outcome
+  // leaves it unspecified.
+  pkg.kannon.tracking.types.TrackingMode tracking_mode = 7;
 }
 
 message StatsData {

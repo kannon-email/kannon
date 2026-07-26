@@ -7,13 +7,15 @@ package sqlc
 
 import (
 	"context"
+
+	tracking "github.com/kannon-email/kannon/internal/tracking"
 )
 
 const createDomain = `-- name: CreateDomain :one
 INSERT INTO domains
     (domain, dkim_private_key, dkim_public_key)
     VALUES ($1, $2, $3)
-    RETURNING id, domain, created_at, dkim_private_key, dkim_public_key
+    RETURNING id, domain, created_at, dkim_private_key, dkim_public_key, tracking
 `
 
 type CreateDomainParams struct {
@@ -31,13 +33,14 @@ func (q *Queries) CreateDomain(ctx context.Context, arg CreateDomainParams) (Dom
 		&i.CreatedAt,
 		&i.DkimPrivateKey,
 		&i.DkimPublicKey,
+		&i.Tracking,
 	)
 	return i, err
 }
 
 const findDomain = `-- name: FindDomain :one
 SELECT
-    id, domain, created_at, dkim_private_key, dkim_public_key
+    id, domain, created_at, dkim_private_key, dkim_public_key, tracking
 FROM domains
     WHERE domain = $1
 `
@@ -51,6 +54,7 @@ func (q *Queries) FindDomain(ctx context.Context, domain string) (Domain, error)
 		&i.CreatedAt,
 		&i.DkimPrivateKey,
 		&i.DkimPublicKey,
+		&i.Tracking,
 	)
 	return i, err
 }
@@ -84,7 +88,7 @@ func (q *Queries) FindTemplate(ctx context.Context, arg FindTemplateParams) (Tem
 
 const getAllDomains = `-- name: GetAllDomains :many
 SELECT
-    id, domain, created_at, dkim_private_key, dkim_public_key
+    id, domain, created_at, dkim_private_key, dkim_public_key, tracking
 FROM domains
 ORDER BY id
 `
@@ -104,6 +108,7 @@ func (q *Queries) GetAllDomains(ctx context.Context) ([]Domain, error) {
 			&i.CreatedAt,
 			&i.DkimPrivateKey,
 			&i.DkimPublicKey,
+			&i.Tracking,
 		); err != nil {
 			return nil, err
 		}
@@ -116,7 +121,7 @@ func (q *Queries) GetAllDomains(ctx context.Context) ([]Domain, error) {
 }
 
 const getDomains = `-- name: GetDomains :many
-SELECT id, domain, created_at, dkim_private_key, dkim_public_key FROM domains ORDER BY id
+SELECT id, domain, created_at, dkim_private_key, dkim_public_key, tracking FROM domains ORDER BY id
 `
 
 func (q *Queries) GetDomains(ctx context.Context) ([]Domain, error) {
@@ -134,6 +139,7 @@ func (q *Queries) GetDomains(ctx context.Context) ([]Domain, error) {
 			&i.CreatedAt,
 			&i.DkimPrivateKey,
 			&i.DkimPublicKey,
+			&i.Tracking,
 		); err != nil {
 			return nil, err
 		}
@@ -143,4 +149,30 @@ func (q *Queries) GetDomains(ctx context.Context) ([]Domain, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const setDomainTracking = `-- name: SetDomainTracking :one
+UPDATE domains
+    SET tracking = $2
+    WHERE domain = $1
+    RETURNING id, domain, created_at, dkim_private_key, dkim_public_key, tracking
+`
+
+type SetDomainTrackingParams struct {
+	Domain   string
+	Tracking tracking.Policy
+}
+
+func (q *Queries) SetDomainTracking(ctx context.Context, arg SetDomainTrackingParams) (Domain, error) {
+	row := q.db.QueryRow(ctx, setDomainTracking, arg.Domain, arg.Tracking)
+	var i Domain
+	err := row.Scan(
+		&i.ID,
+		&i.Domain,
+		&i.CreatedAt,
+		&i.DkimPrivateKey,
+		&i.DkimPublicKey,
+		&i.Tracking,
+	)
+	return i, err
 }

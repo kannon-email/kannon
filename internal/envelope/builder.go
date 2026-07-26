@@ -10,6 +10,7 @@ import (
 	"github.com/kannon-email/kannon/internal/delivery"
 	"github.com/kannon-email/kannon/internal/dkim"
 	"github.com/kannon-email/kannon/internal/statssec"
+	"github.com/kannon-email/kannon/internal/tracking"
 	"github.com/kannon-email/kannon/internal/utils"
 )
 
@@ -35,10 +36,17 @@ type SendingDataSource interface {
 	GetSendingData(ctx context.Context, batchID batch.ID) (SendingData, error)
 }
 
-// TokenIssuer mints click/open tokens for tracking link rewriting.
+// TokenIssuer mints click/open tokens for tracking link rewriting. Each token
+// carries the Tracking Mode of the axis it belongs to — the opens Mode on an
+// open token, the links Mode on a link token — signed, so the Tracker can trust
+// it without a Delivery row to look it up in.
+//
+// A Mode that does not identify the Recipient mints no identity into the token,
+// so the Builder asks for such a token once per Batch and reuses it for every
+// Delivery — see sharedtokens.go.
 type TokenIssuer interface {
-	CreateLinkToken(ctx context.Context, messageID, email, url string) (string, error)
-	CreateOpenToken(ctx context.Context, messageID, email string) (string, error)
+	CreateLinkToken(ctx context.Context, messageID, email, url string, mode tracking.Mode) (string, error)
+	CreateOpenToken(ctx context.Context, messageID, email string, mode tracking.Mode) (string, error)
 }
 
 // Builder renders a Delivery into an outgoing Envelope.
@@ -53,6 +61,7 @@ func NewBuilder(q *sqlc.Queries, st statssec.StatsService) Builder {
 	return &defaultBuilder{
 		source: sqlcSource{q: q},
 		tokens: st,
+		shared: newSharedTokens(),
 		baseHeaders: headers{
 			"X-Mailer": {"SMTP Mailer"},
 		},
@@ -65,6 +74,7 @@ func NewBuilderWith(source SendingDataSource, tokens TokenIssuer) Builder {
 	return &defaultBuilder{
 		source: source,
 		tokens: tokens,
+		shared: newSharedTokens(),
 		baseHeaders: headers{
 			"X-Mailer": {"SMTP Mailer"},
 		},
@@ -72,8 +82,12 @@ func NewBuilderWith(source SendingDataSource, tokens TokenIssuer) Builder {
 }
 
 type defaultBuilder struct {
-	source      SendingDataSource
-	tokens      TokenIssuer
+	source SendingDataSource
+	tokens TokenIssuer
+	// shared holds the tokens that name no Recipient, so they are issued once per
+	// Batch rather than once per Delivery. It is per-Builder, and a Builder lives
+	// as long as the Dispatcher does.
+	shared      *sharedTokens
 	baseHeaders headers
 }
 
@@ -112,7 +126,7 @@ func (b *defaultBuilder) Build(ctx context.Context, d *delivery.Delivery) (*Enve
 
 func (b *defaultBuilder) prepareMessage(ctx context.Context, d *delivery.Delivery, data SendingData, attachments Attachments) ([]byte, error) {
 	emailMessageID := buildEmailID(d.Email(), data.MessageID)
-	html, err := b.preparedHTML(ctx, data.HTML, d.Email(), data.Domain, data.MessageID, d.Fields())
+	html, err := b.preparedHTML(ctx, d, data)
 	if err != nil {
 		return nil, err
 	}
@@ -139,43 +153,120 @@ func signMessage(domain, dkimPrivateKey string, msg []byte, hasCc bool) ([]byte,
 	return dkim.SignMessage(signData, bytes.NewReader(msg))
 }
 
-func (b *defaultBuilder) preparedHTML(ctx context.Context, html, email, domain, messageID string, fields map[string]string) (string, error) {
-	html = utils.ReplaceCustomFields(html, fields)
-	html, err := b.replaceAllLinks(ctx, html, email, messageID, domain)
-	if err != nil {
-		return "", err
+// preparedHTML renders the Batch template for one Delivery and applies the
+// Delivery's frozen Tracking Policy. The cascade was already resolved at intake
+// (ADR 0003), so the Builder reads the Policy as it stands: it never resolves it
+// again and never consults configuration.
+//
+// The two axes are independent, and each Off suppresses only its own channel: no
+// pixel is injected for opens, no href is rewritten for links. A Mode that
+// states nothing imposes no restriction, so every Mode other than Off is tracked
+// as before.
+//
+// Whatever the Mode of a tracked axis is, it is minted into the token of that
+// axis, so the Tracker acts on the Policy frozen on this Delivery rather than on
+// whatever is configured when the engagement arrives.
+func (b *defaultBuilder) preparedHTML(ctx context.Context, d *delivery.Delivery, data SendingData) (string, error) {
+	policy := d.TrackingPolicy()
+	html := utils.ReplaceCustomFields(data.HTML, d.Fields())
+
+	if policy.Links != tracking.ModeOff {
+		rewritten, err := b.replaceAllLinks(ctx, html, trackTargetFor(d, data, policy.Links))
+		if err != nil {
+			return "", err
+		}
+		html = rewritten
 	}
-	return b.addTrackPixel(ctx, html, email, messageID, domain)
+
+	if policy.Opens == tracking.ModeOff {
+		return html, nil
+	}
+	return b.addTrackPixel(ctx, html, trackTargetFor(d, data, policy.Opens))
 }
 
-func (b *defaultBuilder) replaceAllLinks(ctx context.Context, html, email, messageID, domain string) (string, error) {
+// trackTarget is what one channel's tracking URL is minted against: which
+// Recipient, in which Batch and Domain, under which Mode. The four travel
+// together through every step of rewriting, and the Mode is the one that decides
+// whether the resulting token may be shared across the Batch.
+type trackTarget struct {
+	email     string
+	messageID string
+	domain    string
+	mode      tracking.Mode
+}
+
+// trackTargetFor is the target for one axis of a Delivery, taking the Mode of
+// that axis from the Policy frozen on it — so the Tracker acts on the Policy that
+// governed this Delivery rather than on whatever is configured when the
+// engagement arrives.
+func trackTargetFor(d *delivery.Delivery, data SendingData, mode tracking.Mode) trackTarget {
+	return trackTarget{
+		email:     d.Email(),
+		messageID: data.MessageID,
+		domain:    data.Domain,
+		mode:      mode,
+	}
+}
+
+func (b *defaultBuilder) replaceAllLinks(ctx context.Context, html string, t trackTarget) (string, error) {
 	return replaceLinks(html, func(link string) (string, error) {
-		return b.buildTrackClickLink(ctx, link, email, messageID, domain)
+		return b.buildTrackClickLink(ctx, link, t)
 	})
 }
 
-func (b *defaultBuilder) addTrackPixel(ctx context.Context, html, email, messageID, domain string) (string, error) {
-	link, err := b.buildTrackOpenLink(ctx, email, messageID, domain)
+func (b *defaultBuilder) addTrackPixel(ctx context.Context, html string, t trackTarget) (string, error) {
+	link, err := b.buildTrackOpenLink(ctx, t)
 	if err != nil {
 		return "", err
 	}
 	return insertTrackLinkInHTML(html, link), nil
 }
 
-func (b *defaultBuilder) buildTrackClickLink(ctx context.Context, url, email, messageID, domain string) (string, error) {
-	token, err := b.tokens.CreateLinkToken(ctx, messageID, email, url)
+func (b *defaultBuilder) buildTrackClickLink(ctx context.Context, url string, t trackTarget) (string, error) {
+	token, err := b.token(sharedTokenKey{
+		axis:      tracking.AxisLinks,
+		domain:    t.domain,
+		messageID: t.messageID,
+		url:       url,
+		mode:      t.mode,
+	}, func() (string, error) {
+		return b.tokens.CreateLinkToken(ctx, t.messageID, t.email, url, t.mode)
+	})
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("https://stats.%v/c/%v", domain, token), nil
+	return fmt.Sprintf("https://stats.%v/c/%v", t.domain, token), nil
 }
 
-func (b *defaultBuilder) buildTrackOpenLink(ctx context.Context, email, messageID, domain string) (string, error) {
-	token, err := b.tokens.CreateOpenToken(ctx, messageID, email)
+func (b *defaultBuilder) buildTrackOpenLink(ctx context.Context, t trackTarget) (string, error) {
+	token, err := b.token(sharedTokenKey{
+		axis:      tracking.AxisOpens,
+		domain:    t.domain,
+		messageID: t.messageID,
+		mode:      t.mode,
+	}, func() (string, error) {
+		return b.tokens.CreateOpenToken(ctx, t.messageID, t.email, t.mode)
+	})
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("https://stats.%v/o/%v", domain, token), nil
+	return fmt.Sprintf("https://stats.%v/o/%v", t.domain, token), nil
+}
+
+// token returns the token for one channel of one Delivery. Under a Mode that
+// names the Recipient it is minted per Delivery, because that is what it commits
+// to. Under a Mode that names nobody it commits only to what the key holds, so
+// every Delivery of the Batch carries the very same token — the privacy property
+// of such a Mode, and the reason one signature covers a whole Batch.
+//
+// The rule lives here once, for both channels, so that the key and the decision
+// to share cannot drift apart: a key missing anything the token commits to would
+// hand one Recipient's token to another.
+func (b *defaultBuilder) token(key sharedTokenKey, mint func() (string, error)) (string, error) {
+	if key.mode.IdentifiesRecipient() {
+		return mint()
+	}
+	return b.shared.reuse(key, mint)
 }
 
 // sqlcSource adapts the sqlc-generated GetSendingData query into the

@@ -25,3 +25,4 @@ vendor
 
 .worktrees/
 ralph/
+.claude/worktrees/

@@ -3,6 +3,7 @@ option go_package = "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1";
 
 import "google/protobuf/timestamp.proto";
 import "kannon/mailer/types/send.proto";
+import "kannon/tracking/types/tracking.proto";
 
 package pkg.kannon.mailer.apiv1;
 
@@ -25,6 +26,10 @@ message SendHTMLReq {
   repeated Attachment attachments = 7;
   map<string, string> global_fields = 8;
   optional pkg.kannon.mailer.types.Headers headers = 9;
+  // The Batch-level Tracking Policy. States nothing when omitted, which
+  // imposes no restriction of its own and resolves to the Domain's ceiling
+  // (ADR 0003). A Mode above that ceiling fails the call.
+  optional pkg.kannon.tracking.types.TrackingPolicy tracking = 10;
 }
 
 message SendTemplateReq {
@@ -36,10 +41,44 @@ message SendTemplateReq {
   repeated Attachment attachments = 7;
   map<string, string> global_fields = 8;
   optional pkg.kannon.mailer.types.Headers headers = 9;
+  // The Batch-level Tracking Policy. States nothing when omitted, which
+  // imposes no restriction of its own and resolves to the Domain's ceiling
+  // (ADR 0003). A Mode above that ceiling fails the call.
+  optional pkg.kannon.tracking.types.TrackingPolicy tracking = 10;
 }
 
 message SendRes {
   string message_id = 1;
   string template_id = 2;
   google.protobuf.Timestamp scheduled_time = 3;
+  // How many Recipients were accepted and are queued for delivery.
+  int32 accepted_count = 4;
+  // How many Recipients were Rejected at intake. Equals the length of
+  // rejected_recipients, and is zero for a send in which nothing was refused.
+  int32 rejected_count = 5;
+  // Every Recipient refused at intake, so a caller can reconcile what was
+  // actually queued without polling stats. A send in which every Recipient is
+  // refused still returns here — with accepted_count zero and every refusal
+  // listed — rather than reporting an empty success.
+  repeated RejectedRecipient rejected_recipients = 6;
+}
+
+// RejectedRecipient is one Recipient refused at intake: no Delivery was created
+// for it and none will be attempted.
+message RejectedRecipient {
+  string email = 1;
+  // Why the Recipient was refused. A stable, machine-readable token, safe to
+  // branch on. The values this build emits:
+  //
+  //   invalid_email              the address is empty or otherwise unusable
+  //   tracking_above_ceiling     the Recipient's Tracking Policy asks for more
+  //                              than its Domain's Policy allows; consent may
+  //                              narrow what is collected, never widen it
+  //   unsupported_tracking_mode  the Recipient stated a Tracking Mode this
+  //                              build will not act on — the reserved
+  //                              `pseudonymous`, or a value from a newer schema
+  //
+  // Treat an unrecognised value as a refusal of unknown cause: the set grows as
+  // new causes are added.
+  string reason = 2;
 }

@@ -18,6 +18,7 @@ import (
 	statsv1connect "github.com/kannon-email/kannon/proto/kannon/stats/apiv1/apiv1connect"
 	statsapiv2 "github.com/kannon-email/kannon/proto/kannon/stats/apiv2"
 	statsv2connect "github.com/kannon-email/kannon/proto/kannon/stats/apiv2/apiv2connect"
+	trackingtypes "github.com/kannon-email/kannon/proto/kannon/tracking/types"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -50,9 +51,30 @@ func (c *clientTest) SenderFrom() string {
 	return fmt.Sprintf("%s <sender@%s>", defaultSenderAlias, c.domain)
 }
 
+// SetTrackingPolicy configures the Tracking Policy of the client's Domain
+// through the Admin API, the way an operator would. It must be called before a
+// send: the Policy is resolved at intake and frozen on each Delivery, so it does
+// not reach Deliveries already in the Pool.
+func (c *clientTest) SetTrackingPolicy(t *testing.T, p *trackingtypes.TrackingPolicy) {
+	t.Helper()
+	_, err := c.adminClient.SetTrackingPolicy(t.Context(), connect.NewRequest(&adminapiv1.SetTrackingPolicyReq{
+		Domain:   c.domain,
+		Tracking: p,
+	}))
+	require.NoError(t, err)
+}
+
 // SendEmail submits the request and returns the Batch id (message_id) so
 // callers can correlate pool/stats state for their own Batch.
 func (c *clientTest) SendEmail(t *testing.T, email *mailerapiv1.SendHTMLReq) string {
+	return c.SendEmailResponse(t, email).MessageId
+}
+
+// SendEmailResponse submits the request and returns the whole response, for
+// tests asserting on the per-Recipient intake outcome — which Recipients were
+// accepted and which were Rejected with which reason (#364).
+func (c *clientTest) SendEmailResponse(t *testing.T, email *mailerapiv1.SendHTMLReq) *mailerapiv1.SendRes {
+	t.Helper()
 	sendReq := connect.NewRequest(email)
 	sendReq.Header().Set("Authorization", "Basic "+c.authToken)
 
@@ -61,7 +83,20 @@ func (c *clientTest) SendEmail(t *testing.T, email *mailerapiv1.SendHTMLReq) str
 	require.NotNil(t, sendResp.Msg)
 
 	t.Logf("✅ Email queued with message ID: %s", sendResp.Msg.MessageId)
-	return sendResp.Msg.MessageId
+	return sendResp.Msg
+}
+
+// SendEmailExpectingFailure submits the request and returns the error the
+// call failed with, for tests asserting an intake rejection — e.g. a Batch
+// asking for a Tracking Policy above its Domain's ceiling (ADR 0003).
+func (c *clientTest) SendEmailExpectingFailure(t *testing.T, email *mailerapiv1.SendHTMLReq) error {
+	t.Helper()
+	sendReq := connect.NewRequest(email)
+	sendReq.Header().Set("Authorization", "Basic "+c.authToken)
+
+	_, err := c.mailerClient.SendHTML(t.Context(), sendReq)
+	require.Error(t, err)
+	return err
 }
 
 func (f *clientTest) GetAggregatedStats(t *testing.T) *statsapiv2.GetAggregatedStatsRes {

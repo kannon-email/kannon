@@ -21,6 +21,12 @@ INSERT INTO domains
     VALUES ($1, $2, $3)
     RETURNING *;
 
+-- name: SetDomainTracking :one
+UPDATE domains
+    SET tracking = $2
+    WHERE domain = $1
+    RETURNING *;
+
 -- name: FindTemplate :one
 SELECT * FROM templates
 WHERE template_id = $1

@@ -41,6 +41,7 @@ func (r *deliveryRepository) Schedule(ctx context.Context, ds ...*delivery.Deliv
 			MessageID:             d.BatchID().String(),
 			Fields:                toCustomFields(d.Fields()),
 			Domain:                d.Domain(),
+			Tracking:              d.TrackingPolicy(),
 		}
 	}
 
@@ -131,6 +132,7 @@ func (r *deliveryRepository) rowToDelivery(row SendingPoolEmail) *delivery.Deliv
 		ScheduledTime:         row.ScheduledTime.Time,
 		OriginalScheduledTime: row.OriginalScheduledTime.Time,
 		Backoff:               r.backoff,
+		Tracking:              row.Tracking,
 	})
 }
 

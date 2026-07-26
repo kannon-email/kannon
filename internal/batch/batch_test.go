@@ -4,13 +4,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kannon-email/kannon/internal/tracking"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestNewBatch(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
-		b, err := New("example.com", "subject", Sender{Email: "from@example.com", Alias: "From"}, "tpl_abc", nil, Headers{})
+		b, err := New("example.com", "subject", Sender{Email: "from@example.com", Alias: "From"}, "tpl_abc", nil, Headers{}, tracking.Policy{})
 		require.NoError(t, err)
 		assert.False(t, b.ID().IsZero())
 		assert.True(t, strings.HasPrefix(b.ID().String(), IDPrefix))
@@ -21,23 +22,30 @@ func TestNewBatch(t *testing.T) {
 		assert.Equal(t, "from@example.com", b.Sender().Email)
 	})
 
+	t.Run("TracksStatedPolicy", func(t *testing.T) {
+		stated := tracking.Policy{Opens: tracking.ModeFull}
+		b, err := New("example.com", "subject", Sender{Email: "from@example.com", Alias: "From"}, "tpl_abc", nil, Headers{}, stated)
+		require.NoError(t, err)
+		assert.Equal(t, stated, b.TrackingPolicy(), "New must keep the stated Policy as-is, not normalise it")
+	})
+
 	t.Run("MissingDomain", func(t *testing.T) {
-		_, err := New("", "subject", Sender{Email: "a@b.c"}, "tpl", nil, Headers{})
+		_, err := New("", "subject", Sender{Email: "a@b.c"}, "tpl", nil, Headers{}, tracking.Policy{})
 		assert.Error(t, err)
 	})
 
 	t.Run("MissingSubject", func(t *testing.T) {
-		_, err := New("d", "", Sender{Email: "a@b.c"}, "tpl", nil, Headers{})
+		_, err := New("d", "", Sender{Email: "a@b.c"}, "tpl", nil, Headers{}, tracking.Policy{})
 		assert.Error(t, err)
 	})
 
 	t.Run("MissingTemplateID", func(t *testing.T) {
-		_, err := New("d", "s", Sender{Email: "a@b.c"}, "", nil, Headers{})
+		_, err := New("d", "s", Sender{Email: "a@b.c"}, "", nil, Headers{}, tracking.Policy{})
 		assert.Error(t, err)
 	})
 
 	t.Run("MissingSenderEmail", func(t *testing.T) {
-		_, err := New("d", "s", Sender{}, "tpl", nil, Headers{})
+		_, err := New("d", "s", Sender{}, "tpl", nil, Headers{}, tracking.Policy{})
 		assert.Error(t, err)
 	})
 }
@@ -74,6 +82,7 @@ func TestLoad(t *testing.T) {
 		Domain:      "d",
 		Attachments: Attachments{"file.txt": []byte("hi")},
 		Headers:     Headers{To: []string{"to@d"}, Cc: []string{"cc@d"}},
+		Tracking:    tracking.Policy{Opens: tracking.ModeFull},
 	})
 	assert.Equal(t, ID("msg_abc@d"), b.ID())
 	assert.Equal(t, "s", b.Subject())
@@ -82,4 +91,5 @@ func TestLoad(t *testing.T) {
 	assert.Equal(t, "d", b.Domain())
 	assert.Equal(t, []byte("hi"), b.Attachments()["file.txt"])
 	assert.Equal(t, []string{"to@d"}, b.Headers().To)
+	assert.Equal(t, tracking.Policy{Opens: tracking.ModeFull}, b.TrackingPolicy())
 }

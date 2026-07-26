@@ -29,6 +29,7 @@ import (
 	mailerapiv1 "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1"
 	mailertypes "github.com/kannon-email/kannon/proto/kannon/mailer/types"
 	statstypes "github.com/kannon-email/kannon/proto/kannon/stats/types"
+	trackingtypes "github.com/kannon-email/kannon/proto/kannon/tracking/types"
 	"github.com/kannon-email/kannon/x/container"
 	"github.com/spf13/viper"
 )
@@ -109,6 +110,41 @@ func TestE2EEmailSending(t *testing.T) {
 	t.Run("Clicked", func(t *testing.T) {
 		t.Parallel()
 		testClicked(t, factory, senderMock, infra)
+	})
+
+	t.Run("TrackingOff", func(t *testing.T) {
+		t.Parallel()
+		testTrackingOff(t, factory, senderMock, infra)
+	})
+
+	t.Run("TrackingIdentified", func(t *testing.T) {
+		t.Parallel()
+		testTrackingIdentified(t, factory, senderMock, infra)
+	})
+
+	t.Run("TrackingFull", func(t *testing.T) {
+		t.Parallel()
+		testTrackingFull(t, factory, senderMock, infra)
+	})
+
+	t.Run("BatchAboveDomainTrackingCeiling", func(t *testing.T) {
+		t.Parallel()
+		testBatchAboveDomainTrackingCeiling(t, factory, senderMock, infra)
+	})
+
+	t.Run("TrackingAnonymous", func(t *testing.T) {
+		t.Parallel()
+		testTrackingAnonymous(t, factory, senderMock, infra)
+	})
+
+	t.Run("MixedRecipientTrackingPolicies", func(t *testing.T) {
+		t.Parallel()
+		testMixedRecipientTrackingPolicies(t, factory, senderMock, infra)
+	})
+
+	t.Run("EveryRecipientRejected", func(t *testing.T) {
+		t.Parallel()
+		testEveryRecipientRejected(t, factory, senderMock, infra)
 	})
 }
 
@@ -646,6 +682,208 @@ func extractClickToken(t *testing.T, body string) string {
 	return m[1]
 }
 
+// What a recipient's mail client carries into a tracking request. Under Full the
+// Tracker retains exactly these two values; under any lower Mode, neither.
+const (
+	engagementIP        = "203.0.113.9"
+	engagementUserAgent = "kannon-e2e-agent/1.0"
+)
+
+// requireTrackerHit issues one tracking request the way a recipient's client
+// would — with an IP address and a user agent for the Tracker to retain or drop —
+// and returns the Location header, so the click path can assert the redirect.
+// Redirect-following is disabled: the tests assert the 307 + Location directly,
+// not that example.com is reachable from CI.
+func requireTrackerHit(t *testing.T, url string, wantStatus int) string {
+	t.Helper()
+
+	httpClient := &http.Client{
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	var location string
+	require.EventuallyWithT(t, func(tt *assert.CollectT) {
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, url, nil)
+		require.NoError(tt, err)
+		req.Header.Set("User-Agent", engagementUserAgent)
+		req.Header.Set("X-Real-Ip", engagementIP)
+
+		resp, err := httpClient.Do(req)
+		require.NoError(tt, err)
+		defer resp.Body.Close()
+		_, _ = io.Copy(io.Discard, resp.Body) //nolint:errcheck // draining body before close
+		require.Equal(tt, wantStatus, resp.StatusCode)
+		location = resp.Header.Get("Location")
+	}, 10*time.Second, 200*time.Millisecond, "Tracker endpoint %s should answer %d", url, wantStatus)
+
+	return location
+}
+
+// trackEngagement sends one tracked message, retrieves its pixel and follows its
+// tracked link, and returns the resulting Opened and Clicked stats — so a test can
+// assert on both axes of the Policy from a single send. The Domain's Tracking
+// Policy must already be set: it is resolved at intake and frozen on the Delivery.
+func trackEngagement(t *testing.T, client *clientTest, senderMock *senderMock, infra *TestInfrastructure, subject string) (opened, clicked *statstypes.Stats) {
+	t.Helper()
+
+	const landingURL = "https://example.com/landing"
+	to := tests.FakeEmail(t)
+
+	client.SendEmail(t, &mailerapiv1.SendHTMLReq{
+		Sender:        client.Sender(),
+		Recipients:    []*mailertypes.Recipient{{Email: to}},
+		Subject:       subject,
+		Html:          fmt.Sprintf(`<html><body><h1>Hello!</h1><a href=%q>click</a></body></html>`, landingURL),
+		ScheduledTime: timestamppb.Now(),
+	})
+
+	msg := requireGetEmail(t, senderMock, to)
+
+	requireTrackerHit(t,
+		fmt.Sprintf("http://localhost:%d/o/%s", infra.trackerPort, extractOpenToken(t, msg.Body)),
+		http.StatusOK)
+	location := requireTrackerHit(t,
+		fmt.Sprintf("http://localhost:%d/c/%s", infra.trackerPort, extractClickToken(t, msg.Body)),
+		http.StatusTemporaryRedirect)
+	assert.Equal(t, landingURL, location, "click redirect must round-trip the originally-authored URL")
+
+	openedStats := requireStat(t, client, to, "opened", 1)
+	clickedStats := requireStat(t, client, to, "clicked", 1)
+
+	assert.EqualValues(t, to, openedStats[0].Email, "an attributed open names the Recipient")
+	assert.EqualValues(t, to, clickedStats[0].Email, "an attributed click names the Recipient")
+
+	return openedStats[0], clickedStats[0]
+}
+
+// testTrackingIdentified is the default a fresh Domain resolves to, stated
+// explicitly here: engagement events are attributed to the Recipient, and neither
+// the IP address nor the user agent of the request survives into the stat.
+func testTrackingIdentified(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
+	client := clientFactory.NewClient(t, infra)
+
+	client.SetTrackingPolicy(t, &trackingtypes.TrackingPolicy{
+		Opens: trackingtypes.TrackingMode_TRACKING_MODE_IDENTIFIED,
+		Links: trackingtypes.TrackingMode_TRACKING_MODE_IDENTIFIED,
+	})
+
+	opened, clicked := trackEngagement(t, client, senderMock, infra, "Tracking Identified Test")
+
+	openedData := opened.Data.GetOpened()
+	require.NotNil(t, openedData)
+	assert.Empty(t, openedData.Ip, "an Identified open must retain no IP address")
+	assert.Empty(t, openedData.UserAgent, "an Identified open must retain no user agent")
+
+	clickedData := clicked.Data.GetClicked()
+	require.NotNil(t, clickedData)
+	assert.Empty(t, clickedData.Ip, "an Identified click must retain no IP address")
+	assert.Empty(t, clickedData.UserAgent, "an Identified click must retain no user agent")
+}
+
+// testTrackingAnonymous is the aggregate-statistics carve-out end to end: a Domain
+// on Anonymous keeps its open and click rates while retaining nothing that could
+// isolate one Recipient from another.
+//
+// One Batch is sent to two Recipients, because both halves of the claim are about
+// the pair. The tokens they receive must be the *same* token — two independently
+// minted ones would carry different iat/exp and so tell the two apart even while
+// naming neither — and after both are exercised the Domain's aggregate counters
+// must have moved with no per-recipient engagement row anywhere.
+func testTrackingAnonymous(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
+	client := clientFactory.NewClient(t, infra)
+
+	client.SetTrackingPolicy(t, &trackingtypes.TrackingPolicy{
+		Opens: trackingtypes.TrackingMode_TRACKING_MODE_ANONYMOUS,
+		Links: trackingtypes.TrackingMode_TRACKING_MODE_ANONYMOUS,
+	})
+
+	const landingURL = "https://example.com/landing"
+	first, second := tests.FakeEmail(t), tests.FakeEmail(t)
+
+	client.SendEmail(t, &mailerapiv1.SendHTMLReq{
+		Sender:        client.Sender(),
+		Recipients:    []*mailertypes.Recipient{{Email: first}, {Email: second}},
+		Subject:       "Tracking Anonymous Test",
+		Html:          fmt.Sprintf(`<html><body><h1>Hello!</h1><a href=%q>click</a></body></html>`, landingURL),
+		ScheduledTime: timestamppb.Now(),
+	})
+
+	firstMsg := requireGetEmail(t, senderMock, first)
+	secondMsg := requireGetEmail(t, senderMock, second)
+
+	openToken := extractOpenToken(t, firstMsg.Body)
+	clickToken := extractClickToken(t, firstMsg.Body)
+	assert.Equal(t, openToken, extractOpenToken(t, secondMsg.Body),
+		"an anonymous pixel names nobody, so both Recipients must receive the same token")
+	assert.Equal(t, clickToken, extractClickToken(t, secondMsg.Body),
+		"an anonymous tracked link names nobody, so both Recipients must receive the same token")
+
+	requireTrackerHit(t,
+		fmt.Sprintf("http://localhost:%d/o/%s", infra.trackerPort, openToken),
+		http.StatusOK)
+	location := requireTrackerHit(t,
+		fmt.Sprintf("http://localhost:%d/c/%s", infra.trackerPort, clickToken),
+		http.StatusTemporaryRedirect)
+	assert.Equal(t, landingURL, location, "the redirect is owed to the recipient under every Mode")
+
+	// The aggregate half: the Domain still gets its rates.
+	require.EventuallyWithT(t, func(tt *assert.CollectT) {
+		counts := make(map[string]int64)
+		for _, s := range client.GetAggregatedStats(t).Stats {
+			counts[s.Type] += s.Count
+		}
+		require.Positive(tt, counts["opened"], "an anonymous open must still be counted in aggregate")
+		require.Positive(tt, counts["clicked"], "an anonymous click must still be counted in aggregate")
+	}, 30*time.Second, 500*time.Millisecond, "aggregated engagement counters must move under Anonymous")
+
+	// The per-recipient half. Two things make the absence meaningful rather than
+	// merely early: the aggregate counter above proves the engagement events were
+	// consumed on the sibling subscription, and both Deliveries already have their
+	// own delivered row, so the per-recipient consumer is alive and current. The
+	// absence is then re-checked over a window, because a row arriving late would
+	// be just as much of a leak as one arriving at once.
+	//
+	// Polled by hand rather than with require.Never, which runs its condition in a
+	// goroutine it does not wait for: when GetStats outlives the subtest that turns
+	// into a "Fail in goroutine after the test has completed" panic.
+	requireStat(t, client, first, "delivered", 1)
+	requireStat(t, client, second, "delivered", 1)
+
+	for range 6 {
+		for _, s := range client.GetStats(t).Stats {
+			require.NotEqual(t, "opened", s.Type, "an anonymous open must leave no per-recipient row")
+			require.NotEqual(t, "clicked", s.Type, "an anonymous click must leave no per-recipient row")
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+}
+
+// testTrackingFull is the only Mode under which Kannon keeps anything about the
+// request itself: an operator who has selected Full gets the IP address and user
+// agent on both axes.
+func testTrackingFull(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
+	client := clientFactory.NewClient(t, infra)
+
+	client.SetTrackingPolicy(t, &trackingtypes.TrackingPolicy{
+		Opens: trackingtypes.TrackingMode_TRACKING_MODE_FULL,
+		Links: trackingtypes.TrackingMode_TRACKING_MODE_FULL,
+	})
+
+	opened, clicked := trackEngagement(t, client, senderMock, infra, "Tracking Full Test")
+
+	openedData := opened.Data.GetOpened()
+	require.NotNil(t, openedData)
+	assert.Equal(t, engagementIP, openedData.Ip, "a Full open must retain the IP address")
+	assert.Equal(t, engagementUserAgent, openedData.UserAgent, "a Full open must retain the user agent")
+
+	clickedData := clicked.Data.GetClicked()
+	require.NotNil(t, clickedData)
+	assert.Equal(t, engagementIP, clickedData.Ip, "a Full click must retain the IP address")
+	assert.Equal(t, engagementUserAgent, clickedData.UserAgent, "a Full click must retain the user agent")
+}
+
 func testOpened(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
 	client := clientFactory.NewClient(t, infra)
 
@@ -665,17 +903,17 @@ func testOpened(t *testing.T, clientFactory *clientFactory, senderMock *senderMo
 	msg := requireGetEmail(t, senderMock, to)
 	token := extractOpenToken(t, msg.Body)
 
-	url := fmt.Sprintf("http://localhost:%d/o/%s", infra.trackerPort, token)
-	require.EventuallyWithT(t, func(tt *assert.CollectT) {
-		resp, err := http.Get(url)
-		require.NoError(tt, err)
-		defer resp.Body.Close()
-		_, _ = io.Copy(io.Discard, resp.Body) //nolint:errcheck // draining body before close
-		require.Equal(tt, http.StatusOK, resp.StatusCode)
-	}, 10*time.Second, 200*time.Millisecond, "Tracker open endpoint should be reachable")
+	requireTrackerHit(t, fmt.Sprintf("http://localhost:%d/o/%s", infra.trackerPort, token), http.StatusOK)
 
 	matched := requireStat(t, client, to, "opened", 1)
 	assert.EqualValues(t, to, matched[0].Email)
+
+	// A fresh Domain resolves to Identified (ADR 0003), so the open is attributed
+	// to the Recipient and nothing about the request itself is retained.
+	opened := matched[0].Data.GetOpened()
+	require.NotNil(t, opened, "opened stat should carry typed Opened data")
+	assert.Empty(t, opened.Ip, "an Identified open must retain no IP address")
+	assert.Empty(t, opened.UserAgent, "an Identified open must retain no user agent")
 }
 
 func testClicked(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
@@ -698,24 +936,9 @@ func testClicked(t *testing.T, clientFactory *clientFactory, senderMock *senderM
 	msg := requireGetEmail(t, senderMock, to)
 	token := extractClickToken(t, msg.Body)
 
-	// Redirect-following disabled: the test asserts the 307 + Location
-	// directly, not that example.com is reachable from CI.
-	httpClient := &http.Client{
-		CheckRedirect: func(*http.Request, []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
-
-	url := fmt.Sprintf("http://localhost:%d/c/%s", infra.trackerPort, token)
-	var location string
-	require.EventuallyWithT(t, func(tt *assert.CollectT) {
-		resp, err := httpClient.Get(url)
-		require.NoError(tt, err)
-		defer resp.Body.Close()
-		_, _ = io.Copy(io.Discard, resp.Body) //nolint:errcheck // draining body before close
-		require.Equal(tt, http.StatusTemporaryRedirect, resp.StatusCode)
-		location = resp.Header.Get("Location")
-	}, 10*time.Second, 200*time.Millisecond, "Tracker click endpoint should be reachable")
+	location := requireTrackerHit(t,
+		fmt.Sprintf("http://localhost:%d/c/%s", infra.trackerPort, token),
+		http.StatusTemporaryRedirect)
 
 	assert.Equal(t, landingURL, location, "click redirect must round-trip the originally-authored URL")
 
@@ -724,6 +947,147 @@ func testClicked(t *testing.T, clientFactory *clientFactory, senderMock *senderM
 	clicked := matched[0].Data.GetClicked()
 	require.NotNil(t, clicked, "clicked stat should carry typed Clicked data")
 	assert.Equal(t, landingURL, clicked.Url, "clicked stat URL must match the originally-authored URL")
+
+	// As for opens: a fresh Domain is Identified, so the click is attributed and
+	// nothing about the request itself is retained.
+	assert.Empty(t, clicked.Ip, "an Identified click must retain no IP address")
+	assert.Empty(t, clicked.UserAgent, "an Identified click must retain no user agent")
+}
+
+// testTrackingOff is the counterpart of Opened and Clicked: a Domain whose
+// Tracking Policy is Off on both axes must send mail with no tracking in it at
+// all. The Policy is set through the Admin API before the send, because it is
+// resolved at intake and frozen on each Delivery (ADR 0003).
+func testTrackingOff(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
+	client := clientFactory.NewClient(t, infra)
+
+	client.SetTrackingPolicy(t, &trackingtypes.TrackingPolicy{
+		Opens: trackingtypes.TrackingMode_TRACKING_MODE_OFF,
+		Links: trackingtypes.TrackingMode_TRACKING_MODE_OFF,
+	})
+
+	const landingURL = "https://example.com/landing"
+	to := tests.FakeEmail(t)
+	sendReq := &mailerapiv1.SendHTMLReq{
+		Sender:        client.Sender(),
+		Recipients:    []*mailertypes.Recipient{{Email: to}},
+		Subject:       "Tracking Off Test",
+		Html:          fmt.Sprintf(`<html><body><h1>Hello!</h1><a href=%q>click</a></body></html>`, landingURL),
+		ScheduledTime: timestamppb.Now(),
+	}
+
+	client.SendEmail(t, sendReq)
+
+	msg := requireGetEmail(t, senderMock, to)
+
+	assert.NotContains(t, msg.Body, "<img", "no tracking pixel must be injected")
+	assert.Contains(t, msg.Body, fmt.Sprintf("href=%q", landingURL),
+		"the authored link must be delivered unrewritten")
+	assert.NotContains(t, msg.Body, "stats."+client.domain,
+		"an untracked message must carry no tracking hostname")
+}
+
+// testBatchAboveDomainTrackingCeiling is the ceiling counterpart of
+// testTrackingOff: a Batch stating a Tracking Mode above its Domain's ceiling
+// must fail the send call outright rather than being silently clamped to the
+// ceiling (ADR 0003 — "exceeding the ceiling is an error, not a silent
+// clamp"). The Domain is set to Off on both axes; the Batch asks for Full on
+// opens, which is strictly above it.
+func testBatchAboveDomainTrackingCeiling(t *testing.T, clientFactory *clientFactory, _ *senderMock, infra *TestInfrastructure) {
+	client := clientFactory.NewClient(t, infra)
+
+	client.SetTrackingPolicy(t, &trackingtypes.TrackingPolicy{
+		Opens: trackingtypes.TrackingMode_TRACKING_MODE_OFF,
+		Links: trackingtypes.TrackingMode_TRACKING_MODE_OFF,
+	})
+
+	to := tests.FakeEmail(t)
+	sendReq := &mailerapiv1.SendHTMLReq{
+		Sender:        client.Sender(),
+		Recipients:    []*mailertypes.Recipient{{Email: to}},
+		Subject:       "Batch Above Domain Ceiling Test",
+		Html:          "<h1>Hello!</h1>",
+		ScheduledTime: timestamppb.Now(),
+		Tracking: &trackingtypes.TrackingPolicy{
+			Opens: trackingtypes.TrackingMode_TRACKING_MODE_FULL,
+		},
+	}
+
+	err := client.SendEmailExpectingFailure(t, sendReq)
+	assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
+	assert.Contains(t, err.Error(), "opens", "the error must name the violating axis")
+}
+
+// testMixedRecipientTrackingPolicies is the Recipient level of the cascade seen
+// from outside (#419): one Batch, three Recipients stating three different
+// things, three different observable outcomes.
+//
+// The Domain allows Identified. The first Recipient states nothing and is
+// tracked at the Domain's level. The second states Off — consent may always
+// narrow — and receives a message with no tracking in it at all. The third asks
+// for Full, above the Domain's ceiling; consent cannot widen (ADR 0003), so that
+// one Recipient is Rejected with a reason in the send response while the other
+// two are delivered normally.
+func testMixedRecipientTrackingPolicies(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
+	client := clientFactory.NewClient(t, infra)
+
+	client.SetTrackingPolicy(t, &trackingtypes.TrackingPolicy{
+		Opens: trackingtypes.TrackingMode_TRACKING_MODE_IDENTIFIED,
+		Links: trackingtypes.TrackingMode_TRACKING_MODE_IDENTIFIED,
+	})
+
+	const landingURL = "https://example.com/landing"
+	tracked := tests.FakeEmail(t)
+	untracked := tests.FakeEmail(t)
+	greedy := tests.FakeEmail(t)
+
+	res := client.SendEmailResponse(t, &mailerapiv1.SendHTMLReq{
+		Sender: client.Sender(),
+		Recipients: []*mailertypes.Recipient{
+			{Email: tracked},
+			{Email: untracked, Tracking: &trackingtypes.TrackingPolicy{
+				Opens: trackingtypes.TrackingMode_TRACKING_MODE_OFF,
+				Links: trackingtypes.TrackingMode_TRACKING_MODE_OFF,
+			}},
+			{Email: greedy, Tracking: &trackingtypes.TrackingPolicy{
+				Opens: trackingtypes.TrackingMode_TRACKING_MODE_FULL,
+				Links: trackingtypes.TrackingMode_TRACKING_MODE_FULL,
+			}},
+		},
+		Subject:       "Mixed Recipient Tracking Test",
+		Html:          fmt.Sprintf(`<html><body><h1>Hello!</h1><a href=%q>click</a></body></html>`, landingURL),
+		ScheduledTime: timestamppb.Now(),
+	})
+
+	assert.EqualValues(t, 2, res.AcceptedCount, "the rest of the Batch must proceed")
+	assert.EqualValues(t, 1, res.RejectedCount)
+	require.Len(t, res.RejectedRecipients, 1)
+	assert.Equal(t, greedy, res.RejectedRecipients[0].Email)
+	assert.Equal(t, "tracking_above_ceiling", res.RejectedRecipients[0].Reason,
+		"the caller must be told why the Recipient was Rejected")
+
+	// The Recipient that stated nothing is tracked at the Domain's level: it has
+	// a pixel and a rewritten link, and retrieving the pixel produces an open
+	// attributed to it.
+	trackedMsg := requireGetEmail(t, senderMock, tracked)
+	assert.NotContains(t, trackedMsg.Body, fmt.Sprintf("href=%q", landingURL),
+		"a tracked Recipient's links must be rewritten")
+	requireTrackerHit(t,
+		fmt.Sprintf("http://localhost:%d/o/%s", infra.trackerPort, extractOpenToken(t, trackedMsg.Body)),
+		http.StatusOK)
+	opened := requireStat(t, client, tracked, "opened", 1)
+	assert.EqualValues(t, tracked, opened[0].Email)
+
+	// The Recipient that refused gets the message it asked for, in the same send.
+	untrackedMsg := requireGetEmail(t, senderMock, untracked)
+	assert.NotContains(t, untrackedMsg.Body, "<img", "no tracking pixel for a Recipient that refused")
+	assert.Contains(t, untrackedMsg.Body, fmt.Sprintf("href=%q", landingURL),
+		"the authored link must be delivered unrewritten")
+	assert.NotContains(t, untrackedMsg.Body, "stats."+client.domain,
+		"an untracked message must carry no tracking hostname")
+
+	// A Rejected Recipient has no Delivery, so nothing is ever sent to it.
+	assert.Nil(t, senderMock.GetEmail(greedy), "a Rejected Recipient must not be delivered to")
 }
 
 func requireGetEmail(t *testing.T, s *senderMock, email string) ParsedEmail {
@@ -736,4 +1100,46 @@ func requireGetEmail(t *testing.T, s *senderMock, email string) ParsedEmail {
 	}, 60*time.Second, 2*time.Second, "Email should be received within 60 seconds")
 
 	return msg
+}
+
+// testEveryRecipientRejected is the other half of #364: before it, a caller
+// submitting a batch in which nothing was accepted got a Batch id and a 200, with
+// no way to discover that the Pool was empty. The response must now account for
+// every submitted Recipient.
+func testEveryRecipientRejected(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
+	client := clientFactory.NewClient(t, infra)
+
+	client.SetTrackingPolicy(t, &trackingtypes.TrackingPolicy{
+		Opens: trackingtypes.TrackingMode_TRACKING_MODE_IDENTIFIED,
+		Links: trackingtypes.TrackingMode_TRACKING_MODE_IDENTIFIED,
+	})
+
+	greedy := tests.FakeEmail(t)
+
+	res := client.SendEmailResponse(t, &mailerapiv1.SendHTMLReq{
+		Sender: client.Sender(),
+		Recipients: []*mailertypes.Recipient{
+			{Email: ""},
+			{Email: greedy, Tracking: &trackingtypes.TrackingPolicy{
+				Opens: trackingtypes.TrackingMode_TRACKING_MODE_FULL,
+				Links: trackingtypes.TrackingMode_TRACKING_MODE_FULL,
+			}},
+		},
+		Subject:       "Every Recipient Rejected Test",
+		Html:          `<html><body><h1>Hello!</h1></body></html>`,
+		ScheduledTime: timestamppb.Now(),
+	})
+
+	assert.EqualValues(t, 0, res.AcceptedCount, "nothing was queued and the response must say so")
+	assert.EqualValues(t, 2, res.RejectedCount)
+	require.Len(t, res.RejectedRecipients, 2)
+
+	reasons := map[string]string{}
+	for _, r := range res.RejectedRecipients {
+		reasons[r.Email] = r.Reason
+	}
+	assert.Equal(t, "invalid_email", reasons[""])
+	assert.Equal(t, "tracking_above_ceiling", reasons[greedy])
+
+	assert.Nil(t, senderMock.GetEmail(greedy), "a Rejected Recipient must not be delivered to")
 }

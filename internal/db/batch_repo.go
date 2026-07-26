@@ -31,6 +31,7 @@ func (r *batchRepository) Create(ctx context.Context, b *batch.Batch) error {
 		Domain:      b.Domain(),
 		Attachments: toSQLCAttachments(b.Attachments()),
 		Headers:     toSQLCHeaders(b.Headers()),
+		Tracking:    b.TrackingPolicy(),
 	})
 	return err
 }
@@ -59,6 +60,7 @@ func rowToBatch(row Message) *batch.Batch {
 		Domain:      row.Domain,
 		Attachments: fromSQLCAttachments(row.Attachments),
 		Headers:     fromSQLCHeaders(row.Headers),
+		Tracking:    row.Tracking,
 	})
 }
 

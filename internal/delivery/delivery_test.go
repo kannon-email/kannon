@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/kannon-email/kannon/internal/batch"
+	"github.com/kannon-email/kannon/internal/tracking"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -26,6 +27,28 @@ func TestNew(t *testing.T) {
 		assert.Equal(t, 0, d.SendAttempts())
 		assert.Equal(t, now, d.ScheduledTime())
 		assert.Equal(t, now, d.OriginalScheduledTime())
+	})
+
+	t.Run("TrackingPolicyIsConcrete", func(t *testing.T) {
+		// A Delivery is created with the Policy already resolved at intake; a
+		// caller that states nothing must still leave a concrete Policy behind,
+		// because the Pool row must never hold an unstated Mode.
+		d, err := New(NewParams{
+			BatchID: batch.NewID("example.com"),
+			Email:   "to@example.com",
+			Domain:  "example.com",
+		})
+		require.NoError(t, err)
+		assert.Equal(t, tracking.Policy{Opens: tracking.ModeOff, Links: tracking.ModeOff}, d.TrackingPolicy())
+
+		d, err = New(NewParams{
+			BatchID:  batch.NewID("example.com"),
+			Email:    "to@example.com",
+			Domain:   "example.com",
+			Tracking: tracking.Policy{Opens: tracking.ModeIdentified},
+		})
+		require.NoError(t, err)
+		assert.Equal(t, tracking.Policy{Opens: tracking.ModeIdentified, Links: tracking.ModeOff}, d.TrackingPolicy())
 	})
 
 	t.Run("MissingFields", func(t *testing.T) {

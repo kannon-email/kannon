@@ -3,6 +3,7 @@ syntax = "proto3";
 package pkg.kannon.admin.apiv1;
 
 import "google/protobuf/timestamp.proto";
+import "kannon/tracking/types/tracking.proto";
 
 option go_package = "github.com/kannon-email/kannon/proto/kannon/admin/apiv1";
 
@@ -10,6 +11,7 @@ service Api {
   rpc GetDomains(GetDomainsReq) returns (GetDomainsResponse) {}
   rpc GetDomain(GetDomainReq) returns (GetDomainRes) {}
   rpc CreateDomain(CreateDomainRequest) returns (Domain) {}
+  rpc SetTrackingPolicy(SetTrackingPolicyReq) returns (SetTrackingPolicyRes) {}
 
   rpc CreateTemplate(CreateTemplateReq) returns (CreateTemplateRes) {}
   rpc UpdateTemplate(UpdateTemplateReq) returns (UpdateTemplateRes) {}
@@ -44,6 +46,17 @@ message CreateDomainRequest {
 message Domain {
   string domain = 1;
   string dkim_pub_key = 3;
+  // The ceiling every batch and recipient of this domain is resolved against.
+  pkg.kannon.tracking.types.TrackingPolicy tracking = 4;
+}
+
+message SetTrackingPolicyReq {
+  string domain = 1;
+  pkg.kannon.tracking.types.TrackingPolicy tracking = 2;
+}
+
+message SetTrackingPolicyRes {
+  Domain domain = 1;
 }
 
 message Template {
