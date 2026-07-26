@@ -67,6 +67,14 @@ func (c *clientTest) SetTrackingPolicy(t *testing.T, p *trackingtypes.TrackingPo
 // SendEmail submits the request and returns the Batch id (message_id) so
 // callers can correlate pool/stats state for their own Batch.
 func (c *clientTest) SendEmail(t *testing.T, email *mailerapiv1.SendHTMLReq) string {
+	return c.SendEmailResponse(t, email).MessageId
+}
+
+// SendEmailResponse submits the request and returns the whole response, for
+// tests asserting on the per-Recipient intake outcome — which Recipients were
+// accepted and which were Rejected with which reason (#364).
+func (c *clientTest) SendEmailResponse(t *testing.T, email *mailerapiv1.SendHTMLReq) *mailerapiv1.SendRes {
+	t.Helper()
 	sendReq := connect.NewRequest(email)
 	sendReq.Header().Set("Authorization", "Basic "+c.authToken)
 
@@ -75,7 +83,7 @@ func (c *clientTest) SendEmail(t *testing.T, email *mailerapiv1.SendHTMLReq) str
 	require.NotNil(t, sendResp.Msg)
 
 	t.Logf("✅ Email queued with message ID: %s", sendResp.Msg.MessageId)
-	return sendResp.Msg.MessageId
+	return sendResp.Msg
 }
 
 // SendEmailExpectingFailure submits the request and returns the error the

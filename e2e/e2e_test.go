@@ -131,6 +131,11 @@ func TestE2EEmailSending(t *testing.T) {
 		t.Parallel()
 		testBatchAboveDomainTrackingCeiling(t, factory, senderMock, infra)
 	})
+
+	t.Run("MixedRecipientTrackingPolicies", func(t *testing.T) {
+		t.Parallel()
+		testMixedRecipientTrackingPolicies(t, factory, senderMock, infra)
+	})
 }
 
 func runKannon(t *testing.T, infra *TestInfrastructure, senderMock *senderMock) {
@@ -923,6 +928,78 @@ func testBatchAboveDomainTrackingCeiling(t *testing.T, clientFactory *clientFact
 	err := client.SendEmailExpectingFailure(t, sendReq)
 	assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
 	assert.Contains(t, err.Error(), "opens", "the error must name the violating axis")
+}
+
+// testMixedRecipientTrackingPolicies is the Recipient level of the cascade seen
+// from outside (#419): one Batch, three Recipients stating three different
+// things, three different observable outcomes.
+//
+// The Domain allows Identified. The first Recipient states nothing and is
+// tracked at the Domain's level. The second states Off — consent may always
+// narrow — and receives a message with no tracking in it at all. The third asks
+// for Full, above the Domain's ceiling; consent cannot widen (ADR 0003), so that
+// one Recipient is Rejected with a reason in the send response while the other
+// two are delivered normally.
+func testMixedRecipientTrackingPolicies(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
+	client := clientFactory.NewClient(t, infra)
+
+	client.SetTrackingPolicy(t, &trackingtypes.TrackingPolicy{
+		Opens: trackingtypes.TrackingMode_TRACKING_MODE_IDENTIFIED,
+		Links: trackingtypes.TrackingMode_TRACKING_MODE_IDENTIFIED,
+	})
+
+	const landingURL = "https://example.com/landing"
+	tracked := tests.FakeEmail(t)
+	untracked := tests.FakeEmail(t)
+	greedy := tests.FakeEmail(t)
+
+	res := client.SendEmailResponse(t, &mailerapiv1.SendHTMLReq{
+		Sender: client.Sender(),
+		Recipients: []*mailertypes.Recipient{
+			{Email: tracked},
+			{Email: untracked, Tracking: &trackingtypes.TrackingPolicy{
+				Opens: trackingtypes.TrackingMode_TRACKING_MODE_OFF,
+				Links: trackingtypes.TrackingMode_TRACKING_MODE_OFF,
+			}},
+			{Email: greedy, Tracking: &trackingtypes.TrackingPolicy{
+				Opens: trackingtypes.TrackingMode_TRACKING_MODE_FULL,
+				Links: trackingtypes.TrackingMode_TRACKING_MODE_FULL,
+			}},
+		},
+		Subject:       "Mixed Recipient Tracking Test",
+		Html:          fmt.Sprintf(`<html><body><h1>Hello!</h1><a href=%q>click</a></body></html>`, landingURL),
+		ScheduledTime: timestamppb.Now(),
+	})
+
+	assert.EqualValues(t, 2, res.AcceptedCount, "the rest of the Batch must proceed")
+	assert.EqualValues(t, 1, res.RejectedCount)
+	require.Len(t, res.RejectedRecipients, 1)
+	assert.Equal(t, greedy, res.RejectedRecipients[0].Email)
+	assert.Equal(t, "tracking_above_ceiling", res.RejectedRecipients[0].Reason,
+		"the caller must be told why the Recipient was Rejected")
+
+	// The Recipient that stated nothing is tracked at the Domain's level: it has
+	// a pixel and a rewritten link, and retrieving the pixel produces an open
+	// attributed to it.
+	trackedMsg := requireGetEmail(t, senderMock, tracked)
+	assert.NotContains(t, trackedMsg.Body, fmt.Sprintf("href=%q", landingURL),
+		"a tracked Recipient's links must be rewritten")
+	requireTrackerHit(t,
+		fmt.Sprintf("http://localhost:%d/o/%s", infra.trackerPort, extractOpenToken(t, trackedMsg.Body)),
+		http.StatusOK)
+	opened := requireStat(t, client, tracked, "opened", 1)
+	assert.EqualValues(t, tracked, opened[0].Email)
+
+	// The Recipient that refused gets the message it asked for, in the same send.
+	untrackedMsg := requireGetEmail(t, senderMock, untracked)
+	assert.NotContains(t, untrackedMsg.Body, "<img", "no tracking pixel for a Recipient that refused")
+	assert.Contains(t, untrackedMsg.Body, fmt.Sprintf("href=%q", landingURL),
+		"the authored link must be delivered unrewritten")
+	assert.NotContains(t, untrackedMsg.Body, "stats."+client.domain,
+		"an untracked message must carry no tracking hostname")
+
+	// A Rejected Recipient has no Delivery, so nothing is ever sent to it.
+	assert.Nil(t, senderMock.GetEmail(greedy), "a Rejected Recipient must not be delivered to")
 }
 
 func requireGetEmail(t *testing.T, s *senderMock, email string) ParsedEmail {
