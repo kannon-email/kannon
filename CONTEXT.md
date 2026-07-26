@@ -32,6 +32,22 @@ _Avoid_: SendingPoolEmail, PoolEmail, Email (when meaning the row, not the addre
 A built, DKIM-signed, transmission-ready message for one Delivery. Transient — exists in flight on the `kannon.sending` NATS topic, handed from Dispatcher to the Sender worker. Immutable once built.
 _Avoid_: EmailToSend, OutboundMail
 
+**Tracking Mode**:
+How much a single engagement channel may be observed, on an **ordered** scale of increasing collection:
+
+- **Off** — not observed at all.
+- **Anonymous** — counted in aggregate only. Nothing is retained that could isolate one Recipient from another.
+- **Pseudonymous** — events are linkable to each other within a single Batch via an identifier that is regenerated for every Batch and never reused across Batches, but carry no Recipient identity. *Reserved, not yet implemented.*
+- **Identified** — attributed to the Recipient.
+- **Full** — attributed, plus the IP address and user agent of the request.
+
+Only Off and Anonymous retain no personal data; the three upper rungs do, and the Domain is responsible for having a lawful basis before selecting them. Because the scale is ordered, two Modes can be compared and the more restrictive of the two taken.
+_Avoid_: Tracking Level (collides with the Domain/Batch/Recipient axis), Tracking Type, Tracking Flag
+
+**Tracking Policy**:
+A pair of Tracking Modes — one governing opens, one governing links — expressing what may be observed about a Delivery. Stated independently at Domain, Batch and Recipient level, where a lower level may only **restrict** what the level above allows, never widen it: the effective Policy is the most restrictive of the three, and a level that states nothing imposes no restriction of its own. The Domain always states one. Resolved once per Delivery when the Batch is created and frozen there, so a Delivery records the Policy that actually governed it rather than whatever is configured now.
+_Avoid_: Tracking Settings, Tracking Config, Consent (a Policy conveys a consent decision taken elsewhere; it is not itself the consent, and Kannon never stores consent)
+
 ### Actors
 
 **Mailer API**:
@@ -67,7 +83,7 @@ The Validator accepted the recipient address. Emitted once per Delivery on the h
 _Avoid_: Accepted (legacy proto/db name; renamed in the refactor — see `docs/REFACTORING.md` §2)
 
 **Rejected**:
-The Validator refused the recipient address. Terminal — the Delivery is deleted from the Pool. Carries a `reason`.
+The Recipient was refused and no Delivery will be attempted. Terminal — the Delivery is deleted from the Pool, or never created. Carries a `reason`. Two causes: the Validator refused the recipient address, or the Recipient asked for a Tracking Mode above what its Domain allows.
 
 **Delivered**:
 The remote MX accepted the SMTP handoff (e.g. responded `250 OK`). Does **not** mean the message reached an inbox — only that the next hop accepted responsibility. A subsequent asynchronous DSN can still bounce a Delivered Delivery.
@@ -80,10 +96,10 @@ Permanent delivery failure. Two sources:
 Carries `permanent`, `code`, `msg`. The `permanent` flag is true in both cases today; transient failures are not Bounces (see Errored).
 
 **Opened**:
-A tracking pixel was retrieved. Engagement event — non-terminal, may fire multiple times per Delivery.
+A tracking pixel was retrieved. Engagement event — non-terminal, may fire multiple times per Delivery. Only occurs when the Delivery's Tracking Policy allows opens; under Anonymous it is counted but not attributed to the Recipient.
 
 **Clicked**:
-A tracked link was followed. Engagement event — non-terminal, may fire multiple times per Delivery. Carries `url`.
+A tracked link was followed. Engagement event — non-terminal, may fire multiple times per Delivery. Carries `url`. Subject to the Delivery's Tracking Policy on the same terms as Opened.
 
 **Errored** (internal):
 Transient transmission failure. Triggers a reschedule with backoff (`send_attempts_cnt++`). Today emitted as a stat (`kannon.stats.error`) and consumed by the Dispatcher. Flagged for demotion to internal logging in the refactor — it isn't an outcome of the Delivery, just a retry signal. Not part of the shared language for outcomes.
