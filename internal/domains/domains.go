@@ -15,6 +15,7 @@ import (
 
 	"github.com/kannon-email/kannon/internal/dkim"
 	"github.com/kannon-email/kannon/internal/tracking"
+	"github.com/kannon-email/kannon/internal/trackingpb"
 	pb "github.com/kannon-email/kannon/proto/kannon/admin/apiv1"
 )
 
@@ -87,11 +88,13 @@ func (d *Domain) CreatedAt() time.Time   { return d.createdAt }
 // Recipient of this Domain is resolved against.
 func (d *Domain) TrackingPolicy() tracking.Policy { return d.tracking }
 
-// Pb translates to the proto wire type. Only the FQDN and the public DKIM
-// key are exposed on the wire — the private key never leaves the server.
+// Pb translates to the proto wire type. Only the FQDN, the public DKIM key and
+// the Tracking Policy are exposed on the wire — the private key never leaves
+// the server.
 func (d *Domain) Pb() *pb.Domain {
 	return &pb.Domain{
 		Domain:     d.domain,
 		DkimPubKey: d.dkimPublicKey,
+		Tracking:   trackingpb.FromPolicy(d.tracking),
 	}
 }

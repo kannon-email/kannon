@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package pkg.kannon.tracking.types;
+
+option go_package = "github.com/kannon-email/kannon/proto/kannon/tracking/types";
+
+// TrackingMode is how much one engagement channel may be observed. The scale is
+// ordered by increasing collection, but the rank order lives in Go rather than
+// in these numbers, so a Mode can be inserted mid-scale without renumbering the
+// wire.
+enum TrackingMode {
+  // States nothing, and so imposes no restriction of its own.
+  TRACKING_MODE_UNSPECIFIED = 0;
+  // The channel is not observed at all.
+  TRACKING_MODE_OFF = 1;
+  // Counted in aggregate only; nothing retained that isolates one recipient.
+  TRACKING_MODE_ANONYMOUS = 2;
+  // Linkable within a single batch, carrying no recipient identity.
+  // Reserved: selecting it is rejected as unsupported.
+  TRACKING_MODE_PSEUDONYMOUS = 3;
+  // Attributed to the recipient.
+  TRACKING_MODE_IDENTIFIED = 4;
+  // Attributed, plus the IP address and user agent of the request.
+  TRACKING_MODE_FULL = 5;
+}
+
+// TrackingPolicy is a pair of TrackingModes, one governing opens and one
+// governing links. Stated at domain, batch and recipient level, where a lower
+// level may only restrict what the level above allows.
+message TrackingPolicy {
+  TrackingMode opens = 1;
+  TrackingMode links = 2;
+}
