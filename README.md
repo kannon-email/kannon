@@ -265,7 +265,9 @@ A single link can opt out, which is what unsubscribe and preference links usuall
 <a href="https://yourdomain.com/preferences" data-no-track>Manage preferences</a>
 ```
 
-Such a link is delivered with its `href` exactly as authored, and the `data-no-track` attribute is removed from the delivered HTML. The attribute name is case-insensitive and any value works: `data-no-track`, `data-no-track=""` and `data-no-track="true"` are equivalent.
+Such a link is delivered with its `href` exactly as authored, and the `data-no-track` attribute is removed from the delivered HTML — whatever the Tracking Policy says, so it never reaches the recipient even when link tracking is off anyway.
+
+The attribute name is case-insensitive and works by **presence**: any value opts the link out, so `data-no-track`, `data-no-track=""`, `data-no-track="true"` and even `data-no-track="false"` all mean the same thing. To track a link again, remove the attribute.
 
 Links a redirect cannot serve are never rewritten and need no attribute: `mailto:`, `tel:`, `sms:`, and in-page anchors such as `#section`.
 

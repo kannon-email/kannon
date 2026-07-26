@@ -125,8 +125,9 @@ func insertTrackLinkInHTML(html, link string) string {
 var (
 	// regATag matches an opening <a> tag as a whole. The tag — not the bare href —
 	// is the unit of work, because whether a link is tracked depends on the other
-	// attributes it carries.
-	regATag = regexp.MustCompile(`<a\s[^>]*>`)
+	// attributes it carries. A quoted attribute value may hold a raw '>', so
+	// quoted spans are matched as units instead of scanning for the first '>'.
+	regATag = regexp.MustCompile(`(?i)<a\s(?:[^>"']|"[^"]*"|'[^']*')*>`)
 	// regHref captures the href value of a tag. The leading whitespace keeps a
 	// look-alike attribute such as data-href out of the match.
 	regHref = regexp.MustCompile(`\shref=["'](.+?)["']`)
@@ -152,9 +153,8 @@ var nonTrackableSchemes = []string{"mailto:", "tel:", "sms:"}
 // something to do silently — and it costs no token, because replace is never
 // called for a link that is skipped.
 //
-// The attribute is stripped from every <a> tag it appears on, opted out or not,
-// so it never reaches the delivered HTML. Stripping stays scoped to the tag: the
-// same string in body text is content, and is left as written.
+// Removing the attribute afterwards is not this function's job: stripNoTrackAttrs
+// does that for every Delivery, tracked or not.
 func replaceLinks(html string, replace func(link string) (string, error)) (string, error) {
 	var out strings.Builder
 	last := 0
@@ -171,12 +171,9 @@ func replaceLinks(html string, replace func(link string) (string, error)) (strin
 	return out.String(), nil
 }
 
-// rewriteATag applies the rewrite to a single opening <a> tag, returning it as
-// it should be delivered.
+// rewriteATag applies the rewrite to a single opening <a> tag.
 func rewriteATag(tag string, replace func(link string) (string, error)) (string, error) {
-	optedOut := regNoTrack.MatchString(tag)
-	tag = regNoTrack.ReplaceAllString(tag, "${1}")
-	if optedOut {
+	if regNoTrack.MatchString(tag) {
 		return tag, nil
 	}
 
@@ -198,6 +195,28 @@ func rewriteATag(tag string, replace func(link string) (string, error)) (string,
 	return tag[:href[2]] + newLink + tag[href[3]:], nil
 }
 
+// stripNoTrackAttrs removes the opt-out attribute from every <a> tag in the
+// HTML. The attribute is an instruction to Kannon rather than content, so it is
+// dropped whatever the Tracking Policy says — including under a links Mode that
+// rewrites nothing, where replaceLinks never runs at all.
+//
+// Stripping stays scoped to <a> tags: the same string in body text, or inside an
+// href, is content and is delivered as written.
+func stripNoTrackAttrs(html string) string {
+	return regATag.ReplaceAllStringFunc(html, stripNoTrackFromTag)
+}
+
+// stripNoTrackFromTag drops the attribute from one tag. It repeats until the tag
+// is clean because each match consumes the character that terminates the
+// attribute, which would otherwise hide a second copy of it.
+func stripNoTrackFromTag(tag string) string {
+	for regNoTrack.MatchString(tag) {
+		tag = regNoTrack.ReplaceAllString(tag, "${1}")
+	}
+	return tag
+}
+
+// isTrackableLink reports whether a click redirect could serve this href at all.
 func isTrackableLink(link string) bool {
 	link = strings.TrimSpace(link)
 	if link == "" || strings.HasPrefix(link, "#") {
