@@ -1,5 +1,8 @@
-<!-- please add a icon to the title of this PR -->
-<!-- the icon will be either 💥 (major or breaking changes), ✨ (feature additions), 🐛 (patch and bugfixes), 📖 (documentation or proposals), or 🛠️ (other things) -->
+<!-- PRs are squash-merged, so this PR title becomes the commit message on `main`. -->
+<!-- It MUST be a Conventional Commit: `<type>[(scope)][!]: <description>` -->
+<!-- e.g. `feat(sender): add per-domain rate limit`, `fix(smtp): guard null-MX domain`, `feat!: drop legacy config keys` -->
+<!-- Types: feat, fix, perf, docs, refactor, test, build, ci, chore, revert. This is checked by CI. -->
+<!-- See CONTRIBUTING.md#commit-messages -->
 
 **What this PR does / why we need it**:
 
