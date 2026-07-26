@@ -7,7 +7,9 @@ import (
 	"io"
 	"mime/quotedprintable"
 	"net/mail"
+	"regexp"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,6 +19,7 @@ import (
 	"github.com/kannon-email/kannon/internal/envelope"
 	"github.com/kannon-email/kannon/internal/tracking"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type stubSource struct {
@@ -50,6 +53,42 @@ func (modeEchoTokens) CreateLinkToken(ctx context.Context, messageID, email, url
 
 func (modeEchoTokens) CreateOpenToken(ctx context.Context, messageID, email string, mode tracking.Mode) (string, error) {
 	return "open-" + string(mode), nil
+}
+
+// batchSource renders every Batch from one template but reports each Batch's own
+// id as its MessageID, the way the real query does, so a test can build two
+// Batches through a single Builder.
+type batchSource struct {
+	data envelope.SendingData
+}
+
+func (s batchSource) GetSendingData(_ context.Context, batchID batch.ID) (envelope.SendingData, error) {
+	data := s.data
+	data.MessageID = batchID.String()
+	return data, nil
+}
+
+// countingTokens mints a distinct token on every call, so a test can read off a
+// delivered message whether the Builder asked for a fresh token or handed out one
+// it had already issued.
+type countingTokens struct {
+	mu     sync.Mutex
+	minted int
+}
+
+func (c *countingTokens) next(kind string) (string, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.minted++
+	return fmt.Sprintf("%s-%d", kind, c.minted), nil
+}
+
+func (c *countingTokens) CreateLinkToken(ctx context.Context, messageID, email, url string, mode tracking.Mode) (string, error) {
+	return c.next("link")
+}
+
+func (c *countingTokens) CreateOpenToken(ctx context.Context, messageID, email string, mode tracking.Mode) (string, error) {
+	return c.next("open")
 }
 
 // mustDelivery builds a Delivery carrying the Tracking Policy a fresh Domain
@@ -251,6 +290,147 @@ func TestBuilderMintsTokensCarryingTheFrozenMode(t *testing.T) {
 		"the open token must carry the opens Mode, got %q", decoded)
 	assert.True(t, strings.Contains(decoded, "https://stats.test.com/c/link-identified"),
 		"the link token must carry the links Mode, got %q", decoded)
+}
+
+// deliveredTokens are the tracking tokens one rendered message carries, read back
+// out of the delivered body — the same place a recipient's mail client reads them.
+type deliveredTokens struct {
+	open  string
+	links []string
+}
+
+var (
+	pixelTokenRe = regexp.MustCompile(`/o/([A-Za-z0-9._-]+)`)
+	linkTokenRe  = regexp.MustCompile(`/c/([A-Za-z0-9._-]+)`)
+)
+
+// deliverTo builds one Delivery of a Batch and returns the tracking tokens the
+// recipient ends up holding.
+func deliverTo(t *testing.T, b envelope.Builder, batchID batch.ID, email string, p tracking.Policy) deliveredTokens {
+	t.Helper()
+
+	env, err := b.Build(t.Context(), mustDeliveryTracked(t, batchID, email, nil, p))
+	require.NoError(t, err)
+
+	parsed, err := mail.ReadMessage(bytes.NewReader(env.Body()))
+	require.NoError(t, err)
+	raw, err := io.ReadAll(parsed.Body)
+	require.NoError(t, err)
+	decoded, err := decodeQuotedPrintable(raw)
+	require.NoError(t, err)
+
+	pixels := pixelTokenRe.FindAllStringSubmatch(decoded, -1)
+	require.Len(t, pixels, 1, "a tracked message carries exactly one pixel, got %q", decoded)
+
+	out := deliveredTokens{open: pixels[0][1]}
+	for _, m := range linkTokenRe.FindAllStringSubmatch(decoded, -1) {
+		out.links = append(out.links, m[1])
+	}
+	return out
+}
+
+// anonymousPolicy tracks both axes without naming anybody.
+var anonymousPolicy = tracking.Policy{Opens: tracking.ModeAnonymous, Links: tracking.ModeAnonymous}
+
+// identifiedPolicy tracks both axes and attributes to the Recipient.
+var identifiedPolicy = tracking.Policy{Opens: tracking.ModeIdentified, Links: tracking.ModeIdentified}
+
+// trackedBuilder returns a Builder over a Batch whose body carries the given
+// links, minting a distinct token per request so reuse is visible in the output.
+func trackedBuilder(t *testing.T, links ...string) envelope.Builder {
+	t.Helper()
+
+	body := &strings.Builder{}
+	body.WriteString("<html><body><h1>Hello!</h1>")
+	for _, l := range links {
+		fmt.Fprintf(body, "<a href=%q>x</a>", l)
+	}
+	body.WriteString("</body></html>")
+
+	return envelope.NewBuilderWith(batchSource{data: envelope.SendingData{
+		Subject:        "S",
+		HTML:           body.String(),
+		Domain:         "test.com",
+		SenderEmail:    "noreply@test.com",
+		SenderAlias:    "Test",
+		DkimPrivateKey: newDKIMKeys(t),
+	}}, &countingTokens{})
+}
+
+// TestBuilderSharesAnonymousTokensAcrossABatch is the Anonymous privacy property
+// as a recipient can observe it: the token names nobody, so the two Recipients of
+// a Batch must receive the *same* token and not merely two that look alike. Two
+// independent mints would carry different iat/exp and so be distinguishable, which
+// would let the two Recipients be told apart by the very token that was supposed
+// to make them indistinguishable.
+//
+// It is also where the cost of Anonymous collapses: one signature per Batch, and
+// one per Batch and URL, instead of one per link per Delivery.
+func TestBuilderSharesAnonymousTokensAcrossABatch(t *testing.T) {
+	const first = "https://example.com/first"
+	const second = "https://example.com/second"
+
+	b := trackedBuilder(t, first, second)
+	batchID := batch.ID("msg-1@test.com")
+
+	one := deliverTo(t, b, batchID, "a@example.com", anonymousPolicy)
+	two := deliverTo(t, b, batchID, "b@example.com", anonymousPolicy)
+
+	assert.Equal(t, one.open, two.open,
+		"an anonymous pixel names nobody, so both Recipients must hold the same token")
+	assert.Equal(t, one.links, two.links,
+		"an anonymous link names nobody, so both Recipients must hold the same tokens")
+
+	// The URL is part of what a link token commits to, so the two links of the
+	// body must not collapse into one token.
+	require.Len(t, one.links, 2)
+	assert.NotEqual(t, one.links[0], one.links[1],
+		"two different tracked URLs must get two different tokens")
+	assert.NotEqual(t, one.open, one.links[0],
+		"the pixel and the links are separate axes and must not share a token")
+}
+
+// TestBuilderDoesNotShareTokensBeyondTheirBatch is the negative half: reuse must
+// stop at every boundary the token commits to. A token escaping its Batch would
+// attribute one Domain's engagement to another's, and one escaping its Mode would
+// hand a Recipient the wrong Policy over their own Delivery.
+func TestBuilderDoesNotShareTokensBeyondTheirBatch(t *testing.T) {
+	const landing = "https://example.com/landing"
+
+	t.Run("DifferentBatches", func(t *testing.T) {
+		b := trackedBuilder(t, landing)
+
+		one := deliverTo(t, b, batch.ID("msg-1@test.com"), "a@example.com", anonymousPolicy)
+		two := deliverTo(t, b, batch.ID("msg-2@test.com"), "a@example.com", anonymousPolicy)
+
+		assert.NotEqual(t, one.open, two.open, "a pixel token must not leave its Batch")
+		assert.NotEqual(t, one.links, two.links, "a link token must not leave its Batch")
+	})
+
+	t.Run("DifferentModes", func(t *testing.T) {
+		b := trackedBuilder(t, landing)
+		batchID := batch.ID("msg-1@test.com")
+
+		anonymous := deliverTo(t, b, batchID, "a@example.com", anonymousPolicy)
+		identified := deliverTo(t, b, batchID, "a@example.com", identifiedPolicy)
+
+		assert.NotEqual(t, anonymous.open, identified.open, "a pixel token must not leave its Mode")
+		assert.NotEqual(t, anonymous.links, identified.links, "a link token must not leave its Mode")
+	})
+
+	t.Run("IdentifiedNamesEachRecipient", func(t *testing.T) {
+		b := trackedBuilder(t, landing)
+		batchID := batch.ID("msg-1@test.com")
+
+		one := deliverTo(t, b, batchID, "a@example.com", identifiedPolicy)
+		two := deliverTo(t, b, batchID, "b@example.com", identifiedPolicy)
+
+		// An identified token commits to the Recipient, so sharing it would
+		// misattribute every engagement to whoever the Batch happened to build
+		// first.
+		assert.NotEqual(t, one.open, two.open, "an identified pixel is per-Delivery")
+		assert.NotEqual(t, one.links, two.links, "an identified link is per-Delivery")
+	})
 }
 
 func decodeQuotedPrintable(b []byte) (string, error) {
