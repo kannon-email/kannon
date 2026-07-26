@@ -118,10 +118,11 @@ func engage(t *testing.T, path string) (answer, []*statstypes.Stats) {
 	return answer{status: rec.Code, location: rec.Header().Get("Location")}, pub.published()
 }
 
-// TestOpenRetainsRequestDataOnlyUnderFull is the compliance property for opens:
-// Identified attributes the event to the Recipient and keeps nothing about the
-// request, Full additionally keeps the IP address and user agent.
-func TestOpenRetainsRequestDataOnlyUnderFull(t *testing.T) {
+// TestOpenRetainsOnlyWhatItsModeAllows is the compliance property for opens:
+// Anonymous names nobody and keeps nothing about the request, Identified
+// attributes the event to the Recipient and still keeps nothing about the
+// request, and Full additionally keeps the IP address and user agent.
+func TestOpenRetainsOnlyWhatItsModeAllows(t *testing.T) {
 	for _, tc := range retentionCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			token, err := ss.CreateOpenToken(t.Context(), testMessageID, testRecipient, tc.mode)
@@ -132,9 +133,9 @@ func TestOpenRetainsRequestDataOnlyUnderFull(t *testing.T) {
 
 			require.Len(t, published, 1)
 			stat := published[0]
-			assert.Equal(t, testRecipient, stat.Email, "an Identified open is still attributed")
-			assert.Equal(t, testMessageID, stat.MessageId)
-			assert.Equal(t, testDomain, stat.Domain)
+			assert.Equal(t, tc.wantEmail, stat.Email)
+			assert.Equal(t, testMessageID, stat.MessageId, "the Batch is named under every Mode")
+			assert.Equal(t, testDomain, stat.Domain, "the Domain is named under every Mode")
 			assert.Equal(t, tc.wantWireMode, stat.TrackingMode, "the event must carry the resolved Mode")
 
 			opened := stat.Data.GetOpened()
@@ -145,9 +146,9 @@ func TestOpenRetainsRequestDataOnlyUnderFull(t *testing.T) {
 	}
 }
 
-// TestClickRetainsRequestDataOnlyUnderFull is the same property for links, which
+// TestClickRetainsOnlyWhatItsModeAllows is the same property for links, which
 // are governed by their own axis of the Policy.
-func TestClickRetainsRequestDataOnlyUnderFull(t *testing.T) {
+func TestClickRetainsOnlyWhatItsModeAllows(t *testing.T) {
 	for _, tc := range retentionCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			token, err := ss.CreateLinkToken(t.Context(), testMessageID, testRecipient, testLandingURL, tc.mode)
@@ -155,11 +156,12 @@ func TestClickRetainsRequestDataOnlyUnderFull(t *testing.T) {
 
 			resp, published := engage(t, "/c/"+token)
 			assert.Equal(t, http.StatusTemporaryRedirect, resp.status)
-			assert.Equal(t, testLandingURL, resp.location)
+			assert.Equal(t, testLandingURL, resp.location,
+				"the redirect is owed to the recipient under every Mode")
 
 			require.Len(t, published, 1)
 			stat := published[0]
-			assert.Equal(t, testRecipient, stat.Email, "an Identified click is still attributed")
+			assert.Equal(t, tc.wantEmail, stat.Email)
 			assert.Equal(t, tc.wantWireMode, stat.TrackingMode, "the event must carry the resolved Mode")
 
 			clicked := stat.Data.GetClicked()
@@ -175,28 +177,60 @@ type retentionCase struct {
 	name          string
 	mode          tracking.Mode
 	wantWireMode  trackingtypes.TrackingMode
+	wantEmail     string
 	wantIP        string
 	wantUserAgent string
 }
 
-// retentionCases are the two Modes this ticket separates. The empty wantIP /
-// wantUserAgent of the Identified case is the whole point: the event carries the
-// Recipient identity and neither field.
+// retentionCases are the three Modes under which an engagement event exists, each
+// with everything the event is allowed to carry. The empty fields are the point:
+// Anonymous names nobody at all, and Identified names the Recipient and nothing
+// else.
 func retentionCases() []retentionCase {
 	return []retentionCase{
+		{
+			name:         "Anonymous",
+			mode:         tracking.ModeAnonymous,
+			wantWireMode: trackingtypes.TrackingMode_TRACKING_MODE_ANONYMOUS,
+		},
 		{
 			name:         "Identified",
 			mode:         tracking.ModeIdentified,
 			wantWireMode: trackingtypes.TrackingMode_TRACKING_MODE_IDENTIFIED,
+			wantEmail:    testRecipient,
 		},
 		{
 			name:          "Full",
 			mode:          tracking.ModeFull,
 			wantWireMode:  trackingtypes.TrackingMode_TRACKING_MODE_FULL,
+			wantEmail:     testRecipient,
 			wantIP:        testIP,
 			wantUserAgent: testUserAgent,
 		},
 	}
+}
+
+// TestAnonymousEventsAreIndistinguishable is the aggregate-only property as an
+// operator would meet it: two Recipients of a Batch engaging under Anonymous
+// produce two events with nothing in them that tells the two apart. The tokens
+// are minted for two different addresses on purpose — the point is that the
+// address does not survive.
+func TestAnonymousEventsAreIndistinguishable(t *testing.T) {
+	firstToken, err := ss.CreateOpenToken(t.Context(), testMessageID, "first@example.com", tracking.ModeAnonymous)
+	require.NoError(t, err)
+	secondToken, err := ss.CreateOpenToken(t.Context(), testMessageID, "second@example.com", tracking.ModeAnonymous)
+	require.NoError(t, err)
+
+	_, first := engage(t, "/o/"+firstToken)
+	require.Len(t, first, 1)
+	_, second := engage(t, "/o/"+secondToken)
+	require.Len(t, second, 1)
+
+	assert.Empty(t, first[0].Email, "an anonymous open must name nobody")
+	assert.Empty(t, second[0].Email, "an anonymous open must name nobody")
+	assert.Equal(t, first[0].MessageId, second[0].MessageId,
+		"an anonymous open is attributed to its Batch and nothing finer")
+	assert.Equal(t, first[0].Domain, second[0].Domain)
 }
 
 // TestForgedModeClaimIsRefused is why the Mode is signed rather than carried in
@@ -289,25 +323,39 @@ func encodeClaims(t *testing.T, claims map[string]any) string {
 	return base64.RawURLEncoding.EncodeToString(raw)
 }
 
-// TestRetainedIsGatedOnFull states in one place the rule both handlers share:
-// only Full reaches the request itself.
-func TestRetainedIsGatedOnFull(t *testing.T) {
+// TestRetainedIsGatedOnMode states in one place the rule both handlers share, over
+// the whole scale rather than only the Modes a token can currently be minted with.
+//
+// The claimed email is non-empty in every case on purpose: it is what a token
+// minted by an older build would carry, and a Mode that does not identify the
+// Recipient must drop it here even so.
+func TestRetainedIsGatedOnMode(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/o/tok", nil)
 	req.Header.Set("User-Agent", testUserAgent)
 	req.Header.Set("X-Real-Ip", testIP)
 
-	for _, mode := range []tracking.Mode{
-		tracking.ModeUnspecified,
-		tracking.ModeOff,
-		tracking.ModeAnonymous,
-		tracking.ModeIdentified,
-	} {
-		ip, ua := retained(req, mode)
-		assert.Empty(t, ip, "Mode %q must retain no IP address", mode)
-		assert.Empty(t, ua, "Mode %q must retain no user agent", mode)
+	cases := []struct {
+		name string
+		mode tracking.Mode
+		want engagement
+	}{
+		{name: "Off", mode: tracking.ModeOff, want: engagement{}},
+		{name: "Anonymous", mode: tracking.ModeAnonymous, want: engagement{}},
+		{name: "Pseudonymous", mode: tracking.ModePseudonymous, want: engagement{}},
+		{name: "Identified", mode: tracking.ModeIdentified, want: engagement{email: testRecipient}},
+		{
+			name: "Full",
+			mode: tracking.ModeFull,
+			want: engagement{email: testRecipient, ip: testIP, userAgent: testUserAgent},
+		},
+		// An unstated Mode imposes no restriction of its own, so it keeps the
+		// attribution its token was minted to carry — and still never reaches Full.
+		{name: "Unspecified", mode: tracking.ModeUnspecified, want: engagement{email: testRecipient}},
 	}
 
-	ip, ua := retained(req, tracking.ModeFull)
-	assert.Equal(t, testIP, ip)
-	assert.Equal(t, testUserAgent, ua)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, retained(req, testRecipient, tc.mode))
+		})
+	}
 }
