@@ -18,6 +18,7 @@ import (
 	statsv1connect "github.com/kannon-email/kannon/proto/kannon/stats/apiv1/apiv1connect"
 	statsapiv2 "github.com/kannon-email/kannon/proto/kannon/stats/apiv2"
 	statsv2connect "github.com/kannon-email/kannon/proto/kannon/stats/apiv2/apiv2connect"
+	trackingtypes "github.com/kannon-email/kannon/proto/kannon/tracking/types"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -48,6 +49,19 @@ func (c *clientTest) Sender() *mailertypes.Sender {
 // matching what the SMTP layer puts in the From header.
 func (c *clientTest) SenderFrom() string {
 	return fmt.Sprintf("%s <sender@%s>", defaultSenderAlias, c.domain)
+}
+
+// SetTrackingPolicy configures the Tracking Policy of the client's Domain
+// through the Admin API, the way an operator would. It must be called before a
+// send: the Policy is resolved at intake and frozen on each Delivery, so it does
+// not reach Deliveries already in the Pool.
+func (c *clientTest) SetTrackingPolicy(t *testing.T, p *trackingtypes.TrackingPolicy) {
+	t.Helper()
+	_, err := c.adminClient.SetTrackingPolicy(t.Context(), connect.NewRequest(&adminapiv1.SetTrackingPolicyReq{
+		Domain:   c.domain,
+		Tracking: p,
+	}))
+	require.NoError(t, err)
 }
 
 // SendEmail submits the request and returns the Batch id (message_id) so

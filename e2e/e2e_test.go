@@ -29,6 +29,7 @@ import (
 	mailerapiv1 "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1"
 	mailertypes "github.com/kannon-email/kannon/proto/kannon/mailer/types"
 	statstypes "github.com/kannon-email/kannon/proto/kannon/stats/types"
+	trackingtypes "github.com/kannon-email/kannon/proto/kannon/tracking/types"
 	"github.com/kannon-email/kannon/x/container"
 	"github.com/spf13/viper"
 )
@@ -109,6 +110,11 @@ func TestE2EEmailSending(t *testing.T) {
 	t.Run("Clicked", func(t *testing.T) {
 		t.Parallel()
 		testClicked(t, factory, senderMock, infra)
+	})
+
+	t.Run("TrackingOff", func(t *testing.T) {
+		t.Parallel()
+		testTrackingOff(t, factory, senderMock, infra)
 	})
 }
 
@@ -724,6 +730,39 @@ func testClicked(t *testing.T, clientFactory *clientFactory, senderMock *senderM
 	clicked := matched[0].Data.GetClicked()
 	require.NotNil(t, clicked, "clicked stat should carry typed Clicked data")
 	assert.Equal(t, landingURL, clicked.Url, "clicked stat URL must match the originally-authored URL")
+}
+
+// testTrackingOff is the counterpart of Opened and Clicked: a Domain whose
+// Tracking Policy is Off on both axes must send mail with no tracking in it at
+// all. The Policy is set through the Admin API before the send, because it is
+// resolved at intake and frozen on each Delivery (ADR 0003).
+func testTrackingOff(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
+	client := clientFactory.NewClient(t, infra)
+
+	client.SetTrackingPolicy(t, &trackingtypes.TrackingPolicy{
+		Opens: trackingtypes.TrackingMode_TRACKING_MODE_OFF,
+		Links: trackingtypes.TrackingMode_TRACKING_MODE_OFF,
+	})
+
+	const landingURL = "https://example.com/landing"
+	to := tests.FakeEmail(t)
+	sendReq := &mailerapiv1.SendHTMLReq{
+		Sender:        client.Sender(),
+		Recipients:    []*mailertypes.Recipient{{Email: to}},
+		Subject:       "Tracking Off Test",
+		Html:          fmt.Sprintf(`<html><body><h1>Hello!</h1><a href=%q>click</a></body></html>`, landingURL),
+		ScheduledTime: timestamppb.Now(),
+	}
+
+	client.SendEmail(t, sendReq)
+
+	msg := requireGetEmail(t, senderMock, to)
+
+	assert.NotContains(t, msg.Body, "<img", "no tracking pixel must be injected")
+	assert.Contains(t, msg.Body, fmt.Sprintf("href=%q", landingURL),
+		"the authored link must be delivered unrewritten")
+	assert.NotContains(t, msg.Body, "stats."+client.domain,
+		"an untracked message must carry no tracking hostname")
 }
 
 func requireGetEmail(t *testing.T, s *senderMock, email string) ParsedEmail {
