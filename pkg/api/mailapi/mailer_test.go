@@ -7,8 +7,10 @@ import (
 
 	"connectrpc.com/connect"
 	sqlc "github.com/kannon-email/kannon/internal/db"
+	"github.com/kannon-email/kannon/internal/tests"
 	"github.com/kannon-email/kannon/internal/tracking"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	adminv1 "github.com/kannon-email/kannon/proto/kannon/admin/apiv1"
@@ -586,7 +588,180 @@ func TestSendMailWithInvalidHeaders(t *testing.T) {
 	}
 }
 
-func TestSendMailSkipsRecipientsWithEmptyEmail(t *testing.T) {
+// TestSendMailRecipientTrackingPolicy covers the Recipient level of the Tracking
+// Policy cascade (#419) — the most specific of the three, where a caller states
+// the consent it holds in its own CRM (ADR 0002). Everything asserted here is
+// what an API caller can observe: the send response, and the concrete Policy
+// frozen on each Delivery, which is what the Builder will act on.
+func TestSendMailRecipientTrackingPolicy(t *testing.T) {
+	t.Run("TheCascadeResolvesToTheMostRestrictiveLevel", func(t *testing.T) {
+		cases := []struct {
+			name      string
+			domain    *trackingtypes.TrackingPolicy
+			batch     *trackingtypes.TrackingPolicy
+			recipient *trackingtypes.TrackingPolicy
+			want      tracking.Policy
+		}{
+			{
+				name:      "RecipientOffWinsOverDomainFull",
+				domain:    wirePolicy(wireFull, wireFull),
+				recipient: wirePolicy(wireOff, wireOff),
+				want:      tracking.Policy{Opens: tracking.ModeOff, Links: tracking.ModeOff},
+			},
+			{
+				name:      "RecipientNarrowsTheBatch",
+				domain:    wirePolicy(wireFull, wireFull),
+				batch:     wirePolicy(wireIdentified, wireIdentified),
+				recipient: wirePolicy(wireAnonymous, wireAnonymous),
+				want:      tracking.Policy{Opens: tracking.ModeAnonymous, Links: tracking.ModeAnonymous},
+			},
+			{
+				name:      "TheBatchStillNarrowsARecipientAtTheCeiling",
+				domain:    wirePolicy(wireFull, wireFull),
+				batch:     wirePolicy(wireOff, wireOff),
+				recipient: wirePolicy(wireFull, wireFull),
+				want:      tracking.Policy{Opens: tracking.ModeOff, Links: tracking.ModeOff},
+			},
+			{
+				name:      "AnUnstatedRecipientAxisImposesNoRestriction",
+				domain:    wirePolicy(wireFull, wireFull),
+				recipient: wirePolicy(wireOff, wireUnspecified),
+				want:      tracking.Policy{Opens: tracking.ModeOff, Links: tracking.ModeFull},
+			},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				defer cleanDB(t)
+
+				d := createTestDomain(t)
+				setDomainTracking(t, d, tc.domain)
+
+				res := requireSend(t, d, tc.batch, &types.Recipient{
+					Email:    "first@email.com",
+					Tracking: tc.recipient,
+				})
+
+				assert.Empty(t, rejections(t, res))
+				assert.EqualValues(t, 1, res.AcceptedCount)
+				assert.Equal(t, map[string]tracking.Policy{"first@email.com": tc.want}, frozenPolicies(t, res.MessageId))
+			})
+		}
+	})
+
+	t.Run("EachRecipientOfOneBatchGetsItsOwnPolicy", func(t *testing.T) {
+		defer cleanDB(t)
+
+		d := createTestDomain(t)
+		setDomainTracking(t, d, wirePolicy(wireFull, wireFull))
+
+		res := requireSend(t, d, nil,
+			&types.Recipient{Email: "consented@email.com", Tracking: wirePolicy(wireFull, wireFull)},
+			&types.Recipient{Email: "refused@email.com", Tracking: wirePolicy(wireOff, wireOff)},
+			&types.Recipient{Email: "unstated@email.com"},
+		)
+
+		assert.Empty(t, rejections(t, res))
+		assert.EqualValues(t, 3, res.AcceptedCount)
+		assert.Equal(t, map[string]tracking.Policy{
+			"consented@email.com": {Opens: tracking.ModeFull, Links: tracking.ModeFull},
+			"refused@email.com":   {Opens: tracking.ModeOff, Links: tracking.ModeOff},
+			"unstated@email.com":  {Opens: tracking.ModeFull, Links: tracking.ModeFull},
+		}, frozenPolicies(t, res.MessageId))
+	})
+
+	// A Recipient's ceiling is its Domain's Policy, so consent can never widen
+	// what the operator authorised (ADR 0003). Exceeding it Rejects the one
+	// Recipient and nothing else: one bad row must not fail a send of thousands.
+	t.Run("AboveTheDomainCeilingRejectsOnlyThatRecipient", func(t *testing.T) {
+		cases := []struct {
+			name      string
+			domain    *trackingtypes.TrackingPolicy
+			recipient *trackingtypes.TrackingPolicy
+		}{
+			{
+				name:      "AboveIdentified",
+				domain:    wirePolicy(wireIdentified, wireIdentified),
+				recipient: wirePolicy(wireFull, wireFull),
+			},
+			{
+				name:      "RecipientFullCannotWinOverDomainOff",
+				domain:    wirePolicy(wireOff, wireOff),
+				recipient: wirePolicy(wireFull, wireFull),
+			},
+			{
+				name:      "AboveOnOneAxisOnly",
+				domain:    wirePolicy(wireIdentified, wireOff),
+				recipient: wirePolicy(wireAnonymous, wireFull),
+			},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				defer cleanDB(t)
+
+				d := createTestDomain(t)
+				setDomainTracking(t, d, tc.domain)
+
+				res := requireSend(t, d, nil,
+					&types.Recipient{Email: "fine@email.com"},
+					&types.Recipient{Email: "greedy@email.com", Tracking: tc.recipient},
+					&types.Recipient{Email: "alsofine@email.com"},
+				)
+
+				assert.Equal(t, map[string]string{"greedy@email.com": "tracking_above_ceiling"}, rejections(t, res))
+				assert.EqualValues(t, 2, res.AcceptedCount)
+				assert.ElementsMatch(t, []string{"fine@email.com", "alsofine@email.com"},
+					poolEmails(t, res.MessageId),
+					"the rest of the Batch must proceed normally")
+			})
+		}
+	})
+
+	// The reserved Mode is the one place the Recipient level and the Batch level
+	// differ in kind: a Batch stating it fails the whole call, a Recipient
+	// stating it is Rejected on its own.
+	t.Run("PseudonymousRejectsOnlyThatRecipient", func(t *testing.T) {
+		defer cleanDB(t)
+
+		d := createTestDomain(t)
+
+		res := requireSend(t, d, nil,
+			&types.Recipient{Email: "fine@email.com"},
+			&types.Recipient{Email: "reserved@email.com", Tracking: wirePolicy(wirePseudonymous, wireUnspecified)},
+		)
+
+		assert.Equal(t, map[string]string{"reserved@email.com": "unsupported_tracking_mode"}, rejections(t, res))
+		assert.EqualValues(t, 1, res.AcceptedCount)
+		assert.Equal(t, []string{"fine@email.com"}, poolEmails(t, res.MessageId))
+	})
+
+	t.Run("OmittingTheFieldBehavesExactlyAsBefore", func(t *testing.T) {
+		defer cleanDB(t)
+
+		d := createTestDomain(t)
+
+		// No Recipient states anything: every Delivery resolves to the Domain's
+		// identified/identified default and nothing is Rejected.
+		res := requireSend(t, d, nil,
+			&types.Recipient{Email: "first@email.com"},
+			&types.Recipient{Email: "second@email.com"},
+		)
+
+		assert.Empty(t, rejections(t, res))
+		assert.EqualValues(t, 2, res.AcceptedCount)
+		assert.NotEmpty(t, res.MessageId)
+		assert.NotEmpty(t, res.TemplateId)
+
+		identified := tracking.Policy{Opens: tracking.ModeIdentified, Links: tracking.ModeIdentified}
+		assert.Equal(t, map[string]tracking.Policy{
+			"first@email.com":  identified,
+			"second@email.com": identified,
+		}, frozenPolicies(t, res.MessageId))
+	})
+}
+
+func TestSendMailRejectsRecipientsWithEmptyEmail(t *testing.T) {
 	defer cleanDB(t)
 
 	d := createTestDomain(t)
@@ -615,50 +790,139 @@ func TestSendMailSkipsRecipientsWithEmptyEmail(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotEmpty(t, res.Msg.MessageId)
 
-	sp, err := q.GetSendingPoolsEmails(t.Context(), sqlc.GetSendingPoolsEmailsParams{
-		MessageID: res.Msg.MessageId,
-		Limit:     100,
-		Offset:    0,
-	})
-	assert.Nil(t, err)
-	assert.Equal(t, 3, len(sp))
+	// The dropped rows are reported rather than swallowed (#364): a caller can
+	// reconcile the 3 it queued against the 2 it did not.
+	assert.EqualValues(t, 3, res.Msg.AcceptedCount)
+	assert.Equal(t, map[string]string{
+		"":    "invalid_email",
+		"   ": "invalid_email",
+	}, rejections(t, res.Msg))
 
-	got := []string{sp[0].Email, sp[1].Email, sp[2].Email}
-	assert.ElementsMatch(t, []string{"first@email.com", "second@email.com", "third@email.com"}, got)
+	assert.ElementsMatch(t, []string{"first@email.com", "second@email.com", "third@email.com"},
+		poolEmails(t, res.Msg.MessageId))
 }
 
-func TestSendMailWithAllEmptyRecipientsSucceedsWithEmptyPool(t *testing.T) {
+// TestSendMailWithAllRecipientsRejectedIsNotASilentSuccess closes the data-loss
+// hole in #364: a caller whose every Recipient was refused used to get a Batch
+// id and no indication that nothing had been queued.
+func TestSendMailWithAllRecipientsRejectedIsNotASilentSuccess(t *testing.T) {
 	defer cleanDB(t)
 
 	d := createTestDomain(t)
 
+	res := requireSend(t, d, nil,
+		&types.Recipient{Email: ""},
+		&types.Recipient{Email: "\t"},
+	)
+
+	assert.NotEmpty(t, res.MessageId)
+	assert.EqualValues(t, 0, res.AcceptedCount)
+	assert.EqualValues(t, 2, res.RejectedCount)
+	assert.Len(t, res.RejectedRecipients, 2)
+	for _, r := range res.RejectedRecipients {
+		assert.Equal(t, "invalid_email", r.Reason)
+	}
+	assert.Empty(t, poolEmails(t, res.MessageId))
+}
+
+// Shorthands for the wire enum, so the cascade tables above stay readable.
+const (
+	wireUnspecified  = trackingtypes.TrackingMode_TRACKING_MODE_UNSPECIFIED
+	wireOff          = trackingtypes.TrackingMode_TRACKING_MODE_OFF
+	wireAnonymous    = trackingtypes.TrackingMode_TRACKING_MODE_ANONYMOUS
+	wirePseudonymous = trackingtypes.TrackingMode_TRACKING_MODE_PSEUDONYMOUS
+	wireIdentified   = trackingtypes.TrackingMode_TRACKING_MODE_IDENTIFIED
+	wireFull         = trackingtypes.TrackingMode_TRACKING_MODE_FULL
+)
+
+func wirePolicy(opens, links trackingtypes.TrackingMode) *trackingtypes.TrackingPolicy {
+	return &trackingtypes.TrackingPolicy{Opens: opens, Links: links}
+}
+
+// setDomainTracking sets the Domain's Tracking Policy — its ceiling — the way an
+// operator would, through the Admin API. A nil Policy leaves the Domain at the
+// identified/identified default a fresh Domain starts from.
+func setDomainTracking(t *testing.T, d *tests.DomainWithKey, p *trackingtypes.TrackingPolicy) {
+	t.Helper()
+	if p == nil {
+		return
+	}
+	_, err := adminAPI.SetTrackingPolicy(t.Context(), connect.NewRequest(&adminv1.SetTrackingPolicyReq{
+		Domain:   d.Domain.Domain,
+		Tracking: p,
+	}))
+	require.NoError(t, err)
+}
+
+// requireSend performs one send for d with an optional Batch-level Policy and
+// the given Recipients, and returns the response — the surface an API caller
+// actually sees. It requires the call itself to succeed, so a test asserting a
+// per-Recipient rejection is asserting that the Batch was *not* failed.
+func requireSend(t *testing.T, d *tests.DomainWithKey, batchPolicy *trackingtypes.TrackingPolicy, recipients ...*types.Recipient) *mailerv1.SendRes {
+	t.Helper()
 	req := connect.NewRequest(&mailerv1.SendHTMLReq{
 		Sender: &types.Sender{
 			Email: "test@" + d.Domain.Domain,
 			Alias: "Test",
 		},
-		Recipients: []*types.Recipient{
-			{Email: ""},
-			{Email: "\t"},
-		},
+		Recipients:    recipients,
 		Subject:       "Test",
-		Html:          "Hello",
+		Html:          `<p>Hello</p>`,
 		ScheduledTime: timestamppb.Now(),
+		Tracking:      batchPolicy,
 	})
 	authRequest(req, d)
 
 	res, err := ts.SendHTML(t.Context(), req)
+	require.NoError(t, err)
+	return res.Msg
+}
 
-	assert.Nil(t, err)
-	assert.NotEmpty(t, res.Msg.MessageId)
+// rejections returns the Rejected Recipients of a send as address to reason, and
+// checks along the way that the reported count agrees with the list.
+func rejections(t *testing.T, res *mailerv1.SendRes) map[string]string {
+	t.Helper()
+	assert.EqualValues(t, len(res.RejectedRecipients), res.RejectedCount,
+		"rejected_count must agree with rejected_recipients")
+	out := make(map[string]string, len(res.RejectedRecipients))
+	for _, r := range res.RejectedRecipients {
+		out[r.Email] = r.Reason
+	}
+	return out
+}
 
+// frozenPolicies returns the Tracking Policy frozen on each Delivery of a Batch,
+// keyed by Recipient address. This is the value the Builder acts on, so it is
+// the observable consequence of the cascade.
+func frozenPolicies(t *testing.T, messageID string) map[string]tracking.Policy {
+	t.Helper()
+	out := make(map[string]tracking.Policy)
+	for _, row := range pool(t, messageID) {
+		out[row.Email] = row.Tracking
+	}
+	return out
+}
+
+// poolEmails returns the addresses actually queued for a Batch.
+func poolEmails(t *testing.T, messageID string) []string {
+	t.Helper()
+	rows := pool(t, messageID)
+	out := make([]string, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, row.Email)
+	}
+	return out
+}
+
+func pool(t *testing.T, messageID string) []sqlc.SendingPoolEmail {
+	t.Helper()
 	sp, err := q.GetSendingPoolsEmails(t.Context(), sqlc.GetSendingPoolsEmailsParams{
-		MessageID: res.Msg.MessageId,
+		MessageID: messageID,
 		Limit:     100,
 		Offset:    0,
 	})
-	assert.Nil(t, err)
-	assert.Equal(t, 0, len(sp))
+	require.NoError(t, err)
+	return sp
 }
 
 func TestSendMailWithGlobalFields(t *testing.T) {
