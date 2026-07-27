@@ -100,8 +100,8 @@ func (c *clientTest) SendEmailExpectingFailure(t *testing.T, email *mailerapiv1.
 }
 
 func (f *clientTest) GetAggregatedStats(t *testing.T) *statsapiv2.GetAggregatedStatsRes {
-	// Aggregated stats are bucketed by day (truncated to midnight UTC),
-	// so the query range must span at least a full day to include today's bucket.
+	// Aggregated stats are bucketed by UTC hour, so the query range is widened
+	// around now to cover the bucket the events just landed in.
 	resp, err := f.statsV2Client.GetAggregatedStats(t.Context(), connect.NewRequest(&statsapiv2.GetAggregatedStatsReq{
 		Domain:   f.domain,
 		FromDate: timestamppb.New(time.Now().Add(-24 * time.Hour)),

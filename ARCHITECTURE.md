@@ -148,7 +148,7 @@ Kannon is a cloud-native, scalable SMTP mail sender designed for Kubernetes and 
 
 #### `pkg/stats/`
 
-- Worker that consumes stats events from NATS and persists them to the database. Two independent consumers read the same `kannon.stats.*` subject: the per-recipient one writes a stat row, and the aggregated one increments the Domain's daily counters. Under `anonymous` only the second runs — the event moves the counters and leaves no per-recipient row at all. An event that is *not* anonymous yet arrives naming nobody violates that invariant and is logged as an error rather than quietly dropped.
+- Worker that consumes stats events from NATS and persists them to the database. Two independent consumers read the same `kannon.stats.*` subject: the per-recipient one writes a stat row, and the aggregated one increments the Domain's hourly counters. Under `anonymous` only the second runs — the event moves the counters and leaves no per-recipient row at all. An event that is *not* anonymous yet arrives naming nobody violates that invariant and is logged as an error rather than quietly dropped.
 
 #### `pkg/validator/`
 
