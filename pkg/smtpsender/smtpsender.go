@@ -33,7 +33,27 @@ type smtpSender struct {
 	sender    smtp.Sender
 	publisher publisher.Publisher
 	js        jetstream.JetStream
+	guard     sendGuard
 	cfg       Config
+}
+
+// sendAckPolicy is the ack deadline curve of the sending consumer, and it is
+// deliberately much longer than utils.DefaultAckPolicy: this worker acks only
+// once the SMTP transaction has returned, so the first deadline has to outlast
+// the slowest transaction worth waiting for — internal/smtp gives a single
+// delivery attempt two minutes, and falls back across MX hosts.
+//
+// A shorter deadline does not merely retry bookkeeping: the server hands the
+// Envelope to a second worker while the first is still talking to the relay,
+// and the recipient receives the email twice. That is #425, where the curve
+// left behind by #396 gave every SMTP transaction one second to complete.
+//
+// The later entries keep an Envelope no worker can settle from cycling: the
+// last one governs every attempt up to MaxDeliver.
+var sendAckPolicy = utils.AckPolicy{
+	2 * time.Minute,
+	5 * time.Minute,
+	15 * time.Minute,
 }
 
 // New constructs the SMTPSender runnable, loading its slice of configuration
@@ -63,9 +83,16 @@ func (s *smtpSender) Run(ctx context.Context) error {
 		Info("Starting SMTPSender Service")
 	mustConfigureStatsJS(ctx, s.js)
 
-	consumer := utils.MustGetPullSubscriber(ctx, s.js, "kannon-sending", "kannon.sending", "kannon-sending-pool")
+	s.guard = mustGetSendGuard(ctx, s.js)
+	consumer := s.mustSendingConsumer(ctx)
 
 	return s.handleSend(ctx, consumer)
+}
+
+// mustSendingConsumer subscribes to the Envelopes waiting to be transmitted.
+func (s *smtpSender) mustSendingConsumer(ctx context.Context) jetstream.Consumer {
+	return utils.MustGetPullSubscriber(ctx, s.js, "kannon-sending", "kannon.sending", "kannon-sending-pool",
+		utils.WithAckPolicy(sendAckPolicy))
 }
 
 func (s *smtpSender) handleSend(ctx context.Context, consumer jetstream.Consumer) error {
@@ -77,7 +104,7 @@ func (s *smtpSender) handleSend(ctx context.Context, consumer jetstream.Consumer
 
 	con, err := consumer.Consume(func(msg jetstream.Msg) {
 		tasks.RunTask(func() {
-			err := s.handleMessage(msg)
+			err := s.handleMessage(ctx, msg)
 			s.handleMsgAck(msg, err)
 		})
 	})
@@ -106,12 +133,17 @@ func (s *smtpSender) handleMsgAck(msg jetstream.Msg, err error) {
 	}
 }
 
-func (s *smtpSender) handleMessage(msg jetstream.Msg) error {
+func (s *smtpSender) handleMessage(ctx context.Context, msg jetstream.Msg) error {
 	data := &msgtypes.EmailToSend{}
 	err := proto.Unmarshal(msg.Data(), data)
 	if err != nil {
 		return err
 	}
+
+	if !s.claimSend(ctx, msg, data) {
+		return nil
+	}
+
 	sendErr := s.sender.Send(data.ReturnPath, data.To, data.Body)
 	if sendErr != nil {
 		slog.Info(fmt.Sprintf("Cannot send email %v - %v: %v", utils.ObfuscateEmail(data.To), data.EmailId, sendErr.Error()))
@@ -119,6 +151,39 @@ func (s *smtpSender) handleMessage(msg jetstream.Msg) error {
 	}
 	slog.Info(fmt.Sprintf("Email delivered: %v - %v", utils.ObfuscateEmail(data.To), data.EmailId))
 	return s.handleSendSuccess(data)
+}
+
+// claimSend reports whether this delivery of the Envelope is the one allowed
+// to talk to SMTP. A delivery that loses the claim is a redelivery of an
+// Envelope already handed to a relay: it is acknowledged and dropped, because
+// re-sending it would put the same email in the recipient's mailbox twice.
+//
+// The guard fails open, including when it was never wired (Run always wires
+// it): it exists to make a rare redelivery harmless, and a bucket that cannot
+// be reached is not a reason to stop sending mail — a duplicate is a far
+// smaller failure than a batch that never leaves.
+func (s *smtpSender) claimSend(ctx context.Context, msg jetstream.Msg, data *msgtypes.EmailToSend) bool {
+	if s.guard == nil {
+		return true
+	}
+
+	key, err := sendKey(msg, data.EmailId)
+	if err != nil {
+		slog.Error("cannot derive send guard key, sending anyway", "email_id", data.EmailId, "err", err)
+		return true
+	}
+
+	claimed, err := s.guard.Claim(ctx, key)
+	if err != nil {
+		slog.Error("send guard unavailable, sending anyway", "email_id", data.EmailId, "err", err)
+		return true
+	}
+
+	if !claimed {
+		slog.Warn("skipping redelivered envelope: already handed to SMTP",
+			"email_id", data.EmailId, "to", utils.ObfuscateEmail(data.To))
+	}
+	return claimed
 }
 
 func (s *smtpSender) handleSendSuccess(data *msgtypes.EmailToSend) error {
