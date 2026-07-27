@@ -59,12 +59,17 @@ func (s *Service) QueryTimeline(ctx context.Context, domain string, timeRange Ti
 // ErrNoAggregatedRepo is returned when aggregated stats operations are called without a configured repository.
 var ErrNoAggregatedRepo = errors.New("aggregated stats repository not configured")
 
-// IncrementAggregatedStat increments the daily counter for a stat type.
+// IncrementAggregatedStat increments the hourly counter for a stat type.
+//
+// The bucket is the UTC hour the event falls in, the same granularity the raw
+// timeline (v1) reports: a consumer is then free to roll the buckets up into
+// days of whatever timezone it displays, which a UTC day bucket cannot do
+// without landing on the wrong day for negative offsets.
 func (s *Service) IncrementAggregatedStat(ctx context.Context, domain string, timestamp time.Time, statType Type) error {
 	if s.aggregatedRepo == nil {
 		return ErrNoAggregatedRepo
 	}
-	truncated := timestamp.Truncate(24 * time.Hour)
+	truncated := timestamp.UTC().Truncate(time.Hour)
 	return s.aggregatedRepo.Increment(ctx, domain, truncated, statType)
 }
 

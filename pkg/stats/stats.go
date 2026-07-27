@@ -123,7 +123,7 @@ func (h *statsHandler) cleanupCycle(ctx context.Context) error {
 	return nil
 }
 
-// handleAggregatedStats consumes kannon.stats.* messages to update daily aggregated counters.
+// handleAggregatedStats consumes kannon.stats.* messages to update hourly aggregated counters.
 // Uses a separate consumer name ("kannon-aggregated-stats") from handleStats so both
 // receive all messages independently.
 func (h *statsHandler) handleAggregatedStats(ctx context.Context) error {
@@ -143,7 +143,7 @@ func (h *statsHandler) handleAggregatedStats(ctx context.Context) error {
 	return nil
 }
 
-// handleAggregatedStatsMsg counts one stat event against its Domain's daily
+// handleAggregatedStatsMsg counts one stat event against its Domain's hourly
 // counter. It reads only the Domain, the timestamp and the type, so it counts
 // every Mode alike — including Anonymous, whose whole purpose is to reach this
 // counter and no further.

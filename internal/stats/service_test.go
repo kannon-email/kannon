@@ -254,7 +254,7 @@ func TestIncrementAggregatedStat(t *testing.T) {
 
 	ts := time.Date(2026, 1, 15, 14, 30, 0, 0, time.UTC)
 
-	// Increment the same domain/day/type 3 times.
+	// Increment the same domain/hour/type 3 times.
 	for range 3 {
 		if err := svc.IncrementAggregatedStat(ctx, "example.com", ts, stats.TypeDelivered); err != nil {
 			t.Fatalf("IncrementAggregatedStat: %v", err)
@@ -310,6 +310,48 @@ func TestIncrementAggregatedStat_SeparateEntries(t *testing.T) {
 
 	if len(results) != 3 {
 		t.Fatalf("expected 3 entries (2 types on day1 + 1 on day2), got %d", len(results))
+	}
+}
+
+// TestIncrementAggregatedStat_HourlyBuckets pins the granularity of the counter:
+// the bucket is the UTC hour, so two events in the same day but different hours
+// are two rows, and only events sharing an hour are summed together.
+func TestIncrementAggregatedStat_HourlyBuckets(t *testing.T) {
+	svc := newTestServiceWithAggregated()
+	ctx := t.Context()
+
+	hour10 := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
+	sameHour := time.Date(2026, 1, 15, 10, 59, 59, 0, time.UTC)
+	hour14 := time.Date(2026, 1, 15, 14, 30, 0, 0, time.UTC)
+
+	for _, ts := range []time.Time{hour10, sameHour, hour14} {
+		if err := svc.IncrementAggregatedStat(ctx, "example.com", ts, stats.TypeDelivered); err != nil {
+			t.Fatalf("IncrementAggregatedStat: %v", err)
+		}
+	}
+
+	tr := stats.TimeRange{
+		Start: time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
+		Stop:  time.Date(2026, 1, 16, 0, 0, 0, 0, time.UTC),
+	}
+	results, err := svc.QueryAggregatedStats(ctx, "example.com", tr)
+	if err != nil {
+		t.Fatalf("QueryAggregatedStats: %v", err)
+	}
+
+	if len(results) != 2 {
+		t.Fatalf("expected 2 hourly buckets within the same day, got %d", len(results))
+	}
+
+	counts := map[time.Time]int64{}
+	for _, r := range results {
+		counts[r.Timestamp.UTC()] = r.Count
+	}
+	if got := counts[hour10]; got != 2 {
+		t.Errorf("expected 2 events in the 10:00 bucket, got %d", got)
+	}
+	if got := counts[time.Date(2026, 1, 15, 14, 0, 0, 0, time.UTC)]; got != 1 {
+		t.Errorf("expected 1 event in the 14:00 bucket, got %d", got)
 	}
 }
 

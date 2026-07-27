@@ -80,7 +80,8 @@ func perRecipientRows(t *testing.T, domain string) int64 {
 	return total
 }
 
-// aggregatedCount reports a Domain's daily counter for one stat type.
+// aggregatedCount reports a Domain's aggregated counter for one stat type,
+// summed over the hourly buckets around now.
 func aggregatedCount(t *testing.T, domain string, statType stats.Type) int64 {
 	t.Helper()
 
