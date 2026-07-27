@@ -141,6 +141,7 @@ Kannon is a cloud-native, scalable SMTP mail sender designed for Kubernetes and 
 #### `pkg/smtpsender/`
 
 - Worker that consumes emails to send from NATS, performs SMTP delivery, and publishes delivery/bounce/error stats back to NATS.
+- Acknowledges a message only once the SMTP transaction has returned, so its consumer is given an ack deadline that outlasts one (`sendAckPolicy`), and every send is claimed in the `kannon-sent-envelopes` key/value bucket first, so a redelivery cannot put the same email in a mailbox twice. See [ADR 0004](docs/adr/0004-send-idempotency-guard.md).
 
 #### `pkg/smtp/`
 
