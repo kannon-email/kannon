@@ -45,6 +45,7 @@ func (q *Queries) DeleteStatsOlderThan(ctx context.Context, before pgtype.Timest
 
 const insertStat = `-- name: InsertStat :exec
 INSERT INTO stats (email, message_id, type, timestamp, domain, data) VALUES  ($1, $2, $3, $4, $5, $6)
+ON CONFLICT (email, message_id, domain, type, timestamp) DO NOTHING
 `
 
 type InsertStatParams struct {
@@ -56,6 +57,12 @@ type InsertStatParams struct {
 	Data      *pbtypes.StatsData
 }
 
+// The unique index on (email, message_id, domain, type, timestamp) is what makes
+// this insert idempotent, and the timestamp is set by the publisher: a JetStream
+// redelivery of the same event carries the same one, so it collides with the row
+// the first delivery already wrote. DO NOTHING turns that second write into the
+// no-op it should be. Without it the insert raises a unique violation, the handler
+// Naks, and the event is redelivered until MaxDeliver gives up on it.
 func (q *Queries) InsertStat(ctx context.Context, arg InsertStatParams) error {
 	_, err := q.db.Exec(ctx, insertStat,
 		arg.Email,

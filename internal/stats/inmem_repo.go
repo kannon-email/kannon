@@ -26,6 +26,14 @@ func (r *InMemRepository) Insert(_ context.Context, stat *Stat) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	// Mirrors the unique index the real table carries: re-inserting an event
+	// already stored is a no-op, not a second row.
+	for _, s := range r.stats {
+		if sameEvent(s, stat) {
+			return nil
+		}
+	}
+
 	stat.ID = r.nextID
 	r.nextID++
 
@@ -37,6 +45,17 @@ func (r *InMemRepository) Insert(_ context.Context, stat *Stat) error {
 	}
 	r.stats = append(r.stats, &cp)
 	return nil
+}
+
+// sameEvent reports whether two stats describe the same event, using the columns
+// the table's unique index is built on. The payload is deliberately not part of
+// the comparison: it is not part of the index either.
+func sameEvent(a, b *Stat) bool {
+	return a.Email == b.Email &&
+		a.MessageID == b.MessageID &&
+		a.Domain == b.Domain &&
+		a.Type == b.Type &&
+		a.Timestamp.Equal(b.Timestamp)
 }
 
 func (r *InMemRepository) Query(_ context.Context, domain string, tr TimeRange, page Pagination) ([]*Stat, error) {

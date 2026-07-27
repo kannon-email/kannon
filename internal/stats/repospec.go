@@ -21,6 +21,9 @@ func RunRepoSpec(t *testing.T, repo Repository) {
 	t.Run("Insert+Query", func(t *testing.T) {
 		testInsertAndQuery(t, repo)
 	})
+	t.Run("Insert/IsIdempotent", func(t *testing.T) {
+		testInsertIsIdempotent(t, repo)
+	})
 	t.Run("Query/Pagination", func(t *testing.T) {
 		testQueryPagination(t, repo)
 	})
@@ -69,6 +72,51 @@ func testInsertAndQuery(t *testing.T, repo Repository) {
 	assert.Equal(t, "user@example.com", results[0].Email)
 	assert.Equal(t, "msg-001", results[0].MessageID)
 	assert.Equal(t, domain, results[0].Domain)
+}
+
+// A stat event carries the timestamp its publisher stamped on it, so a message
+// redelivered by JetStream — because the ack deadline elapsed while this very
+// insert was in flight — arrives identical to the one already stored. Storing it
+// again would inflate the recipient's history with an event that never happened
+// twice, so the second insert must succeed and change nothing.
+func testInsertIsIdempotent(t *testing.T, repo Repository) {
+	ctx := t.Context()
+	domain := fmt.Sprintf("insert-idempotent-%d.test", time.Now().UnixNano())
+	now := time.Date(2026, 1, 15, 10, 30, 0, 0, time.UTC)
+
+	stat := func() *Stat {
+		return &Stat{
+			Type:      TypeDelivered,
+			Email:     "user@example.com",
+			MessageID: "msg-001",
+			Domain:    domain,
+			Timestamp: now,
+			Data:      deliveredData,
+		}
+	}
+
+	require.NoError(t, repo.Insert(ctx, stat()))
+	require.NoError(t, repo.Insert(ctx, stat()))
+
+	tr := TimeRange{Start: now.Add(-time.Hour), Stop: now.Add(time.Hour)}
+	results, err := repo.Query(ctx, domain, tr, Pagination{Limit: 10, Offset: 0})
+	require.NoError(t, err)
+	assert.Len(t, results, 1)
+
+	count, err := repo.Count(ctx, domain, tr)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), count)
+
+	// A genuine second event of the same type is a different moment in time, and
+	// must still be stored: the guard is against redelivery, not against a
+	// recipient opening the same email twice.
+	second := stat()
+	second.Timestamp = now.Add(time.Minute)
+	require.NoError(t, repo.Insert(ctx, second))
+
+	count, err = repo.Count(ctx, domain, tr)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), count)
 }
 
 func testQueryPagination(t *testing.T, repo Repository) {

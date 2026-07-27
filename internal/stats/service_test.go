@@ -1,6 +1,7 @@
 package stats_test
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -94,8 +95,10 @@ func TestQueryStats_FiltersByDomain(t *testing.T) {
 	now := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	tr := stats.TimeRange{Start: now.Add(-time.Hour), Stop: now.Add(time.Hour)}
 
-	for _, domain := range []string{"a.com", "b.com", "a.com"} {
-		s := stats.NewStat("u@"+domain, "msg", domain, now, &types.StatsData{
+	// Distinct message ids: two events of the same type, for the same recipient,
+	// at the same instant are the same event as far as the store is concerned.
+	for i, domain := range []string{"a.com", "b.com", "a.com"} {
+		s := stats.NewStat("u@"+domain, fmt.Sprintf("msg-%d", i), domain, now, &types.StatsData{
 			Data: &types.StatsData_Accepted{},
 		})
 		if err := svc.InsertStat(ctx, s); err != nil {
@@ -195,8 +198,8 @@ func TestCleanup(t *testing.T) {
 	old := now.Add(-48 * time.Hour)
 	recent := now.Add(-time.Hour)
 
-	for _, ts := range []time.Time{old, old, recent} {
-		s := stats.NewStat("u@d.com", "msg", "d.com", ts, &types.StatsData{
+	for i, ts := range []time.Time{old, old, recent} {
+		s := stats.NewStat("u@d.com", fmt.Sprintf("msg-%d", i), "d.com", ts, &types.StatsData{
 			Data: &types.StatsData_Delivered{},
 		})
 		if err := svc.InsertStat(ctx, s); err != nil {
