@@ -10,6 +10,8 @@ import (
 
 // testSenderAlias is the Sender alias shared by the repo spec's fixture
 // Batches; factored out so goconst does not flag its repeated use.
+const testSubject = "hello"
+
 const testSenderAlias = "From"
 
 // RepoTestHelper provides test utilities for repository spec tests.
@@ -45,7 +47,7 @@ func testCreate(t *testing.T, repo Repository, helper RepoTestHelper) {
 		domain := helper.CreateDomain(t)
 		tpl := helper.CreateTemplate(t, domain)
 
-		b, err := New(domain, "hello", Sender{Email: "from@" + domain, Alias: testSenderAlias}, tpl, nil, Headers{}, tracking.Policy{})
+		b, err := New(NewParams{Domain: domain, Subject: testSubject, Sender: Sender{Email: "from@" + domain, Alias: testSenderAlias}, TemplateID: tpl})
 		require.NoError(t, err)
 
 		err = repo.Create(ctx, b)
@@ -59,7 +61,7 @@ func testCreate(t *testing.T, repo Repository, helper RepoTestHelper) {
 
 		atts := Attachments{"a.txt": []byte("hi")}
 		hdrs := Headers{To: []string{"to@" + domain}, Cc: []string{"cc@" + domain}}
-		b, err := New(domain, "hello", Sender{Email: "from@" + domain, Alias: testSenderAlias}, tpl, atts, hdrs, tracking.Policy{})
+		b, err := New(NewParams{Domain: domain, Subject: testSubject, Sender: Sender{Email: "from@" + domain, Alias: testSenderAlias}, TemplateID: tpl, Attachments: atts, Headers: hdrs})
 		require.NoError(t, err)
 
 		err = repo.Create(ctx, b)
@@ -71,6 +73,37 @@ func testCreate(t *testing.T, repo Repository, helper RepoTestHelper) {
 		assert.Equal(t, []string{"to@" + domain}, fetched.Headers().To)
 		assert.Equal(t, []string{"cc@" + domain}, fetched.Headers().Cc)
 	})
+
+	t.Run("WithOneClickUnsubscribe", func(t *testing.T) {
+		ctx := t.Context()
+		domain := helper.CreateDomain(t)
+		tpl := helper.CreateTemplate(t, domain)
+
+		u := OneClickUnsubscribe{URLTemplate: "https://sender.example/unsub?email={{ email }}"}
+		b, err := New(NewParams{Domain: domain, Subject: testSubject, Sender: Sender{Email: "from@" + domain, Alias: testSenderAlias}, TemplateID: tpl, OneClickUnsubscribe: u})
+		require.NoError(t, err)
+		require.NoError(t, repo.Create(ctx, b))
+
+		fetched, err := repo.GetByID(ctx, b.ID())
+		require.NoError(t, err)
+		assert.Equal(t, u, fetched.OneClickUnsubscribe())
+	})
+
+	t.Run("WithoutOneClickUnsubscribe", func(t *testing.T) {
+		// The key is absent from the headers JSONB, which is the same state every
+		// Batch written before ADR 0005 is in — hence no migration.
+		ctx := t.Context()
+		domain := helper.CreateDomain(t)
+		tpl := helper.CreateTemplate(t, domain)
+
+		b, err := New(NewParams{Domain: domain, Subject: testSubject, Sender: Sender{Email: "from@" + domain, Alias: testSenderAlias}, TemplateID: tpl})
+		require.NoError(t, err)
+		require.NoError(t, repo.Create(ctx, b))
+
+		fetched, err := repo.GetByID(ctx, b.ID())
+		require.NoError(t, err)
+		assert.True(t, fetched.OneClickUnsubscribe().IsZero())
+	})
 }
 
 func testGetByID(t *testing.T, repo Repository, helper RepoTestHelper) {
@@ -79,7 +112,7 @@ func testGetByID(t *testing.T, repo Repository, helper RepoTestHelper) {
 		domain := helper.CreateDomain(t)
 		tpl := helper.CreateTemplate(t, domain)
 
-		b, err := New(domain, "hello", Sender{Email: "from@" + domain, Alias: "Alias"}, tpl, nil, Headers{}, tracking.Policy{})
+		b, err := New(NewParams{Domain: domain, Subject: testSubject, Sender: Sender{Email: "from@" + domain, Alias: "Alias"}, TemplateID: tpl})
 		require.NoError(t, err)
 		require.NoError(t, repo.Create(ctx, b))
 
@@ -113,7 +146,7 @@ func testTrackingPolicyProvenance(t *testing.T, repo Repository, helper RepoTest
 		tpl := helper.CreateTemplate(t, domain)
 
 		stated := tracking.Policy{Opens: tracking.ModeFull, Links: tracking.ModeOff}
-		b, err := New(domain, "hello", Sender{Email: "from@" + domain, Alias: testSenderAlias}, tpl, nil, Headers{}, stated)
+		b, err := New(NewParams{Domain: domain, Subject: testSubject, Sender: Sender{Email: "from@" + domain, Alias: testSenderAlias}, TemplateID: tpl, Tracking: stated})
 		require.NoError(t, err)
 		require.NoError(t, repo.Create(ctx, b))
 
@@ -132,7 +165,7 @@ func testTrackingPolicyProvenance(t *testing.T, repo Repository, helper RepoTest
 		// Only opens is stated; links states nothing. Unlike the Domain
 		// ceiling, the Batch provenance column must not normalise this away.
 		stated := tracking.Policy{Opens: tracking.ModeAnonymous}
-		b, err := New(domain, "hello", Sender{Email: "from@" + domain, Alias: testSenderAlias}, tpl, nil, Headers{}, stated)
+		b, err := New(NewParams{Domain: domain, Subject: testSubject, Sender: Sender{Email: "from@" + domain, Alias: testSenderAlias}, TemplateID: tpl, Tracking: stated})
 		require.NoError(t, err)
 		require.NoError(t, repo.Create(ctx, b))
 

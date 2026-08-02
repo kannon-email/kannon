@@ -255,6 +255,36 @@ The optional `headers` field allows overriding the `To` and adding a `Cc` header
 
 This is useful for scenarios where you want the email to appear addressed to a group or alias while delivering to individual recipients.
 
+#### One-click unsubscribe
+
+The optional `one_click_unsubscribe` field carries **your own** unsubscribe
+endpoint in the `List-Unsubscribe` and `List-Unsubscribe-Post` headers
+(RFC 8058), which the large receivers require of bulk senders. Kannon
+personalises the URL, emits it and DKIM-signs it — it never calls it, keeps no
+suppression list, and records nothing when a recipient uses it.
+
+```json
+{
+  "one_click_unsubscribe": {
+    "url_template": "https://yourdomain.com/unsub?email={{ email }}"
+  }
+}
+```
+
+- The URL must be **https**; `mailto:` and plain `http` are refused, and a
+  malformed template fails the whole call.
+- Your endpoint must accept **`POST`** with body `List-Unsubscribe=One-Click`
+  and unsubscribe with no confirmation step. Setting this field asserts that,
+  and Kannon cannot check it for you.
+- `{{ field }}` placeholders are substituted per recipient and
+  **percent-encoded**, so pass raw values. `email` is always available and holds
+  the recipient's address unless you pass a field of that name yourself.
+- A recipient whose fields leave a placeholder unresolved is refused on its own,
+  with reason `unsubscribe_url_unresolved`, while the rest of the send proceeds.
+
+State it per send: it is deliberately not a per-domain default, since an
+unsubscribe header does not belong on a password reset or a receipt.
+
 #### Link tracking
 
 When the Tracking Policy governing a message allows link tracking, every `<a href="...">` in the HTML is rewritten into a `https://stats.<your-domain>/c/<token>` redirect that records the click and forwards the recipient to the original URL.

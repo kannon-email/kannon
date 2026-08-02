@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/kannon-email/kannon/internal/batch"
 	sqlc "github.com/kannon-email/kannon/internal/db"
@@ -29,6 +30,9 @@ type SendingData struct {
 	DkimPrivateKey string
 	Attachments    map[string][]byte
 	Headers        batch.Headers
+	// OneClickUnsubscribe is the sender's unsubscribe endpoint as stated for the
+	// Batch, zero when it stated none.
+	OneClickUnsubscribe batch.OneClickUnsubscribe
 }
 
 // SendingDataSource looks up the rendering inputs for a Batch.
@@ -108,8 +112,7 @@ func (b *defaultBuilder) Build(ctx context.Context, d *delivery.Delivery) (*Enve
 		return nil, err
 	}
 
-	hasCc := len(data.Headers.Cc) > 0
-	signedMsg, err := signMessage(data.Domain, data.DkimPrivateKey, msg, hasCc)
+	signedMsg, err := signMessage(data.Domain, data.DkimPrivateKey, msg)
 	if err != nil {
 		return nil, err
 	}
@@ -126,28 +129,70 @@ func (b *defaultBuilder) Build(ctx context.Context, d *delivery.Delivery) (*Enve
 
 func (b *defaultBuilder) prepareMessage(ctx context.Context, d *delivery.Delivery, data SendingData, attachments Attachments) ([]byte, error) {
 	emailMessageID := buildEmailID(d.Email(), data.MessageID)
-	html, err := b.preparedHTML(ctx, d, data)
+	fields := utils.EffectiveFields(d.Email(), d.Fields())
+	html, err := b.preparedHTML(ctx, d, data, fields)
 	if err != nil {
 		return nil, err
 	}
-	subject := utils.ReplaceCustomFields(data.Subject, d.Fields())
+	subject := utils.ReplaceCustomFields(data.Subject, fields)
 
 	sender := batch.Sender{Email: data.SenderEmail, Alias: data.SenderAlias}
-	h := buildHeaders(subject, sender, d.Email(), data.MessageID, emailMessageID, b.baseHeaders, data.Headers)
+	h := buildHeaders(subject, sender, d.Email(), data.MessageID, emailMessageID, b.baseHeaders, data.Headers,
+		resolveUnsubscribeURL(data.OneClickUnsubscribe, fields))
 	return renderMsg(html, h, attachments)
 }
 
-func signMessage(domain, dkimPrivateKey string, msg []byte, hasCc bool) ([]byte, error) {
-	dkimHeaders := []string{"From", "To", "Subject", "Message-ID"}
-	if hasCc {
-		dkimHeaders = append(dkimHeaders, "Cc")
+// resolveUnsubscribeURL personalises the Batch's unsubscribe endpoint for one
+// Delivery, returning "" when no header should be emitted.
+//
+// Intake already refused every Recipient whose fields leave a placeholder
+// unresolved (ADR 0005), so reaching the empty case here means the check did not
+// run — a Delivery queued before this feature existed, or a future path into the
+// Pool that bypasses the Mailer API. This is the backstop for that: a message
+// without an unsubscribe header costs deliverability, while one advertising an
+// authenticated one-click endpoint that turns out to be a URL with braces in it
+// costs a recipient who believes they have unsubscribed and has not.
+func resolveUnsubscribeURL(u batch.OneClickUnsubscribe, fields map[string]string) string {
+	if u.IsZero() {
+		return ""
 	}
+	resolved := utils.ReplaceCustomFieldsInURL(u.URLTemplate, fields)
+	if utils.HasUnresolvedPlaceholders(resolved) {
+		slog.Warn("omitting one-click unsubscribe header: URL has unresolved placeholders")
+		return ""
+	}
+	return resolved
+}
 
+// dkimSignedHeaders is the header set every Envelope is signed over, whether or
+// not each header is present on the message.
+//
+// Naming a header that does not exist is what RFC 6376 §5.4 calls signing a null
+// header, and it lets a verifier detect one inserted after signing. The list is
+// therefore fixed rather than derived from the message: a Cc, or an unsubscribe
+// pair, added in transit now breaks the signature instead of riding along
+// unsigned.
+//
+// The two List-* headers are named **twice**, which extends the same protection
+// to a message that already carries them: instances are matched bottom-up, so a
+// second copy prepended in transit would otherwise stay outside the signature
+// while being the one a client reads first. There it is worth the divergence
+// from what most senders emit, because an injected copy redirects an
+// unauthenticated POST to an endpoint of the attacker's choosing — the attack
+// RFC 8058's signing requirement exists to prevent. The other headers are named
+// once; see ADR 0005 for why the thorough reading was not taken everywhere.
+var dkimSignedHeaders = []string{
+	"From", "To", "Cc", "Subject", "Message-ID",
+	headerListUnsubscribe, headerListUnsubscribe,
+	headerListUnsubscribePost, headerListUnsubscribePost,
+}
+
+func signMessage(domain, dkimPrivateKey string, msg []byte) ([]byte, error) {
 	signData := dkim.SignData{
 		PrivateKey: dkimPrivateKey,
 		Domain:     domain,
 		Selector:   "kannon",
-		Headers:    dkimHeaders,
+		Headers:    dkimSignedHeaders,
 	}
 
 	return dkim.SignMessage(signData, bytes.NewReader(msg))
@@ -166,9 +211,9 @@ func signMessage(domain, dkimPrivateKey string, msg []byte, hasCc bool) ([]byte,
 // Whatever the Mode of a tracked axis is, it is minted into the token of that
 // axis, so the Tracker acts on the Policy frozen on this Delivery rather than on
 // whatever is configured when the engagement arrives.
-func (b *defaultBuilder) preparedHTML(ctx context.Context, d *delivery.Delivery, data SendingData) (string, error) {
+func (b *defaultBuilder) preparedHTML(ctx context.Context, d *delivery.Delivery, data SendingData, fields map[string]string) (string, error) {
 	policy := d.TrackingPolicy()
-	html := utils.ReplaceCustomFields(data.HTML, d.Fields())
+	html := utils.ReplaceCustomFields(data.HTML, fields)
 
 	if policy.Links != tracking.ModeOff {
 		rewritten, err := b.replaceAllLinks(ctx, html, trackTargetFor(d, data, policy.Links))
@@ -306,5 +351,16 @@ func (s sqlcSource) GetSendingData(ctx context.Context, batchID batch.ID) (Sendi
 			To: row.Headers.To,
 			Cc: row.Headers.Cc,
 		},
+		OneClickUnsubscribe: unsubscribeFromRow(row.Headers),
 	}, nil
+}
+
+// unsubscribeFromRow reads the unsubscribe endpoint out of the headers JSONB.
+// A Batch written before ADR 0005 has no such key, which is indistinguishable
+// from — and treated as — a Batch that states no endpoint.
+func unsubscribeFromRow(h sqlc.Headers) batch.OneClickUnsubscribe {
+	if h.OneClickUnsubscribe == nil {
+		return batch.OneClickUnsubscribe{}
+	}
+	return batch.OneClickUnsubscribe{URLTemplate: h.OneClickUnsubscribe.URLTemplate}
 }

@@ -30,6 +30,10 @@ message SendHTMLReq {
   // imposes no restriction of its own and resolves to the Domain's ceiling
   // (ADR 0003). A Mode above that ceiling fails the call.
   optional pkg.kannon.tracking.types.TrackingPolicy tracking = 10;
+  // The sender's own one-click unsubscribe endpoint, emitted as
+  // List-Unsubscribe + List-Unsubscribe-Post on every Delivery of this Batch.
+  // Omitted when absent: Kannon never adds one of its own.
+  optional pkg.kannon.mailer.types.OneClickUnsubscribe one_click_unsubscribe = 11;
 }
 
 message SendTemplateReq {
@@ -45,6 +49,10 @@ message SendTemplateReq {
   // imposes no restriction of its own and resolves to the Domain's ceiling
   // (ADR 0003). A Mode above that ceiling fails the call.
   optional pkg.kannon.tracking.types.TrackingPolicy tracking = 10;
+  // The sender's own one-click unsubscribe endpoint, emitted as
+  // List-Unsubscribe + List-Unsubscribe-Post on every Delivery of this Batch.
+  // Omitted when absent: Kannon never adds one of its own.
+  optional pkg.kannon.mailer.types.OneClickUnsubscribe one_click_unsubscribe = 11;
 }
 
 message SendRes {
@@ -77,6 +85,10 @@ message RejectedRecipient {
   //   unsupported_tracking_mode  the Recipient stated a Tracking Mode this
   //                              build will not act on — the reserved
   //                              `pseudonymous`, or a value from a newer schema
+  //   unsubscribe_url_unresolved this Recipient's fields leave a placeholder in
+  //                              one_click_unsubscribe.url_template unresolved,
+  //                              so its unsubscribe endpoint would be advertised
+  //                              as authenticated while being unreachable
   //
   // Treat an unrecognised value as a refusal of unknown cause: the set grows as
   // new causes are added.
