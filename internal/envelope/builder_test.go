@@ -356,10 +356,17 @@ func TestBuilderMintsTokensCarryingTheFrozenMode(t *testing.T) {
 
 // deliveredTokens are the tracking tokens one rendered message carries, read back
 // out of the delivered body — the same place a recipient's mail client reads them.
+// The decoded body comes along, for the assertions that are about what is *not*
+// in it.
 type deliveredTokens struct {
+	body  string
 	open  string
 	links []string
 }
+
+// all is every token the message carries, for an assertion that holds of each
+// regardless of which endpoint it belongs to.
+func (d deliveredTokens) all() []string { return append([]string{d.open}, d.links...) }
 
 var (
 	pixelTokenRe = regexp.MustCompile(`/o/([A-Za-z0-9._-]+)`)
@@ -373,18 +380,24 @@ func deliverTo(t *testing.T, b envelope.Builder, batchID batch.ID, email string,
 
 	env, err := b.Build(t.Context(), mustDeliveryTracked(t, batchID, email, nil, p))
 	require.NoError(t, err)
+	return readDeliveredTokens(t, env.Body())
+}
 
-	parsed, err := mail.ReadMessage(bytes.NewReader(env.Body()))
+// readDeliveredTokens reads the tracking tokens out of one built message.
+func readDeliveredTokens(t *testing.T, raw []byte) deliveredTokens {
+	t.Helper()
+
+	parsed, err := mail.ReadMessage(bytes.NewReader(raw))
 	require.NoError(t, err)
-	raw, err := io.ReadAll(parsed.Body)
+	body, err := io.ReadAll(parsed.Body)
 	require.NoError(t, err)
-	decoded, err := decodeQuotedPrintable(raw)
+	decoded, err := decodeQuotedPrintable(body)
 	require.NoError(t, err)
 
 	pixels := pixelTokenRe.FindAllStringSubmatch(decoded, -1)
 	require.Len(t, pixels, 1, "a tracked message carries exactly one pixel, got %q", decoded)
 
-	out := deliveredTokens{open: pixels[0][1]}
+	out := deliveredTokens{body: decoded, open: pixels[0][1]}
 	for _, m := range linkTokenRe.FindAllStringSubmatch(decoded, -1) {
 		out.links = append(out.links, m[1])
 	}
@@ -401,6 +414,13 @@ var identifiedPolicy = tracking.Policy{Opens: tracking.ModeIdentified, Links: tr
 // links, minting a distinct token per request so reuse is visible in the output.
 func trackedBuilder(t *testing.T, links ...string) envelope.Builder {
 	t.Helper()
+	return trackedBuilderWith(t, &countingTokens{}, links...)
+}
+
+// trackedBuilderWith is trackedBuilder over a stated token issuer, for the tests
+// that read what the Builder asked for rather than what came back.
+func trackedBuilderWith(t *testing.T, tokens envelope.TokenIssuer, links ...string) envelope.Builder {
+	t.Helper()
 
 	body := &strings.Builder{}
 	body.WriteString("<html><body><h1>Hello!</h1>")
@@ -416,7 +436,7 @@ func trackedBuilder(t *testing.T, links ...string) envelope.Builder {
 		SenderEmail:    "noreply@test.com",
 		SenderAlias:    "Test",
 		DkimPrivateKey: newDKIMKeys(t),
-	}}, &countingTokens{})
+	}}, tokens)
 }
 
 // TestBuilderSharesAnonymousTokensAcrossABatch is the Anonymous privacy property

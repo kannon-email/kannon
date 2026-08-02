@@ -54,19 +54,17 @@ func (a *adminAPIConnectAdapter) SetTrackingPolicy(ctx context.Context, req *con
 }
 
 // trackingPolicyError maps the ways a Tracking Policy can be refused onto
-// Connect codes, so that a caller can tell a policy decision from a bug: a
-// reserved Mode is unimplemented, a Mode this build does not know is a bad
-// argument, and an unknown Domain is not found.
+// Connect codes, so that a caller can tell a policy decision from a bug: a Mode
+// this build does not know is a bad argument, and an unknown Domain is not
+// found.
 //
-// The Mailer API answers the same two `trackingpb` sentinels with the same two
-// codes, in `sendTrackingPolicyError` — the pair is deliberately kept in step so
-// that one bad Mode does not mean two different things depending on which API
-// was asked. Whatever else can go wrong differs: setting a Policy on a Domain
-// can fail to find the Domain, and taking one in on a send cannot.
+// The Mailer API answers the `trackingpb` sentinel with the same code, in
+// `sendTrackingPolicyError` — the pair is deliberately kept in step so that one
+// bad Mode does not mean two different things depending on which API was asked.
+// Whatever else can go wrong differs: setting a Policy on a Domain can fail to
+// find the Domain, and taking one in on a send cannot.
 func trackingPolicyError(err error) *connect.Error {
 	switch {
-	case errors.Is(err, trackingpb.ErrUnsupportedMode):
-		return connect.NewError(connect.CodeUnimplemented, err)
 	case errors.Is(err, trackingpb.ErrUnknownMode):
 		return connect.NewError(connect.CodeInvalidArgument, err)
 	case errors.Is(err, domains.ErrDomainNotFound):

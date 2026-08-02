@@ -44,6 +44,12 @@ const (
 	testLandingURL = "https://example.com/landing"
 	testUserAgent  = "kannon-test-agent/1.0"
 	testIP         = "203.0.113.7"
+	// testPseudonym has the shape ADR 0006 fixes for a Pseudonymous identity: 128
+	// random bits as a lowercase hex local part, under the sending Domain's
+	// reserved namespace. It is written out rather than drawn from
+	// tracking.NewPseudonym because what is under test is what survives a token,
+	// not how a pseudonym is generated.
+	testPseudonym = "0f8b9d3c2a1e4f5b6c7d8e9f0a1b2c3d@track." + testDomain
 )
 
 func TestMain(m *testing.M) {
@@ -119,13 +125,14 @@ func engage(t *testing.T, path string) (answer, []*statstypes.Stats) {
 }
 
 // TestOpenRetainsOnlyWhatItsModeAllows is the compliance property for opens:
-// Anonymous names nobody and keeps nothing about the request, Identified
-// attributes the event to the Recipient and still keeps nothing about the
-// request, and Full additionally keeps the IP address and user agent.
+// Anonymous names nobody and keeps nothing about the request, Pseudonymous names
+// the Delivery's pseudonym and nothing about the request, Identified attributes
+// the event to the Recipient and still keeps nothing about the request, and Full
+// additionally keeps the IP address and user agent.
 func TestOpenRetainsOnlyWhatItsModeAllows(t *testing.T) {
 	for _, tc := range retentionCases() {
 		t.Run(tc.name, func(t *testing.T) {
-			token, err := ss.CreateOpenToken(t.Context(), testMessageID, testRecipient, tc.mode)
+			token, err := ss.CreateOpenToken(t.Context(), testMessageID, tc.mint, tc.mode)
 			require.NoError(t, err)
 
 			resp, published := engage(t, "/o/"+token)
@@ -151,7 +158,7 @@ func TestOpenRetainsOnlyWhatItsModeAllows(t *testing.T) {
 func TestClickRetainsOnlyWhatItsModeAllows(t *testing.T) {
 	for _, tc := range retentionCases() {
 		t.Run(tc.name, func(t *testing.T) {
-			token, err := ss.CreateLinkToken(t.Context(), testMessageID, testRecipient, testLandingURL, tc.mode)
+			token, err := ss.CreateLinkToken(t.Context(), testMessageID, tc.mint, testLandingURL, tc.mode)
 			require.NoError(t, err)
 
 			resp, published := engage(t, "/c/"+token)
@@ -174,34 +181,55 @@ func TestClickRetainsOnlyWhatItsModeAllows(t *testing.T) {
 }
 
 type retentionCase struct {
-	name          string
-	mode          tracking.Mode
+	name string
+	mode tracking.Mode
+	// mint is the identity the Builder hands the mint under this Mode: the
+	// Recipient's own address, or — under Pseudonymous — the pseudonym drawn for
+	// this Delivery, which is the one Mode whose identity the caller supplies and
+	// statssec only validates (ADR 0006).
+	mint          string
 	wantWireMode  trackingtypes.TrackingMode
 	wantEmail     string
 	wantIP        string
 	wantUserAgent string
 }
 
-// retentionCases are the three Modes under which an engagement event exists, each
+// retentionCases are the four Modes under which an engagement event exists, each
 // with everything the event is allowed to carry. The empty fields are the point:
-// Anonymous names nobody at all, and Identified names the Recipient and nothing
-// else.
+// Anonymous names nobody at all, Pseudonymous names only the pseudonym its token
+// was minted with, and Identified names the Recipient and nothing else.
 func retentionCases() []retentionCase {
 	return []retentionCase{
 		{
+			// The real address is handed to the mint and reaches the event under
+			// neither name: the mint replaces it with the Domain's sentinel, and the
+			// Tracker drops even that.
 			name:         "Anonymous",
 			mode:         tracking.ModeAnonymous,
+			mint:         testRecipient,
 			wantWireMode: trackingtypes.TrackingMode_TRACKING_MODE_ANONYMOUS,
+		},
+		{
+			// The pseudonym does survive, and it is all that survives — that is the
+			// difference between this rung and Anonymous, and the events of a Batch
+			// are linkable to each other by nothing else.
+			name:         "Pseudonymous",
+			mode:         tracking.ModePseudonymous,
+			mint:         testPseudonym,
+			wantWireMode: trackingtypes.TrackingMode_TRACKING_MODE_PSEUDONYMOUS,
+			wantEmail:    testPseudonym,
 		},
 		{
 			name:         "Identified",
 			mode:         tracking.ModeIdentified,
+			mint:         testRecipient,
 			wantWireMode: trackingtypes.TrackingMode_TRACKING_MODE_IDENTIFIED,
 			wantEmail:    testRecipient,
 		},
 		{
 			name:          "Full",
 			mode:          tracking.ModeFull,
+			mint:          testRecipient,
 			wantWireMode:  trackingtypes.TrackingMode_TRACKING_MODE_FULL,
 			wantEmail:     testRecipient,
 			wantIP:        testIP,
@@ -326,36 +354,75 @@ func encodeClaims(t *testing.T, claims map[string]any) string {
 // TestRetainedIsGatedOnMode states in one place the rule both handlers share, over
 // the whole scale rather than only the Modes a token can currently be minted with.
 //
-// The claimed email is non-empty in every case on purpose: it is what a token
-// minted by an older build would carry, and a Mode that does not identify the
-// Recipient must drop it here even so.
+// The line is Pseudonymous, not Identified: from that rung up the event keeps
+// whatever identity its token claims, because an event that dropped its pseudonym
+// would be linkable to nothing and the rung would record nothing at all. Below it
+// the claim is dropped whatever it says, which is why the Modes that keep nothing
+// are given a real address to drop: that is what a token minted by an older build
+// carries, and the Tracker must not let it through even though the mint no longer
+// produces one.
 func TestRetainedIsGatedOnMode(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/o/tok", nil)
 	req.Header.Set("User-Agent", testUserAgent)
 	req.Header.Set("X-Real-Ip", testIP)
 
 	cases := []struct {
-		name string
-		mode tracking.Mode
-		want engagement
+		name    string
+		mode    tracking.Mode
+		claimed string
+		want    engagement
 	}{
-		{name: "Off", mode: tracking.ModeOff, want: engagement{}},
-		{name: "Anonymous", mode: tracking.ModeAnonymous, want: engagement{}},
-		{name: "Pseudonymous", mode: tracking.ModePseudonymous, want: engagement{}},
-		{name: "Identified", mode: tracking.ModeIdentified, want: engagement{email: testRecipient}},
+		{name: "Off", mode: tracking.ModeOff, claimed: testRecipient, want: engagement{}},
+		{name: "Anonymous", mode: tracking.ModeAnonymous, claimed: testRecipient, want: engagement{}},
+		// The sentinel a current token carries under Anonymous is dropped on the
+		// same terms: what it stands for is already said by the Mode.
 		{
-			name: "Full",
-			mode: tracking.ModeFull,
-			want: engagement{email: testRecipient, ip: testIP, userAgent: testUserAgent},
+			name:    "AnonymousWithSentinelIdentity",
+			mode:    tracking.ModeAnonymous,
+			claimed: tracking.AnonymousIdentity(testDomain),
+			want:    engagement{},
+		},
+		{
+			name:    "Pseudonymous",
+			mode:    tracking.ModePseudonymous,
+			claimed: testPseudonym,
+			want:    engagement{email: testPseudonym},
+		},
+		// Keeping the claim cannot invent one. A token minted before the identity
+		// claim was always email-shaped left it empty under the Modes that name
+		// nobody, and such tokens keep arriving for one token lifetime after this
+		// change.
+		{
+			name:    "PseudonymousFromALegacyTokenWithNoIdentity",
+			mode:    tracking.ModePseudonymous,
+			claimed: "",
+			want:    engagement{},
+		},
+		{
+			name:    "Identified",
+			mode:    tracking.ModeIdentified,
+			claimed: testRecipient,
+			want:    engagement{email: testRecipient},
+		},
+		{
+			name:    "Full",
+			mode:    tracking.ModeFull,
+			claimed: testRecipient,
+			want:    engagement{email: testRecipient, ip: testIP, userAgent: testUserAgent},
 		},
 		// An unstated Mode imposes no restriction of its own, so it keeps the
 		// attribution its token was minted to carry — and still never reaches Full.
-		{name: "Unspecified", mode: tracking.ModeUnspecified, want: engagement{email: testRecipient}},
+		{
+			name:    "Unspecified",
+			mode:    tracking.ModeUnspecified,
+			claimed: testRecipient,
+			want:    engagement{email: testRecipient},
+		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.want, retained(req, testRecipient, tc.mode))
+			assert.Equal(t, tc.want, retained(req, tc.claimed, tc.mode))
 		})
 	}
 }

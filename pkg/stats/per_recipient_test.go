@@ -44,7 +44,9 @@ func (m *fakeMsg) Nak() error   { m.naked++; return nil }
 func (m *fakeMsg) NakWithDelay(time.Duration) error { m.naked++; return nil }
 
 // engagementEvent is one Opened event as the Tracker publishes it, under the given
-// Mode and naming the given Recipient — or nobody, when the caller passes "".
+// Mode and carrying the given identity claim: the Recipient's address, a pseudonym,
+// the Anonymous sentinel of the Domain — or nothing at all, when the caller passes
+// "", which is what a token minted before the claim was always email-shaped carries.
 func engagementEvent(t *testing.T, domain, email string, mode tracking.Mode) *fakeMsg {
 	t.Helper()
 
@@ -80,6 +82,26 @@ func perRecipientRows(t *testing.T, domain string) int64 {
 	return total
 }
 
+// perRecipientIdentities returns the identity every row the per-recipient consumer
+// left behind for a Domain was written under — the addresses an operator reading
+// the stats table would find in it.
+func perRecipientIdentities(t *testing.T, domain string) []string {
+	t.Helper()
+
+	repo := sq.NewStatsRepository(db)
+	rows, err := repo.Query(t.Context(), domain, stats.TimeRange{
+		Start: time.Now().UTC().Add(-time.Hour),
+		Stop:  time.Now().UTC().Add(time.Hour),
+	}, stats.Pagination{Limit: 100, Offset: 0})
+	require.NoError(t, err)
+
+	identities := make([]string, 0, len(rows))
+	for _, row := range rows {
+		identities = append(identities, row.Email)
+	}
+	return identities
+}
+
 // aggregatedCount reports a Domain's aggregated counter for one stat type,
 // summed over the hourly buckets around now.
 func aggregatedCount(t *testing.T, domain string, statType stats.Type) int64 {
@@ -105,21 +127,94 @@ func aggregatedCount(t *testing.T, domain string, statType stats.Type) int64 {
 // made observable: a Domain on Anonymous keeps its open rate and retains no row
 // that could isolate one Recipient from another. Both consumers see the same
 // message, as they do in production, so the two halves are asserted together.
+//
+// It is run over both identity claims an Anonymous event can arrive with — the
+// Domain's sentinel, which is what a token minted by this build carries (ADR 0006),
+// and nothing at all, which is what a token minted before the claim was always
+// email-shaped carries and will keep carrying for one token lifetime. Neither may
+// become a row.
 func TestAnonymousEventIsCountedButNotRecorded(t *testing.T) {
+	cases := []struct {
+		name     string
+		identity func(domain string) string
+	}{
+		{name: "SentinelIdentity", identity: tracking.AnonymousIdentity},
+		{name: "LegacyTokenWithNoIdentity", identity: func(string) string { return "" }},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			domain := tests.FakeDomain(t)
+			h := newTestHandler()
+
+			msg := engagementEvent(t, domain, tc.identity(domain), tracking.ModeAnonymous)
+			require.NoError(t, h.handleStatsMsg(t.Context(), msg))
+			assert.Equal(t, 1, msg.acked, "an anonymous event is finished with, not left to come back")
+
+			assert.Zero(t, perRecipientRows(t, domain),
+				"an anonymous event must leave no per-recipient row")
+
+			counted := engagementEvent(t, domain, tc.identity(domain), tracking.ModeAnonymous)
+			require.NoError(t, h.handleAggregatedStatsMsg(t.Context(), counted))
+			assert.Equal(t, int64(1), aggregatedCount(t, domain, stats.TypeOpened),
+				"an anonymous event must still be counted in aggregate")
+		})
+	}
+}
+
+// TestPseudonymousEventIsRecordedUnderItsPseudonym is what separates the rung from
+// Anonymous at the write path. A Pseudonymous event names no Recipient, but it must
+// leave a per-Delivery row all the same: being linkable to the Batch's other events
+// is the whole content of the rung, and the pseudonym is the only thing that makes
+// them so.
+//
+// It takes the existing per-recipient path with no special case, which is what the
+// identity claim being email-shaped whichever Mode produced it buys (ADR 0006): the
+// row, the schema and counting distinct addresses are untouched by the Mode.
+func TestPseudonymousEventIsRecordedUnderItsPseudonym(t *testing.T) {
 	domain := tests.FakeDomain(t)
 	h := newTestHandler()
 
-	msg := engagementEvent(t, domain, "", tracking.ModeAnonymous)
+	pseudonym, err := tracking.NewPseudonym(domain)
+	require.NoError(t, err)
+
+	msg := engagementEvent(t, domain, pseudonym, tracking.ModePseudonymous)
 	require.NoError(t, h.handleStatsMsg(t.Context(), msg))
-	assert.Equal(t, 1, msg.acked, "an anonymous event is finished with, not left to come back")
+	assert.Equal(t, 1, msg.acked)
+	assert.Zero(t, msg.termed, "a pseudonym is an identity, not a missing one")
 
-	assert.Zero(t, perRecipientRows(t, domain),
-		"an anonymous event must leave no per-recipient row")
+	assert.Equal(t, []string{pseudonym}, perRecipientIdentities(t, domain),
+		"a pseudonymous event must be recorded, and under the pseudonym it arrived with")
 
-	counted := engagementEvent(t, domain, "", tracking.ModeAnonymous)
+	// The aggregate path reads only the Domain, the timestamp and the type, so it
+	// counts every Mode alike. Pinning it here is what makes "the Domain's
+	// counters work under pseudonymous as they do under every Mode" a fact rather
+	// than an inference from the code.
+	counted := engagementEvent(t, domain, pseudonym, tracking.ModePseudonymous)
 	require.NoError(t, h.handleAggregatedStatsMsg(t.Context(), counted))
 	assert.Equal(t, int64(1), aggregatedCount(t, domain, stats.TypeOpened),
-		"an anonymous event must still be counted in aggregate")
+		"a pseudonymous event must move the Domain's aggregate counters")
+}
+
+// TestTwoPseudonymousEventsOfABatchStayApart is the other half of the rung, from
+// the operator's side: two Deliveries of one Batch carry two pseudonyms, so their
+// events are as distinguishable as identified ones would be — while naming nobody.
+func TestTwoPseudonymousEventsOfABatchStayApart(t *testing.T) {
+	domain := tests.FakeDomain(t)
+	h := newTestHandler()
+
+	first, err := tracking.NewPseudonym(domain)
+	require.NoError(t, err)
+	second, err := tracking.NewPseudonym(domain)
+	require.NoError(t, err)
+
+	for _, pseudonym := range []string{first, second} {
+		msg := engagementEvent(t, domain, pseudonym, tracking.ModePseudonymous)
+		require.NoError(t, h.handleStatsMsg(t.Context(), msg))
+	}
+
+	assert.ElementsMatch(t, []string{first, second}, perRecipientIdentities(t, domain),
+		"the two Deliveries must be told apart by their pseudonyms and nothing else")
 }
 
 // TestIdentifiedEventIsRecorded is the control: the skip is about Anonymous and
@@ -159,6 +254,30 @@ func TestNonAnonymousEventWithoutIdentityIsLoggedAsAnError(t *testing.T) {
 	out := logged()
 	assert.Contains(t, out, `"level":"ERROR"`, "the violation must be logged as an error, got %q", out)
 	assert.Contains(t, out, domain, "the log must say which Domain, got %q", out)
+}
+
+// TestNonAnonymousEventNamingTheAnonymousSentinelIsLoggedAsAnError is the same
+// invariant against the shape the identity claim now has. Since the Anonymous
+// sentinel is an ordinary address to the `stats` schema, an event carrying it under
+// a Mode that is not Anonymous would otherwise be written down as though somebody
+// were called `anonymous@track.<domain>` — a Recipient that does not exist, in a
+// table whose distinct addresses are supposed to count Recipients. Naming nobody is
+// therefore a question about the address, not merely about emptiness.
+func TestNonAnonymousEventNamingTheAnonymousSentinelIsLoggedAsAnError(t *testing.T) {
+	domain := tests.FakeDomain(t)
+	h := newTestHandler()
+
+	logged := captureLogs(t)
+
+	msg := engagementEvent(t, domain, tracking.AnonymousIdentity(domain), tracking.ModeIdentified)
+	require.NoError(t, h.handleStatsMsg(t.Context(), msg))
+
+	assert.Zero(t, msg.naked, "a permanent fault must not be sent round again")
+	assert.Equal(t, 1, msg.termed, "the message must be settled, not left in flight")
+	assert.Zero(t, perRecipientRows(t, domain), "the sentinel must never be recorded as a Recipient")
+
+	out := logged()
+	assert.Contains(t, out, `"level":"ERROR"`, "the violation must be logged as an error, got %q", out)
 }
 
 // captureLogs redirects the default logger for the duration of one test and

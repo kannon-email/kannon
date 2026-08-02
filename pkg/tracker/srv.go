@@ -77,25 +77,33 @@ type engagement struct {
 // retained returns what may be kept about an engagement, given the Tracking Mode
 // signed into its token.
 //
-// A Mode that does not identify the Recipient keeps nothing at all: Anonymous is
-// counted in aggregate only, so the event names nobody. The token it arrived on
-// already carries no address (internal/statssec drops it at the mint) — dropping
-// it here as well means even a token minted by an older build cannot put an
-// address on an anonymous event.
+// A Mode that cannot isolate one Recipient of a Batch from another keeps nothing
+// at all: Off and Anonymous are counted in aggregate only, so the event names
+// nobody. The token such an engagement arrives on already names nobody — under
+// Anonymous internal/statssec mints the sentinel address, and an older build left
+// the claim empty — and dropping the claim here as well means no token, however
+// it was minted, can put an identity on an event that must carry none.
+//
+// Pseudonymous is the first rung that does isolate, and it keeps the identity its
+// token claims for exactly that reason: the claim is a pseudonym drawn per
+// Delivery (ADR 0006), and an event that dropped it would be linkable to nothing,
+// which is the whole content of the rung. It still names no Recipient, so it sits
+// below Identified on the scale even though both keep their claim.
 //
 // Above that, only Full retains the IP address and user agent (CONTEXT.md), so
-// under Identified the event names the Recipient and nothing more.
+// under Pseudonymous and Identified the event carries its identity and nothing
+// more.
 //
 // The Mode is read from the verified claims and never from the database, so this
 // is the single place the decision is made and the request cannot widen it.
-func retained(r *http.Request, claimedEmail string, mode tracking.Mode) engagement {
-	if !mode.IdentifiesRecipient() {
+func retained(r *http.Request, claimedIdentity string, mode tracking.Mode) engagement {
+	if !mode.IsolatesRecipient() {
 		return engagement{}
 	}
 	if mode != tracking.ModeFull {
-		return engagement{email: claimedEmail}
+		return engagement{email: claimedIdentity}
 	}
-	return engagement{email: claimedEmail, ip: readUserIP(r), userAgent: r.UserAgent()}
+	return engagement{email: claimedIdentity, ip: readUserIP(r), userAgent: r.UserAgent()}
 }
 
 func readUserIP(r *http.Request) string {

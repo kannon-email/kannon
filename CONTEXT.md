@@ -37,7 +37,7 @@ How much a single engagement channel may be observed, on an **ordered** scale of
 
 - **Off** — not observed at all.
 - **Anonymous** — counted in aggregate only. Nothing is retained that could isolate one Recipient from another: the event moves the Domain's aggregate counters and leaves no per-Delivery record, and the token it arrives on names no Recipient and is therefore the *same* token for every Recipient of a Batch — per Batch for the pixel, and per Batch-and-URL pair for a link. A link whose URL is itself personalised with custom fields is a different URL per Recipient by construction, so it cannot share a token; nothing per-Recipient is retained either way, but such a message is distinguishable to whoever handles it in transit.
-- **Pseudonymous** — events are linkable to each other within a single Batch via an identifier that is regenerated for every Batch and never reused across Batches, but carry no Recipient identity. *Reserved, not yet implemented.*
+- **Pseudonymous** — events are linkable to each other within a single Batch via an identifier that is regenerated for every Batch and never reused across Batches, but carry no Recipient identity. The identifier takes the form `<rand>@track.<sending-domain>`: a random local part under a subdomain reserved for tracking identities, stored nowhere and derived from nothing, so no one — Kannon included — can link it back to the Recipient.
 - **Identified** — attributed to the Recipient.
 - **Full** — attributed, plus the IP address and user agent of the request.
 

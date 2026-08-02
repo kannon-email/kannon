@@ -96,39 +96,90 @@ func TestTokensCarryTheMintedMode(t *testing.T) {
 	}
 }
 
-// TestTokensCarryNoIdentityWhenTheModeDoesNotIdentify is the Anonymous privacy
-// property at the mint: whatever address the caller hands over, an Anonymous
-// token names nobody. It is asserted through Verify, so the claim a Tracker will
+// batchID is a Batch id in the shape the Builder actually hands over,
+// `msg_<cuid>@<fqdn>` — the mint reads the Domain out of it to build the reserved
+// namespace, so a test id has to spell one out.
+const batchID = "msg_ck7m2n1p0000@test.com"
+
+// TestAnonymousTokensNameNobody is the Anonymous privacy property at the mint:
+// whatever address the caller hands over, an Anonymous token carries the Domain's
+// sentinel instead. It is asserted through Verify, so the claim a Tracker will
 // actually read is the one under test — and the two tokens are compared to each
 // other, because "the claims look the same" is weaker than "the Recipients cannot
 // be told apart".
-func TestTokensCarryNoIdentityWhenTheModeDoesNotIdentify(t *testing.T) {
-	const messageID = "<xxxx/test@test.com>"
+func TestAnonymousTokensNameNobody(t *testing.T) {
+	const url = "https://test.com"
+	const sentinel = "anonymous@track.test.com"
+
+	openClaims, err := s.VerifyOpenToken(t.Context(),
+		mustCreateOpenToken(t, batchID, "first@test.com", tracking.ModeAnonymous))
+	assert.Nil(t, err)
+	assert.Equal(t, sentinel, openClaims.Email, "an Anonymous open token must name nobody")
+	assert.Equal(t, batchID, openClaims.MessageID, "the Batch is still named")
+	assert.Equal(t, tracking.ModeAnonymous, openClaims.Mode)
+
+	otherClaims, err := s.VerifyOpenToken(t.Context(),
+		mustCreateOpenToken(t, batchID, "second@test.com", tracking.ModeAnonymous))
+	assert.Nil(t, err)
+	assert.Equal(t, openClaims.Email, otherClaims.Email,
+		"two Recipients of a Batch must be indistinguishable under Anonymous")
+
+	linkToken, err := s.CreateLinkToken(t.Context(), batchID, "first@test.com", url, tracking.ModeAnonymous)
+	assert.Nil(t, err)
+	linkClaims, err := s.VerifyLinkToken(t.Context(), linkToken)
+	assert.Nil(t, err)
+	assert.Equal(t, sentinel, linkClaims.Email, "an Anonymous link token must name nobody")
+	assert.Equal(t, url, linkClaims.URL, "the tracked URL is still named")
+	assert.Equal(t, tracking.ModeAnonymous, linkClaims.Mode)
+}
+
+// TestPseudonymousTokensCarryTheCallersSentinel pins what the mint does with the
+// one Mode whose identity it cannot invent for itself: it passes the Builder's
+// per-Delivery pseudonym through unchanged, so the pixel and every link of one
+// Delivery agree, and it refuses anything outside the Domain's reserved namespace.
+//
+// The refusal is the chokepoint property (ADR 0006): a caller that passes the real
+// address with a Pseudonymous Mode is caught here rather than shipped.
+func TestPseudonymousTokensCarryTheCallersSentinel(t *testing.T) {
+	const pseudonym = "0123456789abcdef0123456789abcdef@track.test.com"
 	const url = "https://test.com"
 
-	for _, mode := range []tracking.Mode{tracking.ModeAnonymous, tracking.ModePseudonymous} {
-		t.Run(string(mode), func(t *testing.T) {
-			openToken, err := s.CreateOpenToken(t.Context(), messageID, "first@test.com", mode)
-			assert.Nil(t, err)
-			openClaims, err := s.VerifyOpenToken(t.Context(), openToken)
-			assert.Nil(t, err)
-			assert.Empty(t, openClaims.Email, "an open token under %q must name nobody", mode)
-			assert.Equal(t, messageID, openClaims.MessageID, "the Batch is still named")
-			assert.Equal(t, mode, openClaims.Mode)
+	t.Run("A sentinel of the Batch's Domain is minted", func(t *testing.T) {
+		openClaims, err := s.VerifyOpenToken(t.Context(),
+			mustCreateOpenToken(t, batchID, pseudonym, tracking.ModePseudonymous))
+		assert.Nil(t, err)
+		assert.Equal(t, pseudonym, openClaims.Email)
+		assert.Equal(t, tracking.ModePseudonymous, openClaims.Mode)
 
-			otherClaims, err := s.VerifyOpenToken(t.Context(),
-				mustCreateOpenToken(t, messageID, "second@test.com", mode))
-			assert.Nil(t, err)
-			assert.Equal(t, openClaims.Email, otherClaims.Email,
-				"two Recipients of a Batch must be indistinguishable under %q", mode)
+		linkToken, err := s.CreateLinkToken(t.Context(), batchID, pseudonym, url, tracking.ModePseudonymous)
+		assert.Nil(t, err)
+		linkClaims, err := s.VerifyLinkToken(t.Context(), linkToken)
+		assert.Nil(t, err)
+		assert.Equal(t, pseudonym, linkClaims.Email,
+			"the pixel and the links of one Delivery must carry the same pseudonym")
+	})
 
-			linkToken, err := s.CreateLinkToken(t.Context(), messageID, "first@test.com", url, mode)
-			assert.Nil(t, err)
-			linkClaims, err := s.VerifyLinkToken(t.Context(), linkToken)
-			assert.Nil(t, err)
-			assert.Empty(t, linkClaims.Email, "a link token under %q must name nobody", mode)
-			assert.Equal(t, url, linkClaims.URL, "the tracked URL is still named")
-			assert.Equal(t, mode, linkClaims.Mode)
+	outside := []struct {
+		name     string
+		identity string
+	}{
+		{name: "the recipient's real address", identity: "first@test.com"},
+		{name: "nothing at all", identity: ""},
+		{name: "another Domain's namespace", identity: "abc@track.other.com"},
+		{name: "the bare sending Domain", identity: "abc@test.com"},
+		// In the namespace, but the one address the Stats worker reads as naming
+		// nobody: minting it would produce an event that is dropped downstream as
+		// an upstream bug.
+		{name: "the anonymous sentinel", identity: "anonymous@track.test.com"},
+	}
+
+	for _, tc := range outside {
+		t.Run("A Pseudonymous mint is refused for "+tc.name, func(t *testing.T) {
+			_, err := s.CreateOpenToken(t.Context(), batchID, tc.identity, tracking.ModePseudonymous)
+			assert.ErrorIs(t, err, statssec.ErrIdentityOutsideNamespace)
+
+			_, err = s.CreateLinkToken(t.Context(), batchID, tc.identity, url, tracking.ModePseudonymous)
+			assert.ErrorIs(t, err, statssec.ErrIdentityOutsideNamespace)
 		})
 	}
 }

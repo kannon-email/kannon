@@ -19,13 +19,16 @@ import (
 // a request is fixed by a signature at send time rather than looked up when the
 // engagement arrives.
 //
-// The Mode also decides whether the email address given to a Create call reaches
-// the token at all: under a Mode that does not identify the Recipient it is
-// dropped, so the minted token names nobody and is therefore the same token for
-// every Recipient of a Batch (see identityUnder).
+// The Mode also decides which address the email argument of a Create call becomes
+// in the token: the Recipient's own under a Mode that names them, a sentinel
+// address under the Modes that name nobody (see identityUnder). Under Anonymous
+// that sentinel is constant per Domain, so the minted token is the same one for
+// every Recipient of a Batch; under Pseudonymous it is the caller's per-Delivery
+// pseudonym, and a mint whose identity is not a sentinel of the Batch's Domain is
+// refused with ErrIdentityOutsideNamespace.
 type StatsService interface {
-	CreateOpenToken(ctx context.Context, messageID string, email string, mode tracking.Mode) (string, error)
-	CreateLinkToken(ctx context.Context, messageID string, email string, url string, mode tracking.Mode) (string, error)
+	CreateOpenToken(ctx context.Context, messageID string, identity string, mode tracking.Mode) (string, error)
+	CreateLinkToken(ctx context.Context, messageID string, identity string, url string, mode tracking.Mode) (string, error)
 	VerifyOpenToken(ctx context.Context, token string) (*OpenClaims, error)
 	VerifyLinkToken(ctx context.Context, token string) (*LinkClaims, error)
 }
@@ -42,13 +45,13 @@ type service struct {
 	now func() time.Time
 }
 
-func (s *service) CreateOpenToken(ctx context.Context, messageID string, email string, mode tracking.Mode) (string, error) {
+func (s *service) CreateOpenToken(ctx context.Context, messageID string, identity string, mode tracking.Mode) (string, error) {
 	privateKey, kid, err := s.getSignKeys(ctx)
 	if err != nil {
 		return "", err
 	}
 
-	token, err := createOpenToken(privateKey, kid, s.now(), messageID, email, mode)
+	token, err := createOpenToken(privateKey, kid, s.now(), messageID, identity, mode)
 	if err != nil {
 		return "", err
 	}
@@ -56,13 +59,13 @@ func (s *service) CreateOpenToken(ctx context.Context, messageID string, email s
 	return token, nil
 }
 
-func (s *service) CreateLinkToken(ctx context.Context, messageID string, email string, url string, mode tracking.Mode) (string, error) {
+func (s *service) CreateLinkToken(ctx context.Context, messageID string, identity string, url string, mode tracking.Mode) (string, error) {
 	privateKey, kid, err := s.getSignKeys(ctx)
 	if err != nil {
 		return "", err
 	}
 
-	token, err := createLinkToken(privateKey, kid, s.now(), messageID, email, url, mode)
+	token, err := createLinkToken(privateKey, kid, s.now(), messageID, identity, url, mode)
 	if err != nil {
 		return "", err
 	}

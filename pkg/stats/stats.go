@@ -170,15 +170,28 @@ func (h *statsHandler) handleAggregatedStatsMsg(ctx context.Context, msg jetstre
 //
 // Under Anonymous it writes none. That Mode is counted in aggregate only —
 // nothing is retained that could isolate one Recipient from another (CONTEXT.md) —
-// and the event carries no Recipient identity to write down in the first place.
-// handleAggregatedStats is an independent subscription on the same subject and
-// counts the event regardless, so the Domain keeps its open and click rates.
+// and the identity such an event carries names nobody by construction: the
+// Anonymous sentinel of its Domain, or nothing at all on a token minted before the
+// identity claim was always email-shaped. handleAggregatedStats is an independent
+// subscription on the same subject and counts the event regardless, so the Domain
+// keeps its open and click rates.
 //
-// Every other Mode names its Recipient, and so does every event that is not an
-// engagement. One that does not is a bug upstream, and in a compliance path a loud
-// failure beats a quietly lost row: it is logged as an error rather than dropped in
-// silence. It is Termed and not Nak'd, because the fault is in the message itself —
-// redelivering it could only reproduce the hot loop #396 fixed.
+// Every other Mode names somebody, and so does every event that is not an
+// engagement. Pseudonymous names a pseudonym rather than a Recipient —
+// `<rand>@track.<domain>`, drawn per Delivery and linkable to nothing outside its
+// Batch (ADR 0006) — and it takes this same path deliberately: the identity claim
+// is email-shaped whichever Mode produced it, so the row, the schema and counting
+// distinct addresses all keep working unchanged, and the Mode on the event is what
+// says which kind of address was written.
+//
+// An event that names nobody yet is not Anonymous is a bug upstream, and in a
+// compliance path a loud failure beats a quietly lost row: it is logged as an
+// error rather than dropped in silence. Naming nobody is a question about the
+// address and not merely about emptiness — the sentinel is an ordinary address to
+// the schema, so an event carrying it under any other Mode would otherwise be
+// recorded as though somebody were called `anonymous@track.<domain>`. It is Termed
+// and not Nak'd, because the fault is in the message itself — redelivering it could
+// only reproduce the hot loop #396 fixed.
 func (h *statsHandler) handleStatsMsg(ctx context.Context, msg jetstream.Msg) error {
 	data := &types.Stats{}
 	if err := proto.Unmarshal(msg.Data(), data); err != nil {
@@ -194,7 +207,7 @@ func (h *statsHandler) handleStatsMsg(ctx context.Context, msg jetstream.Msg) er
 		return msg.Ack()
 	}
 
-	if data.Email == "" {
+	if tracking.NamesNobody(data.Email, data.Domain) {
 		slog.Error("stat event carries no recipient identity and is not anonymous",
 			"type", stat.Type, "batch", data.MessageId, "domain", data.Domain, "tracking_mode", mode)
 		return msg.Term()

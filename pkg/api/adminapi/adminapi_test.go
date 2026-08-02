@@ -89,39 +89,66 @@ func TestTrackingPolicy(t *testing.T) {
 		assert.Equal(t, trackingtypes.TrackingMode_TRACKING_MODE_IDENTIFIED, domain.Tracking.GetLinks())
 	})
 
+	// Every rung of the scale is a Policy an operator may set, Pseudonymous
+	// included: it was refused while it was reserved, and since #424 (ADR 0006)
+	// it is stored and read back like any other Mode.
 	t.Run("A policy I set is readable back", func(t *testing.T) {
-		domain := createTestDomain(t)
-
-		res, err := testservice.SetTrackingPolicy(t.Context(), connect.NewRequest(&pb.SetTrackingPolicyReq{
-			Domain: domain.Domain,
-			Tracking: &trackingtypes.TrackingPolicy{
-				Opens: trackingtypes.TrackingMode_TRACKING_MODE_OFF,
-				Links: trackingtypes.TrackingMode_TRACKING_MODE_ANONYMOUS,
+		cases := []struct {
+			name  string
+			opens trackingtypes.TrackingMode
+			links trackingtypes.TrackingMode
+		}{
+			{
+				name:  "Off and anonymous",
+				opens: trackingtypes.TrackingMode_TRACKING_MODE_OFF,
+				links: trackingtypes.TrackingMode_TRACKING_MODE_ANONYMOUS,
 			},
-		}))
-		assert.Nil(t, err)
-		assert.Equal(t, trackingtypes.TrackingMode_TRACKING_MODE_OFF, res.Msg.Domain.Tracking.GetOpens())
-		assert.Equal(t, trackingtypes.TrackingMode_TRACKING_MODE_ANONYMOUS, res.Msg.Domain.Tracking.GetLinks())
+			{
+				name:  "Pseudonymous and off",
+				opens: trackingtypes.TrackingMode_TRACKING_MODE_PSEUDONYMOUS,
+				links: trackingtypes.TrackingMode_TRACKING_MODE_OFF,
+			},
+		}
 
-		got, err := testservice.GetDomain(t.Context(), connect.NewRequest(&pb.GetDomainReq{
-			Domain: domain.Domain,
-		}))
-		assert.Nil(t, err)
-		assert.Equal(t, trackingtypes.TrackingMode_TRACKING_MODE_OFF, got.Msg.Domain.Tracking.GetOpens())
-		assert.Equal(t, trackingtypes.TrackingMode_TRACKING_MODE_ANONYMOUS, got.Msg.Domain.Tracking.GetLinks())
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				domain := createTestDomain(t)
+
+				res, err := testservice.SetTrackingPolicy(t.Context(), connect.NewRequest(&pb.SetTrackingPolicyReq{
+					Domain: domain.Domain,
+					Tracking: &trackingtypes.TrackingPolicy{
+						Opens: tc.opens,
+						Links: tc.links,
+					},
+				}))
+				assert.Nil(t, err)
+				assert.Equal(t, tc.opens, res.Msg.Domain.Tracking.GetOpens())
+				assert.Equal(t, tc.links, res.Msg.Domain.Tracking.GetLinks())
+
+				got, err := testservice.GetDomain(t.Context(), connect.NewRequest(&pb.GetDomainReq{
+					Domain: domain.Domain,
+				}))
+				assert.Nil(t, err)
+				assert.Equal(t, tc.opens, got.Msg.Domain.Tracking.GetOpens())
+				assert.Equal(t, tc.links, got.Msg.Domain.Tracking.GetLinks())
+			})
+		}
 	})
 
-	t.Run("Pseudonymous is rejected as unsupported", func(t *testing.T) {
+	// A wire value this build cannot read comes from a client built against a
+	// newer schema. It is the one Mode the Admin API still refuses, because
+	// guessing what it meant would set a ceiling nobody asked for.
+	t.Run("A Mode this build does not know is an invalid argument", func(t *testing.T) {
 		domain := createTestDomain(t)
 
 		_, err := testservice.SetTrackingPolicy(t.Context(), connect.NewRequest(&pb.SetTrackingPolicyReq{
 			Domain: domain.Domain,
 			Tracking: &trackingtypes.TrackingPolicy{
-				Opens: trackingtypes.TrackingMode_TRACKING_MODE_PSEUDONYMOUS,
+				Opens: trackingtypes.TrackingMode(9999),
 				Links: trackingtypes.TrackingMode_TRACKING_MODE_OFF,
 			},
 		}))
-		assert.Equal(t, connect.CodeUnimplemented, connect.CodeOf(err))
+		assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
 
 		// The refused call must leave the domain as it was.
 		got, err := testservice.GetDomain(t.Context(), connect.NewRequest(&pb.GetDomainReq{

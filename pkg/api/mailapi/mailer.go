@@ -188,9 +188,9 @@ const (
 	// more than its Domain allows (ADR 0003).
 	reasonTrackingAboveCeiling rejectionReason = "tracking_above_ceiling"
 	// reasonUnsupportedTrackingMode is a Recipient stating a Tracking Mode this
-	// build will not act on: the reserved `pseudonymous`, or a wire value from a
-	// newer schema. Both leave the caller the same work — restate the Policy —
-	// so they share one reason.
+	// build will not act on — in practice a wire value from a newer schema, since
+	// every Mode this build knows is one it honours. The work it leaves the
+	// caller is to restate the Policy in terms this build understands.
 	reasonUnsupportedTrackingMode rejectionReason = "unsupported_tracking_mode"
 	// reasonUnsubscribeURLUnresolved is a Recipient whose fields leave a
 	// placeholder in the Batch's one-click unsubscribe URL unresolved. Refusing
@@ -448,10 +448,10 @@ func assertHeaderSafe(field, v string) error {
 }
 
 // sendTrackingPolicyError maps a failure to translate a Batch's wire Tracking
-// Policy onto a Connect code: a reserved Mode (pseudonymous) is unimplemented,
-// and a Mode this build does not know is a bad argument.
+// Policy onto a Connect code: a Mode this build does not know is a bad
+// argument.
 //
-// It answers those two `trackingpb` sentinels exactly as
+// It answers that `trackingpb` sentinel exactly as
 // pkg/api/adminapi.trackingPolicyError does, deliberately, so that one bad Mode
 // does not mean two different things depending on which API was asked; the two
 // are a pair and should change together. It is named apart from that one
@@ -459,8 +459,6 @@ func assertHeaderSafe(field, v string) error {
 // the caller's argument, never a missing Domain.
 func sendTrackingPolicyError(err error) error {
 	switch {
-	case errors.Is(err, trackingpb.ErrUnsupportedMode):
-		return connect.NewError(connect.CodeUnimplemented, err)
 	case errors.Is(err, trackingpb.ErrUnknownMode):
 		return connect.NewError(connect.CodeInvalidArgument, err)
 	default:

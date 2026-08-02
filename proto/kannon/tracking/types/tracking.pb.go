@@ -34,8 +34,8 @@ const (
 	TrackingMode_TRACKING_MODE_OFF TrackingMode = 1
 	// Counted in aggregate only; nothing retained that isolates one recipient.
 	TrackingMode_TRACKING_MODE_ANONYMOUS TrackingMode = 2
-	// Linkable within a single batch, carrying no recipient identity.
-	// Reserved: selecting it is rejected as unsupported.
+	// Linkable within a single batch, carrying no recipient identity: events are
+	// attributed to a pseudonym drawn afresh for every batch and stored nowhere.
 	TrackingMode_TRACKING_MODE_PSEUDONYMOUS TrackingMode = 3
 	// Attributed to the recipient.
 	TrackingMode_TRACKING_MODE_IDENTIFIED TrackingMode = 4
