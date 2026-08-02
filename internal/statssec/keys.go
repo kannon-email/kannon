@@ -120,7 +120,7 @@ func identityUnder(mode tracking.Mode, offered string, messageID string) (string
 
 	// Deliberately never logged or wrapped with the offending value: the whole
 	// point of the refusal is that the value may be a recipient address.
-	if !tracking.InReservedNamespace(offered, fqdn) {
+	if !tracking.IsPseudonym(offered, fqdn) {
 		return "", fmt.Errorf("%w: %s under %q", ErrIdentityOutsideNamespace, tracking.ReservedNamespace(fqdn), mode)
 	}
 	return offered, nil

@@ -96,11 +96,7 @@ func (m Mode) collection() (Mode, int) {
 // permission to attribute would be the one direction that cannot be undone (see
 // Mode.collection).
 func (m Mode) IdentifiesRecipient() bool {
-	if !m.states() {
-		return true
-	}
-	_, rank := m.collection()
-	return rank >= modeRanks[ModeIdentified]
+	return m.reaches(ModeIdentified)
 }
 
 // IsolatesRecipient reports whether what is retained about an engagement governed
@@ -119,11 +115,19 @@ func (m Mode) IdentifiesRecipient() bool {
 // ModeUnspecified isolates and an unreadable Mode does not, for the reasons given
 // on IdentifiesRecipient — this is the same rank comparison one rung lower.
 func (m Mode) IsolatesRecipient() bool {
+	return m.reaches(ModePseudonymous)
+}
+
+// reaches reports whether m collects at least as much as rung. It is how every
+// question about the scale is answered, so that the two predicates above cannot
+// drift into disagreeing about what silence or an unreadable value mean: both
+// read the one scale, at two different rungs.
+func (m Mode) reaches(rung Mode) bool {
 	if !m.states() {
 		return true
 	}
 	_, rank := m.collection()
-	return rank >= modeRanks[ModePseudonymous]
+	return rank >= modeRanks[rung]
 }
 
 // Policy is a pair of Modes, one governing opens and one governing links,

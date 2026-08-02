@@ -15,8 +15,8 @@ enum TrackingMode {
   TRACKING_MODE_OFF = 1;
   // Counted in aggregate only; nothing retained that isolates one recipient.
   TRACKING_MODE_ANONYMOUS = 2;
-  // Linkable within a single batch, carrying no recipient identity.
-  // Reserved: selecting it is rejected as unsupported.
+  // Linkable within a single batch, carrying no recipient identity: events are
+  // attributed to a pseudonym drawn afresh for every batch and stored nowhere.
   TRACKING_MODE_PSEUDONYMOUS = 3;
   // Attributed to the recipient.
   TRACKING_MODE_IDENTIFIED = 4;

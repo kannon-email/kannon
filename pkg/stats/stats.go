@@ -207,7 +207,7 @@ func (h *statsHandler) handleStatsMsg(ctx context.Context, msg jetstream.Msg) er
 		return msg.Ack()
 	}
 
-	if namesNobody(data.Email, data.Domain) {
+	if tracking.NamesNobody(data.Email, data.Domain) {
 		slog.Error("stat event carries no recipient identity and is not anonymous",
 			"type", stat.Type, "batch", data.MessageId, "domain", data.Domain, "tracking_mode", mode)
 		return msg.Term()
@@ -220,18 +220,4 @@ func (h *statsHandler) handleStatsMsg(ctx context.Context, msg jetstream.Msg) er
 	}
 
 	return msg.Ack()
-}
-
-// namesNobody reports whether a stat event's identity claim stands for no one.
-// Two shapes say that: the Anonymous sentinel of the event's own Domain, which is
-// what a token minted under Anonymous carries today (ADR 0006), and an empty
-// claim, which is what a token minted before the claim was always email-shaped
-// carries — those stay in circulation for one token lifetime and cannot be
-// dropped from the check until they expire.
-//
-// A pseudonym is *not* one of them: it names nobody outside its Batch, but within
-// one it is exactly what tells two Recipients apart, and that is what the row
-// records.
-func namesNobody(email, domain string) bool {
-	return email == "" || email == tracking.AnonymousIdentity(domain)
 }

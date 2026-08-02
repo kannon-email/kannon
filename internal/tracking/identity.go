@@ -74,12 +74,36 @@ func NewPseudonym(fqdn string) (string, error) {
 // InReservedNamespace reports whether identity is a sentinel address of fqdn: a
 // non-empty local part directly under the reserved namespace.
 //
-// It is the machine-checkable form of the reservation, and the mint uses it to
-// refuse a token that claims to name nobody while carrying a real address. The
-// domain part is compared case-insensitively for the same reason pseudonyms are
-// lowercase hex; the local part is not inspected, since the check is about the
-// namespace an identity sits in and not about how it was drawn.
+// It is the machine-checkable form of the reservation. The domain part is
+// compared case-insensitively for the same reason pseudonyms are lowercase hex;
+// the local part is not inspected, since the question is which namespace an
+// identity sits in and not how it was drawn.
 func InReservedNamespace(identity, fqdn string) bool {
 	local, host, ok := strings.Cut(identity, "@")
 	return ok && local != "" && strings.EqualFold(host, ReservedNamespace(fqdn))
+}
+
+// IsPseudonym reports whether identity may be minted as a Pseudonymous identity
+// of fqdn: a sentinel address that is not the one standing for no one.
+//
+// The mint uses it to refuse a token claiming to be pseudonymous while carrying
+// a real address. Excluding the Anonymous sentinel is what keeps that refusal in
+// step with the Stats worker, which reads the same address as naming nobody and
+// would refuse to record it: without this, the two chokepoints would disagree
+// about the one address they both have an opinion on, and a Pseudonymous event
+// could be minted only to be dropped downstream as a bug.
+func IsPseudonym(identity, fqdn string) bool {
+	return InReservedNamespace(identity, fqdn) && !NamesNobody(identity, fqdn)
+}
+
+// NamesNobody reports whether identity attributes an event to no one: either the
+// Anonymous sentinel of fqdn, or nothing at all.
+//
+// The empty case is a token minted before the identity claim was always an
+// address, which keeps arriving for one token lifetime after this build ships.
+// A pseudonym is deliberately *not* one of these — it names nobody in the sense
+// that matters to a person, but it does name one Delivery, which is exactly what
+// the Pseudonymous rung records.
+func NamesNobody(identity, fqdn string) bool {
+	return identity == "" || strings.EqualFold(identity, AnonymousIdentity(fqdn))
 }

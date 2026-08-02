@@ -5,6 +5,75 @@ releases that change behaviour of an installation already in production appear
 here; everything else is in [`CHANGELOG.md`](../CHANGELOG.md), which is
 generated from commits.
 
+## Unreleased — Pseudonymous tracking
+
+### What changes
+
+The Tracking Mode `pseudonymous` is now selectable. It has been on the scale
+since Tracking Policies were introduced, ranked between `anonymous` and
+`identified`, but stating it was refused; it is now honoured at Domain, Batch
+and Recipient level like every other Mode. Nothing changes for an installation
+that does not select it.
+
+It is the rung for a sender who wants open and click *rates* per Batch, and the
+ability to tell one recipient's engagement from another's, without recording
+who those recipients are. Events are linkable to each other within a single
+Batch and to nothing outside it: no recipient address reaches the tracking URL,
+the Tracker's access logs, or the `stats` table.
+
+### The `track.<domain>` subdomain is reserved
+
+**Do not deliver mail under `track.<yourdomain.com>`.** Under `pseudonymous` and
+`anonymous`, the identity a tracking token carries is a *sentinel address* in
+that namespace — `<random>@track.yourdomain.com` and
+`anonymous@track.yourdomain.com` respectively — rather than the recipient's own.
+A real mailbox under that subdomain would collide with the sentinel space and be
+indistinguishable from it in your statistics.
+
+The reservation costs nothing to honour: **no DNS record is required**. These
+addresses are identifiers, never envelope recipients — Kannon never delivers to
+one, never resolves it, and never looks it up. See
+[ADR 0006](adr/0006-tracking-identity-in-the-token-sentinel-addresses.md).
+
+### What your statistics look like
+
+A pseudonymous Opened or Clicked is recorded exactly like an identified one, so
+every existing query keeps working — but the `email` it is recorded under is the
+pseudonym, not the recipient. Two consequences worth planning for:
+
+- **Counting distinct addresses still counts distinct recipients** within a
+  Batch, which is what open and click rates need.
+- **A pseudonym is drawn fresh for every Batch**, from `crypto/rand`, stored
+  nowhere and derived from nothing. Engagement therefore cannot be joined across
+  Batches, or back to a recipient, by anyone — Kannon included. That is the
+  point of the rung, and it is not recoverable after the fact: if you need
+  per-recipient history over time, state `identified` instead.
+
+Aggregate counters are unaffected: they never looked at the identity.
+
+### Selecting it
+
+Through the Admin API's `SetTrackingPolicy`, per axis, as with any other Mode:
+
+```json
+{
+  "domain": "yourdomain.com",
+  "tracking": {
+    "opens": "TRACKING_MODE_PSEUDONYMOUS",
+    "links": "TRACKING_MODE_PSEUDONYMOUS"
+  }
+}
+```
+
+As always, a Domain's Policy is a ceiling and a Batch or Recipient may only
+restrict it further, and a Policy is frozen onto each Delivery when its Batch is
+created — so Deliveries already queued keep the Policy they were accepted under.
+
+One operational note: `pseudonymous` names a different identity per Delivery, so
+it signs one token per Delivery like `identified` does, rather than sharing a
+single token across the Batch the way `anonymous` can. Expect the same dispatch
+cost as `identified`, not the cheaper `anonymous` one.
+
 ## Unreleased — One-Click Unsubscribe
 
 ### What changes
@@ -145,6 +214,7 @@ Domain can rewrite links without embedding a pixel, or the reverse:
 | --- | --- |
 | `off` | Nothing. No pixel is injected, no link is rewritten, and no tracking hostname appears in the delivered message at all. |
 | `anonymous` | Aggregate counters only. Nothing that could isolate one recipient from another. |
+| `pseudonymous` | A pseudonym, drawn per recipient per Batch. Engagement is linkable within one Batch and nowhere else; no recipient address is retained. |
 | `identified` | The recipient's identity. No IP address, no user agent. **The new default.** |
 | `full` | The recipient's identity, plus the IP address and user agent of the request. The pre-0.6.0 behaviour. |
 

@@ -167,6 +167,10 @@ func TestPseudonymousTokensCarryTheCallersSentinel(t *testing.T) {
 		{name: "nothing at all", identity: ""},
 		{name: "another Domain's namespace", identity: "abc@track.other.com"},
 		{name: "the bare sending Domain", identity: "abc@test.com"},
+		// In the namespace, but the one address the Stats worker reads as naming
+		// nobody: minting it would produce an event that is dropped downstream as
+		// an upstream bug.
+		{name: "the anonymous sentinel", identity: "anonymous@track.test.com"},
 	}
 
 	for _, tc := range outside {

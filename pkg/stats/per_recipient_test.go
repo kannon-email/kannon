@@ -185,6 +185,15 @@ func TestPseudonymousEventIsRecordedUnderItsPseudonym(t *testing.T) {
 
 	assert.Equal(t, []string{pseudonym}, perRecipientIdentities(t, domain),
 		"a pseudonymous event must be recorded, and under the pseudonym it arrived with")
+
+	// The aggregate path reads only the Domain, the timestamp and the type, so it
+	// counts every Mode alike. Pinning it here is what makes "the Domain's
+	// counters work under pseudonymous as they do under every Mode" a fact rather
+	// than an inference from the code.
+	counted := engagementEvent(t, domain, pseudonym, tracking.ModePseudonymous)
+	require.NoError(t, h.handleAggregatedStatsMsg(t.Context(), counted))
+	assert.Equal(t, int64(1), aggregatedCount(t, domain, stats.TypeOpened),
+		"a pseudonymous event must move the Domain's aggregate counters")
 }
 
 // TestTwoPseudonymousEventsOfABatchStayApart is the other half of the rung, from

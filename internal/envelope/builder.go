@@ -253,6 +253,12 @@ func (b *defaultBuilder) preparedHTML(ctx context.Context, d *delivery.Delivery,
 // to each other within the Batch, and to nothing outside it. Drawing one per token
 // instead would leave every event a singleton and quietly record less than the
 // Mode promises, while looking identical from the outside.
+//
+// It is drawn per *build*, so a Delivery rebuilt after a failed send attempt goes
+// out under a fresh one. Holding it steady would mean storing it, which is the
+// at-rest identity store ADR 0006 declines to create; and the two copies of such a
+// Delivery are unlinkable to each other rather than to anybody, which is the
+// harmless direction to err in.
 type trackingIdentity struct {
 	email     string
 	pseudonym string

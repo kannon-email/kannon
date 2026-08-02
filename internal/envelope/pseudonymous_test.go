@@ -3,7 +3,6 @@ package envelope_test
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 	"testing"
 
@@ -54,22 +53,7 @@ func (r *recordingTokens) CreateLinkToken(_ context.Context, messageID, identity
 // was asked for.
 func recordingBuilder(t *testing.T, rec *recordingTokens, links ...string) envelope.Builder {
 	t.Helper()
-
-	body := &strings.Builder{}
-	body.WriteString("<html><body><h1>Hello!</h1>")
-	for _, l := range links {
-		fmt.Fprintf(body, "<a href=%q>x</a>", l)
-	}
-	body.WriteString("</body></html>")
-
-	return envelope.NewBuilderWith(batchSource{data: envelope.SendingData{
-		Subject:        "S",
-		HTML:           body.String(),
-		Domain:         "test.com",
-		SenderEmail:    "noreply@test.com",
-		SenderAlias:    "Test",
-		DkimPrivateKey: newDKIMKeys(t),
-	}}, rec)
+	return trackedBuilderWith(t, rec, links...)
 }
 
 func buildOne(t *testing.T, b envelope.Builder, batchID batch.ID, email string, p tracking.Policy) {

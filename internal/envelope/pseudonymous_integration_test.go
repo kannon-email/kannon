@@ -1,11 +1,6 @@
 package envelope_test
 
 import (
-	"bytes"
-	"io"
-	"mime/quotedprintable"
-	"net/mail"
-	"regexp"
 	"testing"
 
 	"connectrpc.com/connect"
@@ -48,7 +43,7 @@ func TestPseudonymousDeliveryEndToEnd(t *testing.T) {
 		// The claim is what a log-only observer reads, so it is asserted on the
 		// verified claim rather than on the URL string alone; the URL is checked
 		// too, since a JWT payload is readable base64 and the token *is* the URL.
-		assert.NotContains(t, one.rawBody, first)
+		assert.NotContains(t, one.body, first)
 		for _, token := range one.all() {
 			claims := verifyAny(t, ss, token)
 			assert.NotEqual(t, first, claims.identity)
@@ -107,7 +102,7 @@ func newPseudonymousSender(t *testing.T, fqdn string) pseudonymousSender {
 
 // send submits one Batch to the recipients and returns, per recipient, the
 // tracking tokens their built message carries.
-func (s pseudonymousSender) send(t *testing.T, recipients ...string) map[string]deliveredBody {
+func (s pseudonymousSender) send(t *testing.T, recipients ...string) map[string]deliveredTokens {
 	t.Helper()
 
 	pseudonymous := &trackingtypes.TrackingPolicy{
@@ -134,7 +129,7 @@ func (s pseudonymousSender) send(t *testing.T, recipients ...string) map[string]
 	require.NoError(t, err)
 	require.Empty(t, res.Msg.RejectedRecipients, "pseudonymous must be accepted at intake")
 
-	out := make(map[string]deliveredBody, len(recipients))
+	out := make(map[string]deliveredTokens, len(recipients))
 	for _, r := range recipients {
 		claimed := markValidatedAndClaim(t, batch.ID(res.Msg.MessageId), r)
 		require.Len(t, claimed, 1)
@@ -142,39 +137,7 @@ func (s pseudonymousSender) send(t *testing.T, recipients ...string) map[string]
 
 		env, err := eb.Build(t.Context(), claimed[0])
 		require.NoError(t, err)
-		out[r] = readDeliveredBody(t, env.Body())
-	}
-	return out
-}
-
-// deliveredBody is one built message as the recipient receives it, plus the
-// tracking tokens read out of it.
-type deliveredBody struct {
-	rawBody string
-	open    string
-	links   []string
-}
-
-func (d deliveredBody) all() []string { return append([]string{d.open}, d.links...) }
-
-func readDeliveredBody(t *testing.T, raw []byte) deliveredBody {
-	t.Helper()
-
-	parsed, err := mail.ReadMessage(bytes.NewReader(raw))
-	require.NoError(t, err)
-	body, err := io.ReadAll(parsed.Body)
-	require.NoError(t, err)
-	decoded, err := io.ReadAll(quotedprintable.NewReader(bytes.NewReader(body)))
-	require.NoError(t, err)
-
-	out := deliveredBody{rawBody: string(decoded)}
-
-	pixels := regexp.MustCompile(`/o/([A-Za-z0-9._-]+)`).FindAllStringSubmatch(out.rawBody, -1)
-	require.Len(t, pixels, 1, "a tracked message carries exactly one pixel, got %q", out.rawBody)
-	out.open = pixels[0][1]
-
-	for _, m := range regexp.MustCompile(`/c/([A-Za-z0-9._-]+)`).FindAllStringSubmatch(out.rawBody, -1) {
-		out.links = append(out.links, m[1])
+		out[r] = readDeliveredTokens(t, env.Body())
 	}
 	return out
 }

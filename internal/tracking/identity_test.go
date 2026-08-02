@@ -87,3 +87,39 @@ func TestInReservedNamespace(t *testing.T) {
 		})
 	}
 }
+
+// TestIsPseudonymAndNamesNobodyPartitionTheNamespace covers the one address the
+// two chokepoints could have disagreed about. The mint asks "may this be minted
+// as a pseudonym?" and the Stats worker asks "does this name anybody?"; if the
+// Anonymous sentinel answered yes to both, a Pseudonymous token could be minted
+// naming it and then be dropped downstream as an upstream bug.
+func TestIsPseudonymAndNamesNobodyPartitionTheNamespace(t *testing.T) {
+	const fqdn = "kannon.dev"
+
+	cases := []struct {
+		name        string
+		identity    string
+		isPseudonym bool
+		namesNobody bool
+	}{
+		{name: "a pseudonym", identity: "0123456789abcdef0123456789abcdef@track.kannon.dev", isPseudonym: true, namesNobody: false},
+		{name: "the anonymous sentinel", identity: tracking.AnonymousIdentity(fqdn), isPseudonym: false, namesNobody: true},
+		// A token minted before the identity claim was always an address. Those
+		// stay in circulation for one token lifetime and must keep reading as
+		// naming nobody.
+		{name: "a legacy blank claim", identity: "", isPseudonym: false, namesNobody: true},
+		{name: "a real address", identity: "someone@kannon.dev", isPseudonym: false, namesNobody: false},
+		// Email pipelines case-fold, so a sentinel that came back uppercased is
+		// still the same sentinel on both questions.
+		{name: "the sentinel case-folded in transit", identity: "ANONYMOUS@TRACK.KANNON.DEV", isPseudonym: false, namesNobody: true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.isPseudonym, tracking.IsPseudonym(tc.identity, fqdn))
+			assert.Equal(t, tc.namesNobody, tracking.NamesNobody(tc.identity, fqdn))
+			assert.False(t, tc.isPseudonym && tc.namesNobody,
+				"no identity may be both mintable as a pseudonym and unrecordable")
+		})
+	}
+}

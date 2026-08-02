@@ -96,14 +96,14 @@ type engagement struct {
 //
 // The Mode is read from the verified claims and never from the database, so this
 // is the single place the decision is made and the request cannot widen it.
-func retained(r *http.Request, claimedEmail string, mode tracking.Mode) engagement {
+func retained(r *http.Request, claimedIdentity string, mode tracking.Mode) engagement {
 	if !mode.IsolatesRecipient() {
 		return engagement{}
 	}
 	if mode != tracking.ModeFull {
-		return engagement{email: claimedEmail}
+		return engagement{email: claimedIdentity}
 	}
-	return engagement{email: claimedEmail, ip: readUserIP(r), userAgent: r.UserAgent()}
+	return engagement{email: claimedIdentity, ip: readUserIP(r), userAgent: r.UserAgent()}
 }
 
 func readUserIP(r *http.Request) string {
