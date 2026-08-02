@@ -323,7 +323,7 @@ func TestSendMailFreezesResolvedTrackingPolicy(t *testing.T) {
 // Batch row as provenance; a Batch stating more than the ceiling allows fails
 // the call outright rather than being silently clamped, naming the offending
 // axis (ADR 0003); the two axes are evaluated independently; and a Batch
-// stating the reserved `pseudonymous` Mode is rejected as unimplemented.
+// stating a Mode this build cannot read fails the call as a bad argument.
 func TestSendMailBatchTrackingPolicy(t *testing.T) {
 	t.Run("AtOrBelowCeilingIsAcceptedAndApplied", func(t *testing.T) {
 		cases := []struct {
@@ -346,6 +346,17 @@ func TestSendMailBatchTrackingPolicy(t *testing.T) {
 					Links: trackingtypes.TrackingMode_TRACKING_MODE_ANONYMOUS,
 				},
 				want: tracking.Policy{Opens: tracking.ModeOff, Links: tracking.ModeAnonymous},
+			},
+			{
+				// Pseudonymous sits between Anonymous and Identified (#424,
+				// ADR 0006), so it is below the default ceiling and travels the
+				// cascade like every other rung — no longer refused as reserved.
+				name: "Pseudonymous",
+				batch: &trackingtypes.TrackingPolicy{
+					Opens: trackingtypes.TrackingMode_TRACKING_MODE_PSEUDONYMOUS,
+					Links: trackingtypes.TrackingMode_TRACKING_MODE_PSEUDONYMOUS,
+				},
+				want: tracking.Policy{Opens: tracking.ModePseudonymous, Links: tracking.ModePseudonymous},
 			},
 		}
 
@@ -467,7 +478,10 @@ func TestSendMailBatchTrackingPolicy(t *testing.T) {
 		assert.NotContains(t, err.Error(), "opens", "only the violating axis should be named")
 	})
 
-	t.Run("PseudonymousIsRejectedAsUnimplemented", func(t *testing.T) {
+	// A wire value this build cannot read is a client built against a newer
+	// schema. It is one instruction about the whole send, like a ceiling
+	// violation, so it fails the call rather than being read as something else.
+	t.Run("AModeFromANewerSchemaFailsTheCall", func(t *testing.T) {
 		defer cleanDB(t)
 
 		d := createTestDomain(t)
@@ -482,14 +496,19 @@ func TestSendMailBatchTrackingPolicy(t *testing.T) {
 			Html:          "<p>Hello</p>",
 			ScheduledTime: timestamppb.Now(),
 			Tracking: &trackingtypes.TrackingPolicy{
-				Opens: trackingtypes.TrackingMode_TRACKING_MODE_PSEUDONYMOUS,
+				Opens: trackingtypes.TrackingMode(9999),
 			},
 		})
 		authRequest(req, d)
 
 		_, err := ts.SendHTML(t.Context(), req)
 		assert.NotNil(t, err)
-		assert.Equal(t, connect.CodeUnimplemented, connect.CodeOf(err))
+		assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
+
+		var msgCount int
+		err = db.QueryRow(t.Context(), "SELECT count(*) FROM messages WHERE domain = $1", d.Domain.Domain).Scan(&msgCount)
+		assert.Nil(t, err)
+		assert.Equal(t, 0, msgCount, "a Batch whose Policy could not be read must not be created")
 	})
 
 	t.Run("OmittingTheFieldBehavesExactlyAsBefore", func(t *testing.T) {
@@ -694,6 +713,14 @@ func TestSendMailRecipientTrackingPolicy(t *testing.T) {
 				domain:    wirePolicy(wireIdentified, wireOff),
 				recipient: wirePolicy(wireAnonymous, wireFull),
 			},
+			{
+				// Pseudonymous is honoured now (#424), but it is still a rung of
+				// the same scale: asked for above a Domain that allows only
+				// aggregate counting, it is refused like any other widening.
+				name:      "PseudonymousAboveAnAnonymousCeiling",
+				domain:    wirePolicy(wireAnonymous, wireAnonymous),
+				recipient: wirePolicy(wirePseudonymous, wireUnspecified),
+			},
 		}
 
 		for _, tc := range cases {
@@ -718,20 +745,42 @@ func TestSendMailRecipientTrackingPolicy(t *testing.T) {
 		}
 	})
 
-	// The reserved Mode is the one place the Recipient level and the Batch level
-	// differ in kind: a Batch stating it fails the whole call, a Recipient
-	// stating it is Rejected on its own.
-	t.Run("PseudonymousRejectsOnlyThatRecipient", func(t *testing.T) {
+	// Pseudonymous is a Mode a Recipient may state like any other since #424
+	// (ADR 0006): under the identified/identified default it is a narrowing, so
+	// it is accepted and frozen on that Recipient's Delivery alone — the axis it
+	// was not stated on, and the Recipients that stated nothing, are untouched.
+	t.Run("PseudonymousIsAcceptedAndFrozenOnThatRecipient", func(t *testing.T) {
+		defer cleanDB(t)
+
+		d := createTestDomain(t)
+
+		res := requireSend(t, d, nil,
+			&types.Recipient{Email: "unstated@email.com"},
+			&types.Recipient{Email: "pseudonymous@email.com", Tracking: wirePolicy(wirePseudonymous, wireUnspecified)},
+		)
+
+		assert.Empty(t, rejections(t, res))
+		assert.EqualValues(t, 2, res.AcceptedCount)
+		assert.Equal(t, map[string]tracking.Policy{
+			"unstated@email.com":     {Opens: tracking.ModeIdentified, Links: tracking.ModeIdentified},
+			"pseudonymous@email.com": {Opens: tracking.ModePseudonymous, Links: tracking.ModeIdentified},
+		}, frozenPolicies(t, res.MessageId))
+	})
+
+	// A Mode this build cannot read is the one place the Recipient level and the
+	// Batch level differ in kind: a Batch stating it fails the whole call, a
+	// Recipient stating it is Rejected on its own.
+	t.Run("AModeFromANewerSchemaRejectsOnlyThatRecipient", func(t *testing.T) {
 		defer cleanDB(t)
 
 		d := createTestDomain(t)
 
 		res := requireSend(t, d, nil,
 			&types.Recipient{Email: "fine@email.com"},
-			&types.Recipient{Email: "reserved@email.com", Tracking: wirePolicy(wirePseudonymous, wireUnspecified)},
+			&types.Recipient{Email: "unreadable@email.com", Tracking: wirePolicy(trackingtypes.TrackingMode(9999), wireUnspecified)},
 		)
 
-		assert.Equal(t, map[string]string{"reserved@email.com": "unsupported_tracking_mode"}, rejections(t, res))
+		assert.Equal(t, map[string]string{"unreadable@email.com": "unsupported_tracking_mode"}, rejections(t, res))
 		assert.EqualValues(t, 1, res.AcceptedCount)
 		assert.Equal(t, []string{"fine@email.com"}, poolEmails(t, res.MessageId))
 	})

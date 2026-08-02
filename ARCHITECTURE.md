@@ -38,7 +38,7 @@ Kannon is a cloud-native, scalable SMTP mail sender designed for Kubernetes and 
 
 #### `internal/envelope/`
 
-- Defines the Envelope domain entity and `envelope.Builder`: the deep module that renders a `Delivery` into an outgoing Envelope. Hides template lookup, per-recipient custom-field rendering, DKIM signing, tracking-pixel injection, click-link rewriting, and custom To/Cc header handling. The Envelope translates to the `EmailToSend` proto at the NATS publish boundary. The Builder reads the Tracking Policy already frozen on the Delivery and never re-resolves it: under `off` it injects no pixel and rewrites no link, so no tracking hostname reaches the message at all, and under a Mode that names no Recipient the minted token is identical for every Recipient of a Batch and is therefore signed once per Batch instead of once per link per Delivery. Two kinds of href survive a tracked Batch unrewritten: one whose `<a>` tag opts out with `data-no-track`, which the Builder strips before delivery so it never reaches the recipient, and one no redirect could serve — `mailto:`, `tel:`, `sms:`, or an in-page anchor.
+- Defines the Envelope domain entity and `envelope.Builder`: the deep module that renders a `Delivery` into an outgoing Envelope. Hides template lookup, per-recipient custom-field rendering, DKIM signing, tracking-pixel injection, click-link rewriting, and custom To/Cc header handling. The Envelope translates to the `EmailToSend` proto at the NATS publish boundary. The Builder reads the Tracking Policy already frozen on the Delivery and never re-resolves it: under `off` it injects no pixel and rewrites no link, so no tracking hostname reaches the message at all; under `pseudonymous` it draws one random identifier per Delivery and hands that same one to the pixel token and to every link token of the Delivery, which is what makes a Recipient's events linkable to each other within the Batch and to nothing outside it; and under `anonymous` — the one Mode whose tokens cannot tell one Recipient of a Batch from another — the minted token is identical for every Recipient and is therefore signed once per Batch instead of once per link per Delivery. Two kinds of href survive a tracked Batch unrewritten: one whose `<a>` tag opts out with `data-no-track`, which the Builder strips before delivery so it never reaches the recipient, and one no redirect could serve — `mailto:`, `tel:`, `sms:`, or an in-page anchor.
 
 #### `internal/pool/`
 
@@ -58,7 +58,7 @@ Kannon is a cloud-native, scalable SMTP mail sender designed for Kubernetes and 
 
 #### `internal/statssec/`
 
-- Handles secure generation and verification of tracking tokens for opens/clicks (JWT-based), and manages stats keys. The Tracking Mode that governs an event is a signed claim in the token: Pool rows are deleted on terminal outcomes, so by the time an open arrives there is no Delivery to consult, and signing is what stops a Recipient choosing how much is retained about them. A token minted under a Mode that names no Recipient carries no identity at all.
+- Handles secure generation and verification of tracking tokens for opens/clicks (JWT-based), and manages stats keys. The Tracking Mode that governs an event is a signed claim in the token: Pool rows are deleted on terminal outcomes, so by the time an open arrives there is no Delivery to consult, and signing is what stops a Recipient choosing how much is retained about them. The identity is a signed claim too, and is always an address: the Recipient's own under `identified` and `full`, the Delivery's pseudonym under `pseudonymous`, and the constant `anonymous@track.<domain>` below that (ADR 0006). The mint is the chokepoint where the reservation is enforced — a `pseudonymous` token whose identity does not sit under `track.<domain>` is refused rather than shipped, so no caller can name somebody by forgetting to blank a field first — which makes that subdomain an operator-facing requirement: no real mail may be delivered under `track.<domain>`, since a real mailbox there would collide with the sentinel space. Tokens minted before the sentinels existed carry no identity at all under the Modes that name nobody, and keep verifying until they expire.
 
 #### `internal/templates/`
 
@@ -95,14 +95,20 @@ Kannon is a cloud-native, scalable SMTP mail sender designed for Kubernetes and 
   depend on it without a cycle, and depends on nothing itself — in particular
   not on the protobuf packages. The rank order is plain Go, deliberately not
   the protobuf enum numbers, so a Mode can be inserted mid-scale without
-  renumbering the wire. See ADR 0002 and ADR 0003.
+  renumbering the wire. Also owns the identities the Modes that name nobody
+  carry: the `track.<fqdn>` namespace reserved for them, the constant Anonymous
+  sentinel inside it, and the 128-bit `crypto/rand` pseudonym, along with the
+  namespace test the mint applies. See ADR 0002, ADR 0003 and ADR 0006.
 
 #### `internal/trackingpb/`
 
 - Translates Tracking Policies between the wire enums and the
   `internal/tracking` domain types. The only place that knows both, so that
-  every API boundary accepting a Policy refuses the same values — notably the
-  reserved `pseudonymous`, which is ranked but not implemented.
+  every API boundary accepting a Policy refuses the same values — a Mode this
+  build does not know, which is a client built against a newer schema. It is
+  strict in that direction only: a Mode arriving from inside Kannon is read
+  leniently, since an unknown one reads as stating nothing and an unstated Mode
+  can only ever restrict.
 
 ### Service/Worker Modules (`pkg/`)
 
@@ -132,7 +138,7 @@ Kannon is a cloud-native, scalable SMTP mail sender designed for Kubernetes and 
 
 #### `pkg/tracker/`
 
-- Handles HTTP endpoints for open/click tracking. Publishes stats to NATS, carrying the Tracking Mode it read from the token's verified claims. That Mode is the single gate on what the request leaves behind: the IP address and user agent are read only under `full`, and the Recipient is named only from `identified` upwards.
+- Handles HTTP endpoints for open/click tracking. Publishes stats to NATS, carrying the Tracking Mode it read from the token's verified claims. That Mode is the single gate on what the request leaves behind: the IP address and user agent are read only under `full`, the Recipient is named only from `identified` upwards, and under `pseudonymous` the event carries the token's pseudonym instead — enough to link one Delivery's events to each other, and nothing more. Under `anonymous` the sentinel is dropped rather than published, so the event names nobody and reaches no stat row.
 
 #### `pkg/dispatcher/`
 

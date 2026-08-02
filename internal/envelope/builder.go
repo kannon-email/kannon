@@ -45,12 +45,14 @@ type SendingDataSource interface {
 // open token, the links Mode on a link token — signed, so the Tracker can trust
 // it without a Delivery row to look it up in.
 //
-// A Mode that does not identify the Recipient mints no identity into the token,
-// so the Builder asks for such a token once per Batch and reuses it for every
-// Delivery — see sharedtokens.go.
+// The identity argument is whatever that axis's Mode is entitled to name: the
+// Recipient's address, or the Delivery's pseudonym under Pseudonymous. Under a
+// Mode that cannot tell one Recipient of a Batch from another the issuer ignores
+// it entirely, so the Builder asks for such a token once per Batch and reuses it
+// for every Delivery — see sharedtokens.go.
 type TokenIssuer interface {
-	CreateLinkToken(ctx context.Context, messageID, email, url string, mode tracking.Mode) (string, error)
-	CreateOpenToken(ctx context.Context, messageID, email string, mode tracking.Mode) (string, error)
+	CreateLinkToken(ctx context.Context, messageID, identity, url string, mode tracking.Mode) (string, error)
+	CreateOpenToken(ctx context.Context, messageID, identity string, mode tracking.Mode) (string, error)
 }
 
 // Builder renders a Delivery into an outgoing Envelope.
@@ -215,8 +217,13 @@ func (b *defaultBuilder) preparedHTML(ctx context.Context, d *delivery.Delivery,
 	policy := d.TrackingPolicy()
 	html := utils.ReplaceCustomFields(data.HTML, fields)
 
+	identity, err := newTrackingIdentity(policy, d.Email(), data.Domain)
+	if err != nil {
+		return "", err
+	}
+
 	if policy.Links != tracking.ModeOff {
-		rewritten, err := b.replaceAllLinks(ctx, html, trackTargetFor(d, data, policy.Links))
+		rewritten, err := b.replaceAllLinks(ctx, html, trackTargetFor(identity, data, policy.Links))
 		if err != nil {
 			return "", err
 		}
@@ -233,15 +240,58 @@ func (b *defaultBuilder) preparedHTML(ctx context.Context, d *delivery.Delivery,
 	if policy.Opens == tracking.ModeOff {
 		return html, nil
 	}
-	return b.addTrackPixel(ctx, html, trackTargetFor(d, data, policy.Opens))
+	return b.addTrackPixel(ctx, html, trackTargetFor(identity, data, policy.Opens))
+}
+
+// trackingIdentity is who one Delivery's tracking tokens name, which is not one
+// answer but one per axis: the two axes are stated independently (ADR 0003), so a
+// Delivery may well have its opens pseudonymous and its links identified.
+//
+// The pseudonym is drawn **once per Delivery** and held here for both axes. That
+// is the whole content of the Pseudonymous rung: the pixel token and every link
+// token of a Delivery carry the same value, so its engagement events are linkable
+// to each other within the Batch, and to nothing outside it. Drawing one per token
+// instead would leave every event a singleton and quietly record less than the
+// Mode promises, while looking identical from the outside.
+type trackingIdentity struct {
+	email     string
+	pseudonym string
+}
+
+// newTrackingIdentity resolves the identities for one Delivery, drawing a
+// pseudonym only if an axis asks for one — a Batch that states no Pseudonymous
+// axis pays nothing for the rung.
+func newTrackingIdentity(policy tracking.Policy, email string, domain string) (trackingIdentity, error) {
+	id := trackingIdentity{email: email}
+	if policy.Opens != tracking.ModePseudonymous && policy.Links != tracking.ModePseudonymous {
+		return id, nil
+	}
+
+	pseudonym, err := tracking.NewPseudonym(domain)
+	if err != nil {
+		return trackingIdentity{}, err
+	}
+	id.pseudonym = pseudonym
+	return id, nil
+}
+
+// under returns the identity an axis governed by mode may be tracked against.
+// Only Pseudonymous swaps the address out here; every other Mode is handed the
+// address and the mint decides what survives into the claim, which is where that
+// decision has to live so no caller can skip it (internal/statssec.identityUnder).
+func (i trackingIdentity) under(mode tracking.Mode) string {
+	if mode == tracking.ModePseudonymous {
+		return i.pseudonym
+	}
+	return i.email
 }
 
 // trackTarget is what one channel's tracking URL is minted against: which
-// Recipient, in which Batch and Domain, under which Mode. The four travel
+// identity, in which Batch and Domain, under which Mode. The four travel
 // together through every step of rewriting, and the Mode is the one that decides
 // whether the resulting token may be shared across the Batch.
 type trackTarget struct {
-	email     string
+	identity  string
 	messageID string
 	domain    string
 	mode      tracking.Mode
@@ -251,9 +301,9 @@ type trackTarget struct {
 // that axis from the Policy frozen on it — so the Tracker acts on the Policy that
 // governed this Delivery rather than on whatever is configured when the
 // engagement arrives.
-func trackTargetFor(d *delivery.Delivery, data SendingData, mode tracking.Mode) trackTarget {
+func trackTargetFor(identity trackingIdentity, data SendingData, mode tracking.Mode) trackTarget {
 	return trackTarget{
-		email:     d.Email(),
+		identity:  identity.under(mode),
 		messageID: data.MessageID,
 		domain:    data.Domain,
 		mode:      mode,
@@ -282,7 +332,7 @@ func (b *defaultBuilder) buildTrackClickLink(ctx context.Context, url string, t 
 		url:       url,
 		mode:      t.mode,
 	}, func() (string, error) {
-		return b.tokens.CreateLinkToken(ctx, t.messageID, t.email, url, t.mode)
+		return b.tokens.CreateLinkToken(ctx, t.messageID, t.identity, url, t.mode)
 	})
 	if err != nil {
 		return "", err
@@ -297,7 +347,7 @@ func (b *defaultBuilder) buildTrackOpenLink(ctx context.Context, t trackTarget) 
 		messageID: t.messageID,
 		mode:      t.mode,
 	}, func() (string, error) {
-		return b.tokens.CreateOpenToken(ctx, t.messageID, t.email, t.mode)
+		return b.tokens.CreateOpenToken(ctx, t.messageID, t.identity, t.mode)
 	})
 	if err != nil {
 		return "", err
@@ -305,17 +355,20 @@ func (b *defaultBuilder) buildTrackOpenLink(ctx context.Context, t trackTarget) 
 	return fmt.Sprintf("https://stats.%v/o/%v", t.domain, token), nil
 }
 
-// token returns the token for one channel of one Delivery. Under a Mode that
-// names the Recipient it is minted per Delivery, because that is what it commits
-// to. Under a Mode that names nobody it commits only to what the key holds, so
-// every Delivery of the Batch carries the very same token — the privacy property
-// of such a Mode, and the reason one signature covers a whole Batch.
+// token returns the token for one channel of one Delivery. Under a Mode that can
+// tell one Recipient of a Batch from another it is minted per Delivery, because
+// that is what it commits to — whether it names the Recipient (Identified, Full)
+// or merely distinguishes them (Pseudonymous) makes no difference to the sharing
+// question, which is why it is asked as IsolatesRecipient. Under a Mode that
+// cannot, the token commits only to what the key holds, so every Delivery of the
+// Batch carries the very same token — the privacy property of such a Mode, and
+// the reason one signature covers a whole Batch.
 //
 // The rule lives here once, for both channels, so that the key and the decision
 // to share cannot drift apart: a key missing anything the token commits to would
 // hand one Recipient's token to another.
 func (b *defaultBuilder) token(key sharedTokenKey, mint func() (string, error)) (string, error) {
-	if key.mode.IdentifiesRecipient() {
+	if key.mode.IsolatesRecipient() {
 		return mint()
 	}
 	return b.shared.reuse(key, mint)

@@ -14,6 +14,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	sqlc "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/tracking"
+	"github.com/kannon-email/kannon/internal/utils"
 )
 
 const tokenExpirePeriod = time.Hour * 24 * 30 * 3 // 3 months
@@ -53,8 +54,11 @@ const (
 // nothing and therefore never reaches Full: the absence can only ever restrict
 // what the Tracker retains, never widen it.
 //
-// Email is empty under a Mode that does not identify the Recipient — see
-// identityUnder.
+// Email is the identity claim, always email-shaped and always decided by the
+// Mode: the Recipient's address under a Mode that names them, a sentinel address
+// under the Modes that name nobody — see identityUnder. A token minted before
+// sentinels existed carries none at all under those Modes, and the empty case
+// therefore has to keep working for one tokenExpirePeriod.
 type OpenClaims struct {
 	MessageID string        `json:"message_id"`
 	Email     string        `json:"email"`
@@ -73,24 +77,53 @@ type LinkClaims struct {
 	jwt.RegisteredClaims
 }
 
-// identityUnder returns the Recipient identity a token minted under mode may
-// carry: none at all under a Mode that does not identify the Recipient
-// (Anonymous, and the reserved Pseudonymous).
+// ErrIdentityOutsideNamespace is a mint refused because the identity offered for
+// a Mode that must name nobody is not a sentinel address of the Batch's Domain —
+// in practice, a caller passing the recipient's real address under Pseudonymous.
+var ErrIdentityOutsideNamespace = errors.New("tracking identity outside the reserved namespace")
+
+// identityUnder returns the identity a token minted under mode carries. It is
+// always email-shaped and the Mode alone decides which address it is (ADR 0006):
 //
-// That is the privacy property of Anonymous made true in fact rather than in
-// intent — a token holding no address cannot isolate one Recipient from another
-// even if it is captured — and it is what makes the token a function of the Batch
-// instead of the Delivery, so the same one can be issued to every Recipient of a
-// Batch instead of signing RSA-4096 once per Delivery.
+//   - a Mode that names the Recipient carries the Recipient's own address;
+//   - Pseudonymous carries the pseudonym the Builder drew for this Delivery,
+//     which must already sit in the Domain's reserved namespace;
+//   - every other Mode carries the Anonymous sentinel, which is constant per
+//     Domain, so the token stays a function of the Batch and one RSA-4096
+//     signature still covers all of it.
 //
-// The drop happens here, where the claim is assembled, rather than in the caller:
-// this is the one place every token passes through, so no caller can mint an
-// Anonymous token that names somebody by forgetting to blank the address first.
-func identityUnder(mode tracking.Mode, email string) string {
-	if !mode.IdentifiesRecipient() {
-		return ""
+// The decision is taken here, where the claim is assembled, rather than in the
+// caller: this is the one place every token passes through, so no caller can mint
+// a token that names somebody under a Mode that must not. Under Pseudonymous the
+// identity does have to come from the caller — only the Builder knows which
+// Delivery is which, and that is the whole content of the rung — so the property
+// is preserved by *checking* rather than by overwriting: an identity outside
+// `@track.<domain>` is refused instead of shipped.
+//
+// The namespace is derived from the Batch id rather than taken as an argument,
+// both because a caller cannot then widen it and because it is where the Tracker
+// reads the Domain from too, so mint and verify cannot disagree about which
+// Domain a sentinel belongs to.
+func identityUnder(mode tracking.Mode, offered string, messageID string) (string, error) {
+	if mode.IdentifiesRecipient() {
+		return offered, nil
 	}
-	return email
+
+	fqdn, err := utils.ExtractDomainFromMessageID(messageID)
+	if err != nil {
+		return "", fmt.Errorf("cannot resolve the reserved namespace: %w", err)
+	}
+
+	if !mode.IsolatesRecipient() {
+		return tracking.AnonymousIdentity(fqdn), nil
+	}
+
+	// Deliberately never logged or wrapped with the offending value: the whole
+	// point of the refusal is that the value may be a recipient address.
+	if !tracking.InReservedNamespace(offered, fqdn) {
+		return "", fmt.Errorf("%w: %s under %q", ErrIdentityOutsideNamespace, tracking.ReservedNamespace(fqdn), mode)
+	}
+	return offered, nil
 }
 
 func generateKeyPair() (*rsa.PrivateKey, *rsa.PublicKey, error) {
@@ -103,10 +136,15 @@ func generateKeyPair() (*rsa.PrivateKey, *rsa.PublicKey, error) {
 	return privatekey, publickey.(*rsa.PublicKey), nil //nolint:errcheck // RSA private key always returns *rsa.PublicKey
 }
 
-func createOpenToken(privateKey *rsa.PrivateKey, kid string, now time.Time, messageID string, email string, mode tracking.Mode) (string, error) {
+func createOpenToken(privateKey *rsa.PrivateKey, kid string, now time.Time, messageID string, offered string, mode tracking.Mode) (string, error) {
+	identity, err := identityUnder(mode, offered, messageID)
+	if err != nil {
+		return "", err
+	}
+
 	claims := &OpenClaims{
 		MessageID: messageID,
-		Email:     identityUnder(mode, email),
+		Email:     identity,
 		Mode:      mode,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(now.Add(tokenExpirePeriod)),
@@ -123,10 +161,15 @@ func createOpenToken(privateKey *rsa.PrivateKey, kid string, now time.Time, mess
 	return token, nil
 }
 
-func createLinkToken(privateKey *rsa.PrivateKey, kid string, now time.Time, messageID string, email string, url string, mode tracking.Mode) (string, error) {
+func createLinkToken(privateKey *rsa.PrivateKey, kid string, now time.Time, messageID string, offered string, url string, mode tracking.Mode) (string, error) {
+	identity, err := identityUnder(mode, offered, messageID)
+	if err != nil {
+		return "", err
+	}
+
 	claims := &LinkClaims{
 		MessageID: messageID,
-		Email:     identityUnder(mode, email),
+		Email:     identity,
 		URL:       url,
 		Mode:      mode,
 		RegisteredClaims: jwt.RegisteredClaims{

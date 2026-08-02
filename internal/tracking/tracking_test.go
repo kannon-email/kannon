@@ -188,34 +188,52 @@ func TestPolicyNormalized(t *testing.T) {
 	}
 }
 
-// TestModeIdentifiesRecipient pins where on the scale attribution begins, which
-// is the line the aggregate-statistics carve-out from the consent requirement
-// follows: an event governed by a Mode below Identified may not name anybody.
-func TestModeIdentifiesRecipient(t *testing.T) {
+// TestWhereTheScaleDrawsItsIdentityLines pins the two rungs the rest of the
+// codebase reads the scale at, in one table because they are only meaningful
+// against each other.
+//
+// IdentifiesRecipient is where attribution begins, the line the aggregate-
+// statistics carve-out from the consent requirement follows: below Identified an
+// event may not name anybody. IsolatesRecipient is one rung lower, where an event
+// stops being indistinguishable from every other event of its Batch — below
+// Anonymous "nothing is retained that could isolate one Recipient from another"
+// (CONTEXT.md). Pseudonymous is the whole width of the gap: the rung that isolates
+// without naming.
+//
+// Reading them side by side is what makes the gap visible, and the invariant
+// asserted at the end — identifying implies isolating — is what keeps the mint
+// from ever drawing a Batch-shared token for a claim that names somebody.
+func TestWhereTheScaleDrawsItsIdentityLines(t *testing.T) {
 	cases := []struct {
-		name string
-		mode tracking.Mode
-		want bool
+		name       string
+		mode       tracking.Mode
+		identifies bool
+		isolates   bool
 	}{
-		{name: "Off", mode: tracking.ModeOff, want: false},
-		{name: "Anonymous", mode: tracking.ModeAnonymous, want: false},
-		{name: "Pseudonymous", mode: tracking.ModePseudonymous, want: false},
-		{name: "Identified", mode: tracking.ModeIdentified, want: true},
-		{name: "Full", mode: tracking.ModeFull, want: true},
+		{name: "Off", mode: tracking.ModeOff, identifies: false, isolates: false},
+		{name: "Anonymous", mode: tracking.ModeAnonymous, identifies: false, isolates: false},
+		{name: "Pseudonymous", mode: tracking.ModePseudonymous, identifies: false, isolates: true},
+		{name: "Identified", mode: tracking.ModeIdentified, identifies: true, isolates: true},
+		{name: "Full", mode: tracking.ModeFull, identifies: true, isolates: true},
 		// A Mode that states nothing imposes no restriction of its own, so it
-		// leaves attribution exactly as it found it — the case is a token
+		// leaves both questions exactly as it found them — the case is a token
 		// minted before the Mode became a claim.
-		{name: "Unspecified states nothing", mode: tracking.ModeUnspecified, want: true},
+		{name: "Unspecified states nothing", mode: tracking.ModeUnspecified, identifies: true, isolates: true},
 		// A Mode that states something unreadable is a different matter: it can
 		// only come from a newer build, whose Mode may be more restrictive than
 		// Identified, so it is read as the floor of the scale rather than as
 		// permission to attribute.
-		{name: "Unknown value", mode: tracking.Mode("shadow"), want: false},
+		{name: "Unknown value", mode: tracking.Mode("shadow"), identifies: false, isolates: false},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.want, tc.mode.IdentifiesRecipient())
+			assert.Equal(t, tc.identifies, tc.mode.IdentifiesRecipient())
+			assert.Equal(t, tc.isolates, tc.mode.IsolatesRecipient())
+
+			if tc.identifies {
+				assert.True(t, tc.isolates, "naming a Recipient is strictly more than telling them apart")
+			}
 		})
 	}
 }

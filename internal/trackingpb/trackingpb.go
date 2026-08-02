@@ -1,7 +1,7 @@
 // Package trackingpb translates Tracking Policies between the wire enums and
 // the internal/tracking domain types. It is the only place that knows both, so
 // that internal/tracking stays free of any protobuf dependency and every API
-// boundary that accepts a Policy rejects the same values.
+// boundary that accepts a Policy refuses the same wire values.
 package trackingpb
 
 import (
@@ -12,15 +12,9 @@ import (
 	pb "github.com/kannon-email/kannon/proto/kannon/tracking/types"
 )
 
-var (
-	// ErrUnknownMode is returned for a wire value this build does not know,
-	// which normally means a client built against a newer schema.
-	ErrUnknownMode = errors.New("unknown tracking mode")
-	// ErrUnsupportedMode is returned for a Mode that exists on the scale but
-	// is not implemented, so that selecting it fails loudly instead of being
-	// silently treated as something else.
-	ErrUnsupportedMode = errors.New("unsupported tracking mode")
-)
+// ErrUnknownMode is returned for a wire value this build does not know, which
+// normally means a client built against a newer schema.
+var ErrUnknownMode = errors.New("unknown tracking mode")
 
 // wireModes maps every wire value this build knows to its domain Mode.
 var wireModes = map[pb.TrackingMode]tracking.Mode{
@@ -33,8 +27,9 @@ var wireModes = map[pb.TrackingMode]tracking.Mode{
 }
 
 // ToPolicy translates a Policy stated on the wire into the domain type. A nil
-// message states nothing. Pseudonymous is rejected with ErrUnsupportedMode
-// because it is reserved and not implemented.
+// message states nothing, and so does an unspecified axis. A wire value this
+// build does not know is refused with ErrUnknownMode, naming the axis it was
+// stated on.
 func ToPolicy(p *pb.TrackingPolicy) (tracking.Policy, error) {
 	if p == nil {
 		return tracking.Policy{}, nil
@@ -84,24 +79,21 @@ func FromMode(m tracking.Mode) pb.TrackingMode {
 // Unlike a Mode a client states, this one was written by Kannon itself, so it is
 // read leniently rather than refused: a value this build does not know reads as a
 // Mode that states nothing, which is the safe reading for a consumer because an
-// unstated Mode can only ever restrict. Pseudonymous is likewise read rather than
-// rejected — a consumer's job is to handle what arrived, not to relitigate whether
-// it should have.
+// unstated Mode can only ever restrict.
 func ToMode(m pb.TrackingMode) tracking.Mode {
 	return wireModes[m]
 }
 
 // toStatedMode reads a Mode a client stated, and so is strict where ToMode is
-// lenient: a value this build does not know is a client built against a newer
-// schema, and Pseudonymous is reserved but not implemented. Either is refused at
-// the API boundary rather than silently treated as something else.
+// lenient: a value this build does not know comes from a client built against a
+// newer schema, and is refused at the API boundary rather than silently treated
+// as something else. A client that asks for a Mode Kannon cannot honour must be
+// told so, since guessing on its behalf would decide how much to retain about
+// somebody without being asked.
 func toStatedMode(m pb.TrackingMode) (tracking.Mode, error) {
 	mode, ok := wireModes[m]
 	if !ok {
 		return tracking.ModeUnspecified, fmt.Errorf("%w: %d", ErrUnknownMode, m)
-	}
-	if mode == tracking.ModePseudonymous {
-		return tracking.ModeUnspecified, fmt.Errorf("%w: %s", ErrUnsupportedMode, mode)
 	}
 	return mode, nil
 }

@@ -83,8 +83,8 @@ message RejectedRecipient {
   //                              than its Domain's Policy allows; consent may
   //                              narrow what is collected, never widen it
   //   unsupported_tracking_mode  the Recipient stated a Tracking Mode this
-  //                              build will not act on — the reserved
-  //                              `pseudonymous`, or a value from a newer schema
+  //                              build will not act on — a value from a newer
+  //                              schema
   //   unsubscribe_url_unresolved this Recipient's fields leave a placeholder in
   //                              one_click_unsubscribe.url_template unresolved,
   //                              so its unsubscribe endpoint would be advertised

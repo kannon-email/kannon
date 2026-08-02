@@ -27,8 +27,8 @@ const (
 	// retained that could isolate one Recipient from another.
 	ModeAnonymous Mode = "anonymous"
 	// ModePseudonymous means events are linkable within a single Batch but
-	// carry no Recipient identity. Reserved, not implemented: it is ranked so
-	// the scale is complete, and rejected at the API boundary.
+	// carry no Recipient identity: they name a pseudonym drawn fresh for every
+	// Delivery of every Batch (see identity.go).
 	ModePseudonymous Mode = "pseudonymous"
 	// ModeIdentified means events are attributed to the Recipient.
 	ModeIdentified Mode = "identified"
@@ -101,6 +101,29 @@ func (m Mode) IdentifiesRecipient() bool {
 	}
 	_, rank := m.collection()
 	return rank >= modeRanks[ModeIdentified]
+}
+
+// IsolatesRecipient reports whether what is retained about an engagement governed
+// by m may tell one Recipient of a Batch from another. Pseudonymous is by
+// definition the rung at which that begins — its events name nobody yet are
+// linkable to each other within a Batch — and below it "nothing is retained that
+// could isolate one Recipient from another" (CONTEXT.md).
+//
+// It is the coarser of the two questions about identity, and answers three that
+// would otherwise be asked separately and could drift apart: whether the mint
+// draws a per-Delivery identity, whether the resulting token may be shared across
+// the Batch, and whether the Tracker keeps the identity the token claims. All
+// three turn on the same line, because a token that can isolate a Recipient is by
+// construction not the same token for every Recipient.
+//
+// ModeUnspecified isolates and an unreadable Mode does not, for the reasons given
+// on IdentifiesRecipient — this is the same rank comparison one rung lower.
+func (m Mode) IsolatesRecipient() bool {
+	if !m.states() {
+		return true
+	}
+	_, rank := m.collection()
+	return rank >= modeRanks[ModePseudonymous]
 }
 
 // Policy is a pair of Modes, one governing opens and one governing links,
