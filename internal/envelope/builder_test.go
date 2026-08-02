@@ -91,11 +91,16 @@ func (c *countingTokens) CreateOpenToken(ctx context.Context, messageID, email s
 	return c.next("open")
 }
 
+// testBatchID is the Batch every single-Batch test builds against. Tests that
+// care about the boundary between Batches state their own IDs and use
+// mustDeliveryTracked directly.
+const testBatchID = "msg-1@test.com"
+
 // mustDelivery builds a Delivery carrying the Tracking Policy a fresh Domain
 // resolves to, which is identified on both axes (ADR 0003).
-func mustDelivery(t *testing.T, batchID batch.ID, email string, fields map[string]string) *delivery.Delivery {
+func mustDelivery(t *testing.T, email string, fields map[string]string) *delivery.Delivery {
 	t.Helper()
-	return mustDeliveryTracked(t, batchID, email, fields, tracking.Policy{
+	return mustDeliveryTracked(t, batch.ID(testBatchID), email, fields, tracking.Policy{
 		Opens: tracking.ModeIdentified,
 		Links: tracking.ModeIdentified,
 	})
@@ -138,7 +143,7 @@ func TestBuilderRendersSubjectFromAndTo(t *testing.T) {
 	}}
 	b := envelope.NewBuilderWith(src, stubTokens{link: "ltok", open: "otok"})
 
-	d := mustDelivery(t, batch.ID("msg-1@test.com"), "rcpt@example.com", map[string]string{"name": "World"})
+	d := mustDelivery(t, "rcpt@example.com", map[string]string{"name": "World"})
 	env, err := b.Build(t.Context(), d)
 	assert.Nil(t, err)
 
@@ -166,7 +171,7 @@ func TestBuilderInsertsTrackingPixelAndRewritesLinks(t *testing.T) {
 	}}
 	b := envelope.NewBuilderWith(src, stubTokens{link: "LTOK", open: "OTOK"})
 
-	d := mustDelivery(t, batch.ID("msg-1@test.com"), "rcpt@example.com", nil)
+	d := mustDelivery(t, "rcpt@example.com", nil)
 	env, err := b.Build(t.Context(), d)
 	assert.Nil(t, err)
 
@@ -539,4 +544,76 @@ func TestEnvelopeToProto(t *testing.T) {
 	assert.Equal(t, "rp", pb.ReturnPath)
 	assert.Equal(t, []byte("body"), pb.Body)
 	assert.True(t, pb.ShouldRetry)
+}
+
+// TestBuilderCarriesTheUnsubscribeEndpoint checks the whole path: the Batch's
+// template is personalised for this Delivery, percent-encoded, and emitted as
+// the RFC 8058 pair.
+func TestBuilderCarriesTheUnsubscribeEndpoint(t *testing.T) {
+	priv := newDKIMKeys(t)
+	src := stubSource{data: envelope.SendingData{
+		Subject:        "Hello",
+		HTML:           "<html><body>hi</body></html>",
+		Domain:         "test.com",
+		MessageID:      "msg-1",
+		SenderEmail:    "noreply@test.com",
+		SenderAlias:    "Test",
+		DkimPrivateKey: priv,
+		OneClickUnsubscribe: batch.OneClickUnsubscribe{
+			URLTemplate: "https://sender.example/unsub?email={{ email }}",
+		},
+	}}
+	b := envelope.NewBuilderWith(src, stubTokens{link: "ltok", open: "otok"})
+
+	d := mustDelivery(t, "mario+rossi@example.com", nil)
+	env, err := b.Build(t.Context(), d)
+	require.NoError(t, err)
+
+	parsed, err := mail.ReadMessage(bytes.NewReader(env.Body()))
+	require.NoError(t, err)
+
+	// The address is injected as the `email` field and escaped for a query, so
+	// the '+' survives as %2B rather than reaching the endpoint as a space.
+	assert.Equal(t, "<https://sender.example/unsub?email=mario%2Brossi%40example.com>",
+		parsed.Header.Get("List-Unsubscribe"))
+	assert.Equal(t, "List-Unsubscribe=One-Click", parsed.Header.Get("List-Unsubscribe-Post"))
+}
+
+// TestBuilderSignsAFixedHeaderSet pins the h= tag. It is fixed rather than
+// derived from the message so that a header added in transit breaks the
+// signature (RFC 6376 §5.4), and the two List-* names appear twice so that the
+// protection extends to a message that already carries them.
+func TestBuilderSignsAFixedHeaderSet(t *testing.T) {
+	priv := newDKIMKeys(t)
+	src := stubSource{data: envelope.SendingData{
+		Subject:        "Hello",
+		HTML:           "<html><body>hi</body></html>",
+		Domain:         "test.com",
+		MessageID:      "msg-1",
+		SenderEmail:    "noreply@test.com",
+		SenderAlias:    "Test",
+		DkimPrivateKey: priv,
+	}}
+	b := envelope.NewBuilderWith(src, stubTokens{link: "ltok", open: "otok"})
+
+	// No Cc and no unsubscribe on this message: they must still be signed.
+	d := mustDelivery(t, "rcpt@example.com", nil)
+	env, err := b.Build(t.Context(), d)
+	require.NoError(t, err)
+
+	parsed, err := mail.ReadMessage(bytes.NewReader(env.Body()))
+	require.NoError(t, err)
+
+	sig := parsed.Header.Get("DKIM-Signature")
+	require.NotEmpty(t, sig)
+	// Anchored on the tag separator, so this does not match the bh= body hash.
+	m := regexp.MustCompile(`(?:^|;)\s*h=([^;]+)`).FindStringSubmatch(sig)
+	require.Len(t, m, 2, "DKIM-Signature must carry an h= tag")
+	signed := strings.Split(strings.ReplaceAll(m[1], " ", ""), ":")
+
+	assert.Equal(t, []string{
+		"From", "To", "Cc", "Subject", "Message-ID",
+		"List-Unsubscribe", "List-Unsubscribe",
+		"List-Unsubscribe-Post", "List-Unsubscribe-Post",
+	}, signed)
 }

@@ -31,3 +31,36 @@ message Headers {
   repeated string to = 1;
   repeated string cc = 2;
 }
+
+// OneClickUnsubscribe is the sender's own unsubscribe endpoint, carried in the
+// List-Unsubscribe and List-Unsubscribe-Post headers (RFC 8058).
+//
+// Kannon personalises, emits and DKIM-signs it, and does nothing else with it:
+// it never calls the endpoint, keeps no suppression list, and records no
+// engagement when a recipient uses it. The URL travels in a header, so it is
+// never rewritten for click tracking.
+//
+// Stated per Batch. There is no Domain-level default and no Recipient-level
+// override — an unsubscribe on a password reset offers something the sender
+// cannot honour, and personalising the template is already what makes the
+// endpoint per-Recipient.
+message OneClickUnsubscribe {
+  // The https URL of the endpoint, as a template.
+  //
+  // The endpoint MUST accept POST with body `List-Unsubscribe=One-Click` and
+  // unsubscribe the recipient with no further confirmation. Supplying a URL
+  // here asserts that: Kannon cannot verify it, and a message advertising
+  // one-click that does not honour it is worse than one that never advertised
+  // it, since the recipient believes they have unsubscribed.
+  //
+  // `{{ field }}` placeholders are substituted per Delivery from the
+  // Recipient's fields, plus `email`, which Kannon supplies as the Recipient's
+  // address unless the caller passes a field of that name itself. Substituted
+  // values are percent-encoded, so pass raw values rather than pre-encoded
+  // ones.
+  //
+  // A template that is unparseable or not https fails the whole call. A
+  // Recipient whose fields leave a placeholder unresolved is Rejected on its
+  // own, with reason `unsubscribe_url_unresolved`.
+  string url_template = 1;
+}

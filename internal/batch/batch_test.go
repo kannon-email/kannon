@@ -11,7 +11,7 @@ import (
 
 func TestNewBatch(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
-		b, err := New("example.com", "subject", Sender{Email: "from@example.com", Alias: "From"}, "tpl_abc", nil, Headers{}, tracking.Policy{})
+		b, err := New(NewParams{Domain: "example.com", Subject: "subject", Sender: Sender{Email: "from@example.com", Alias: "From"}, TemplateID: "tpl_abc"})
 		require.NoError(t, err)
 		assert.False(t, b.ID().IsZero())
 		assert.True(t, strings.HasPrefix(b.ID().String(), IDPrefix))
@@ -24,28 +24,28 @@ func TestNewBatch(t *testing.T) {
 
 	t.Run("TracksStatedPolicy", func(t *testing.T) {
 		stated := tracking.Policy{Opens: tracking.ModeFull}
-		b, err := New("example.com", "subject", Sender{Email: "from@example.com", Alias: "From"}, "tpl_abc", nil, Headers{}, stated)
+		b, err := New(NewParams{Domain: "example.com", Subject: "subject", Sender: Sender{Email: "from@example.com", Alias: "From"}, TemplateID: "tpl_abc", Tracking: stated})
 		require.NoError(t, err)
 		assert.Equal(t, stated, b.TrackingPolicy(), "New must keep the stated Policy as-is, not normalise it")
 	})
 
 	t.Run("MissingDomain", func(t *testing.T) {
-		_, err := New("", "subject", Sender{Email: "a@b.c"}, "tpl", nil, Headers{}, tracking.Policy{})
+		_, err := New(NewParams{Subject: "subject", Sender: Sender{Email: "a@b.c"}, TemplateID: "tpl"})
 		assert.Error(t, err)
 	})
 
 	t.Run("MissingSubject", func(t *testing.T) {
-		_, err := New("d", "", Sender{Email: "a@b.c"}, "tpl", nil, Headers{}, tracking.Policy{})
+		_, err := New(NewParams{Domain: "d", Sender: Sender{Email: "a@b.c"}, TemplateID: "tpl"})
 		assert.Error(t, err)
 	})
 
 	t.Run("MissingTemplateID", func(t *testing.T) {
-		_, err := New("d", "s", Sender{Email: "a@b.c"}, "", nil, Headers{}, tracking.Policy{})
+		_, err := New(NewParams{Domain: "d", Subject: "s", Sender: Sender{Email: "a@b.c"}})
 		assert.Error(t, err)
 	})
 
 	t.Run("MissingSenderEmail", func(t *testing.T) {
-		_, err := New("d", "s", Sender{}, "tpl", nil, Headers{}, tracking.Policy{})
+		_, err := New(NewParams{Domain: "d", Subject: "s", TemplateID: "tpl"})
 		assert.Error(t, err)
 	})
 }
@@ -92,4 +92,57 @@ func TestLoad(t *testing.T) {
 	assert.Equal(t, []byte("hi"), b.Attachments()["file.txt"])
 	assert.Equal(t, []string{"to@d"}, b.Headers().To)
 	assert.Equal(t, tracking.Policy{Opens: tracking.ModeFull}, b.TrackingPolicy())
+}
+
+func TestNewBatchValidatesTheUnsubscribeEndpoint(t *testing.T) {
+	newWith := func(tpl string) error {
+		_, err := New(NewParams{
+			Domain:              "example.com",
+			Subject:             "subject",
+			Sender:              Sender{Email: "from@example.com", Alias: "From"},
+			TemplateID:          "tpl_abc",
+			OneClickUnsubscribe: OneClickUnsubscribe{URLTemplate: tpl},
+		})
+		return err
+	}
+
+	t.Run("HTTPSTemplateAccepted", func(t *testing.T) {
+		assert.NoError(t, newWith("https://test.com/unsub?email={{ email }}"))
+	})
+
+	t.Run("NoneStatedAccepted", func(t *testing.T) {
+		assert.NoError(t, newWith(""))
+	})
+
+	t.Run("PlainHTTPRejected", func(t *testing.T) {
+		// A one-click POST carries the recipient's identifier; http would put it
+		// on the wire in the clear.
+		assert.Error(t, newWith("http://test.com/unsub"))
+	})
+
+	t.Run("MailtoRejected", func(t *testing.T) {
+		assert.Error(t, newWith("mailto:unsub@test.com"))
+	})
+
+	t.Run("RelativeRejected", func(t *testing.T) {
+		assert.Error(t, newWith("/unsub"))
+	})
+
+	t.Run("HeaderInjectionRejected", func(t *testing.T) {
+		assert.Error(t, newWith("https://test.com/unsub\r\nBcc: victim@test.com"))
+	})
+}
+
+func TestBatchExposesTheUnsubscribeEndpoint(t *testing.T) {
+	b, err := New(NewParams{
+		Domain:              "example.com",
+		Subject:             "subject",
+		Sender:              Sender{Email: "from@example.com", Alias: "From"},
+		TemplateID:          "tpl_abc",
+		OneClickUnsubscribe: OneClickUnsubscribe{URLTemplate: "https://test.com/unsub"},
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, "https://test.com/unsub", b.OneClickUnsubscribe().URLTemplate)
+	assert.False(t, b.OneClickUnsubscribe().IsZero())
 }

@@ -196,6 +196,79 @@ func (x *Headers) GetCc() []string {
 	return nil
 }
 
+// OneClickUnsubscribe is the sender's own unsubscribe endpoint, carried in the
+// List-Unsubscribe and List-Unsubscribe-Post headers (RFC 8058).
+//
+// Kannon personalises, emits and DKIM-signs it, and does nothing else with it:
+// it never calls the endpoint, keeps no suppression list, and records no
+// engagement when a recipient uses it. The URL travels in a header, so it is
+// never rewritten for click tracking.
+//
+// Stated per Batch. There is no Domain-level default and no Recipient-level
+// override — an unsubscribe on a password reset offers something the sender
+// cannot honour, and personalising the template is already what makes the
+// endpoint per-Recipient.
+type OneClickUnsubscribe struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The https URL of the endpoint, as a template.
+	//
+	// The endpoint MUST accept POST with body `List-Unsubscribe=One-Click` and
+	// unsubscribe the recipient with no further confirmation. Supplying a URL
+	// here asserts that: Kannon cannot verify it, and a message advertising
+	// one-click that does not honour it is worse than one that never advertised
+	// it, since the recipient believes they have unsubscribed.
+	//
+	// `{{ field }}` placeholders are substituted per Delivery from the
+	// Recipient's fields, plus `email`, which Kannon supplies as the Recipient's
+	// address unless the caller passes a field of that name itself. Substituted
+	// values are percent-encoded, so pass raw values rather than pre-encoded
+	// ones.
+	//
+	// A template that is unparseable or not https fails the whole call. A
+	// Recipient whose fields leave a placeholder unresolved is Rejected on its
+	// own, with reason `unsubscribe_url_unresolved`.
+	UrlTemplate   string `protobuf:"bytes,1,opt,name=url_template,json=urlTemplate,proto3" json:"url_template,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OneClickUnsubscribe) Reset() {
+	*x = OneClickUnsubscribe{}
+	mi := &file_kannon_mailer_types_send_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OneClickUnsubscribe) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OneClickUnsubscribe) ProtoMessage() {}
+
+func (x *OneClickUnsubscribe) ProtoReflect() protoreflect.Message {
+	mi := &file_kannon_mailer_types_send_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OneClickUnsubscribe.ProtoReflect.Descriptor instead.
+func (*OneClickUnsubscribe) Descriptor() ([]byte, []int) {
+	return file_kannon_mailer_types_send_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *OneClickUnsubscribe) GetUrlTemplate() string {
+	if x != nil {
+		return x.UrlTemplate
+	}
+	return ""
+}
+
 var File_kannon_mailer_types_send_proto protoreflect.FileDescriptor
 
 const file_kannon_mailer_types_send_proto_rawDesc = "" +
@@ -214,7 +287,9 @@ const file_kannon_mailer_types_send_proto_rawDesc = "" +
 	"\t_tracking\")\n" +
 	"\aHeaders\x12\x0e\n" +
 	"\x02to\x18\x01 \x03(\tR\x02to\x12\x0e\n" +
-	"\x02cc\x18\x02 \x03(\tR\x02ccB\xe2\x01\n" +
+	"\x02cc\x18\x02 \x03(\tR\x02cc\"8\n" +
+	"\x13OneClickUnsubscribe\x12!\n" +
+	"\furl_template\x18\x01 \x01(\tR\vurlTemplateB\xe2\x01\n" +
 	"\x1bcom.pkg.kannon.mailer.typesB\tSendProtoP\x01Z8github.com/kannon-email/kannon/proto/kannon/mailer/types\xa2\x02\x04PKMT\xaa\x02\x17Pkg.Kannon.Mailer.Types\xca\x02\x17Pkg\\Kannon\\Mailer\\Types\xe2\x02#Pkg\\Kannon\\Mailer\\Types\\GPBMetadata\xea\x02\x1aPkg::Kannon::Mailer::Typesb\x06proto3"
 
 var (
@@ -229,17 +304,18 @@ func file_kannon_mailer_types_send_proto_rawDescGZIP() []byte {
 	return file_kannon_mailer_types_send_proto_rawDescData
 }
 
-var file_kannon_mailer_types_send_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_kannon_mailer_types_send_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_kannon_mailer_types_send_proto_goTypes = []any{
 	(*Sender)(nil),               // 0: pkg.kannon.mailer.types.Sender
 	(*Recipient)(nil),            // 1: pkg.kannon.mailer.types.Recipient
 	(*Headers)(nil),              // 2: pkg.kannon.mailer.types.Headers
-	nil,                          // 3: pkg.kannon.mailer.types.Recipient.FieldsEntry
-	(*types.TrackingPolicy)(nil), // 4: pkg.kannon.tracking.types.TrackingPolicy
+	(*OneClickUnsubscribe)(nil),  // 3: pkg.kannon.mailer.types.OneClickUnsubscribe
+	nil,                          // 4: pkg.kannon.mailer.types.Recipient.FieldsEntry
+	(*types.TrackingPolicy)(nil), // 5: pkg.kannon.tracking.types.TrackingPolicy
 }
 var file_kannon_mailer_types_send_proto_depIdxs = []int32{
-	3, // 0: pkg.kannon.mailer.types.Recipient.fields:type_name -> pkg.kannon.mailer.types.Recipient.FieldsEntry
-	4, // 1: pkg.kannon.mailer.types.Recipient.tracking:type_name -> pkg.kannon.tracking.types.TrackingPolicy
+	4, // 0: pkg.kannon.mailer.types.Recipient.fields:type_name -> pkg.kannon.mailer.types.Recipient.FieldsEntry
+	5, // 1: pkg.kannon.mailer.types.Recipient.tracking:type_name -> pkg.kannon.tracking.types.TrackingPolicy
 	2, // [2:2] is the sub-list for method output_type
 	2, // [2:2] is the sub-list for method input_type
 	2, // [2:2] is the sub-list for extension type_name
@@ -259,7 +335,7 @@ func file_kannon_mailer_types_send_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_kannon_mailer_types_send_proto_rawDesc), len(file_kannon_mailer_types_send_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

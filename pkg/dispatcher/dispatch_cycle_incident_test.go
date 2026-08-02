@@ -139,9 +139,13 @@ func TestDispatchCycle_BudgetDeathMidPage_NoDeliveryLost(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	b, err := batch.New(domain, "incident repro",
-		batch.Sender{Email: "noreply@" + domain, Alias: "Incident"},
-		tpl.TemplateID, batch.Attachments{}, batch.Headers{}, tracking.Policy{})
+	b, err := batch.New(batch.NewParams{
+		Domain:      domain,
+		Subject:     "incident repro",
+		Sender:      batch.Sender{Email: "noreply@" + domain, Alias: "Incident"},
+		TemplateID:  tpl.TemplateID,
+		Attachments: batch.Attachments{},
+	})
 	require.NoError(t, err)
 	require.NoError(t, sqlc.NewBatchRepository(testDB).Create(ctx, b))
 

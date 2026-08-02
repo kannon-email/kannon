@@ -16,6 +16,14 @@ import (
 
 type headers map[string][]string
 
+// The RFC 8058 pair. The URL is wrapped in angle brackets per RFC 2369, which
+// is what delimits a URI that may itself contain a comma or a space, and the
+// Post value is the fixed token the specification defines — not a variable.
+const (
+	headerListUnsubscribe     = "List-Unsubscribe"
+	headerListUnsubscribePost = "List-Unsubscribe-Post"
+)
+
 // Attachments maps an attachment filename to a reader producing its bytes.
 type Attachments map[string]io.Reader
 
@@ -31,7 +39,7 @@ func buildReturnPath(to, messageID string) string {
 	return fmt.Sprintf("bump_%v+%v", emailBase64, messageID)
 }
 
-func buildHeaders(subject string, sender batch.Sender, to, poolMessageID, messageID string, baseHeaders headers, customHeaders batch.Headers) headers {
+func buildHeaders(subject string, sender batch.Sender, to, poolMessageID, messageID string, baseHeaders headers, customHeaders batch.Headers, unsubscribeURL string) headers {
 	h := make(headers)
 	for k, v := range baseHeaders {
 		h[k] = make([]string, len(v))
@@ -49,6 +57,13 @@ func buildHeaders(subject string, sender batch.Sender, to, poolMessageID, messag
 	}
 	if len(customHeaders.Cc) > 0 {
 		h["Cc"] = customHeaders.Cc
+	}
+
+	// The two travel together or not at all: List-Unsubscribe-Post is what makes
+	// the URL a one-click endpoint, and on its own it says nothing.
+	if unsubscribeURL != "" {
+		h[headerListUnsubscribe] = []string{fmt.Sprintf("<%s>", unsubscribeURL)}
+		h[headerListUnsubscribePost] = []string{"List-Unsubscribe=One-Click"}
 	}
 
 	return h

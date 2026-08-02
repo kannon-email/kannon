@@ -5,6 +5,71 @@ releases that change behaviour of an installation already in production appear
 here; everything else is in [`CHANGELOG.md`](../CHANGELOG.md), which is
 generated from commits.
 
+## Unreleased — One-Click Unsubscribe
+
+### What changes
+
+Kannon can now carry a `List-Unsubscribe` / `List-Unsubscribe-Post` pair
+(RFC 8058), which the large receivers require of bulk senders. The endpoint is
+**yours**: Kannon personalises the URL, emits it and signs it, and does nothing
+else with it — it never calls it, keeps no suppression list, and records no
+engagement when a recipient uses it. Nothing is emitted unless you ask for it,
+so an installation that ignores this section is unaffected.
+
+Two changes reach mail you are already sending, though:
+
+- **Every DKIM signature now covers a fixed header set**:
+  `From, To, Cc, Subject, Message-ID, List-Unsubscribe, List-Unsubscribe-Post`,
+  whether or not each header is on the message. Signing a header that is absent
+  is what lets a receiver detect one inserted in transit (RFC 6376 §5.4). The
+  practical consequence: a relay that *adds* a Cc or an unsubscribe header to
+  your mail now breaks the signature instead of having its addition ride along
+  unsigned. A forwarder that inserts its own `List-*` headers — a mailing list
+  expander, typically — will fail DKIM at the final hop, where before it would
+  have passed. See
+  [ADR 0005](adr/0005-one-click-unsubscribe-and-signed-header-set.md).
+- **`{{ email }}` now resolves in your subject and body**, to the recipient's
+  address. Before this release it rendered as literal braces unless you passed a
+  field of that name yourself. If you pass your own `email` field, your value
+  still wins — nothing you already send changes.
+
+### Using it
+
+State the endpoint per send. It is deliberately not a Domain-wide setting:
+Kannon is a transactional sender, and an unsubscribe header on a password reset
+offers a recipient something you cannot honour.
+
+```json
+{
+  "one_click_unsubscribe": {
+    "url_template": "https://yourdomain.com/unsub?email={{ email }}"
+  }
+}
+```
+
+Four things the API will hold you to:
+
+1. **The URL must be `https`.** A `mailto:` fallback is not supported, and plain
+   `http` would put the recipient's identifier on the wire in the clear. A
+   template that is malformed, relative or non-https fails the whole call.
+2. **Your endpoint must accept `POST`** with body `List-Unsubscribe=One-Click`
+   and unsubscribe with no further confirmation. Supplying a URL here asserts
+   that, and Kannon cannot verify it. Advertising one-click without honouring it
+   is worse than not advertising it: the recipient presses the button, believes
+   they are unsubscribed, and reports your next message as spam.
+3. **Pass raw field values, not pre-encoded ones.** Kannon percent-encodes every
+   value it substitutes into the URL, so `mario+rossi@example.com` arrives
+   intact rather than as `mario rossi@example.com`.
+4. **Every placeholder must resolve for every Recipient.** One whose fields
+   leave a placeholder unresolved is Rejected on its own, with reason
+   `unsubscribe_url_unresolved` in `rejected_recipients`, while the rest of the
+   send proceeds. `{{ email }}` always resolves; a custom `{{ token }}` only
+   does if you pass it for that row.
+
+The link in your message *body* is a separate matter and is still tracked like
+any other. If it points at the same URL, keep it out of click tracking with
+`data-no-track` on the `<a>` tag (see below).
+
 ## Unreleased — Tracking Policy
 
 ### What changes

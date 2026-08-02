@@ -22,7 +22,7 @@ func TestBuildHeaders(t *testing.T) {
 	sender := batch.Sender{Email: "from@email.com", Alias: "email"}
 
 	baseHeaders := headers{"testH": {"testH"}}
-	h := buildHeaders("test subject", sender, "to@email.com", "132@email.com", "<msg-123@email.com>", baseHeaders, batch.Headers{})
+	h := buildHeaders("test subject", sender, "to@email.com", "132@email.com", "<msg-123@email.com>", baseHeaders, batch.Headers{}, "")
 
 	assert.Equal(t, "testH", h["testH"][0])
 	assert.Equal(t, "test subject", h["Subject"][0])
@@ -34,14 +34,14 @@ func TestBuildHeadersShouldCopyBaseHeader(t *testing.T) {
 	baseHeaders := headers{"testH": {"testH"}}
 	sender := batch.Sender{Email: "from@email.com", Alias: "email"}
 
-	buildHeaders("test subject", sender, "to@email.com", "132@email.com", "<msg-123@email.com>", baseHeaders, batch.Headers{})
+	buildHeaders("test subject", sender, "to@email.com", "132@email.com", "<msg-123@email.com>", baseHeaders, batch.Headers{}, "")
 	assert.Equal(t, 1, len(baseHeaders))
 }
 
 func TestBuildHeadersCustomTo(t *testing.T) {
 	sender := batch.Sender{Email: "from@email.com", Alias: "email"}
 	ch := batch.Headers{To: []string{"visible@example.com"}}
-	h := buildHeaders("test subject", sender, "to@email.com", "132@email.com", "<msg-123@email.com>", headers{}, ch)
+	h := buildHeaders("test subject", sender, "to@email.com", "132@email.com", "<msg-123@email.com>", headers{}, ch, "")
 
 	assert.Equal(t, []string{"visible@example.com"}, h["To"])
 	_, hasCC := h["Cc"]
@@ -51,7 +51,7 @@ func TestBuildHeadersCustomTo(t *testing.T) {
 func TestBuildHeadersWithCC(t *testing.T) {
 	sender := batch.Sender{Email: "from@email.com", Alias: "email"}
 	ch := batch.Headers{Cc: []string{"cc1@example.com", "cc2@example.com"}}
-	h := buildHeaders("test subject", sender, "to@email.com", "132@email.com", "<msg-123@email.com>", headers{}, ch)
+	h := buildHeaders("test subject", sender, "to@email.com", "132@email.com", "<msg-123@email.com>", headers{}, ch, "")
 
 	assert.Equal(t, []string{"to@email.com"}, h["To"])
 	assert.Equal(t, []string{"cc1@example.com", "cc2@example.com"}, h["Cc"])
@@ -63,7 +63,7 @@ func TestBuildHeadersBothToAndCC(t *testing.T) {
 		To: []string{"visible@example.com", "visible2@example.com"},
 		Cc: []string{"cc@example.com"},
 	}
-	h := buildHeaders("test subject", sender, "to@email.com", "132@email.com", "<msg-123@email.com>", headers{}, ch)
+	h := buildHeaders("test subject", sender, "to@email.com", "132@email.com", "<msg-123@email.com>", headers{}, ch, "")
 
 	assert.Equal(t, []string{"visible@example.com", "visible2@example.com"}, h["To"])
 	assert.Equal(t, []string{"cc@example.com"}, h["Cc"])

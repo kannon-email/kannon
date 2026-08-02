@@ -50,6 +50,12 @@ A pair of Tracking Modes — one governing opens, one governing links — expres
 A Policy states what *may* be observed, not what must be: the authored HTML may keep a single link out of click tracking with a `data-no-track` attribute on its `<a>` tag. That is an authoring decision taken inside an already-resolved Policy — it narrows what that Delivery's Policy allows and can never widen it — not a fourth level of the cascade, and it is stripped from the delivered HTML.
 _Avoid_: Tracking Settings, Tracking Config, Consent (a Policy conveys a consent decision taken elsewhere; it is not itself the consent, and Kannon never stores consent)
 
+**One-Click Unsubscribe**:
+The **sender's own** unsubscribe endpoint, stated once per Batch as an `https` URL template and personalised per Delivery, carried in the `List-Unsubscribe` and `List-Unsubscribe-Post` headers (RFC 8058). Kannon signs it, so that a receiver can trust the destination was part of the authenticated message, but does not own it, never calls it, and retains nothing about who used it: leaving is not engagement, and to the Tracker a Delivery that ends in an unsubscribe is indistinguishable from one that does not.
+
+Stated at Batch level only — there is no Domain default and no Recipient override. A Domain default would stamp an unsubscribe on the password resets and receipts that are this sender's core traffic, offering a recipient something the sender cannot honour; and a Recipient override would add nothing, since personalising the template from the Recipient's fields is already what makes the endpoint per-Recipient. This is a deliberate asymmetry with **Tracking Policy**, which does cascade: a Policy expresses a permission that is meaningful to narrow by degrees, while this is an operational instruction that is meaningful only where the intent of a single Batch lives.
+_Avoid_: Unsubscribe Link (suggests something to click, and therefore something trackable), Unsubscribe List / Suppression List (Kannon keeps neither), Opt-out (a consent notion, which under ADR 0002 Kannon does not store)
+
 ### Actors
 
 **Mailer API**:

@@ -53,15 +53,16 @@ func (s mailAPIService) SendHTML(ctx context.Context, req *connect.Request[pb.Se
 	}
 
 	res := &pb.SendTemplateReq{
-		Sender:        req.Msg.Sender,
-		Subject:       req.Msg.Subject,
-		TemplateId:    template.TemplateID(),
-		ScheduledTime: req.Msg.ScheduledTime,
-		Recipients:    req.Msg.Recipients,
-		Attachments:   req.Msg.Attachments,
-		GlobalFields:  nil,
-		Headers:       req.Msg.Headers,
-		Tracking:      req.Msg.Tracking,
+		Sender:              req.Msg.Sender,
+		Subject:             req.Msg.Subject,
+		TemplateId:          template.TemplateID(),
+		ScheduledTime:       req.Msg.ScheduledTime,
+		Recipients:          req.Msg.Recipients,
+		Attachments:         req.Msg.Attachments,
+		GlobalFields:        nil,
+		Headers:             req.Msg.Headers,
+		Tracking:            req.Msg.Tracking,
+		OneClickUnsubscribe: req.Msg.OneClickUnsubscribe,
 	}
 
 	return s.sendTemplate(ctx, domain, connect.NewRequest(res))
@@ -128,7 +129,19 @@ func (s mailAPIService) sendTemplate(ctx context.Context, domain *domains.Domain
 		return nil, batchTrackingCeilingError(violations)
 	}
 
-	b, err := batch.New(domain.Domain(), req.Msg.Subject, sender, template.TemplateID(), attachments, customHeaders, batchPolicy)
+	// A malformed or non-https endpoint is a fault in the request as a whole,
+	// not in one of its rows, so it fails the call rather than refusing
+	// Recipients one by one (ADR 0005). batch.New holds the invariant.
+	b, err := batch.New(batch.NewParams{
+		Domain:              domain.Domain(),
+		Subject:             req.Msg.Subject,
+		Sender:              sender,
+		TemplateID:          template.TemplateID(),
+		Attachments:         attachments,
+		Headers:             customHeaders,
+		OneClickUnsubscribe: unsubscribeFromRequest(req.Msg.OneClickUnsubscribe),
+		Tracking:            batchPolicy,
+	})
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
@@ -179,6 +192,12 @@ const (
 	// newer schema. Both leave the caller the same work — restate the Policy —
 	// so they share one reason.
 	reasonUnsupportedTrackingMode rejectionReason = "unsupported_tracking_mode"
+	// reasonUnsubscribeURLUnresolved is a Recipient whose fields leave a
+	// placeholder in the Batch's one-click unsubscribe URL unresolved. Refusing
+	// it beats sending it: the alternative is a DKIM-signed header advertising an
+	// authenticated one-click endpoint that is in fact a URL with braces in it,
+	// and a recipient who presses the button and stays subscribed (ADR 0005).
+	reasonUnsubscribeURLUnresolved rejectionReason = "unsubscribe_url_unresolved"
 )
 
 // intake is what became of a Batch's Recipients as they were taken in: those
@@ -228,6 +247,10 @@ func (s mailAPIService) scheduleBatch(ctx context.Context, domain *domains.Domai
 			taken.reject(r.Email, rejection.reason, rejection.detail)
 			continue
 		}
+		if detail, ok := unresolvedUnsubscribeURL(b.OneClickUnsubscribe(), r.Email, r.Fields); !ok {
+			taken.reject(r.Email, reasonUnsubscribeURLUnresolved, detail)
+			continue
+		}
 		d, err := delivery.New(delivery.NewParams{
 			BatchID:       b.ID(),
 			Email:         r.Email,
@@ -250,6 +273,34 @@ func (s mailAPIService) scheduleBatch(ctx context.Context, domain *domains.Domai
 		return nil, fmt.Errorf("cannot schedule deliveries for batch %s: %w", b.ID().String(), err)
 	}
 	return taken, nil
+}
+
+// unsubscribeFromRequest maps the wire type onto the domain value object. A
+// caller stating nothing yields the zero value, and no unsubscribe header.
+func unsubscribeFromRequest(u *mailertypes.OneClickUnsubscribe) batch.OneClickUnsubscribe {
+	if u == nil {
+		return batch.OneClickUnsubscribe{}
+	}
+	return batch.OneClickUnsubscribe{URLTemplate: u.UrlTemplate}
+}
+
+// unresolvedUnsubscribeURL reports whether one Recipient's fields can resolve
+// the Batch's unsubscribe URL, returning an operator-facing detail when they
+// cannot.
+//
+// The check runs against utils.EffectiveFields, the same map the Builder will
+// render with, so that a Recipient accepted here is one the Builder can resolve.
+// Anything else would either queue a Delivery that silently loses its
+// unsubscribe header, or refuse a Recipient that would have been fine.
+func unresolvedUnsubscribeURL(u batch.OneClickUnsubscribe, email string, fields map[string]string) (string, bool) {
+	if u.IsZero() {
+		return "", true
+	}
+	resolved := utils.ReplaceCustomFieldsInURL(u.URLTemplate, utils.EffectiveFields(email, fields))
+	if utils.HasUnresolvedPlaceholders(resolved) {
+		return fmt.Sprintf("unsubscribe URL still holds a placeholder after substitution: %q", resolved), false
+	}
+	return "", true
 }
 
 // recipientRejection is why one Recipient was refused, split into the stable
