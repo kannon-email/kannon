@@ -8,6 +8,7 @@ import (
 	"github.com/kannon-email/kannon/internal/apikeys"
 	sqlc "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/domains"
+	"github.com/kannon-email/kannon/internal/templates"
 	"github.com/kannon-email/kannon/internal/trackingpb"
 
 	"connectrpc.com/connect"
@@ -93,9 +94,25 @@ func (a *adminAPIConnectAdapter) UpdateTemplate(ctx context.Context, req *connec
 func (a *adminAPIConnectAdapter) DeleteTemplate(ctx context.Context, req *connect.Request[pb.DeleteTemplateReq]) (*connect.Response[pb.DeleteTemplateRes], error) {
 	resp, err := a.impl.DeleteTemplate(ctx, req.Msg)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, deleteTemplateError(err)
 	}
 	return connect.NewResponse(resp), nil
+}
+
+// deleteTemplateError maps a refused Template delete onto a Connect code.
+//
+// A Template a Batch still references is a precondition failure, not a bad
+// argument: the request names a Template that exists and is the caller's, and it
+// would succeed once nothing references it. Internal would be a lie — nothing
+// went wrong — and the caller would have no way to tell it from a database being
+// down.
+func deleteTemplateError(err error) *connect.Error {
+	switch {
+	case errors.Is(err, templates.ErrTemplateInUse):
+		return connect.NewError(connect.CodeFailedPrecondition, err)
+	default:
+		return connect.NewError(connect.CodeInternal, err)
+	}
 }
 
 func (a *adminAPIConnectAdapter) GetTemplate(ctx context.Context, req *connect.Request[pb.GetTemplateReq]) (*connect.Response[pb.GetTemplateRes], error) {

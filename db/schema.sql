@@ -511,6 +511,14 @@ ALTER TABLE ONLY public.templates
 
 
 --
+-- Name: templates templates_template_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.templates
+    ADD CONSTRAINT templates_template_id_key UNIQUE (template_id);
+
+
+--
 -- Name: Account_provider_providerAccountId_key; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -609,6 +617,13 @@ CREATE INDEX messages_message_id_idx ON public.messages USING btree (message_id)
 
 
 --
+-- Name: messages_template_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX messages_template_id_idx ON public.messages USING btree (template_id);
+
+
+--
 -- Name: sending_pool_emails_status_claimed_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -665,13 +680,6 @@ CREATE INDEX templates_domain_template_id_idx ON public.templates USING btree (d
 
 
 --
--- Name: templates_template_id_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX templates_template_id_idx ON public.templates USING btree (template_id);
-
-
---
 -- Name: unique_emails_message_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -711,6 +719,14 @@ ALTER TABLE ONLY public.domain_user
 
 
 --
+-- Name: messages messages_template_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.messages
+    ADD CONSTRAINT messages_template_id_fkey FOREIGN KEY (template_id) REFERENCES public.templates(template_id) ON DELETE RESTRICT NOT VALID;
+
+
+--
 -- Name: sending_pool_emails sending_pool_emails_message_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -747,4 +763,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20260509102644'),
     ('20260726084414'),
     ('20260727071416'),
-    ('20260803094036');
+    ('20260803094036'),
+    ('20260803130304');

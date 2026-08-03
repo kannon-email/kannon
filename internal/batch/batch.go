@@ -16,6 +16,15 @@ import (
 // Domain errors.
 var (
 	ErrBatchNotFound = errors.New("batch not found")
+
+	// ErrTemplateMissing is a Batch that cannot be created because the Template
+	// it names is not there.
+	//
+	// Intake looks the Template up before building the Batch, so in practice
+	// this is the narrow race the lookup cannot close: the Template was deleted
+	// in between. It is a refusal, not a fault — creating the Batch anyway is
+	// what used to leave its Deliveries unbuildable (ADR 0008).
+	ErrTemplateMissing = errors.New("batch template not found")
 )
 
 // Sender is the visible from-identity of a Batch (display alias + email).

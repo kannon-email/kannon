@@ -20,6 +20,17 @@ import (
 // Domain errors.
 var (
 	ErrTemplateNotFound = errors.New("template not found")
+
+	// ErrTemplateInUse is a Template that cannot be deleted because a Batch
+	// still references it.
+	//
+	// A Batch does not copy the body it sends — the Dispatcher renders the
+	// Template row when it builds each Envelope — so the Template is part of
+	// every Batch that names it for as long as that Batch exists. Deleting it
+	// used to be allowed and left the pending Deliveries of those Batches with
+	// nothing to build from; the database now refuses, and this is that refusal
+	// (ADR 0008).
+	ErrTemplateInUse = errors.New("template is referenced by a batch")
 )
 
 // Type is the lifecycle classification of a Template.

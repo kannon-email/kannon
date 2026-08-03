@@ -65,6 +65,11 @@ func (r *templatesRepository) Delete(ctx context.Context, templateID string) (*t
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, templates.ErrTemplateNotFound
 		}
+		// The only key pointing at a Template is the one messages holds, so a
+		// refusal here is a Batch still referencing it (ADR 0008).
+		if isForeignKeyViolation(err) {
+			return nil, templates.ErrTemplateInUse
+		}
 		return nil, err
 	}
 	return rowToTemplate(row), nil

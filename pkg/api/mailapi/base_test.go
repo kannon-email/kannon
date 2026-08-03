@@ -63,6 +63,11 @@ func cleanDB(t *testing.T) {
 	_, err = db.Exec(t.Context(), "DELETE FROM sending_pool_emails")
 	assert.Nil(t, err)
 
+	// Before templates: a Batch holds a key on the Template it sends (ADR 0008),
+	// so a Template still referenced by one of these rows cannot be deleted.
+	_, err = db.Exec(t.Context(), "DELETE FROM messages")
+	assert.Nil(t, err)
+
 	_, err = db.Exec(t.Context(), "DELETE FROM templates")
 	assert.Nil(t, err)
 }

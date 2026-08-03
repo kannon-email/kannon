@@ -164,7 +164,9 @@ Validator's whole cycle is bounded at ten seconds, and uses **5 minutes**.
 - Deleting a Template still orphans the pending Deliveries of every Batch that
   referenced it. The Retry Budget now closes those Deliveries out as Failed
   within 24 hours instead of leaking them forever, but the missing foreign key is
-  an upstream cause and is tracked separately.
+  an upstream cause and is tracked separately. **Superseded by ADR 0008**, which
+  adds that key: no new Batch can be orphaned this way, and the Retry Budget
+  remains what closes out the ones orphaned before it.
 
 ## Rejected alternatives
 

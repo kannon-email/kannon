@@ -212,7 +212,7 @@ Kannon requires a PostgreSQL database, migrated with [dbmate](https://github.com
 - **api_keys**: API Keys for authentication (multiple keys per Domain; hashed at rest, expirable, revocable)
 - **messages**: One row per **Batch** — subject, Sender, template reference, attachments, custom headers, Tracking Policy (legacy table name; the entity is a Batch)
 - **sending_pool_emails**: The Pool — one row per **Delivery** (recipient, scheduled time, retry count, per-recipient fields, frozen Tracking Policy). Rows are deleted on terminal outcomes
-- **templates**: Persistent and Transient Templates owned by a Domain
+- **templates**: Persistent and Transient Templates owned by a Domain. A Template referenced by a Batch cannot be deleted — the body is rendered when each Envelope is built, not copied into the Batch
 - **stats**: Per-Delivery outcome events (Validated / Rejected / Delivered / Bounced / Opened / Clicked), pruned by `stats.retention`
 - **aggregated_stats**: Per-Domain hourly event counters, never pruned — the only record of events collected in anonymous tracking mode
 - **stats_keys**: Signing keys for tracking tokens

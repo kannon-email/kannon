@@ -50,3 +50,22 @@ func TestBatchRepository(t *testing.T) {
 	repo := NewBatchRepository(db)
 	batch.RunRepoSpec(t, repo, batchTestHelper{})
 }
+
+// A Batch is not created against a Template that is not there. Intake looks the
+// Template up first, so this is the race that lookup cannot close — and letting
+// the Batch through is what used to produce Deliveries no Envelope could be
+// built for (ADR 0008).
+func TestBatchCreateRefusedWithoutItsTemplate(t *testing.T) {
+	domainName := batchTestHelper{}.CreateDomain(t)
+
+	b, err := batch.New(batch.NewParams{
+		Domain:     domainName,
+		Subject:    "hello",
+		Sender:     batch.Sender{Email: "from@" + domainName, Alias: "From"},
+		TemplateID: "tpl_deleted_before_the_insert",
+	})
+	require.NoError(t, err)
+
+	err = NewBatchRepository(db).Create(t.Context(), b)
+	require.ErrorIs(t, err, batch.ErrTemplateMissing)
+}

@@ -23,7 +23,8 @@ type Repository interface {
 	Update(ctx context.Context, templateID string, fn UpdateFunc) (*Template, error)
 
 	// Delete removes a Template by ID and returns the deleted row.
-	// Returns ErrTemplateNotFound if not present.
+	// Returns ErrTemplateNotFound if not present, and ErrTemplateInUse if a
+	// Batch still references it.
 	Delete(ctx context.Context, templateID string) (*Template, error)
 
 	// GetByID looks up a Template by its ID alone.

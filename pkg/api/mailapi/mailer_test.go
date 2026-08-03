@@ -1047,3 +1047,58 @@ func TestSendTemplateWithGlobalFields(t *testing.T) {
 	assert.NotEqual(t, tmp.ID, template.ID)
 	assert.Equal(t, "Hello Global", template.Html)
 }
+
+// A Template a Batch was sent with cannot be deleted while that Batch exists.
+// Nothing copies the body: the Dispatcher renders the Template row as it builds
+// each Envelope, so deleting it used to leave every pending Delivery of that
+// Batch with nothing to build from and no outcome to report (ADR 0008).
+//
+// This lives with the send tests rather than the admin ones because it is the
+// whole story in one place: the send is what puts the Template beyond deletion.
+func TestDeleteTemplateRefusedWhileBatchReferencesIt(t *testing.T) {
+	defer cleanDB(t)
+
+	d := createTestDomain(t)
+
+	tmp, err := q.CreateTemplate(t.Context(), sqlc.CreateTemplateParams{
+		Html:       "Hello {{ name }}",
+		TemplateID: "referenced-template",
+		Title:      "Test",
+		Domain:     d.Domain.Domain,
+		Type:       sqlc.TemplateTypeTemplate,
+	})
+	require.NoError(t, err)
+
+	// No global fields: those would send a fresh transient copy instead, and the
+	// Template under test would go unreferenced.
+	req := connect.NewRequest(&mailerv1.SendTemplateReq{
+		Sender: &types.Sender{
+			Email: "test@" + d.Domain.Domain,
+			Alias: "Test",
+		},
+		Recipients: []*types.Recipient{
+			{Email: "recipient@example.com"},
+		},
+		Subject:       "Test",
+		TemplateId:    tmp.TemplateID,
+		ScheduledTime: timestamppb.Now(),
+	})
+	authRequest(req, d)
+
+	sendRes, err := ts.SendTemplate(t.Context(), req)
+	require.NoError(t, err)
+	require.Equal(t, tmp.TemplateID, sendRes.Msg.TemplateId)
+
+	_, err = adminAPI.DeleteTemplate(t.Context(), connect.NewRequest(&adminv1.DeleteTemplateReq{
+		TemplateId: tmp.TemplateID,
+	}))
+	require.Error(t, err)
+	// Not Internal: the request is well-formed and would succeed once no Batch
+	// references the Template.
+	assert.Equal(t, connect.CodeFailedPrecondition, connect.CodeOf(err))
+
+	// The body is still there for the Deliveries that need it.
+	kept, err := q.GetTemplate(t.Context(), tmp.TemplateID)
+	assert.NoError(t, err)
+	assert.Equal(t, tmp.Html, kept.Html)
+}

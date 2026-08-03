@@ -62,7 +62,8 @@ func TestReclaimCycle_ValidatingStrandedPastThreshold_ReturnsToPoolWithoutAttemp
 }
 
 // seedReclaimBatch seeds the Batch row that sending_pool_emails' foreign key
-// needs, plus the Domain that owns it, and removes both afterwards.
+// needs, plus the Domain that owns it and the Template it names, and removes
+// them afterwards.
 func seedReclaimBatch(t *testing.T) (batch.ID, string) {
 	t.Helper()
 	ctx := t.Context()
@@ -75,11 +76,21 @@ func seedReclaimBatch(t *testing.T) (batch.ID, string) {
 	})
 	require.NoError(t, err)
 
+	// The Template comes first: a Batch holds a key on the one it names, so it
+	// cannot be written against a Template that is not there (ADR 0008).
+	tpl, err := q.CreateTemplate(ctx, sqlc.CreateTemplateParams{
+		TemplateID: "tpl_reclaim@" + domain,
+		Html:       "<p>reclaim</p>",
+		Domain:     domain,
+		Type:       sqlc.TemplateTypeTransient,
+	})
+	require.NoError(t, err)
+
 	b, err := batch.New(batch.NewParams{
 		Domain:      domain,
 		Subject:     "reclaim",
 		Sender:      batch.Sender{Email: "noreply@" + domain, Alias: "Reclaim"},
-		TemplateID:  "tpl_reclaim@" + domain,
+		TemplateID:  tpl.TemplateID,
 		Attachments: batch.Attachments{},
 	})
 	require.NoError(t, err)
@@ -94,6 +105,8 @@ func seedReclaimBatch(t *testing.T) (batch.ID, string) {
 		db.Exec(cleanupCtx, "DELETE FROM sending_pool_emails WHERE domain = $1", domain)
 		//nolint:errcheck // best-effort test cleanup
 		db.Exec(cleanupCtx, "DELETE FROM messages WHERE domain = $1", domain)
+		//nolint:errcheck // best-effort test cleanup
+		db.Exec(cleanupCtx, "DELETE FROM templates WHERE domain = $1", domain)
 		//nolint:errcheck // best-effort test cleanup
 		db.Exec(cleanupCtx, "DELETE FROM domains WHERE domain = $1", domain)
 	})

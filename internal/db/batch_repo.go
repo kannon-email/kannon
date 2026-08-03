@@ -33,6 +33,12 @@ func (r *batchRepository) Create(ctx context.Context, b *batch.Batch) error {
 		Headers:     toSQLCHeaders(b.Headers(), b.OneClickUnsubscribe()),
 		Tracking:    b.TrackingPolicy(),
 	})
+	// The only key a new Batch can break is the one it holds on its Template, so
+	// a refusal here is a Template that went away between intake looking it up
+	// and this insert (ADR 0008).
+	if isForeignKeyViolation(err) {
+		return batch.ErrTemplateMissing
+	}
 	return err
 }
 

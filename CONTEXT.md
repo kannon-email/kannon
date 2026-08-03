@@ -22,6 +22,8 @@ A stored email body keyed by `template_id`, owned by a Domain. Has a **lifetime*
 - **Transient Template** — auto-created from the inline HTML of a `SendHTML` API call so the Dispatcher can render it later. Not surfaced in Admin listings. Enables a future "split a million-recipient Batch across multiple API calls without re-uploading the body" use case: the first call inlines the HTML (creating a Transient Template), subsequent calls can reference it by ID via `SendTemplate`.
 - **Persistent Template** — explicitly created and curated via the Admin API. Appears in `GetTemplates`, can be updated and reused across many Batches.
 
+Whatever its lifetime, a Template is part of every Batch that names it and outlives it: nothing copies the body, so the Dispatcher renders the Template as it builds each Envelope, and a Template a Batch references cannot be deleted (ADR 0008). An update, by the same token, changes what the rest of an in-flight Batch sends.
+
 _Avoid_: treating `template_type` as a source-format axis (HTML/MJML/etc.); that is a separate, currently-not-modelled concern.
 
 **Delivery**:
@@ -119,7 +121,7 @@ Terminality is a property of the event, not of the Pool row: by the time an asyn
 _Known gap_: the SMTPServer reads only the DSN's `Diagnostic-Code` and treats every DSN as a failure. An RFC 3464 `Action: delayed` — the remote MTA is still retrying, so no outcome has been reached — is therefore recorded as a Bounce and inflates the bounce rate. Tracked separately from #376.
 
 **Failed**:
-Terminal failure in which no attempt at this Delivery ever produced an outcome. Carries a `reason` and — unlike **Bounced** — no reply code, because there is none to carry: no remote mail system ever spoke. Emitted by the **Dispatcher** when a Delivery exhausts its retry budget without a single attempt having been answered, whether because no Envelope could be built for it (its Batch's Template is gone, its Domain's DKIM key is unusable) or because none of its Envelopes could be handed on.
+Terminal failure in which no attempt at this Delivery ever produced an outcome. Carries a `reason` and — unlike **Bounced** — no reply code, because there is none to carry: no remote mail system ever spoke. Emitted by the **Dispatcher** when a Delivery exhausts its retry budget without a single attempt having been answered, whether because no Envelope could be built for it (its Domain's DKIM key is unusable; or its Batch's Template is gone, which since ADR 0008 only a Batch orphaned before that key existed can be) or because none of its Envelopes could be handed on.
 
 Failed states what Kannon knows, which is less than what happened: an Envelope may have been transmitted and its outcome lost on the way back, and such a Delivery is Failed too. Kannon claims only that it never learned of an outcome — never that the recipient did not receive the mail.
 
@@ -189,7 +191,7 @@ _Avoid_: Reaper / Reaping, Sweep / Sweeper, Requeue, Janitor, Unstick. *Stranded
 - A **Delivery** is built into exactly one **Envelope** when dispatched
 - An **Envelope** belongs to exactly one **Delivery**
 - The **Dispatcher** produces **Envelopes**; the **SMTPSender** consumes them
-- A **Template** is referenced by 0..N **Batches**
+- A **Template** is referenced by 0..N **Batches**, and cannot be deleted while any of them exists (ADR 0008)
 - A **Recipient** (input) becomes one **Delivery** (persistent record) when a **Batch** is created
 
 ## Example dialogue

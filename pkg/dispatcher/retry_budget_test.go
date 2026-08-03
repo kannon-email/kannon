@@ -12,11 +12,16 @@ package dispatcher
 // condition and asserts the loop now ends: the Delivery is dropped from the Pool
 // and the sender is told, as Failed.
 //
-// The build failure needs no injection seam. seedReclaimBatch's Batch names a
-// Template that was never created, which is the production cause verbatim:
-// GetSendingData joins Batch × Template × Domain and there is no foreign key
-// from messages.template_id, so deleting a Template orphans every pending
-// Delivery of every Batch that referenced it.
+// The build failure needs no injection seam. seedReclaimBatch's Domain carries a
+// DKIM private key that is not a key, which is a production cause verbatim: the
+// Builder signs every Envelope it builds, so a Domain whose key cannot be parsed
+// has no Delivery it can build.
+//
+// ADR 0007 names the other cause, a Batch whose Template is gone, and this test
+// used to reach the chokepoint through it — the fixture's Batch named a Template
+// that was never created. Since ADR 0008 the database refuses that state, so
+// what remains of it are the Batches orphaned before the key existed; they
+// arrive here by the same road.
 
 import (
 	"testing"

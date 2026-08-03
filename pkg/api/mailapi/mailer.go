@@ -235,6 +235,15 @@ func (in *intake) reject(email string, reason rejectionReason, detail string) {
 
 func (s mailAPIService) scheduleBatch(ctx context.Context, domain *domains.Domain, b *batch.Batch, recipients []*mailertypes.Recipient, scheduled time.Time) (*intake, error) {
 	if err := s.batches.Create(ctx, b); err != nil {
+		// The Template was looked up a moment ago and has gone since. Failing the
+		// call is the whole point: a Batch created without its Template has
+		// Deliveries no Envelope can ever be built for, which is what the key
+		// under this error exists to prevent (ADR 0008). The caller can retry
+		// against a Template that exists.
+		if errors.Is(err, batch.ErrTemplateMissing) {
+			return nil, connect.NewError(connect.CodeFailedPrecondition,
+				fmt.Errorf("template %q no longer exists", b.TemplateID()))
+		}
 		return nil, err
 	}
 	taken := &intake{
