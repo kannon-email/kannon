@@ -14,10 +14,21 @@ spec:
         name: kannon
     spec:
       containers:
-        - name: kannon-cp 
+        - name: kannon-cp
           image: ghcr.io/kannon-email/kannon/kannon
           imagePullPolicy: Always
-          args: ['--run-api', '--run-tracker', '--run-dispatcher', '--run-validator', '--run-sender', '--run-smtp' ,'--config', '/etc/kannon/config.yaml']
+          args:
+            [
+              '--run-api',
+              '--run-tracker',
+              '--run-dispatcher',
+              '--run-validator',
+              '--run-sender',
+              '--run-smtp',
+              '--run-stats',
+              '--config',
+              '/etc/kannon/config.yaml',
+            ]
           resources:
             limits:
               memory: '64Mi'
@@ -26,7 +37,26 @@ spec:
               cpu: '50m'
           ports:
             - containerPort: 50051
-              name: 'grpc'
+              name: 'api'
+            - containerPort: 8080
+              name: 'tracker'
+            # The image runs as UID 1000, so binding 25 needs either
+            # CAP_NET_BIND_SERVICE, the net.ipv4.ip_unprivileged_port_start
+            # sysctl, or a high `smtp.address` behind this Service port.
+            - containerPort: 25
+              name: 'smtp'
+          volumeMounts:
+            - name: config
+              mountPath: /etc/kannon
+              readOnly: true
+      volumes:
+        # Supply your own ConfigMap with a `config.yaml` key. Kannon exits at
+        # boot when --config points at a file that is not there, and most
+        # settings (api.port, sender.hostname, smtp.*, tracker.port, stats.*)
+        # can only be set in that file — not from the environment.
+        - name: config
+          configMap:
+            name: kannon-config
 ---
 apiVersion: v1
 kind: Service
@@ -38,5 +68,11 @@ spec:
     name: kannon
   ports:
     - port: 50051
-      targetPort: grpc
-      name: grpc
+      targetPort: api
+      name: api
+    - port: 8080
+      targetPort: tracker
+      name: tracker
+    - port: 25
+      targetPort: smtp
+      name: smtp
