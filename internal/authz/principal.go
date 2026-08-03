@@ -6,19 +6,9 @@ import (
 	"strings"
 )
 
-// Attribution is a claim naming who asked, on the far side of a caller Kannon
-// cannot see into — a front-end that has its own people and hands their requests
-// on.
-//
-// It is unverifiable in principle, not merely unverified: the people it names
-// exist only in that calling system, so there is nothing here to check it
-// against and no future version could. It is therefore recorded and never
-// consulted — it can no more widen what a Principal may do than it can be
-// verified — and it must never reach an authorization decision. If it ever did,
-// a caller holding Attribute would gain the ability to choose its own authority.
-//
-// An Attribution is personal data. Whatever eventually persists one owes it a
-// retention policy.
+// Attribution is a claim naming who asked, on the far side of a caller Kannon cannot see
+// into. Unverifiable in principle, so it is recorded and never consulted — reaching an
+// authorization decision would let a holder choose its own authority. It is personal data.
 type Attribution string
 
 // String returns the claim as written.
@@ -26,28 +16,18 @@ func (a Attribution) String() string {
 	return string(a)
 }
 
-// Principal is who is making a request, as resolved by whatever authenticated
-// it.
-//
-// A value object rather than a stored record: each authentication method
-// populates one in its own way — an API Key by looking it up, a signed token by
-// reading its claims — so what a Principal *is* never depends on how it arrived.
-// It describes authority and does not decide; Can decides.
-//
-// The identifier names the credential the Principal came from, such as
-// "<key-id>@<fqdn>". It is invariant under Attenuation, so narrowing changes
-// what may be done and never who did it.
+// Principal is who is making a request, as resolved by whatever authenticated it: a value
+// object, so what a Principal is never depends on how it arrived. Its identifier names the
+// credential and is invariant under Attenuation. It describes authority; Can decides.
 type Principal struct {
 	id          string
 	grants      []Grant
 	attribution Attribution
 }
 
-// NewPrincipal resolves a Principal from an identifier and its Grants.
-//
-// A Principal with no Grants is permitted and can do nothing, which is a useful
-// thing to be able to represent — an authenticated credential whose authority
-// has been revoked is not the same as an unauthenticated request.
+// NewPrincipal resolves a Principal from an identifier and its Grants. One with no Grants is
+// permitted and can do nothing, which is worth representing: an authenticated credential
+// whose authority has been revoked is not the same as an unauthenticated request.
 func NewPrincipal(id string, grants ...Grant) (Principal, error) {
 	if strings.TrimSpace(id) == "" {
 		return Principal{}, errors.New("principal id is required")
@@ -83,27 +63,18 @@ func (p Principal) Attribution() Attribution {
 	return p.attribution
 }
 
-// WithAttribution returns a copy of the Principal carrying a claim about who
-// asked.
-//
-// This performs **no** check, and that is deliberate rather than an oversight.
-// Entitlement to make a claim depends on the Resource being acted on, which is
-// not known here, so it is verified where it is known: Guard refuses an
-// operation whose Principal carries an Attribution it does not hold Attribute
-// for. Setting one therefore cannot smuggle anything past a guard — it can only
-// cause the guarded operation to be refused.
+// WithAttribution returns a copy of the Principal carrying a claim about who asked. It checks
+// nothing, deliberately: entitlement depends on the Resource, so Guard verifies it there.
+// Setting one can therefore only cause the guarded operation to be refused.
 func (p Principal) WithAttribution(a Attribution) Principal {
 	p.attribution = a
 	p.grants = slices.Clone(p.grants)
 	return p
 }
 
-// String renders the Principal for display and logging: its identifier, its
-// Grants, and the Attribution it claims, if any.
-//
-// The identifier is always rendered whether or not an Attribution accompanies
-// it, so a record never leaves the question of who acted unanswered and an
-// authenticated identity is never confused with an asserted one.
+// String renders the Principal for display and logging: identifier, Grants and any
+// Attribution. The identifier is always rendered, so a record never leaves who acted
+// unanswered and an authenticated identity is never confused with an asserted one.
 func (p Principal) String() string {
 	var b strings.Builder
 	b.WriteString(p.id)

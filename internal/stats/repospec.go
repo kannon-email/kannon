@@ -75,11 +75,9 @@ func testInsertAndQuery(t *testing.T, repo Repository) {
 	assert.Equal(t, domain, results[0].Domain)
 }
 
-// A stat event carries the timestamp its publisher stamped on it, so a message
-// redelivered by JetStream — because the ack deadline elapsed while this very
-// insert was in flight — arrives identical to the one already stored. Storing it
-// again would inflate the recipient's history with an event that never happened
-// twice, so the second insert must succeed and change nothing.
+// A stat event carries the timestamp its publisher stamped on it, so a message redelivered by
+// JetStream arrives identical to the one already stored. Storing it again would inflate the
+// recipient's history with an event that never happened twice, so the second insert must change nothing.
 func testInsertIsIdempotent(t *testing.T, repo Repository) {
 	ctx := t.Context()
 	domain := values.MustParse(fmt.Sprintf("insert-idempotent-%d.test", time.Now().UnixNano()))
@@ -192,7 +190,6 @@ func testQueryFiltersByTimeRange(t *testing.T, repo Repository) {
 	domain := values.MustParse(fmt.Sprintf("timerange-%d.test", time.Now().UnixNano()))
 	base := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 
-	// Insert stats at base+0m, base+30m, base+60m
 	for i, offset := range []time.Duration{0, 30 * time.Minute, 60 * time.Minute} {
 		err := repo.Insert(ctx, &Stat{
 			Type: TypeDelivered, Email: fmt.Sprintf("u%d@example.com", i),

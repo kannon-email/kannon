@@ -14,10 +14,9 @@ type statsV1Impl struct {
 	service *stats.Service
 }
 
-// The requested domain arrives as a bare string, so it is canonicalised here
-// rather than passed on: a query on a spelling that was never canonicalised
-// would return no rows, which a caller cannot tell from "this Domain sent
-// nothing".
+// The requested domain arrives as a bare string, so it is canonicalised here rather than
+// passed on: a query on a spelling that was never canonicalised would return no rows, which a
+// caller cannot tell from "this Domain sent nothing".
 func (a *statsV1Impl) GetStats(ctx context.Context, req *apiv1.GetStatsReq) (*apiv1.GetStatsRes, error) {
 	domain, err := values.Parse(req.Domain)
 	if err != nil {

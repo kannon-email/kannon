@@ -9,10 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// RepoTestHelper provides test utilities for repository spec tests.
 type RepoTestHelper interface {
 	// CreateDomain creates a fresh domain row, registers cleanup, and
-	// returns its canonical FQDN.
+	// returns its canonical domain name.
 	CreateDomain(t *testing.T) values.DomainName
 }
 

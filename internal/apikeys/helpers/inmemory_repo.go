@@ -18,7 +18,6 @@ type InMemoryRepository struct {
 	byKeyHash map[values.DomainName]map[string]*apikeys.APIKey     // domain -> keyHash -> key
 }
 
-// NewInMemoryRepository creates a new in-memory repository
 func NewInMemoryRepository() *InMemoryRepository {
 	return &InMemoryRepository{
 		byID:      make(map[values.DomainName]map[apikeys.ID]*apikeys.APIKey),
@@ -26,21 +25,18 @@ func NewInMemoryRepository() *InMemoryRepository {
 	}
 }
 
-// Create creates a new API key
 func (r *InMemoryRepository) Create(ctx context.Context, key *apikeys.APIKey) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	domain := key.DomainName()
 
-	// Check if key already exists
 	if domainKeys, exists := r.byKeyHash[domain]; exists {
 		if _, exists := domainKeys[key.KeyHash()]; exists {
 			return apikeys.ErrKeyAlreadyExists
 		}
 	}
 
-	// Initialize domain maps if needed
 	if _, exists := r.byID[domain]; !exists {
 		r.byID[domain] = make(map[apikeys.ID]*apikeys.APIKey)
 	}
@@ -48,7 +44,6 @@ func (r *InMemoryRepository) Create(ctx context.Context, key *apikeys.APIKey) er
 		r.byKeyHash[domain] = make(map[string]*apikeys.APIKey)
 	}
 
-	// Store in both indexes
 	r.byID[domain][key.ID()] = key
 	r.byKeyHash[domain][key.KeyHash()] = key
 
@@ -63,7 +58,6 @@ func (r *InMemoryRepository) Update(ctx context.Context, ref apikeys.KeyRef, upd
 	domain := ref.DomainName()
 	keyID := ref.KeyID()
 
-	// Find the key
 	domainKeys, exists := r.byID[domain]
 	if !exists {
 		return nil, apikeys.ErrKeyNotFound
@@ -77,12 +71,10 @@ func (r *InMemoryRepository) Update(ctx context.Context, ref apikeys.KeyRef, upd
 	// Clone the key before applying update to prevent corruption on error
 	keyClone := r.cloneKey(key)
 
-	// Apply the update function to the clone
 	if err := updateFn(keyClone); err != nil {
 		return nil, err
 	}
 
-	// Success: update the stored key
 	r.byID[domain][keyID] = keyClone
 	r.byKeyHash[domain][key.KeyHash()] = keyClone
 
@@ -108,7 +100,6 @@ func (r *InMemoryRepository) GetByKeyHash(ctx context.Context, domain values.Dom
 	return r.cloneKey(apiKey), nil
 }
 
-// GetByID finds an API key by its ID for a specific domain
 func (r *InMemoryRepository) GetByID(ctx context.Context, ref apikeys.KeyRef) (*apikeys.APIKey, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -129,7 +120,6 @@ func (r *InMemoryRepository) GetByID(ctx context.Context, ref apikeys.KeyRef) (*
 	return r.cloneKey(apiKey), nil
 }
 
-// List returns API keys for a domain with filters and pagination
 func (r *InMemoryRepository) List(ctx context.Context, domain values.DomainName, filters apikeys.ListFilters, page apikeys.Pagination) ([]*apikeys.APIKey, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -139,17 +129,14 @@ func (r *InMemoryRepository) List(ctx context.Context, domain values.DomainName,
 		return []*apikeys.APIKey{}, nil
 	}
 
-	// Collect all keys for the domain
 	allKeys := make([]*apikeys.APIKey, 0, len(domainKeys))
 	for _, key := range domainKeys {
-		// Apply active filter
 		if filters.OnlyActive && !key.IsActiveStatus() {
 			continue
 		}
 		allKeys = append(allKeys, key)
 	}
 
-	// Apply pagination
 	start := page.Offset
 	if start > len(allKeys) {
 		return []*apikeys.APIKey{}, nil
@@ -168,7 +155,6 @@ func (r *InMemoryRepository) List(ctx context.Context, domain values.DomainName,
 	return result, nil
 }
 
-// Count returns the total number of API keys for a domain with filters
 func (r *InMemoryRepository) Count(ctx context.Context, domain values.DomainName, filters apikeys.ListFilters) (int, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -180,7 +166,6 @@ func (r *InMemoryRepository) Count(ctx context.Context, domain values.DomainName
 
 	count := 0
 	for _, key := range domainKeys {
-		// Apply active filter
 		if filters.OnlyActive && !key.IsActiveStatus() {
 			continue
 		}
@@ -205,7 +190,6 @@ func (r *InMemoryRepository) cloneKey(key *apikeys.APIKey) *apikeys.APIKey {
 	})
 }
 
-// cloneTimePtr clones a *time.Time
 func (r *InMemoryRepository) cloneTimePtr(t *time.Time) *time.Time {
 	if t == nil {
 		return nil

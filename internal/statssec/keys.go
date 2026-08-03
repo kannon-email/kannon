@@ -19,18 +19,9 @@ import (
 
 const tokenExpirePeriod = time.Hour * 24 * 30 * 3 // 3 months
 
-// A token is bound to the engagement channel it was minted for by its audience,
-// and the Tracker's two endpoints accept only their own.
-//
-// Without that binding the two token types are interchangeable: their claim
-// shapes differ only by a field JSON parsing ignores when absent, so a link
-// token parses cleanly as open claims and hands the Tracker the Mode governing
-// *links*. Any Domain whose two axes differ would then have its more permissive
-// axis apply to both endpoints — a Domain on `opens=off, links=full` could be
-// made to record an identified open, with the requester's IP, by replaying a
-// link token against /o/. Since the Domain's Policy is the only guarantee an
-// operator has (ADR 0003), the Mode has to be bound to the channel it governs
-// and not merely present.
+// A token is bound to the engagement channel it was minted for by its audience: the two claim
+// shapes differ only by a field JSON ignores when absent, so without the binding a link token
+// would verify as open claims and apply the links Mode to /o/ (ADR 0003).
 const (
 	audienceOpen = "stats:open"
 	audienceLink = "stats:link"
@@ -40,25 +31,9 @@ const (
 	audienceLegacy = "stats"
 )
 
-// OpenClaims are the claims of an open token: what the Tracker is allowed to
-// know about the request that retrieved the tracking pixel.
-//
-// Mode is the Tracking Mode governing opens for the Delivery the token was
-// minted for, frozen at intake (ADR 0003). It travels in the token rather than
-// being looked up because Pool rows are deleted on terminal outcomes, so by the
-// time an open arrives there may be no Delivery row left to consult — and
-// because the token is signed, so a recipient can neither escalate their own
-// tracking nor suppress it to skew a sender's statistics.
-//
-// A token minted before the Mode became a claim carries none, which states
-// nothing and therefore never reaches Full: the absence can only ever restrict
-// what the Tracker retains, never widen it.
-//
-// Email is the identity claim, always email-shaped and always decided by the
-// Mode: the Recipient's address under a Mode that names them, a sentinel address
-// under the Modes that name nobody — see identityUnder. A token minted before
-// sentinels existed carries none at all under those Modes, and the empty case
-// therefore has to keep working for one tokenExpirePeriod.
+// OpenClaims are the claims of an open token: what the Tracker may know about the request that
+// retrieved the pixel. Mode is frozen at intake and travels signed, since the Delivery row may be
+// gone by then; Email is the identity claim. Both are absent on a pre-upgrade token.
 type OpenClaims struct {
 	MessageID string        `json:"message_id"`
 	Email     string        `json:"email"`
@@ -82,46 +57,27 @@ type LinkClaims struct {
 // in practice, a caller passing the recipient's real address under Pseudonymous.
 var ErrIdentityOutsideNamespace = errors.New("tracking identity outside the reserved namespace")
 
-// identityUnder returns the identity a token minted under mode carries. It is
-// always email-shaped and the Mode alone decides which address it is (ADR 0006):
-//
-//   - a Mode that names the Recipient carries the Recipient's own address;
-//   - Pseudonymous carries the pseudonym the Builder drew for this Delivery,
-//     which must already sit in the Domain's reserved namespace;
-//   - every other Mode carries the Anonymous sentinel, which is constant per
-//     Domain, so the token stays a function of the Batch and one RSA-4096
-//     signature still covers all of it.
-//
-// The decision is taken here, where the claim is assembled, rather than in the
-// caller: this is the one place every token passes through, so no caller can mint
-// a token that names somebody under a Mode that must not. Under Pseudonymous the
-// identity does have to come from the caller — only the Builder knows which
-// Delivery is which, and that is the whole content of the rung — so the property
-// is preserved by *checking* rather than by overwriting: an identity outside
-// `@track.<domain>` is refused instead of shipped.
-//
-// The namespace is derived from the Batch id rather than taken as an argument,
-// both because a caller cannot then widen it and because it is where the Tracker
-// reads the Domain from too, so mint and verify cannot disagree about which
-// Domain a sentinel belongs to.
+// identityUnder returns the identity a token minted under mode carries, always email-shaped and
+// decided by the Mode alone (ADR 0006): the Recipient's address, the Builder's pseudonym, or the
+// Anonymous sentinel. Decided here so no caller can name somebody under a Mode that must not.
 func identityUnder(mode tracking.Mode, offered string, messageID string) (string, error) {
 	if mode.IdentifiesRecipient() {
 		return offered, nil
 	}
 
-	fqdn, err := utils.ExtractDomainFromMessageID(messageID)
+	domain, err := utils.ExtractDomainFromMessageID(messageID)
 	if err != nil {
 		return "", fmt.Errorf("cannot resolve the reserved namespace: %w", err)
 	}
 
 	if !mode.IsolatesRecipient() {
-		return tracking.AnonymousIdentity(fqdn), nil
+		return tracking.AnonymousIdentity(domain), nil
 	}
 
 	// Deliberately never logged or wrapped with the offending value: the whole
 	// point of the refusal is that the value may be a recipient address.
-	if !tracking.IsPseudonym(offered, fqdn) {
-		return "", fmt.Errorf("%w: %s under %q", ErrIdentityOutsideNamespace, tracking.ReservedNamespace(fqdn), mode)
+	if !tracking.IsPseudonym(offered, domain) {
+		return "", fmt.Errorf("%w: %s under %q", ErrIdentityOutsideNamespace, tracking.ReservedNamespace(domain), mode)
 	}
 	return offered, nil
 }
@@ -228,10 +184,9 @@ func exportRsaPublicKeyAsPemStr(pubkey *rsa.PublicKey) (string, error) {
 	return string(pubkeyPem), nil
 }
 
-// channelClaims is what the two token types have in common at verification time:
-// the channel a token was minted for, and the Mode it carries. Both are needed
-// together, because whether a Mode may be honoured depends on which channel
-// signed it.
+// channelClaims is what the two token types have in common at verification time: the channel a
+// token was minted for and the Mode it carries. Both are needed together, since whether a Mode
+// may be honoured depends on which channel signed it.
 type channelClaims interface {
 	jwt.Claims
 	boundTo() (jwt.ClaimStrings, tracking.Mode)
@@ -248,10 +203,9 @@ func verifyLinkToken(ctx context.Context, tokenString string, q *sqlc.Queries) (
 	return verifyToken(ctx, tokenString, q, &LinkClaims{}, audienceLink)
 }
 
-// verifyToken checks a stats token's signature, its registered claims and the
-// channel it was minted for, returning the claims only if all three hold. The two
-// channels share it so that a check added for one can never be forgotten for the
-// other — the shape of the two token types differs only in a URL.
+// verifyToken checks a stats token's signature, its registered claims and the channel it was
+// minted for, returning the claims only if all three hold. Shared by both channels so a check
+// added for one can never be forgotten for the other.
 func verifyToken[C channelClaims](ctx context.Context, tokenString string, q *sqlc.Queries, into C, want string) (C, error) {
 	var none C
 
@@ -277,10 +231,9 @@ func verifyToken[C channelClaims](ctx context.Context, tokenString string, q *sq
 	return claims, nil
 }
 
-// verifyOptions pins what every stats token must satisfy regardless of channel:
-// the signing method Kannon actually mints with, and an expiry. Both are true of
-// every token this codebase has ever produced; stating them here means a future
-// mint path cannot quietly drop either.
+// verifyOptions pins what every stats token must satisfy regardless of channel: the signing
+// method Kannon actually mints with, and an expiry. Stating them here means a future mint path
+// cannot quietly drop either.
 func verifyOptions() []jwt.ParserOption {
 	return []jwt.ParserOption{
 		jwt.WithValidMethods([]string{jwt.SigningMethodRS512.Alg()}),
@@ -288,18 +241,9 @@ func verifyOptions() []jwt.ParserOption {
 	}
 }
 
-// assertAudience refuses a token minted for a different engagement channel, so
-// that the Tracking Mode a token carries can only ever govern the channel it was
-// signed for.
-//
-// The audience is checked here rather than through jwt.WithAudience because the
-// rule is not a single expected value: a token minted before the Mode became a
-// claim carries the one legacy audience and no Mode, and refusing those outright
-// would silently drop every open and click from mail already in flight, for up to
-// tokenExpirePeriod after an upgrade. Such a token is accepted, and states
-// nothing, so it can never widen what the Tracker retains — and because this
-// build always signs a Mode into a token, a Mode-bearing token can never take
-// the legacy path. The exception disappears on its own as those tokens expire.
+// assertAudience refuses a token minted for a different engagement channel, so a Mode can only
+// govern the channel it was signed for. Checked by hand rather than with jwt.WithAudience: a
+// pre-upgrade token carries the legacy audience and no Mode, and is accepted until it expires.
 func assertAudience(audience jwt.ClaimStrings, mode tracking.Mode, want string) error {
 	if slices.Contains(audience, want) {
 		return nil

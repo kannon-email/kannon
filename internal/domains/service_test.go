@@ -30,19 +30,9 @@ var (
 	noGrants         = authz.MustNewPrincipal("no-grants")
 )
 
-// TestServiceAuthorization is the table that says what each operation demands.
-//
-// The interesting line is that CreateDomain and GetDomains admit only the root
-// Grant. They act on the Domains collection — the shortest path in the tree — and a
-// pattern longer than the Resource covers nothing, so neither an administrator of one
-// Domain nor an administrator of every Domain reaches it. That falls out of prefix
-// domination rather than being checked anywhere, and it is exactly the property that
-// let ADR 0008 delete the System tier: onboarding a tenant is root authority, and
-// "every Domain" is not the same thing as "the collection of Domains".
-//
-// A sender-only Principal is refused by every operation here. It is what an API Key
-// resolves to, and a key issued to send must not be able to enumerate Kannon's
-// tenants or rewrite the Tracking Policy of the Domain it sends for.
+// TestServiceAuthorization is the table that says what each operation demands. CreateDomain and
+// GetDomains admit only the root Grant: they act on the Domains collection, and a pattern longer
+// than the Resource covers nothing — which is what let ADR 0008 delete the System tier.
 func TestServiceAuthorization(t *testing.T) {
 	policy := tracking.Policy{Opens: tracking.ModeOff, Links: tracking.ModeOff}
 
@@ -129,10 +119,9 @@ func TestServiceAuthorization(t *testing.T) {
 	}
 }
 
-// A refused SetTrackingPolicy leaves the Policy as it was. Asserted separately
-// because this is the one operation here whose failure mode is silent: a Domain whose
-// ceiling was lowered without authority would keep serving mail, just tracking less
-// of it, and nothing would look broken.
+// A refused SetTrackingPolicy leaves the Policy as it was. Asserted separately because this is the
+// one operation here whose failure mode is silent: a Domain whose ceiling was lowered without
+// authority would keep serving mail, just tracking less of it, and nothing would look broken.
 func TestRefusedSetTrackingPolicyChangesNothing(t *testing.T) {
 	repo := seededRepo()
 	service := domains.NewService(repo)

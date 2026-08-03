@@ -46,7 +46,6 @@ func TestMain(m *testing.M) {
 }
 
 func TestCreateOpenToken(t *testing.T) {
-	// when user create a domain
 	token, err := s.CreateOpenToken(t.Context(), "<xxxx/test@test.com>", "test@test.com", tracking.ModeIdentified)
 	assert.Nil(t, err)
 
@@ -61,7 +60,6 @@ func TestCreateOpenToken(t *testing.T) {
 }
 
 func TestCreateLinkToken(t *testing.T) {
-	// when user create a domain
 	token, err := s.CreateLinkToken(t.Context(), "<xxxx/test@test.com>", "test@test.com", "https://test.com", tracking.ModeIdentified)
 	assert.Nil(t, err)
 
@@ -97,16 +95,13 @@ func TestTokensCarryTheMintedMode(t *testing.T) {
 }
 
 // batchID is a Batch id in the shape the Builder actually hands over,
-// `msg_<cuid>@<fqdn>` — the mint reads the Domain out of it to build the reserved
+// `msg_<cuid>@<domain>` — the mint reads the Domain out of it to build the reserved
 // namespace, so a test id has to spell one out.
 const batchID = "msg_ck7m2n1p0000@test.com"
 
-// TestAnonymousTokensNameNobody is the Anonymous privacy property at the mint:
-// whatever address the caller hands over, an Anonymous token carries the Domain's
-// sentinel instead. It is asserted through Verify, so the claim a Tracker will
-// actually read is the one under test — and the two tokens are compared to each
-// other, because "the claims look the same" is weaker than "the Recipients cannot
-// be told apart".
+// TestAnonymousTokensNameNobody is the Anonymous privacy property at the mint: whatever address the
+// caller hands over, the token carries the Domain's sentinel. Asserted through Verify, and the two
+// tokens are compared to each other, since "the claims look alike" is weaker than indistinguishable.
 func TestAnonymousTokensNameNobody(t *testing.T) {
 	const url = "https://test.com"
 	const sentinel = "anonymous@track.test.com"
@@ -133,13 +128,9 @@ func TestAnonymousTokensNameNobody(t *testing.T) {
 	assert.Equal(t, tracking.ModeAnonymous, linkClaims.Mode)
 }
 
-// TestPseudonymousTokensCarryTheCallersSentinel pins what the mint does with the
-// one Mode whose identity it cannot invent for itself: it passes the Builder's
-// per-Delivery pseudonym through unchanged, so the pixel and every link of one
-// Delivery agree, and it refuses anything outside the Domain's reserved namespace.
-//
-// The refusal is the chokepoint property (ADR 0006): a caller that passes the real
-// address with a Pseudonymous Mode is caught here rather than shipped.
+// TestPseudonymousTokensCarryTheCallersSentinel pins what the mint does with the one Mode whose
+// identity it cannot invent: it passes the Builder's per-Delivery pseudonym through unchanged and
+// refuses anything outside the reserved namespace — the chokepoint property (ADR 0006).
 func TestPseudonymousTokensCarryTheCallersSentinel(t *testing.T) {
 	const pseudonym = "0123456789abcdef0123456789abcdef@track.test.com"
 	const url = "https://test.com"
@@ -227,12 +218,9 @@ func tamperModeClaim(t *testing.T, token string, mode tracking.Mode) string {
 	return strings.Join(parts, ".")
 }
 
-// TestATokenIsBoundToItsChannel covers the one way the Tracking Mode could be
-// applied to a channel it was not signed for. The two claim shapes differ only by
-// a field JSON parsing ignores when absent, so before the audience was checked a
-// link token verified cleanly as open claims and handed over the Mode governing
-// *links* — letting a Domain on `opens=off, links=full` be made to record an
-// identified open with the requester's IP.
+// TestATokenIsBoundToItsChannel covers the one way a Tracking Mode could be applied to a channel it
+// was not signed for: before the audience was checked, a link token verified as open claims and
+// handed over the links Mode, letting `opens=off, links=full` record an identified open.
 func TestATokenIsBoundToItsChannel(t *testing.T) {
 	const messageID = "<xxxx/test@test.com>"
 	const email = "test@test.com"

@@ -21,21 +21,9 @@ func (s *adminAPIService) CreateTemplate(ctx context.Context, req *pb.CreateTemp
 	return &pb.CreateTemplateRes{Template: tpl.Pb()}, nil
 }
 
-// UpdateTemplate is a legacy adapter: UpdateTemplateReq carries only a
-// template_id, so the Domain the operation acts on is not on the wire and this
-// method's job is to recover what the request failed to carry.
-//
-// The proto is deliberately not being changed, so the identifier is the only place
-// the Domain still exists — templates.DomainFromID is the inverse of the
-// constructor that put it there, and records why authorizing on a value parsed out
-// of caller-supplied input can only narrow. The service then takes an explicit
-// FQDN, like every other operation, and cannot tell it came from a parse.
-//
-// A future proto revision that puts the Domain in the request makes this adapter
-// deletable: the parse goes, the service call stays exactly as it is. That is the
-// reason the recovery lives here and not inside the service — a workaround for a
-// wire contract belongs to the layer that speaks the wire, where its removal is a
-// local edit.
+// UpdateTemplate is a legacy adapter: UpdateTemplateReq carries only a template_id, so the Domain
+// is recovered from the identifier with templates.DomainFromID, which records why authorizing on a
+// parsed value can only narrow. Deletable when a proto revision carries the Domain.
 func (s *adminAPIService) UpdateTemplate(ctx context.Context, req *pb.UpdateTemplateReq) (*pb.UpdateTemplateRes, error) {
 	domain, err := templates.DomainFromID(req.TemplateId)
 	if err != nil {

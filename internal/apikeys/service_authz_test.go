@@ -27,12 +27,9 @@ var (
 	noGrants         = authz.MustNewPrincipal("no-grants")
 )
 
-// TestServiceAuthorization is the table that says what each operation demands.
-//
-// The sender-only Principal is the one that matters most here, and it is refused by
-// all four. It is exactly what an API Key resolves to under ADR 0008 — sender on the
-// key's own Domain — so this is the assertion that a stolen sending key cannot mint
-// itself a second one, list its siblings, or revoke anybody.
+// TestServiceAuthorization is the table that says what each operation demands. The sender-only
+// Principal matters most and is refused by all four: it is what an API Key resolves to (ADR 0008),
+// so this asserts that a stolen sending key cannot mint a second one, list its siblings or revoke.
 func TestServiceAuthorization(t *testing.T) {
 	ops := []struct {
 		name  string
@@ -111,10 +108,9 @@ func TestServiceAuthorization(t *testing.T) {
 	}
 }
 
-// A refused DeactivateKey leaves the credential usable, and a refused CreateKey mints
-// nothing. Asserted apart from the table because the error alone would not prove it:
-// a guard that ran the operation and then refused to return the result would satisfy
-// every assertion above while having already revoked somebody's key.
+// A refused DeactivateKey leaves the credential usable, and a refused CreateKey mints nothing.
+// Asserted apart from the table because the error alone would not prove it: a guard that ran the
+// operation and then refused to return the result would satisfy every assertion above.
 func TestRefusedOperationsChangeNothing(t *testing.T) {
 	service, ref := seededService(t)
 	refused := authz.NewContext(context.Background(), senderOnly)
@@ -154,10 +150,9 @@ func TestValidateForAuthNeedsNoPrincipal(t *testing.T) {
 	assert.ErrorIs(t, err, apikeys.ErrKeyNotFound)
 }
 
-// seededService returns a Service holding exactly one key of testDomain, and a
-// reference to it. The seeding goes through the guarded CreateKey with root authority
-// rather than around it, so a change that broke creation cannot leave these tests
-// passing against a store nothing wrote to.
+// seededService returns a Service holding exactly one key of testDomain, and a reference to it. The
+// seeding goes through the guarded CreateKey with root authority rather than around it, so a change
+// that broke creation cannot leave these tests passing against a store nothing wrote to.
 func seededService(t *testing.T) (*apikeys.Service, apikeys.KeyRef) {
 	t.Helper()
 

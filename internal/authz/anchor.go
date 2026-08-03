@@ -6,78 +6,38 @@ import (
 	"github.com/kannon-email/kannon/internal/values"
 )
 
-// Anchor is the Resource a Grant fixes its Role to — where the Role's rules
-// attach. A Role says what may be done and to which kinds of things; the Anchor
-// says where.
-//
-// An Anchor is *structural* and is never parsed from a composed path string.
-// That is the same property Resource has, for the same reason and with more at
-// stake: splitting a path on the separator would let an identifier that happens
-// to contain one invent a segment, and an Anchor is precisely what bounds reach,
-// so an invented segment is an invented authority. Assembling from typed
-// constructors makes the number of segments a fact about the call site rather
-// than about its input.
-//
-// The root is represented by an explicit flag rather than by an empty segment
-// list. Were "everything" spelled as zero segments, the zero value of an Anchor
-// — and of the pattern it composes — would be the widest authority in the
-// system instead of the narrowest, so a forgotten assignment would fail open.
-// It fails closed instead: a zero Anchor is not grantable and covers nothing.
+// Anchor is the Resource a Grant fixes its Role to — the Role says what may be done, the
+// Anchor says where. Structural and never parsed from a path string, so no identifier can
+// invent a segment; the root is a flag, so a zero Anchor covers nothing and fails closed.
 type Anchor struct {
 	root     bool
 	segments []patternSegment
 }
 
-// RootAnchor is the root, authored "*": the whole tree.
-//
-// A Grant anchored here confers unbounded *reach*, not unbounded power. The
-// Role's rules still bound what may be done and to which kinds of things, so an
-// at(read, list) Role on the root sees everything and can change nothing.
+// RootAnchor is the root, authored "*": the whole tree. A Grant anchored here confers
+// unbounded reach, not unbounded power — the Role's rules still bound what may be done,
+// so an at(read, list) Role on the root sees everything and can change nothing.
 func RootAnchor() Anchor {
 	return Anchor{root: true}
 }
 
-// DomainAnchor is one Domain: domains/<fqdn>.
-//
-// Everything of that Domain lies beneath it — Templates, Batches, API Keys and
-// statistics — because matching is prefix domination and nothing has to be named
-// for it to be reached. The FQDN arrives already canonical: this layer compares
-// and never normalises, since lower-casing here while two case-differing Domains
-// could coexist would itself be the escalation.
+// DomainAnchor is one Domain: domains/<name>. Everything of that Domain lies beneath it by
+// prefix domination, named or not. The name arrives already canonical: this layer compares
+// and never normalises, since lower-casing here would itself be the escalation.
 func DomainAnchor(f values.DomainName) Anchor {
 	return Anchor{segments: []patternSegment{literalSegment(segDomains), literalSegment(f.String())}}
 }
 
-// AllDomainsAnchor is every Domain: domains/*, future Domains included.
-//
-// This is the same *kind* of Anchor as one Domain rather than a wider kind: the
-// wildcard stands for exactly one segment, so a Role's typed rules compose
-// beneath a Domain either way and neither spelling reaches the domains
-// collection above them. What differs is only how many Domains are reached.
-//
-// The wildcard is also the point: it shouts that the reach is unbounded and
-// includes Domains that do not exist yet. That is why "every Domain" has this
-// one spelling and the bare "domains" is refused rather than admitted as a
-// synonym — two spellings of one authority in a grants table would need an
-// equivalence, and the equivalence would be a rewrite inside the one layer that
-// must never normalise anything.
+// AllDomainsAnchor is every Domain: domains/*, future Domains included. The same kind as
+// one Domain — the wildcard stands for exactly one segment — and the only spelling of
+// "every Domain": admitting the bare "domains" as a synonym would need a rewrite here.
 func AllDomainsAnchor() Anchor {
 	return Anchor{segments: []patternSegment{literalSegment(segDomains), wildcardSegment()}}
 }
 
-// AnchorOf is the Anchor at exactly this Resource.
-//
-// Every segment becomes a *literal*, including one that happens to be an
-// asterisk. That is why a wildcard is represented structurally rather than by
-// its token: were this conversion textual, a Template identifier of "*" arriving
-// from a caller would become a wildcard here, and Attenuation — the one caller
-// that turns a requested Resource into an Anchor — could widen authority instead
-// of narrowing it.
-//
-// Most Resources yield an Anchor that NewGrant refuses, and that is a feature
-// rather than a limitation: this is the reachable path by which a non-grantable
-// Anchor gets attempted and named in the refusal. AnchorOf(Domains()) is the
-// bare "domains", whose error suggests "domains/*".
+// AnchorOf is the Anchor at exactly this Resource, every segment a literal — including one
+// that happens to be an asterisk, so a Template identifier of "*" cannot become a wildcard
+// and widen authority. Most Resources yield an Anchor NewGrant refuses, and names.
 func AnchorOf(r Resource) Anchor {
 	segments := make([]patternSegment, 0, len(r.segments))
 	for _, s := range r.segments {
@@ -86,13 +46,9 @@ func AnchorOf(r Resource) Anchor {
 	return Anchor{segments: segments}
 }
 
-// String renders the Anchor for display, logging and the error messages NewGrant
-// returns: "*" for the root, otherwise the path. The zero Anchor renders empty,
-// because it names nothing.
-//
-// It is not a serialisation — nothing parses an Anchor back from it. That is
-// what lets a literal asterisk and the wildcard share a token on the way out:
-// they are distinguished structurally, and matching never consults this string.
+// String renders the Anchor for display, logging and NewGrant's errors: "*" for the root,
+// otherwise the path; the zero Anchor renders empty. Not a serialisation — nothing parses
+// an Anchor back, which is why a literal asterisk and the wildcard may share a token.
 func (a Anchor) String() string {
 	if a.root {
 		return wildcardToken
@@ -104,13 +60,9 @@ func (a Anchor) String() string {
 	return strings.Join(parts, separator)
 }
 
-// anchorKind classifies an Anchor by the kind of thing it names, which is what a
-// Role's typed rules are written against.
-//
-// The zero value is the non-grantable one. A classification that falls through,
-// or an Anchor that was never constructed, therefore refuses a Grant rather than
-// being mistaken for the root — which is the one misclassification that would
-// hand out everything.
+// anchorKind classifies an Anchor by the kind of thing it names, which is what a Role's
+// typed rules are written against. The zero value is the non-grantable one, so a
+// classification that falls through refuses rather than being mistaken for the root.
 type anchorKind int
 
 const (
@@ -119,13 +71,9 @@ const (
 	kindDomain
 )
 
-// kind classifies this Anchor.
-//
-// domains/<fqdn> and domains/* are deliberately one kind: both name "a Domain",
-// and every rule suffix composes identically beneath either. Nothing else in the
-// tree has this shape, and the FQDN dot rule (internal/values) is what keeps it
-// that way — a single-label Domain named "templates" would otherwise make
-// domains/templates read as both a Domain and a node inside one.
+// kind classifies this Anchor. domains/<name> and domains/* are deliberately one kind:
+// both name "a Domain" and every rule suffix composes identically beneath either. The dot
+// rule on a domain name is what keeps that shape unique (internal/values).
 func (a Anchor) kind() anchorKind {
 	if a.root {
 		return kindRoot
@@ -139,14 +87,9 @@ func (a Anchor) kind() anchorKind {
 	return kindOther
 }
 
-// isGrantable reports whether a Grant may be issued on an Anchor of this kind.
-//
-// Only two kinds are, and everything else is refused rather than left to mean
-// something other than what it says. The refusal is not defensiveness: composing
-// a rule suffix onto the wrong node does not produce an error, it produces a
-// different *meaning*. on(templates, ...) anchored at "domains" composes
-// "domains/templates" — not a dead path but the Domain whose FQDN is literally
-// "templates", an alias no reader would spot.
+// isGrantable reports whether a Grant may be issued on an Anchor of this kind. Only two
+// are: composing a rule suffix onto the wrong node yields a different meaning rather than
+// an error — on(templates, ...) at "domains" composes the Domain named "templates".
 func (k anchorKind) isGrantable() bool {
 	return k == kindRoot || k == kindDomain
 }
@@ -163,22 +106,16 @@ func (k anchorKind) describe() string {
 	}
 }
 
-// namesDomainsCollection reports whether this is the bare domains collection.
-//
-// It is singled out because it is the one non-grantable Anchor with an obvious
-// intended meaning: it is what an author reaches for to say "every Domain", so
-// its refusal can name the alternative instead of merely listing the two
-// grantable kinds.
+// namesDomainsCollection reports whether this is the bare domains collection. Singled out
+// because it is the one non-grantable Anchor with an obvious intended meaning, so its
+// refusal can name the alternative instead of listing the grantable kinds.
 func (a Anchor) namesDomainsCollection() bool {
 	return !a.root && len(a.segments) == 1 && a.segments[0].isLiteral(segDomains)
 }
 
-// isWellFormed reports whether every segment names something.
-//
-// A zero values.DomainName or a blank identifier reaching a constructor produces an
-// Anchor with an empty segment. Such an Anchor must cover nothing, rather than
-// fall back on whatever the shorter path it would otherwise compose happens to
-// reach.
+// isWellFormed reports whether every segment names something. A zero Name or a blank
+// identifier reaching a constructor leaves an empty segment, and such an Anchor must cover
+// nothing rather than fall back on the shorter path it would otherwise compose.
 func (a Anchor) isWellFormed() bool {
 	if len(a.segments) == 0 {
 		return false
@@ -191,20 +128,9 @@ func (a Anchor) isWellFormed() bool {
 	return true
 }
 
-// extend composes the pattern a rule reaches under this Anchor: the Anchor's
-// segments followed by the rule's suffix.
-//
-// The composition is structural — segments appended to segments, never strings
-// joined and split back apart — so a suffix cannot introduce a separator and an
-// identifier cannot introduce a segment. Suffix segments are always literals:
-// only AllDomainsAnchor puts a wildcard into a pattern, and it does so
-// structurally.
-//
-// A zero or malformed Anchor yields the pattern that covers nothing, whatever
-// the suffix, and the guard is explicit because the failure it prevents is not
-// an empty result. Without it, an Anchor with no segments plus the suffix of
-// on(batches, create) would compose the pattern "batches" — not the empty
-// authority the caller believes it has, but a different and unrelated one.
+// extend composes the pattern a rule reaches under this Anchor: segments appended to
+// segments, never strings joined and split, so no suffix can introduce a separator. A zero
+// or malformed Anchor yields the pattern covering nothing — not the bare "batches".
 func (a Anchor) extend(suffix childKind) pattern {
 	if !a.root && !a.isWellFormed() {
 		return pattern{}
@@ -224,13 +150,9 @@ func (a Anchor) extend(suffix childKind) pattern {
 	return pattern{segments: segments}
 }
 
-// covers reports whether the Anchor's own reach includes r, ignoring any rule
-// suffix.
-//
-// This is the question Attenuation asks — a Grant can only be narrowed to
-// somewhere it already reaches — and it is answered by the same prefix
-// domination that answers authorization requests, so there is one matcher in the
-// system rather than a second one deciding inclusion.
+// covers reports whether the Anchor's own reach includes r, ignoring any rule suffix. It
+// is Attenuation's question — a Grant narrows only to somewhere it already reaches — and
+// is answered by the same prefix domination, so the system has one matcher.
 func (a Anchor) covers(r Resource) bool {
 	return a.extend(nil).covers(r)
 }

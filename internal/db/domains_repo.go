@@ -84,17 +84,13 @@ func (r *domainsRepository) List(ctx context.Context) ([]*domains.Domain, error)
 	return out, nil
 }
 
-// rowToDomain rebuilds the entity from its row.
-//
-// The stored FQDN goes back through values.Parse rather than being trusted: this
-// is the only way into the entity that does not come from a caller, and a row
-// that predates the canonical form — or was edited by hand — must not become a
-// Domain whose FQDN no Grant and no query can match. Refusing it names the data
-// fault instead of quietly answering with a Domain nothing can address.
+// rowToDomain rebuilds the entity from its row. The stored name goes back through
+// values.Parse rather than being trusted: a row predating the canonical form must not become
+// a Domain whose name no Grant and no query can match, so the data fault is named instead.
 func rowToDomain(row Domain) (*domains.Domain, error) {
 	name, err := values.Parse(row.Domain)
 	if err != nil {
-		return nil, fmt.Errorf("domain row %q holds a non-canonical FQDN: %w", row.Domain, err)
+		return nil, fmt.Errorf("domain row %q holds a non-canonical name: %w", row.Domain, err)
 	}
 	return domains.Load(domains.LoadParams{
 		ID:             row.ID,
@@ -102,13 +98,9 @@ func rowToDomain(row Domain) (*domains.Domain, error) {
 		DkimPrivateKey: row.DkimPrivateKey,
 		DkimPublicKey:  row.DkimPublicKey,
 		CreatedAt:      row.CreatedAt.Time,
-		// Normalised on the way out, so a Domain always states a ceiling on both
-		// axes. Writes through this repository already normalise, and the column
-		// default states both, but a ceiling that states nothing enforces nothing
-		// (ADR 0003) — and that invariant should rest on one enforcement point
-		// rather than on the column default, the write path and the migration all
-		// holding at once. A row edited by hand now enforces the floor instead of
-		// dissolving the ceiling.
+		// Normalised on the way out, so a Domain always states a ceiling on both axes. A ceiling
+		// that states nothing enforces nothing (ADR 0003), and that invariant should rest on one
+		// enforcement point rather than on the column default and the write path both holding.
 		Tracking: row.Tracking.Normalized(),
 	}), nil
 }

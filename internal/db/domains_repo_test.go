@@ -22,12 +22,9 @@ func TestDomainsRepository(t *testing.T) {
 	domains.RunRepoSpec(t, repo)
 }
 
-// TestDomainCeilingSurvivesAMalformedRow covers the one case the repository spec
-// cannot: a `tracking` value that never went through this repository's write
-// path. A ceiling that states nothing enforces nothing (ADR 0003), so the invariant
-// "a Domain always states a ceiling on both axes" must not rest on the column
-// default, the write path and the migration all holding at once — a row edited by
-// hand has to enforce the floor instead of dissolving the ceiling.
+// TestDomainCeilingSurvivesAMalformedRow covers the one case the repository spec cannot: a
+// `tracking` value that never went through this repository's write path. A ceiling that states
+// nothing enforces nothing (ADR 0003), so a row edited by hand must enforce the floor instead.
 func TestDomainCeilingSurvivesAMalformedRow(t *testing.T) {
 	t.Cleanup(func() {
 		//nolint:errcheck // best-effort test cleanup

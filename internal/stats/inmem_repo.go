@@ -18,7 +18,6 @@ type InMemRepository struct {
 	nextID int32
 }
 
-// NewInMemRepository creates a new in-memory stats repository.
 func NewInMemRepository() *InMemRepository {
 	return &InMemRepository{nextID: 1}
 }
@@ -65,7 +64,6 @@ func (r *InMemRepository) Query(_ context.Context, domain values.DomainName, tr 
 
 	filtered := r.filter(domain, tr)
 
-	// Apply pagination.
 	start := page.Offset
 	if start > len(filtered) {
 		return nil, nil

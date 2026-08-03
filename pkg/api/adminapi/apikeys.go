@@ -10,23 +10,20 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// CreateAPIKey creates a new API key for a domain
 func (s *adminAPIService) CreateAPIKey(ctx context.Context, in *pb.CreateAPIKeyRequest) (*pb.CreateAPIKeyResponse, error) {
 	// The request carries the domain as a bare string, so this is where it
-	// becomes an FQDN.
+	// becomes a canonical domain name.
 	domain, err := values.Parse(in.Domain)
 	if err != nil {
 		return nil, err
 	}
 
-	// Set expiration if provided
 	var expiresAt *time.Time
 	if in.ExpiresAt != nil {
 		t := in.ExpiresAt.AsTime()
 		expiresAt = &t
 	}
 
-	// Create the key via service
 	result, err := s.apiKeys.CreateKey(ctx, domain, in.Name, expiresAt)
 	if err != nil {
 		return nil, err
@@ -35,7 +32,7 @@ func (s *adminAPIService) CreateAPIKey(ctx context.Context, in *pb.CreateAPIKeyR
 	// Return FULL key (only time it's shown)
 	return &pb.CreateAPIKeyResponse{
 		ApiKey: apiKeyToProto(result.Key),
-		Key:    result.PlaintextKey, // return full key in dedicated field
+		Key:    result.PlaintextKey,
 	}, nil
 }
 
@@ -46,9 +43,8 @@ func (s *adminAPIService) ListAPIKeys(ctx context.Context, in *pb.ListAPIKeysReq
 		return nil, err
 	}
 
-	// Set pagination defaults if not provided
 	page := apikeys.Pagination{
-		Limit:  100, // Default limit
+		Limit:  100,
 		Offset: 0,
 	}
 	if in.Limit > 0 {
@@ -58,13 +54,11 @@ func (s *adminAPIService) ListAPIKeys(ctx context.Context, in *pb.ListAPIKeysReq
 		page.Offset = int(in.Offset)
 	}
 
-	// List keys via service
 	keys, total, err := s.apiKeys.ListKeys(ctx, domain, in.OnlyActive, page)
 	if err != nil {
 		return nil, err
 	}
 
-	// Convert to proto (masked)
 	protoKeys := make([]*pb.APIKey, len(keys))
 	for i, key := range keys {
 		protoKeys[i] = apiKeyToProto(key)
@@ -78,7 +72,6 @@ func (s *adminAPIService) ListAPIKeys(ctx context.Context, in *pb.ListAPIKeysReq
 
 // GetAPIKey gets a single API key by ID (masked)
 func (s *adminAPIService) GetAPIKey(ctx context.Context, in *pb.GetAPIKeyRequest) (*pb.GetAPIKeyResponse, error) {
-	// Parse KeyRef from request
 	ref, err := apikeys.ParseKeyRef(in.Domain, in.Id)
 	if err != nil {
 		return nil, err
@@ -96,7 +89,6 @@ func (s *adminAPIService) GetAPIKey(ctx context.Context, in *pb.GetAPIKeyRequest
 
 // DeactivateAPIKey deactivates an API key (masked)
 func (s *adminAPIService) DeactivateAPIKey(ctx context.Context, in *pb.DeactivateAPIKeyRequest) (*pb.DeactivateAPIKeyResponse, error) {
-	// Parse KeyRef from request
 	ref, err := apikeys.ParseKeyRef(in.Domain, in.Id)
 	if err != nil {
 		return nil, err
@@ -112,7 +104,6 @@ func (s *adminAPIService) DeactivateAPIKey(ctx context.Context, in *pb.Deactivat
 	}, nil
 }
 
-// apiKeyToProto converts domain APIKey to proto APIKey
 func apiKeyToProto(key *apikeys.APIKey) *pb.APIKey {
 	apiKey := &pb.APIKey{
 		Id:       key.ID().String(),
@@ -122,7 +113,6 @@ func apiKeyToProto(key *apikeys.APIKey) *pb.APIKey {
 		Key:      key.MaskedKey(),
 	}
 
-	// Set timestamps
 	apiKey.CreatedAt = timestamppb.New(key.CreatedAt())
 	if key.ExpiresAt() != nil {
 		apiKey.ExpiresAt = timestamppb.New(*key.ExpiresAt())

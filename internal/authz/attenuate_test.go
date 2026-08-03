@@ -8,15 +8,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// attenuation is one row of the narrowing tables: given this Principal, what
-// does asking for these Resources leave it holding, and what does it report
-// having dropped?
-//
-// wantGrants holds *rendered* Grants because most narrowed Anchors are paths
-// NewGrant refuses to issue on — one Template, a Domain's statistics — so there
-// is no constructor to build one to compare against. What those Grants confer is
-// asserted through Can in the tables below; the rendering says only which Role
-// landed where.
+// attenuation is one row of the narrowing tables: given this Principal, what does asking for
+// these Resources leave it holding, and what does it report dropping? wantGrants is rendered,
+// since most narrowed Anchors are paths NewGrant refuses and there is no constructor for them.
 type attenuation struct {
 	name        string
 	principal   authz.Principal
@@ -38,23 +32,18 @@ func runAttenuations(t *testing.T, tests []attenuation) {
 			assert.Equal(t, tc.wantGrants, got, "%s asked for %v", tc.principal, tc.request)
 			assertDropped(t, tc.wantDropped, dropped)
 
-			// Asserted on every row rather than in a test of its own. Narrowing
-			// changes what may be done and never who did it: were the identifier
-			// to change too, the recorded actor would sometimes be authenticated
-			// and sometimes asserted, with nothing to tell them apart. And an
-			// Attribution names who asked, which reach cannot affect.
+			// Asserted on every row rather than in a test of its own: narrowing changes what
+			// may be done and never who did it, and an Attribution names who asked, which
+			// reach cannot affect.
 			assert.Equal(t, tc.principal.ID(), narrowed.ID())
 			assert.Equal(t, tc.principal.Attribution(), narrowed.Attribution())
 		})
 	}
 }
 
-// assertDropped compares the dropped list by value and in order.
-//
-// By value rather than by rendered path: rendering is display only, and a
-// segment carrying a caller-supplied identifier could contain a separator, so
-// two different Resources may render alike. In order because the order is
-// meaningful — it is the order they were asked for.
+// assertDropped compares the dropped list by value and in order: rendering is display only, so
+// two different Resources may render alike, and the order is meaningful — it is the order they
+// were asked for.
 func assertDropped(t *testing.T, want, got []authz.Resource) {
 	t.Helper()
 	require.Len(t, got, len(want), "dropped %v", got)
@@ -63,12 +52,9 @@ func assertDropped(t *testing.T, want, got []authz.Resource) {
 	}
 }
 
-// What narrows is the Anchor. The Role travels unchanged, so narrowing where
-// authority lands never changes what it is.
-//
-// A Role of pure shape narrows to any concrete path it covers, down to a single
-// item, which is what lets a front-end scope one request to exactly the object
-// that request concerns.
+// What narrows is the Anchor; the Role travels unchanged, so narrowing where authority lands
+// never changes what it is. A Role of pure shape narrows to any concrete path it covers, down
+// to a single item — what lets a front-end scope one request to the object it concerns.
 func TestAttenuateNarrowsTheAnchorAndLeavesTheRoleAlone(t *testing.T) {
 	root := adminOn(authz.RootAnchor())
 	all := adminOn(authz.AllDomainsAnchor())
@@ -107,11 +93,9 @@ func TestAttenuateNarrowsTheAnchorAndLeavesTheRoleAlone(t *testing.T) {
 			wantGrants: []string{"admin on domains/example.com/stats/aggregated"},
 		},
 		{
-			// NewGrant refuses this Anchor and narrowing admits it, which is the
-			// whole difference between the two predicates. It is not a widening:
-			// the root already reached the collection, and every Resource in the
-			// tree hangs beneath it — so this row shrinks reach by nothing today
-			// and can only ever shrink it.
+			// NewGrant refuses this Anchor and narrowing admits it, which is the whole
+			// difference between the two predicates. Not a widening: the root already reached
+			// the collection, so this row can only ever shrink reach.
 			name:       "to the domains collection, which is grantable to nobody",
 			principal:  root,
 			request:    []authz.Resource{authz.Domains()},
@@ -138,16 +122,9 @@ func TestAttenuateNarrowsTheAnchorAndLeavesTheRoleAlone(t *testing.T) {
 	})
 }
 
-// A typed Role does not narrow beneath the Anchor kind its rules were written
-// against. Beneath it the rules compose paths naming the wrong things: sender
-// narrowed to domains/example.com/batches composes
-// domains/example.com/batches/batches, which is not smaller authority but a
-// different and meaningless one.
-//
-// The refusal is what turns that into a reported drop. Note what the two rows at
-// the end of this table make visible: the same request that sender refuses,
-// admin accepts, because admin names no kind for an Anchor to be the wrong kind
-// for.
+// A typed Role does not narrow beneath the Anchor kind its rules were written against: sender
+// at domains/example.com/batches would compose .../batches/batches, a different and
+// meaningless authority. The last two rows show admin accepting what sender refuses.
 func TestATypedRoleNeverNarrowsBeneathItsDeclaredKind(t *testing.T) {
 	all := senderOn(authz.AllDomainsAnchor())
 	own := senderOn(authz.DomainAnchor(example))
@@ -281,10 +258,9 @@ func TestAttenuateCannotWiden(t *testing.T) {
 	assert.True(t, authz.Can(owner, authz.Read, authz.Domain(example)))
 }
 
-// One uncovered path does not fail the whole call. The covered ones in the same
-// request still narrow, and the caller learns which path it asked for in vain —
-// silent narrowing is safe but hides mistakes, and a front-end with a typo would
-// otherwise see its user refused with no way to learn why.
+// One uncovered path does not fail the whole call: the covered ones still narrow, and the caller
+// learns which path it asked for in vain — silent narrowing is safe but hides a typo that would
+// otherwise refuse a user with no way to learn why.
 func TestAttenuateDropsOnlyThePathsItCannotNarrowTo(t *testing.T) {
 	all := adminOn(authz.AllDomainsAnchor())
 
@@ -326,10 +302,9 @@ func TestAttenuateDropsOnlyThePathsItCannotNarrowTo(t *testing.T) {
 	})
 }
 
-// Two Grants of the same Role in one place are one Grant; two Grants of
-// different Roles are not. A duplicate would add nothing to the union that is a
-// Principal's authority while adding a second identical line to every record
-// that renders it, which a reader would reasonably read as meaning something.
+// Two Grants of the same Role in one place are one Grant; two of different Roles are not. A
+// duplicate adds nothing to the union that is a Principal's authority while adding a second
+// identical line to every record that renders it.
 func TestAttenuateCollapsesRepetitionButNotDistinctRoles(t *testing.T) {
 	runAttenuations(t, []attenuation{
 		{
@@ -444,10 +419,9 @@ func TestADomainScopedRoleStillSendsForTheDomainItNarrowedTo(t *testing.T) {
 	assert.True(t, authz.Can(all, authz.Create, authz.Batches(other)))
 }
 
-// Narrowing changes what may be done and never who did it, and it says nothing
-// about who asked. Both are asserted on every row of every table above; this
-// table is the one that carries an Attribution through, including through a
-// narrowing that yields nothing at all.
+// Narrowing changes what may be done and never who did it, and says nothing about who asked.
+// Both are asserted on every row above; this table is the one that carries an Attribution
+// through, including through a narrowing that yields nothing at all.
 func TestAttenuatePreservesIdentityAndCarriesAnyAttributionThrough(t *testing.T) {
 	claiming := adminOn(authz.RootAnchor()).WithAttribution("alice@corp.com")
 	plain := adminOn(authz.DomainAnchor(example))
@@ -544,14 +518,9 @@ func TestReAttenuationKeepsShrinking(t *testing.T) {
 	assert.Empty(t, none.Grants())
 }
 
-// A Resource segment that is literally an asterisk never matches as a wildcard.
-//
-// This is why a wildcard is a flag on a segment rather than the token "*": were
-// the conversion from Resource to Anchor textual, a Template identifier of "*"
-// arriving from a caller would become a wildcard, and Attenuation — the one
-// operation that turns a requested Resource into an Anchor — would widen
-// authority instead of narrowing it. That is the only route by which such a
-// segment can reach an Anchor, which is why it is asserted through it.
+// A Resource segment that is literally an asterisk never matches as a wildcard. That is why a
+// wildcard is a flag rather than the token: were the Resource-to-Anchor conversion textual, an
+// identifier of "*" would widen authority here instead of narrowing it.
 func TestALiteralAsteriskSegmentNeverMatchesAsAWildcard(t *testing.T) {
 	owner := adminOn(authz.DomainAnchor(example))
 

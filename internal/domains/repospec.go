@@ -21,16 +21,16 @@ func RunRepoSpec(t *testing.T, repo Repository) {
 	t.Run("SetTrackingPolicy", func(t *testing.T) { testSetTrackingPolicy(t, repo) })
 }
 
-// freshName mints an FQDN no other test run uses. MustParse is right here: the
-// shape is a constant of this file, so a failure is a bug in the spec rather
-// than input.
+// freshName mints a domain name no other test run uses. MustParse is right
+// here: the shape is a constant of this file, so a failure is a bug in the spec
+// rather than input.
 func freshName(prefix string) values.DomainName {
 	return values.MustParse(fmt.Sprintf("%s-%d.test", prefix, time.Now().UnixNano()))
 }
 
-// testCreate no longer covers a missing FQDN: New takes an values.DomainName, which
-// cannot be empty unless it is the zero value, and internal/values owns the tests
-// for what Parse refuses.
+// testCreate no longer covers a missing domain name: New takes a
+// values.DomainName, which cannot be empty unless it is the zero value, and
+// internal/values owns the tests for what Parse refuses.
 func testCreate(t *testing.T, repo Repository) {
 	t.Run("Success", func(t *testing.T) {
 		ctx := t.Context()
@@ -69,7 +69,7 @@ func testFindByName(t *testing.T, repo Repository) {
 	})
 
 	// A Domain created under one spelling is found under any other, since the
-	// FQDN reaching the repository is canonical by construction.
+	// domain name reaching the repository is canonical by construction.
 	t.Run("SucceedsForACaseDifferingSpelling", func(t *testing.T) {
 		ctx := t.Context()
 		name := freshName("case")
@@ -93,10 +93,9 @@ func testFindByName(t *testing.T, repo Repository) {
 	})
 }
 
-// testSetTrackingPolicy asserts the one invariant that is only observable at
-// the repository boundary: a Mode that states nothing never survives at rest on
-// a Domain, because the Domain is the ceiling and a ceiling that states nothing
-// would be unenforceable.
+// testSetTrackingPolicy asserts the one invariant only observable at the repository boundary: a Mode
+// that states nothing never survives at rest on a Domain, because the Domain is the ceiling and a
+// ceiling that states nothing would be unenforceable.
 func testSetTrackingPolicy(t *testing.T, repo Repository) {
 	t.Run("UnstatedModeIsNormalisedToOff", func(t *testing.T) {
 		ctx := t.Context()

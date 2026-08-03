@@ -6,12 +6,10 @@ import (
 	"github.com/kannon-email/kannon/internal/values"
 )
 
-// ListFilters contains filters for listing API keys
 type ListFilters struct {
 	OnlyActive bool
 }
 
-// Pagination contains pagination parameters
 type Pagination struct {
 	Limit  int
 	Offset int
@@ -21,14 +19,10 @@ type Pagination struct {
 // Return an error to abort the transaction
 type UpdateFunc func(key *APIKey) error
 
-// Repository defines the interface for API key persistence operations.
-//
-// Every domain-scoped method names the Domain with an values.DomainName, so a key
-// lookup cannot be reached with a spelling that was never canonicalised — for
-// an authentication path that would mean a valid key silently failing to
-// resolve.
+// Repository defines the interface for API key persistence operations. Every domain-scoped method
+// names the Domain with a values.DomainName, so a lookup cannot be reached with a spelling that was
+// never canonicalised — on an authentication path that would mean a valid key failing to resolve.
 type Repository interface {
-	// Create creates a new API key
 	Create(ctx context.Context, key *APIKey) error
 
 	// Update atomically reads, modifies, and persists a key within a transaction
@@ -45,9 +39,7 @@ type Repository interface {
 	// Returns ErrKeyNotFound if the key doesn't exist for the domain
 	GetByID(ctx context.Context, ref KeyRef) (*APIKey, error)
 
-	// List returns API keys for a domain with filters and pagination
 	List(ctx context.Context, domain values.DomainName, filters ListFilters, page Pagination) ([]*APIKey, error)
 
-	// Count returns the total number of API keys for a domain with filters
 	Count(ctx context.Context, domain values.DomainName, filters ListFilters) (int, error)
 }

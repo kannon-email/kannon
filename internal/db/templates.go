@@ -133,10 +133,9 @@ func (r *templatesRepository) Count(ctx context.Context, domain values.DomainNam
 	return int(n), nil
 }
 
-// rowToTemplate rebuilds the entity from its row, canonicalising the stored
-// FQDN on the way in for the same reason rowToDomain does: a Template whose
-// Domain cannot be parsed is one no domain-scoped lookup could ever return, and
-// saying so beats handing back an entity addressed to nothing.
+// rowToTemplate rebuilds the entity from its row, canonicalising the stored domain name for the same
+// reason rowToDomain does: a Template whose Domain cannot be parsed is one no domain-scoped lookup
+// could return, and saying so beats handing back an entity addressed to nothing.
 func rowToTemplate(row Template) (*templates.Template, error) {
 	domain, err := values.Parse(row.Domain)
 	if err != nil {

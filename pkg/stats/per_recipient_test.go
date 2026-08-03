@@ -21,14 +21,9 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// fakeMsg stands in for a JetStream message so a test can assert how the handler
-// settles it. Which of Ack, Term and Nak is called is the difference between a
-// message that is finished with, one that is abandoned on purpose, and one that
-// comes straight back — and a permanent fault that comes back is the redelivery
-// hot loop #396 fixed, so the distinction is worth pinning.
-//
-// jetstream.Msg is embedded to pick up the parts of the interface the handler does
-// not touch; calling one of those would panic loudly rather than pass silently.
+// fakeMsg stands in for a JetStream message so a test can assert how the handler settles it: Ack,
+// Term and Nak are the difference between finished with, abandoned on purpose, and straight back —
+// and a permanent fault that comes back is the #396 hot loop. jetstream.Msg is embedded to panic.
 type fakeMsg struct {
 	jetstream.Msg
 	data   []byte
@@ -44,10 +39,9 @@ func (m *fakeMsg) Nak() error   { m.naked++; return nil }
 
 func (m *fakeMsg) NakWithDelay(time.Duration) error { m.naked++; return nil }
 
-// engagementEvent is one Opened event as the Tracker publishes it, under the given
-// Mode and carrying the given identity claim: the Recipient's address, a pseudonym,
-// the Anonymous sentinel of the Domain — or nothing at all, when the caller passes
-// "", which is what a token minted before the claim was always email-shaped carries.
+// engagementEvent is one Opened event as the Tracker publishes it, under the given Mode and
+// carrying the given identity claim: the Recipient's address, a pseudonym, the Anonymous sentinel
+// — or nothing, when the caller passes "", as a pre-upgrade token does.
 func engagementEvent(t *testing.T, domain, email string, mode tracking.Mode) *fakeMsg {
 	t.Helper()
 
@@ -67,12 +61,9 @@ func engagementEvent(t *testing.T, domain, email string, mode tracking.Mode) *fa
 	return &fakeMsg{data: data}
 }
 
-// perRecipientRows counts the rows the per-recipient consumer left behind for a
-// Domain — what an operator reading the stats table would find.
-//
-// The three helpers below take the Domain in the string form the fixtures and the
-// published events use, and parse it at the repository call; MustParse is safe
-// because tests.FakeDomain only ever produces FQDNs.
+// perRecipientRows counts the rows the per-recipient consumer left behind for a Domain — what an
+// operator reading the stats table would find. The three helpers below take the Domain as a string,
+// as the fixtures do, and MustParse it: tests.FakeDomain only produces names Parse accepts.
 func perRecipientRows(t *testing.T, domain string) int64 {
 	t.Helper()
 
@@ -128,16 +119,9 @@ func aggregatedCount(t *testing.T, domain string, statType stats.Type) int64 {
 	return total
 }
 
-// TestAnonymousEventIsCountedButNotRecorded is the aggregate-statistics carve-out
-// made observable: a Domain on Anonymous keeps its open rate and retains no row
-// that could isolate one Recipient from another. Both consumers see the same
-// message, as they do in production, so the two halves are asserted together.
-//
-// It is run over both identity claims an Anonymous event can arrive with — the
-// Domain's sentinel, which is what a token minted by this build carries (ADR 0006),
-// and nothing at all, which is what a token minted before the claim was always
-// email-shaped carries and will keep carrying for one token lifetime. Neither may
-// become a row.
+// TestAnonymousEventIsCountedButNotRecorded is the aggregate-statistics carve-out made observable:
+// a Domain on Anonymous keeps its open rate and retains no row isolating one Recipient. Run over
+// both claims such an event can carry — the Domain's sentinel and nothing at all (ADR 0006).
 func TestAnonymousEventIsCountedButNotRecorded(t *testing.T) {
 	cases := []struct {
 		name     string
@@ -167,15 +151,9 @@ func TestAnonymousEventIsCountedButNotRecorded(t *testing.T) {
 	}
 }
 
-// TestPseudonymousEventIsRecordedUnderItsPseudonym is what separates the rung from
-// Anonymous at the write path. A Pseudonymous event names no Recipient, but it must
-// leave a per-Delivery row all the same: being linkable to the Batch's other events
-// is the whole content of the rung, and the pseudonym is the only thing that makes
-// them so.
-//
-// It takes the existing per-recipient path with no special case, which is what the
-// identity claim being email-shaped whichever Mode produced it buys (ADR 0006): the
-// row, the schema and counting distinct addresses are untouched by the Mode.
+// TestPseudonymousEventIsRecordedUnderItsPseudonym is what separates the rung from Anonymous at the
+// write path: a Pseudonymous event names no Recipient but must still leave a per-Delivery row,
+// since being linkable to the Batch's other events is the whole content of the rung.
 func TestPseudonymousEventIsRecordedUnderItsPseudonym(t *testing.T) {
 	domain := tests.FakeDomain(t)
 	h := newTestHandler()
@@ -191,9 +169,8 @@ func TestPseudonymousEventIsRecordedUnderItsPseudonym(t *testing.T) {
 	assert.Equal(t, []string{pseudonym}, perRecipientIdentities(t, domain),
 		"a pseudonymous event must be recorded, and under the pseudonym it arrived with")
 
-	// The aggregate path reads only the Domain, the timestamp and the type, so it
-	// counts every Mode alike. Pinning it here is what makes "the Domain's
-	// counters work under pseudonymous as they do under every Mode" a fact rather
+	// The aggregate path reads only the Domain, the timestamp and the type, so it counts every Mode
+	// alike. Pinning it here makes "the Domain's counters work under pseudonymous" a fact rather
 	// than an inference from the code.
 	counted := engagementEvent(t, domain, pseudonym, tracking.ModePseudonymous)
 	require.NoError(t, h.handleAggregatedStatsMsg(t.Context(), counted))
@@ -236,13 +213,9 @@ func TestIdentifiedEventIsRecorded(t *testing.T) {
 		"an identified event must be attributed to its Recipient")
 }
 
-// TestNonAnonymousEventWithoutIdentityIsLoggedAsAnError is the invariant asserted
-// rather than assumed. An event that is not Anonymous is supposed to name its
-// Recipient; one that does not is a bug upstream, and in a compliance path losing
-// a row in silence is worse than saying so.
-//
-// It must not come back, either: the fault is in the message, so a Nak would only
-// buy a redelivery hot loop (#396).
+// TestNonAnonymousEventWithoutIdentityIsLoggedAsAnError is the invariant asserted rather than
+// assumed: an event that is not Anonymous must name its Recipient, and losing a row in silence is
+// worse in a compliance path. It must not come back either — a Nak would buy a hot loop (#396).
 func TestNonAnonymousEventWithoutIdentityIsLoggedAsAnError(t *testing.T) {
 	domain := tests.FakeDomain(t)
 	h := newTestHandler()
@@ -261,13 +234,9 @@ func TestNonAnonymousEventWithoutIdentityIsLoggedAsAnError(t *testing.T) {
 	assert.Contains(t, out, domain, "the log must say which Domain, got %q", out)
 }
 
-// TestNonAnonymousEventNamingTheAnonymousSentinelIsLoggedAsAnError is the same
-// invariant against the shape the identity claim now has. Since the Anonymous
-// sentinel is an ordinary address to the `stats` schema, an event carrying it under
-// a Mode that is not Anonymous would otherwise be written down as though somebody
-// were called `anonymous@track.<domain>` — a Recipient that does not exist, in a
-// table whose distinct addresses are supposed to count Recipients. Naming nobody is
-// therefore a question about the address, not merely about emptiness.
+// TestNonAnonymousEventNamingTheAnonymousSentinelIsLoggedAsAnError is the same invariant against
+// the shape the claim now has: the sentinel is an ordinary address to the schema, so such an event
+// would be written down as though somebody were called anonymous@track.<domain>.
 func TestNonAnonymousEventNamingTheAnonymousSentinelIsLoggedAsAnError(t *testing.T) {
 	domain := tests.FakeDomain(t)
 	h := newTestHandler()

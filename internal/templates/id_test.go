@@ -1,7 +1,6 @@
-// This test is in package templates rather than templates_test so that it can
-// exercise newTemplateID directly. The property under test is that two functions
-// agree, and reaching only the exported half would leave the composition side
-// asserted by inference.
+// This test is in package templates rather than templates_test so that it can exercise
+// newTemplateID directly. The property under test is that two functions agree, and reaching only
+// the exported half would leave the composition side asserted by inference.
 package templates
 
 import (
@@ -10,10 +9,9 @@ import (
 	"github.com/kannon-email/kannon/internal/values"
 )
 
-// The two halves of the id format have to agree, and this is what makes them: a
-// change to the composition that missed the parse — or a new separator, or a prefix
-// with an "@" in it — fails here rather than in an authorization decision, which is
-// where it would otherwise be discovered.
+// The two halves of the id format have to agree, and this is what makes them: a change to the
+// composition that missed the parse — or a new separator, or a prefix with an "@" in it — fails
+// here rather than in an authorization decision, which is where it would otherwise surface.
 func TestDomainFromIDRoundTripsNewTemplateID(t *testing.T) {
 	for _, raw := range []string{
 		"example.com",
@@ -64,11 +62,9 @@ func TestDomainFromIDRoundTripsCreatedTemplates(t *testing.T) {
 	}
 }
 
-// Everything this refuses, it refuses because accepting it would let one id mean two
-// Domains — one to the guard and another to the load. The zero FQDN is asserted
-// alongside the error because a caller that ignored the error would otherwise get a
-// value that renders an unauthorizable Resource and a refusal several frames from
-// the cause.
+// Everything this refuses, it refuses because accepting it would let one id mean two Domains — one
+// to the guard and another to the load. The zero Name is asserted alongside the error, since a
+// caller ignoring the error would get a value that refuses several frames from the cause.
 func TestDomainFromIDRefusesWhatCarriesNoSingleDomain(t *testing.T) {
 	cases := []struct {
 		name string
@@ -141,12 +137,9 @@ func TestDomainFromIDRefusesWhatCarriesNoSingleDomain(t *testing.T) {
 	}
 }
 
-// An id nobody composed, whose Domain differs only in case, resolves to the
-// canonical Domain — and that is safe rather than a normalisation the authority
-// model forbids. The lower-casing happens here, at the edge, in values.Parse; the
-// value the guard is given is then the value the load is given, so the two cannot
-// disagree. What ADR 0008 forbids is normalising *inside* the decision, where a
-// Grant on TEST.com could be handed another Domain's data.
+// An id nobody composed, whose Domain differs only in case, resolves to the canonical Domain. Safe
+// rather than a forbidden normalisation: the lower-casing happens here at the edge, so the guard
+// and the load get the same value. ADR 0008 forbids normalising inside the decision.
 func TestDomainFromIDCanonicalisesTheDomainItRecovers(t *testing.T) {
 	got, err := DomainFromID("template_ckv0d2n@EXAMPLE.COM")
 	if err != nil {

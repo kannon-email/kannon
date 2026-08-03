@@ -21,14 +21,9 @@ var (
 	dCom       = values.MustParse("d.com")
 )
 
-// authorizedCtx carries a Principal that may do everything, because the tests in
-// this file are about what each query returns and not about who may ask for it. The
-// three read operations are authorized at the service seam, so without a Principal
-// they would refuse before reaching the repository.
-//
-// Which Action and Resource each one demands, and who is refused, is pinned in
-// service_authz_test.go instead: a behavioural test that also carried an
-// authorization claim would pass for either reason.
+// authorizedCtx carries a Principal that may do everything, because the tests here are about what
+// each query returns and not who may ask. Which Action and Resource each demands is pinned in
+// service_authz_test.go: a behavioural test carrying an authorization claim would pass either way.
 func authorizedCtx(t *testing.T) context.Context {
 	t.Helper()
 	return authz.NewContext(t.Context(), authz.MustNewPrincipal("test-admin",
@@ -265,10 +260,9 @@ func TestDetermineType(t *testing.T) {
 		{"clicked", &types.StatsData{Data: &types.StatsData_Clicked{}}, stats.TypeClicked},
 		{"bounced", &types.StatsData{Data: &types.StatsData_Bounced{}}, stats.TypeBounce},
 		{"error", &types.StatsData{Data: &types.StatsData_Error{}}, stats.TypeError},
-		// Failed is the absence of any reply at all — a Delivery whose retry
-		// budget ran out without a single attempt ever being answered
-		// (CONTEXT.md, Failed / ADR 0007). Before this case existed it fell
-		// through to TypeUnknown like any unmapped variant.
+		// Failed is the absence of any reply at all — a Delivery whose retry budget ran out
+		// without a single attempt ever being answered (CONTEXT.md, Failed / ADR 0007).
+		// Before this case existed it fell through to TypeUnknown like any unmapped variant.
 		{"failed", &types.StatsData{Data: &types.StatsData_Failed{}}, stats.TypeFailed},
 	}
 

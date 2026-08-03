@@ -19,12 +19,9 @@ type Pagination struct {
 	Offset int
 }
 
-// Repository defines the interface for stats persistence operations.
-//
-// The Domain is named by its canonical FQDN. A stats query filtered on a
-// non-canonical spelling returns no rows rather than an error, which reads as
-// "this Domain sent nothing" — the one failure mode a reporting surface must
-// not have.
+// Repository defines the interface for stats persistence operations. The Domain is named by its
+// canonical domain name: a query on a non-canonical spelling returns no rows rather than an error,
+// which reads as "this Domain sent nothing" — the one failure mode a reporting surface must not have.
 type Repository interface {
 	// Insert persists a new stat event.
 	Insert(ctx context.Context, stat *Stat) error

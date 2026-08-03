@@ -20,7 +20,6 @@ type aggregatedKey struct {
 	Type      Type
 }
 
-// NewInMemAggregatedStatsRepository creates a new in-memory aggregated stats repository.
 func NewInMemAggregatedStatsRepository() *InMemAggregatedStatsRepository {
 	return &InMemAggregatedStatsRepository{
 		stats: make(map[aggregatedKey]*AggregatedStat),

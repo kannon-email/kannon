@@ -57,9 +57,6 @@ type CreateResult struct {
 	PlaintextKey string
 }
 
-// Getters
-
-// ID returns the API key ID
 func (k *APIKey) ID() ID {
 	return k.id
 }
@@ -74,18 +71,17 @@ func (k *APIKey) KeyPrefix() string {
 	return k.keyPrefix
 }
 
-// Name returns the API key name
 func (k *APIKey) Name() string {
 	return k.name
 }
 
-// FQDN returns the Domain the key belongs to, in the form a Repository is
+// DomainName returns the Domain the key belongs to, in the form a Repository is
 // addressed with (implements KeyRef interface)
 func (k *APIKey) DomainName() values.DomainName {
 	return k.domain
 }
 
-// Domain renders that FQDN for the wire and for logs
+// Domain renders that domain name for the wire and for logs
 func (k *APIKey) Domain() string {
 	return k.domain.String()
 }
@@ -95,7 +91,6 @@ func (k *APIKey) KeyID() ID {
 	return k.id
 }
 
-// CreatedAt returns when the key was created
 func (k *APIKey) CreatedAt() time.Time {
 	return k.createdAt
 }
@@ -105,21 +100,17 @@ func (k *APIKey) ExpiresAt() *time.Time {
 	return k.expiresAt
 }
 
-// IsActiveStatus returns whether the key is active
 func (k *APIKey) IsActiveStatus() bool {
 	return k.isActive
 }
 
-// DeactivatedAt returns when the key was deactivated
 func (k *APIKey) DeactivatedAt() *time.Time {
 	return k.deactivatedAt
 }
 
-// NewAPIKey creates a new API key with generated key value and creation time set.
-// Returns a CreateResult containing the APIKey (with hashed key) and the plaintext key.
-//
-// The Domain needs no validation of its own: values.Parse has already refused an
-// empty FQDN and one longer than the narrowest column it lands in.
+// NewAPIKey creates a new API key with a generated value and creation time, returning a
+// CreateResult with the hashed key and the plaintext. The Domain needs no validation: Parse has
+// already refused an empty name and one longer than the narrowest column it lands in.
 func NewAPIKey(domain values.DomainName, name string, expiresAt *time.Time) (*CreateResult, error) {
 	if err := validateName(name); err != nil {
 		return nil, err
@@ -178,8 +169,6 @@ func LoadAPIKey(p LoadAPIKeyParams) *APIKey {
 	}
 }
 
-// Methods
-
 // MaskedKey returns the key prefix with ellipsis
 // Example: "k_abc123..." from prefix "k_abc123"
 func (k *APIKey) MaskedKey() string {
@@ -206,7 +195,6 @@ func (k *APIKey) Deactivate() {
 	}
 }
 
-// IsExpired checks if the key has expired
 func (k *APIKey) IsExpired() bool {
 	return k.expiresAt != nil && time.Now().After(*k.expiresAt)
 }
@@ -224,7 +212,6 @@ func generateKey() (string, error) {
 	return keyPrefix + string(b), nil
 }
 
-// validateName validates a key name
 func validateName(name string) error {
 	if name == "" {
 		return errors.New("key name is required")
@@ -235,7 +222,6 @@ func validateName(name string) error {
 	return nil
 }
 
-// validateExpiresAt validates expiration time
 func validateExpiresAt(expiresAt *time.Time) error {
 	if expiresAt != nil && expiresAt.Before(time.Now()) {
 		return errors.New("expiration time must be in the future")

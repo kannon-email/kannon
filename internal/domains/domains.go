@@ -1,12 +1,6 @@
-// Package domains defines the SenderDomain domain entity per CONTEXT.md:
-// the sender-tenant identity (FQDN + DKIM key pair) under which Batches are
-// authored and emails are signed. The Go type is named Domain for historical
-// reasons; renaming the wire/DB-visible field "domain" to "fqdn" is wire/DB
-// breaking and deferred to the refactoring backlog.
-//
-// Storage row is sqlc.Domain; the on-the-wire payload is the proto Domain
-// (which exposes only Domain + DkimPubKey); the domain entity is
-// domains.Domain.
+// Package domains defines the SenderDomain domain entity per CONTEXT.md: the sender-tenant
+// identity (domain name + DKIM key pair) under which Batches are authored and mail is signed. The
+// Go type is Domain for historical reasons; storage row sqlc.Domain, wire payload proto Domain.
 package domains
 
 import (
@@ -25,8 +19,8 @@ var (
 	ErrDomainNotFound = errors.New("domain not found")
 )
 
-// Domain is the SenderDomain entity: a sender-tenant identified by its FQDN
-// and the DKIM key pair used to sign outgoing mail for it.
+// Domain is the SenderDomain entity: a sender-tenant identified by its domain
+// name and the DKIM key pair used to sign outgoing mail for it.
 type Domain struct {
 	id             int32
 	domain         values.DomainName
@@ -36,14 +30,9 @@ type Domain struct {
 	tracking       tracking.Policy
 }
 
-// New creates a new SenderDomain with a freshly generated DKIM key pair.
-// The numeric id, createdAt and Tracking Policy are populated by the repository
-// on Create — the starting Policy is the column default, so it is stated in one
-// place only.
-//
-// There is no check that the FQDN is present and well formed: values.DomainName cannot
-// be built by conversion, so anything that reaches here has already been
-// canonicalised and validated by values.Parse.
+// New creates a new SenderDomain with a freshly generated DKIM key pair. The numeric id, createdAt
+// and Tracking Policy are populated by the repository on Create, so the starting Policy is stated
+// only by the column default. The name needs no check: only Parse can have produced it.
 func New(domain values.DomainName) (*Domain, error) {
 	keys, err := dkim.GenerateDKIMKeysPair()
 	if err != nil {
@@ -78,31 +67,28 @@ func Load(p LoadParams) *Domain {
 	}
 }
 
-// Getters
-
 func (d *Domain) ID() int32              { return d.id }
 func (d *Domain) DkimPrivateKey() string { return d.dkimPrivateKey }
 func (d *Domain) DkimPublicKey() string  { return d.dkimPublicKey }
 func (d *Domain) CreatedAt() time.Time   { return d.createdAt }
 
-// FQDN is the Domain's canonical fully qualified domain name. It is what a
-// Repository, and later an authorization Anchor, is addressed with: both must
-// be unable to receive anything but a canonical FQDN.
+// Name is the Domain's canonical domain name. It is what a Repository, and
+// later an authorization Anchor, is addressed with: both must be unable to
+// receive anything but a canonical name.
 func (d *Domain) Name() values.DomainName { return d.domain }
 
-// Domain renders the FQDN for the wire, for logs and for the many string-shaped
-// places an FQDN is interpolated (a Batch id, an email address, a DKIM
-// selector). It exists beside FQDN so that rendering is never a reason to hand
-// a bare string to something that should demand the type.
+// Domain renders the domain name for the wire, for logs and for the string-shaped places it is
+// interpolated (a Batch id, an email address, a DKIM selector). It exists beside Name so that
+// rendering is never a reason to hand a bare string to something that should demand the type.
 func (d *Domain) Domain() string { return d.domain.String() }
 
 // TrackingPolicy is the Domain's Tracking Policy: the ceiling every Batch and
 // Recipient of this Domain is resolved against.
 func (d *Domain) TrackingPolicy() tracking.Policy { return d.tracking }
 
-// Pb translates to the proto wire type. Only the FQDN, the public DKIM key and
-// the Tracking Policy are exposed on the wire — the private key never leaves
-// the server.
+// Pb translates to the proto wire type. Only the domain name, the public DKIM
+// key and the Tracking Policy are exposed on the wire — the private key never
+// leaves the server.
 func (d *Domain) Pb() *pb.Domain {
 	return &pb.Domain{
 		Domain:     d.domain.String(),

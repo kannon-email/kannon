@@ -7,16 +7,9 @@ import (
 	"github.com/kannon-email/kannon/internal/values"
 )
 
-// The segments of the Resource tree. Naming them here rather than inline keeps
-// the tree readable in one place:
-//
-//	domains
-//	domains/<fqdn>                      update = SetTrackingPolicy
-//	domains/<fqdn>/batches              create = SendHTML / SendTemplate
-//	domains/<fqdn>/templates/<id>
-//	domains/<fqdn>/apikeys/<id>
-//	domains/<fqdn>/stats                per-Delivery rows
-//	domains/<fqdn>/stats/aggregated     counters
+// The segments of the Resource tree, named here rather than inline: domains, domains/<name>
+// (update = SetTrackingPolicy), .../batches (create = SendHTML / SendTemplate),
+// .../templates/<id>, .../apikeys/<id>, .../stats (per-Delivery rows), .../stats/aggregated.
 const (
 	segDomains    = "domains"
 	segBatches    = "batches"
@@ -36,20 +29,9 @@ const (
 	wildcardToken = "*"
 )
 
-// Resource is what a request acts on, named by a hierarchical path.
-//
-// A Resource is always built through the constructors below and never parsed
-// from a string. That is a security property rather than a style preference: a
-// segment carrying a caller-supplied identifier could contain the separator,
-// and splitting a joined path would let such an identifier invent segments.
-// Assembling structurally makes the number of segments a fact about the call
-// site rather than about the input.
-//
-// A Resource with an empty segment can be covered by nothing at all, so a zero
-// values.DomainName or a blank identifier reaching a constructor produces an
-// unauthorizable Resource. Programming errors on this path therefore fail
-// closed rather than falling back on whatever a shorter path would have
-// matched.
+// Resource is what a request acts on, named by a hierarchical path. Always built through the
+// constructors below and never parsed from a string: splitting a joined path would let a
+// caller's identifier invent segments. An empty segment is covered by nothing, so it fails closed.
 type Resource struct {
 	segments []string
 }
@@ -98,13 +80,9 @@ func Stats(f values.DomainName) Resource {
 	return under(f, segStats)
 }
 
-// AggregatedStats names a Domain's counters, which carry no personal data.
-//
-// It sits *beneath* Stats deliberately: authority over the per-Delivery rows
-// implies authority over the counters, which is semantically true — anyone who
-// can read every event can count them — and the nesting makes the incoherent
-// Grant "detail but not aggregate" impossible to write rather than writable and
-// unenforceable.
+// AggregatedStats names a Domain's counters, which carry no personal data. Beneath Stats
+// deliberately: authority over the per-Delivery rows implies authority over the counters —
+// true anyway — and the incoherent "detail but not aggregate" Grant becomes unwritable.
 func AggregatedStats(f values.DomainName) Resource {
 	return under(f, segStats, segAggregated)
 }
@@ -117,10 +95,8 @@ func under(f values.DomainName, tail ...string) Resource {
 	return Resource{segments: segments}
 }
 
-// String renders the path for display and logging.
-//
-// It is not a serialisation: a Resource is never parsed back from it, and a
-// segment holding a caller-supplied identifier that contains a separator would
+// String renders the path for display and logging. Not a serialisation: nothing parses a
+// Resource back from it, and a segment holding an identifier that contains a separator would
 // render ambiguously. Comparison and matching work on segments, never on this.
 func (r Resource) String() string {
 	return strings.Join(r.segments, separator)
@@ -140,13 +116,9 @@ func (r Resource) isWellFormed() bool {
 	return !slices.Contains(r.segments, "")
 }
 
-// patternSegment is one segment of a pattern: either a wildcard matching any
-// single segment, or a literal that must match exactly.
-//
-// The wildcard is a flag rather than the token "*" sitting in the literal, which
-// is what keeps a Resource segment that happens to be an asterisk a literal. A
-// wildcard still carries the token in its literal, but only so that String can
-// render it.
+// patternSegment is one segment of a pattern: a wildcard matching any single segment, or a
+// literal that must match exactly. The wildcard is a flag rather than the token "*" in the
+// literal, which keeps a Resource segment that happens to be an asterisk a literal.
 type patternSegment struct {
 	literal  string
 	wildcard bool
@@ -157,11 +129,9 @@ func literalSegment(s string) patternSegment {
 	return patternSegment{literal: s}
 }
 
-// wildcardSegment matches any one segment. There is no segment matching any
-// depth: prefix domination already extends every pattern to everything beneath
-// what it names, so a trailing wildcard would be redundant, and an implicit "**"
-// in the middle would mean a future node silently entered the reach of Grants
-// issued years earlier.
+// wildcardSegment matches any one segment. There is no any-depth segment: prefix domination
+// already extends a pattern to everything beneath what it names, and an implicit "**" would
+// let a future node silently enter the reach of Grants issued years earlier.
 func wildcardSegment() patternSegment {
 	return patternSegment{literal: wildcardToken, wildcard: true}
 }
@@ -172,35 +142,17 @@ func (s patternSegment) isLiteral(text string) bool {
 	return !s.wildcard && s.literal == text
 }
 
-// pattern is the reach of one of a Role's rules under a Grant's Anchor: the set
-// of Resources that rule matches.
-//
-// A pattern is *composed*, never authored, which is why the type is unexported
-// and why nothing here parses one from a string. Parsing a composed path is the
-// one operation this layer forbids itself: splitting on the separator would let
-// an identifier carrying one invent a segment, and the whole model rests on a
-// Domain having exactly one spelling. Grants therefore carry an Anchor, and a
-// pattern only ever appears between Anchor and matcher.
-//
-// The root's reach is the everything flag rather than zero segments, so the zero
-// value covers nothing and a pattern that was never composed fails closed.
+// pattern is the reach of one of a Role's rules under a Grant's Anchor. Composed, never
+// authored or parsed — splitting a path would let an identifier invent a segment — so the
+// type is unexported and the zero value, the root being a flag, covers nothing.
 type pattern struct {
 	everything bool
 	segments   []patternSegment
 }
 
-// covers reports whether authority over this pattern reaches r.
-//
-// This is prefix domination, and it is the single matcher in the system: the
-// pattern matches when it equals r or is *a prefix of* r, so a Grant on
-// domains/example.com reaches that Domain's Templates and statistics without
-// naming them. Two things are therefore inexpressible by design — holding a path
-// without what lies under it, and taking anything back.
-//
-// Note the asymmetry that makes Attenuation cheap: a pattern longer than r
-// covers nothing, so domains/*/apikeys does not cover domains/example.com. That
-// is the right answer, since granting the latter would also reach that Domain's
-// Templates, which the former does not hold.
+// covers reports whether authority over this pattern reaches r: prefix domination, the single
+// matcher in the system. Two things are therefore inexpressible — holding a path without what
+// lies under it, and taking anything back. A pattern longer than r covers nothing.
 func (p pattern) covers(r Resource) bool {
 	if !r.isWellFormed() {
 		return false

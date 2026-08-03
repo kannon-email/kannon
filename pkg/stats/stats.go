@@ -144,14 +144,9 @@ func (h *statsHandler) handleAggregatedStats(ctx context.Context) error {
 	return nil
 }
 
-// handleAggregatedStatsMsg counts one stat event against its Domain's hourly
-// counter. It reads only the Domain, the timestamp and the type, so it counts
-// every Mode alike — including Anonymous, whose whole purpose is to reach this
-// counter and no further.
-//
-// Splitting the subject so the two consumers no longer overlap was rejected: both
-// subscribe to the single-token wildcard kannon.stats.*, which matches no longer
-// subject, so the split would silently take the aggregate path down with it.
+// handleAggregatedStatsMsg counts one stat event against its Domain's hourly counter, reading only
+// the Domain, timestamp and type — so every Mode alike, Anonymous included. Splitting the subject
+// to stop the two consumers overlapping was rejected: kannon.stats.* matches no longer subject.
 func (h *statsHandler) handleAggregatedStatsMsg(ctx context.Context, msg jetstream.Msg) error {
 	data := &types.Stats{}
 	if err := proto.Unmarshal(msg.Data(), data); err != nil {
@@ -172,51 +167,22 @@ func (h *statsHandler) handleAggregatedStatsMsg(ctx context.Context, msg jetstre
 	return msg.Ack()
 }
 
-// eventDomain canonicalises the Domain an event was published under, reporting
-// false when the value is not an FQDN at all.
-//
-// The published value comes from a Domain row, so a failure here means the event
-// could never be filed against any Domain a tenant can query — a fault in the
-// message rather than in this consumer. Both handlers therefore Term it, as they
-// do a payload that will not unmarshal: Nak'ing a permanent fault could only
-// reproduce the redelivery hot loop #396 fixed. It logs here rather than at each
-// caller because there is one reason to fail and one thing to say about it.
+// eventDomain canonicalises the Domain an event was published under, reporting false when the
+// value is not a domain name at all. The published value comes from a Domain row, so a failure is
+// a fault in the message: both handlers Term it, since Nak'ing would reproduce the #396 hot loop.
 func eventDomain(data *types.Stats) (values.DomainName, bool) {
 	domain, err := values.Parse(data.Domain)
 	if err != nil {
-		slog.Error("stat event carries a domain that is not an FQDN",
+		slog.Error("stat event carries a non-canonical domain",
 			"domain", data.Domain, "batch", data.MessageId, "err", err)
 		return values.DomainName{}, false
 	}
 	return domain, true
 }
 
-// handleStatsMsg writes the per-recipient row for one stat event.
-//
-// Under Anonymous it writes none. That Mode is counted in aggregate only —
-// nothing is retained that could isolate one Recipient from another (CONTEXT.md) —
-// and the identity such an event carries names nobody by construction: the
-// Anonymous sentinel of its Domain, or nothing at all on a token minted before the
-// identity claim was always email-shaped. handleAggregatedStats is an independent
-// subscription on the same subject and counts the event regardless, so the Domain
-// keeps its open and click rates.
-//
-// Every other Mode names somebody, and so does every event that is not an
-// engagement. Pseudonymous names a pseudonym rather than a Recipient —
-// `<rand>@track.<domain>`, drawn per Delivery and linkable to nothing outside its
-// Batch (ADR 0006) — and it takes this same path deliberately: the identity claim
-// is email-shaped whichever Mode produced it, so the row, the schema and counting
-// distinct addresses all keep working unchanged, and the Mode on the event is what
-// says which kind of address was written.
-//
-// An event that names nobody yet is not Anonymous is a bug upstream, and in a
-// compliance path a loud failure beats a quietly lost row: it is logged as an
-// error rather than dropped in silence. Naming nobody is a question about the
-// address and not merely about emptiness — the sentinel is an ordinary address to
-// the schema, so an event carrying it under any other Mode would otherwise be
-// recorded as though somebody were called `anonymous@track.<domain>`. It is Termed
-// and not Nak'd, because the fault is in the message itself — redelivering it could
-// only reproduce the hot loop #396 fixed.
+// handleStatsMsg writes the per-recipient row for one stat event — none under Anonymous, which is
+// counted in aggregate only (CONTEXT.md), and one under Pseudonymous, whose pseudonym takes this
+// same email-shaped path (ADR 0006). An event naming nobody under any other Mode is Termed.
 func (h *statsHandler) handleStatsMsg(ctx context.Context, msg jetstream.Msg) error {
 	data := &types.Stats{}
 	if err := proto.Unmarshal(msg.Data(), data); err != nil {

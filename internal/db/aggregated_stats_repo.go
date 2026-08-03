@@ -15,7 +15,6 @@ type AggregatedStatsRepository struct {
 	db *pgxpool.Pool
 }
 
-// NewAggregatedStatsRepository creates a new AggregatedStatsRepository.
 func NewAggregatedStatsRepository(db *pgxpool.Pool) *AggregatedStatsRepository {
 	return &AggregatedStatsRepository{db: db}
 }

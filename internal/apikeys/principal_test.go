@@ -34,11 +34,9 @@ func TestAPIKeyResolvesToSenderOnItsOwnDomain(t *testing.T) {
 	assert.Empty(t, p.Attribution())
 }
 
-// TestAPIKeyPrincipalCanOnlySend enumerates what that one Grant does and does not
-// reach. The refusals are the point: this is the Principal a stolen sending key
-// carries, and it is sender rather than admin, so it cannot register a Domain, read
-// the one it belongs to, rewrite its Templates, mint itself a second credential, or
-// send for anybody else.
+// TestAPIKeyPrincipalCanOnlySend enumerates what that one Grant does and does not reach. The
+// refusals are the point: this is the Principal a stolen sending key carries, so it cannot register
+// a Domain, read its own, rewrite Templates, mint a second credential or send for anybody else.
 func TestAPIKeyPrincipalCanOnlySend(t *testing.T) {
 	created, err := apikeys.NewAPIKey(testDomain, "test-key", nil)
 	require.NoError(t, err)

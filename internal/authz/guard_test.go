@@ -9,10 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Guard is a decorator rather than a bare check because "check, then proceed" has
-// to be a single expression there is no falling through: with a bare Require, a
-// call site that omits the return compiles, passes review often enough, and
-// authorizes everything.
+// Guard is a decorator rather than a bare check because "check, then proceed" has to be one
+// expression with no falling through: with a bare Require, a call site that omits the return
+// compiles, passes review often enough, and authorizes everything.
 func TestGuardRunsTheOperationWhenAllowed(t *testing.T) {
 	ctx := authz.NewContext(context.Background(), adminOn(authz.DomainAnchor(example)))
 
@@ -24,10 +23,9 @@ func TestGuardRunsTheOperationWhenAllowed(t *testing.T) {
 	assert.Equal(t, "tracking policy set", got)
 }
 
-// A missing Principal is distinguishable from a forbidden one. Both surface as
-// permission denied at an edge, but they are very different operational problems:
-// one says this credential may not do this, the other says nothing authenticated
-// the request at all.
+// A missing Principal is distinguishable from a forbidden one. Both surface as permission denied
+// at an edge, but they are different operational problems: one says this credential may not do
+// this, the other that nothing authenticated the request at all.
 func TestGuardDistinguishesAMissingPrincipalFromAForbiddenOne(t *testing.T) {
 	tests := []struct {
 		name string
@@ -65,19 +63,9 @@ func TestGuardDistinguishesAMissingPrincipalFromAForbiddenOne(t *testing.T) {
 	}
 }
 
-// A Principal carrying an Attribution it holds no attribute for is refused.
-//
-// Setting an Attribution performs no check of its own, deliberately: entitlement
-// to make the claim depends on the Resource being acted on, which is not known
-// there. So it is verified here, where it is — and the consequence is that an
-// Attribution can only cause the guarded operation to be refused, never smuggle
-// anything past it.
-//
-// No Role in the seeded catalogue holds attribute, so *every* Attribution is
-// refused today. That is ADR 0008's intent and not a gap: with nothing
-// authenticated there is no trusted front-end, and an Attribution from an
-// unauthenticated caller would let anyone write any name into a record that looks
-// authoritative.
+// A Principal carrying an Attribution it holds no attribute for is refused. Setting one checks
+// nothing, since entitlement depends on the Resource, so it is verified here — an Attribution can
+// only cause a refusal. No seeded Role holds attribute, so every claim is refused today.
 func TestGuardRefusesAnAttributionThePrincipalCannotMake(t *testing.T) {
 	owner := adminOn(authz.DomainAnchor(example)).WithAttribution("alice@corp.com")
 	ctx := authz.NewContext(context.Background(), owner)

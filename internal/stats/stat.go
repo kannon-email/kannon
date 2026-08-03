@@ -22,10 +22,8 @@ const (
 	TypeUnknown   Type = "unknown"
 )
 
-// Stat is the domain entity for a statistics event.
-//
-// Domain is the SenderDomain the event belongs to, and is the same FQDN a
-// Domain is created under: a stat filed against a different spelling would be
+// Stat is the domain entity for a statistics event. Domain is the SenderDomain it belongs to, and is
+// the same domain name a Domain is created under: a stat filed against a different spelling would be
 // invisible to every query the tenant can make.
 type Stat struct {
 	ID        int32

@@ -12,14 +12,9 @@ import (
 	pb "github.com/kannon-email/kannon/proto/kannon/admin/apiv1"
 )
 
-// adminAPIService is the Admin API's translation layer: it parses the wire,
-// delegates to a domain service, and renders the answer.
-//
-// It holds services rather than repositories, and that is the point of this file
-// rather than an incidental refactor. Authorization is declared at the service seam
-// (internal/domains, internal/templates, internal/apikeys), so the wiring below is
-// what decides whether an operation is checked at all. A method reaching past a
-// service to a repository would compile, work, and be unguarded.
+// adminAPIService is the Admin API's translation layer: it parses the wire, delegates to a domain
+// service, and renders the answer. It holds services rather than repositories because that wiring
+// is what decides whether an operation is checked at all — reaching past one would be unguarded.
 type adminAPIService struct {
 	domains   *domains.Service
 	templates *templates.Service
@@ -39,9 +34,9 @@ func (s *adminAPIService) GetDomains(ctx context.Context, in *pb.GetDomainsReq) 
 	return &res, nil
 }
 
-// The request field is a bare string, so this handler is where an FQDN enters
-// the system: it is parsed here and the error is returned to the caller, rather
-// than being carried any deeper as a string.
+// The request field is a bare string, so this handler is where a domain name
+// enters the system: it is parsed here and the error is returned to the caller,
+// rather than being carried any deeper as a string.
 func (s *adminAPIService) GetDomain(ctx context.Context, in *pb.GetDomainReq) (*pb.GetDomainRes, error) {
 	name, err := values.Parse(in.Domain)
 	if err != nil {

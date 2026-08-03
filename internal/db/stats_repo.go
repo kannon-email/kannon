@@ -16,7 +16,6 @@ type StatsRepository struct {
 	db *pgxpool.Pool
 }
 
-// NewStatsRepository creates a new StatsRepository.
 func NewStatsRepository(db *pgxpool.Pool) *StatsRepository {
 	return &StatsRepository{db: db}
 }
@@ -100,10 +99,9 @@ func toPgTimestamp(t time.Time) pgtype.Timestamp {
 	}
 }
 
-// toDomainStat rebuilds the entity from its row, canonicalising the stored
-// domain as the other row converters do. stats.domain is the one FQDN column
-// with no length bound of its own, so a row holding something Parse refuses is
-// reported rather than counted against a Domain nothing can query.
+// toDomainStat rebuilds the entity from its row, canonicalising the stored domain as the other row
+// converters do. stats.domain is the one domain-name column with no length bound, so a row holding
+// something Parse refuses is reported rather than counted against a Domain nothing can query.
 func toDomainStat(row Stat) (*stats.Stat, error) {
 	domain, err := values.Parse(row.Domain)
 	if err != nil {

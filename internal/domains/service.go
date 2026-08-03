@@ -8,36 +8,20 @@ import (
 	"github.com/kannon-email/kannon/internal/values"
 )
 
-// Service is the seam every request-driven SenderDomain operation passes
-// through, and therefore the one place each of them is authorized.
-//
-// The guards sit here and not in the Connect handlers so that the requirement is
-// a property of the operation rather than of one transport: a second transport
-// over the same domain would otherwise need the whole map restated, and a
-// restatement can be one method short. What is left in the handler is
-// translation — parse the wire, render the response.
-//
-// The Mailer API deliberately does not come through here. It resolves the calling
-// Domain from an API Key it has already authenticated, so the read is part of
-// authentication rather than an operation a caller asked for — and a key's sender
-// Grant does not hold read on its own Domain anyway, so guarding that lookup would
-// refuse every send. It holds the Repository directly.
+// Service is the seam every request-driven SenderDomain operation passes through, and therefore
+// the one place each is authorized — a property of the operation rather than of one transport. The
+// Mailer API stays out: its Domain read is part of authentication, and sender holds no read.
 type Service struct {
 	repo Repository
 }
 
-// NewService creates a new SenderDomain service.
 func NewService(repo Repository) *Service {
 	return &Service{repo: repo}
 }
 
-// CreateDomain registers a new SenderDomain, generating its DKIM key pair.
-//
-// The guard is Create on the Domains collection — the shorter path, not a
-// separate tier of authority. This is the operation ADR 0008 opens with: while it
-// sits on an unauthenticated surface, anyone who can reach the listener creates a
-// Domain, mints a key for it and sends with a perfectly valid credential, which
-// is what makes the authentication the Mailer API does perform protect nothing.
+// CreateDomain registers a new SenderDomain, generating its DKIM key pair. Create on the Domains
+// collection — the shorter path, not a separate tier. This is the operation ADR 0008 opens with:
+// unauthenticated, anyone reaching the listener can mint a Domain, a key and a valid credential.
 func (s *Service) CreateDomain(ctx context.Context, name values.DomainName) (*Domain, error) {
 	return authz.Guard(ctx, authz.Create, authz.Domains(), func() (*Domain, error) {
 		d, err := New(name)
@@ -51,12 +35,9 @@ func (s *Service) CreateDomain(ctx context.Context, name values.DomainName) (*Do
 	})
 }
 
-// GetDomains enumerates every SenderDomain.
-//
-// List on the Domains collection, which no Grant anchored on a single Domain
-// reaches: a pattern longer than the Resource covers nothing, so an admin of
-// example.com cannot learn which other Domains exist. That falls out of prefix
-// domination rather than being checked here.
+// GetDomains enumerates every SenderDomain. List on the Domains collection, which no Grant
+// anchored on a single Domain reaches: a pattern longer than the Resource covers nothing, so an
+// admin of example.com cannot learn which other Domains exist.
 func (s *Service) GetDomains(ctx context.Context) ([]*Domain, error) {
 	return authz.Guard(ctx, authz.List, authz.Domains(), func() ([]*Domain, error) {
 		return s.repo.List(ctx)
@@ -71,16 +52,9 @@ func (s *Service) GetDomain(ctx context.Context, name values.DomainName) (*Domai
 	})
 }
 
-// SetTrackingPolicy replaces the Domain's Tracking Policy — the ceiling every
-// Batch and Recipient of this Domain is resolved against.
-//
-// Update on the Domain itself, which by prefix domination is also Update on that
-// Domain's Templates. ADR 0008 accepts that rather than working around it:
-// changing a Tracking Policy and rewriting Templates are both things a Domain
-// administrator does, and the alternative — a domains/<fqdn>/tracking path
-// corresponding to no entity in the language — buys a Role nobody has asked for.
-// So this authority is not separable from Template authorship, and a reader
-// looking for the narrower Grant should know it does not exist.
+// SetTrackingPolicy replaces the Domain's Tracking Policy — the ceiling every Batch and Recipient
+// is resolved against. Update on the Domain, which by domination is also Update on its Templates;
+// ADR 0008 accepts that, so the narrower Grant a reader might look for does not exist.
 func (s *Service) SetTrackingPolicy(ctx context.Context, name values.DomainName, p tracking.Policy) (*Domain, error) {
 	return authz.Guard(ctx, authz.Update, authz.Domain(name), func() (*Domain, error) {
 		return s.repo.SetTrackingPolicy(ctx, name, p)

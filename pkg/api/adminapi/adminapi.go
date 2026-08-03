@@ -17,8 +17,6 @@ import (
 	adminv1connect "github.com/kannon-email/kannon/proto/kannon/admin/apiv1/apiv1connect"
 )
 
-// Adapter to Connect handler interface
-
 type adminAPIConnectAdapter struct {
 	impl *adminAPIService
 }
@@ -55,33 +53,16 @@ func (a *adminAPIConnectAdapter) SetTrackingPolicy(ctx context.Context, req *con
 	return connect.NewResponse(resp), nil
 }
 
-// serviceError maps what a guarded service returns onto a Connect code.
-//
-// Every method of this adapter used to answer CodeInternal for everything, which
-// was survivable while the only errors were bugs and bad input. It is not
-// survivable now: a refusal reported as an internal fault tells the caller to
-// retry something that will never succeed and tells whoever watches the error rate
-// that Kannon is broken. So an authorization refusal becomes
-// CodePermissionDenied and the rest keeps the behaviour it had.
+// serviceError maps what a guarded service returns onto a Connect code. Every method of this
+// adapter used to answer CodeInternal for everything: a refusal reported as an internal fault
+// tells the caller to retry what will never succeed, so it becomes CodePermissionDenied.
 func serviceError(err error) *connect.Error {
 	return authzconnect.Error(err, connect.CodeInternal)
 }
 
-// trackingPolicyError maps the ways a Tracking Policy can be refused onto
-// Connect codes, so that a caller can tell a policy decision from a bug: a Mode
-// this build does not know is a bad argument, and an unknown Domain is not
-// found.
-//
-// The Mailer API answers the `trackingpb` sentinel with the same code, in
-// `sendTrackingPolicyError` — the pair is deliberately kept in step so that one
-// bad Mode does not mean two different things depending on which API was asked.
-// Whatever else can go wrong differs: setting a Policy on a Domain can fail to
-// find the Domain, and taking one in on a send cannot.
-//
-// An authorization refusal is neither of the two sentinels, so it falls through to
-// serviceError and lands on CodePermissionDenied. The ordering matters and is worth
-// stating: a caller that may not touch this Domain must not be told whether the
-// Domain exists, and the Domain lookup only happens after the guard has passed.
+// trackingPolicyError maps the ways a Tracking Policy can be refused onto Connect codes: an
+// unknown Mode is a bad argument, an unknown Domain is not found — kept in step with the Mailer
+// API's sendTrackingPolicyError. An authorization refusal falls through to serviceError.
 func trackingPolicyError(err error) *connect.Error {
 	switch {
 	case errors.Is(err, trackingpb.ErrUnknownMode):
@@ -165,13 +146,9 @@ func (a *adminAPIConnectAdapter) DeactivateAPIKey(ctx context.Context, req *conn
 	return connect.NewResponse(resp), nil
 }
 
-// CreateAdminAPIService assembles the Admin API over the three guarded services.
-//
-// Note what this constructor does *not* do: it installs no Principal. A caller
-// holding this handler — the API runnable, or a test — reaches guarded operations
-// that will refuse unless something put a Principal in the request context. In
-// production that something is the interceptor at the composition point
-// (pkg/api/api.go), and only while the operator leaves the open surfaces open.
+// CreateAdminAPIService assembles the Admin API over the three guarded services. Note what it
+// does not do: it installs no Principal, so a caller holding this handler reaches operations that
+// refuse unless something put one in the context — in production, the interceptor in pkg/api.
 func CreateAdminAPIService(db *pgxpool.Pool) adminv1connect.ApiHandler {
 	domainsRepo := sqlc.NewDomainsRepository(db)
 	templatesRepo := sqlc.NewTemplatesRepository(db)

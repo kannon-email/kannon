@@ -17,14 +17,9 @@ import (
 // appropriate: a bad value here is a bug in the test, not input.
 var testDomain = values.MustParse("test.example.com")
 
-// authorizedCtx carries a Principal that may do everything, because the tests in
-// this file are about what each operation does and not about who may ask for it.
-// Every operation on the Service is authorized at its own seam, so without a
-// Principal they would all refuse before reaching the repository.
-//
-// Which Action and Resource each operation demands, and who is refused, is pinned in
-// service_authz_test.go instead. Keeping the two apart is deliberate: a behavioural
-// test that also carried an authorization claim would pass for either reason.
+// authorizedCtx carries a Principal that may do everything, because the tests here are about what
+// each operation does and not who may ask. Which Action and Resource each demands is pinned in
+// service_authz_test.go: a behavioural test carrying an authorization claim would pass either way.
 func authorizedCtx(t *testing.T) context.Context {
 	t.Helper()
 	return authz.NewContext(t.Context(), authz.MustNewPrincipal("test-admin",
@@ -116,7 +111,6 @@ func TestService_ListKeys(t *testing.T) {
 
 		domain := testDomain
 
-		// Create 3 keys
 		for range 3 {
 			_, err := service.CreateKey(ctx, domain, "test-key", nil)
 			require.NoError(t, err)
@@ -135,13 +129,11 @@ func TestService_ListKeys(t *testing.T) {
 
 		domain := testDomain
 
-		// Create 2 active keys
 		for range 2 {
 			_, err := service.CreateKey(ctx, domain, "active-key", nil)
 			require.NoError(t, err)
 		}
 
-		// Create 1 inactive key
 		inactiveResult, err := service.CreateKey(ctx, domain, "inactive-key", nil)
 		require.NoError(t, err)
 
@@ -149,7 +141,6 @@ func TestService_ListKeys(t *testing.T) {
 		_, err = service.DeactivateKey(ctx, ref)
 		require.NoError(t, err)
 
-		// List only active
 		activeKeys, activeTotal, err := service.ListKeys(ctx, domain, true, apikeys.Pagination{Limit: 10, Offset: 0})
 		require.NoError(t, err)
 		assert.Len(t, activeKeys, 2)
@@ -158,7 +149,6 @@ func TestService_ListKeys(t *testing.T) {
 			assert.True(t, k.IsActiveStatus())
 		}
 
-		// List all (including inactive)
 		allKeys, allTotal, err := service.ListKeys(ctx, domain, false, apikeys.Pagination{Limit: 10, Offset: 0})
 		require.NoError(t, err)
 		assert.Len(t, allKeys, 3)
@@ -172,25 +162,21 @@ func TestService_ListKeys(t *testing.T) {
 
 		domain := testDomain
 
-		// Create 5 keys
 		for range 5 {
 			_, err := service.CreateKey(ctx, domain, "test-key", nil)
 			require.NoError(t, err)
 		}
 
-		// Get first 2
 		page1, total1, err := service.ListKeys(ctx, domain, false, apikeys.Pagination{Limit: 2, Offset: 0})
 		require.NoError(t, err)
 		assert.Len(t, page1, 2)
 		assert.Equal(t, 5, total1)
 
-		// Get next 2
 		page2, total2, err := service.ListKeys(ctx, domain, false, apikeys.Pagination{Limit: 2, Offset: 2})
 		require.NoError(t, err)
 		assert.Len(t, page2, 2)
 		assert.Equal(t, 5, total2)
 
-		// Get last 1
 		page3, total3, err := service.ListKeys(ctx, domain, false, apikeys.Pagination{Limit: 2, Offset: 4})
 		require.NoError(t, err)
 		assert.Len(t, page3, 1)
@@ -277,7 +263,6 @@ func TestService_ValidateForAuth(t *testing.T) {
 		service := apikeys.NewService(repo)
 
 		domain := testDomain
-		// Create a key first with valid expiration
 		futureTime := time.Now().Add(24 * time.Hour)
 		result, err := apikeys.NewAPIKey(domain, "expired-key", &futureTime)
 		require.NoError(t, err)
@@ -299,7 +284,6 @@ func TestService_ValidateForAuth(t *testing.T) {
 			DeactivatedAt: nil,
 		})
 
-		// Update the repository with the expired key
 		ref := apikeys.NewKeyRef(domain, result.Key.ID())
 		_, err = repo.Update(ctx, ref, func(k *apikeys.APIKey) error {
 			*k = *expiredKey

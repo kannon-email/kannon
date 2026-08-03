@@ -53,7 +53,7 @@ func TestDeleteTemplate(t *testing.T) {
 
 	// The Domain has to be stated: a list scoped to no Domain used to come back
 	// empty, which made this assertion pass for the wrong reason. GetTemplates now
-	// refuses a request that names no FQDN, so the test says which Domain it means.
+	// refuses a request that names no Domain, so the test says which one it means.
 	resG, err := testservice.GetTemplates(ctx, connect.NewRequest(&pb.GetTemplatesReq{
 		Skip:   0,
 		Take:   10,
@@ -92,7 +92,6 @@ func TestUpdateTemplates(t *testing.T) {
 
 	t1 := createTemplate(t, ctx, d, "Hello {{ name }}")
 
-	// update template
 	res, err := testservice.UpdateTemplate(ctx, connect.NewRequest(&pb.UpdateTemplateReq{
 		TemplateId: t1.TemplateId,
 		Html:       "Hello Updated",
@@ -105,14 +104,9 @@ func TestUpdateTemplates(t *testing.T) {
 	cleanDB(t)
 }
 
-// The three operations whose request carries no Domain recover it from the identifier,
-// so an identifier that carries none cannot be served at all — there is nothing to
-// authorize against. Refusing here is the alternative to what the parse could have
-// done instead: return an empty Domain, compose a Resource nothing covers, and report a
-// malformed request as a refusal on an unreadable path.
-//
-// Each of the three is walked, because each is a separate adapter and the recovery is
-// three separate lines.
+// The three operations whose request carries no Domain recover it from the identifier, so an
+// identifier carrying none cannot be served at all — there is nothing to authorize against. Each of
+// the three is walked, because each is a separate adapter and the recovery is three separate lines.
 func TestDomainlessOperationsRefuseAnIdThatCarriesNoDomain(t *testing.T) {
 	ctx := adminCtx(t)
 
@@ -140,10 +134,9 @@ func TestDomainlessOperationsRefuseAnIdThatCarriesNoDomain(t *testing.T) {
 	}
 }
 
-// And the recovered Domain is the Domain the load is scoped to: a Template of one
-// Domain is not reachable by asking for it under another. The id is rewritten to name
-// a second Domain, which is the only thing a caller could do to try it — and the guard
-// then authorizes against that second Domain while the lookup finds nothing.
+// And the recovered Domain is the Domain the load is scoped to: a Template of one Domain is not
+// reachable by asking for it under another. The id is rewritten to name a second Domain — all a
+// caller could do — and the guard then authorizes against that Domain while the lookup finds nothing.
 func TestDomainlessOperationsCannotReachAnotherDomainsTemplate(t *testing.T) {
 	first := createTestDomain(t)
 	second := createTestDomain(t)

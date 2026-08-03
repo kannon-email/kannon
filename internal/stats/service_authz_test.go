@@ -24,12 +24,9 @@ var (
 	noGrants         = authz.MustNewPrincipal("no-grants")
 )
 
-// TestServiceAuthorization is the table that says what each read demands.
-//
-// The sender-only Principal is refused by all three, and that is the disclosure this
-// slice actually closes on the statistics side: a stat row carries the Recipient's
-// address and, under Full tracking, an IP address and a user agent, so a credential
-// issued to send mail for a Domain must not be able to read back who opened it.
+// TestServiceAuthorization is the table that says what each read demands. The sender-only Principal
+// is refused by all three, which is the disclosure this slice closes on the statistics side: a row
+// carries the Recipient's address and, under Full, an IP and user agent.
 func TestServiceAuthorization(t *testing.T) {
 	tr := stats.TimeRange{
 		Start: time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
@@ -128,10 +125,9 @@ func TestRefusedReadsReturnNothing(t *testing.T) {
 	assert.Empty(t, counters)
 }
 
-// Recording an event is unguarded, because its callers are Kannon's own workers
-// consuming NATS and there is no request to authorize. This pins that: a guard added
-// there would stop the Stats worker dead, and it would do so only in production, where
-// nothing puts a Principal in a worker's context.
+// Recording an event is unguarded, because its callers are Kannon's own workers consuming NATS and
+// there is no request to authorize. This pins that: a guard added there would stop the Stats worker
+// dead, and only in production, where nothing puts a Principal in a worker's context.
 func TestWritesNeedNoPrincipal(t *testing.T) {
 	service := stats.NewService(stats.NewInMemRepository(),
 		stats.WithAggregatedStatsRepository(stats.NewInMemAggregatedStatsRepository()))

@@ -10,13 +10,9 @@ import (
 	statsv1connect "github.com/kannon-email/kannon/proto/kannon/stats/apiv1/apiv1connect"
 )
 
-// Adapter to Connect handler interface
-//
-// Both procedures read a Domain's per-Delivery statistics, which the stats service
-// guards: the rows carry Recipient addresses and, under Full tracking, IP addresses
-// and user agents. A refusal therefore has to arrive as CodePermissionDenied rather
-// than as the CodeInternal this adapter used to answer for everything — see
-// authzconnect.Error.
+// Adapter to Connect handler interface. Both procedures read a Domain's per-Delivery statistics,
+// which the stats service guards: the rows carry Recipient addresses and, under Full, IPs and user
+// agents. A refusal must arrive as CodePermissionDenied — see authzconnect.Error.
 
 type statsAPIConnectAdapter struct {
 	impl *statsV1Impl

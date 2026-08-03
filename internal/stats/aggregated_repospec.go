@@ -11,11 +11,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// RunAggregatedRepoSpec runs the repository specification tests against any AggregatedStatsRepository implementation.
-//
-// Buckets are the hourly ones the service writes: the repository stores the
-// timestamp it is handed, so the spec keeps every fixture on an hour boundary and
-// checks that adjacent hours stay distinct rows.
+// RunAggregatedRepoSpec runs the repository specification against any AggregatedStatsRepository.
+// Buckets are the hourly ones the service writes: the repository stores the timestamp it is handed,
+// so the spec keeps every fixture on an hour boundary and checks adjacent hours stay distinct rows.
 func RunAggregatedRepoSpec(t *testing.T, repo AggregatedStatsRepository) {
 	t.Run("Increment+Query", func(t *testing.T) {
 		testIncrementAndQuery(t, repo)

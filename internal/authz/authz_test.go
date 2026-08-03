@@ -1,13 +1,6 @@
-// Package authz_test exercises the authority model from outside the package, so
-// that every assertion is one an eventual caller could make.
-//
-// That is deliberate rather than incidental. ADR 0008 records that coverage
-// cannot be tested through the API during the transition — with a synthetic admin
-// Principal everywhere, every check passes and no guard is ever exercised by a
-// refusal — so this table *is* the seam the model is verified at. Assertions are
-// therefore about decisions and construction verdicts, never about how a pattern
-// happens to be represented: the representation is free to change, the decisions
-// are not.
+// Package authz_test exercises the authority model from outside the package, so every assertion
+// is one an eventual caller could make. ADR 0008 records why this table is the seam: coverage
+// cannot be tested through the API while a synthetic admin Principal is everywhere.
 package authz_test
 
 import (
@@ -88,20 +81,9 @@ func everyResource() []authz.Resource {
 	return resources
 }
 
-// everyGrant is every Grant the seeded catalogue and the two grantable Anchor
-// kinds can produce between them.
-//
-// A Role that cannot be anchored somewhere is skipped rather than asserted
-// about — that refusal is TestNewGrantRefuses' business — so this stays correct
-// when a Role is added.
-//
-// What the skip must not do is let a sweep go vacuous. The tables that consume
-// this are negative sweeps — no Grant confers Attribute, no Grant confers create
-// without read — and a sweep over fewer Grants than intended passes for the
-// wrong reason. So every Role must yield at least one Grant, and a Role of pure
-// shape must yield one on *every* grantable Anchor, since naming no kind is
-// exactly what makes it fit either kind. A shortfall means the model changed
-// underneath these assertions, which is the moment to hear about it.
+// everyGrant is every Grant the seeded catalogue and the two grantable Anchor kinds produce.
+// The tables consuming it are negative sweeps, which pass for the wrong reason if it goes
+// vacuous — so every Role must yield a Grant, and a pure-shape Role one on every kind.
 func everyGrant(t *testing.T) []authz.Grant {
 	t.Helper()
 
@@ -136,11 +118,9 @@ func everyGrant(t *testing.T) []authz.Grant {
 	return grants
 }
 
-// Sending mail is create on a Domain's Batches — there is no send Action, because
-// a Batch is what one Mailer API call creates, so a send *is* a creation.
-//
-// This is what an API Key resolves to, and the "and nothing else" half of it is
-// the load-bearing half: the rule pins the kind and the Anchor pins the place.
+// Sending mail is create on a Domain's Batches — no send Action, because a Batch is what one
+// Mailer API call creates. This is what an API Key resolves to, and "and nothing else" is the
+// load-bearing half: the rule pins the kind and the Anchor pins the place.
 func TestSendIsCreateOnADomainsBatches(t *testing.T) {
 	own := senderOn(authz.DomainAnchor(example))
 
@@ -173,10 +153,9 @@ func TestSenderOnEveryDomainSendsEverywhereAndDoesNothingElse(t *testing.T) {
 	})
 }
 
-// SetTrackingPolicy is update on domains/<fqdn>, which by domination also reaches
-// that Domain's Templates. ADR 0008 accepts that the two are not separable: both
-// are things a Domain administrator does, and a domains/<fqdn>/tracking path
-// would correspond to no entity in the language.
+// SetTrackingPolicy is update on domains/<name>, which by domination also reaches that Domain's
+// Templates. ADR 0008 accepts that the two are not separable: both are things a Domain
+// administrator does, and a .../tracking path would name no entity in the language.
 func TestSetTrackingPolicyIsUpdateOnTheDomain(t *testing.T) {
 	owner := adminOn(authz.DomainAnchor(example))
 
@@ -295,10 +274,9 @@ func TestAPrincipalWithNoGrantsCanDoNothing(t *testing.T) {
 	}
 }
 
-// The zero value of a Grant — and so of its Anchor — must confer nothing. This is
-// the property the root's explicit flag exists to protect: were "everything"
-// spelled as an empty pattern, a forgotten assignment would be the widest
-// authority in the system rather than the narrowest.
+// The zero value of a Grant — and so of its Anchor — must confer nothing. This is what the
+// root's explicit flag protects: were "everything" an empty pattern, a forgotten assignment
+// would be the widest authority in the system rather than the narrowest.
 func TestAZeroValueGrantConfersNothing(t *testing.T) {
 	p := principalWith(authz.Grant{})
 
@@ -315,18 +293,17 @@ func TestAZeroValueGrantConfersNothing(t *testing.T) {
 	}
 }
 
-// A Resource that is not well formed — a zero FQDN or a blank identifier reaching
-// a constructor — is covered by nothing, not even by the root. Programming errors
-// on this path fail closed rather than falling back on whatever the shorter path
-// would have matched.
+// A Resource that is not well formed — a zero domain name or a blank identifier reaching a
+// constructor — is covered by nothing, not even the root, so programming errors fail closed
+// rather than falling back on whatever the shorter path would have matched.
 func TestAMalformedResourceIsCoveredByNothing(t *testing.T) {
 	root := adminOn(authz.RootAnchor())
 
 	runDecisions(t, []decision{
 		{"zero Resource", root, authz.Read, authz.Resource{}, false},
-		{"zero FQDN", root, authz.Read, authz.Domain(values.DomainName{}), false},
+		{"zero domain name", root, authz.Read, authz.Domain(values.DomainName{}), false},
 		{"blank Template identifier", root, authz.Read, authz.Template(example, ""), false},
-		{"zero FQDN beneath a Domain", root, authz.Read, authz.Batches(values.DomainName{}), false},
+		{"zero domain name beneath a Domain", root, authz.Read, authz.Batches(values.DomainName{}), false},
 	})
 }
 
@@ -334,10 +311,9 @@ func TestCatalogueHoldsExactlyAdminAndSender(t *testing.T) {
 	assert.Equal(t, []authz.RoleName{authz.RoleAdmin, authz.RoleSender}, authz.RoleNames())
 }
 
-// No seeded Role holds attribute. admin deliberately does not: naming a person is
-// not an administrative power over Kannon's resources, and with nothing
-// authenticated yet there is no trusted front-end to be one (ADR 0008). So
-// Attribution has no producer, which this asserts rather than assumes.
+// No seeded Role holds attribute, admin deliberately included: naming a person is not an
+// administrative power, and with nothing authenticated there is no trusted front-end to be one
+// (ADR 0008). So Attribution has no producer, which this asserts rather than assumes.
 func TestNoSeededRoleHoldsAttribute(t *testing.T) {
 	for _, g := range everyGrant(t) {
 		p := principalWith(g)
@@ -347,16 +323,9 @@ func TestNoSeededRoleHoldsAttribute(t *testing.T) {
 	}
 }
 
-// ADR 0008 records "every rule holding create also holds read, visibly, so a
-// credential can always read back what it just created" as a property of the
-// vocabulary it documents. admin satisfies it; sender does not.
-//
-// That exception is deliberate rather than an oversight, and it is enumerated
-// here rather than skipped. ADR 0008's Consequences pin an API Key to "sender
-// anchored on its own Domain … and nothing else", so giving sender read would
-// widen every API Key in circulation — a change to the credential model, not a
-// tidy-up. Listing the exception keeps the invariant biting for every Role added
-// later, and makes a second one impossible to introduce quietly.
+// ADR 0008 records that every rule holding create also holds read, so a credential can read back
+// what it just created. admin satisfies it; sender is the one enumerated exception, since giving
+// it read would widen every API Key in circulation rather than tidy anything up.
 func TestCreateImpliesReadExceptForSender(t *testing.T) {
 	var exceptions []string
 

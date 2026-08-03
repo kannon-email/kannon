@@ -46,7 +46,6 @@ func (r *apiKeysRepository) Create(ctx context.Context, key *apikeys.APIKey) err
 }
 
 func (r *apiKeysRepository) Update(ctx context.Context, ref apikeys.KeyRef, updateFn apikeys.UpdateFunc) (*apikeys.APIKey, error) {
-	// Start transaction
 	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return nil, err
@@ -55,7 +54,6 @@ func (r *apiKeysRepository) Update(ctx context.Context, ref apikeys.KeyRef, upda
 	//nolint:errcheck
 	defer tx.Rollback(ctx)
 
-	// Create transactional queries
 	txq := New(r.db).WithTx(tx)
 
 	// Get with row lock
@@ -70,18 +68,15 @@ func (r *apiKeysRepository) Update(ctx context.Context, ref apikeys.KeyRef, upda
 		return nil, err
 	}
 
-	// Convert to domain model
 	key, err := rowToAPIKey(row)
 	if err != nil {
 		return nil, err
 	}
 
-	// Apply update function
 	if err := updateFn(key); err != nil {
 		return nil, err
 	}
 
-	// Prepare timestamps for persistence
 	var expiresAt pgtype.Timestamp
 	if key.ExpiresAt() != nil {
 		expiresAt = pgtype.Timestamp{Time: *key.ExpiresAt(), Valid: true}
@@ -92,7 +87,6 @@ func (r *apiKeysRepository) Update(ctx context.Context, ref apikeys.KeyRef, upda
 		deactivatedAt = pgtype.Timestamp{Time: *key.DeactivatedAt(), Valid: true}
 	}
 
-	// Persist changes
 	_, err = txq.UpdateAPIKey(ctx, UpdateAPIKeyParams{
 		ID:            key.ID().String(),
 		Domain:        key.DomainName().String(),
@@ -105,7 +99,6 @@ func (r *apiKeysRepository) Update(ctx context.Context, ref apikeys.KeyRef, upda
 		return nil, err
 	}
 
-	// Commit transaction
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
@@ -188,15 +181,9 @@ func (r *apiKeysRepository) Count(ctx context.Context, domain values.DomainName,
 	return int(count), nil
 }
 
-// Helper functions to convert sqlc rows to domain model
-
-// rowToAPIKey converts an ApiKey row to domain model
-// Works with all query result types since they all use SELECT *
-//
-// The stored domain is canonicalised on the way in, as in the other row
-// converters: a key whose domain cannot be parsed belongs to a Domain no lookup
-// can name, and in an authentication path that must fail loudly rather than
-// resolve to something unaddressable.
+// rowToAPIKey converts an ApiKey row to the domain model, and works with every query result type
+// since they all use SELECT *. The stored domain is canonicalised on the way in: a key whose
+// domain cannot be parsed belongs to a Domain no lookup can name, which must fail loudly.
 func rowToAPIKey(row ApiKey) (*apikeys.APIKey, error) {
 	domain, err := values.Parse(row.Domain)
 	if err != nil {

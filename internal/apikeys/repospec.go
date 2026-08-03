@@ -11,9 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// RepoTestHelper provides test utilities for repository tests
 type RepoTestHelper interface {
-	CreateDomain(t *testing.T) values.DomainName // Creates a domain, registers cleanup, and returns its canonical FQDN
+	CreateDomain(t *testing.T) values.DomainName // Creates a domain, registers cleanup, and returns its canonical name
 }
 
 // RunRepoSpec runs the repository specification tests against any Repository implementation
@@ -68,14 +67,12 @@ func testUpdate(t *testing.T, repo Repository, helper RepoTestHelper) {
 		ctx := t.Context()
 		domain := helper.CreateDomain(t)
 
-		// Create a key
 		result, err := NewAPIKey(domain, "to-deactivate", nil)
 		require.NoError(t, err)
 
 		err = repo.Create(ctx, result.Key)
 		require.NoError(t, err)
 
-		// Deactivate using transactional update
 		ref := NewKeyRef(domain, result.Key.ID())
 		updated, err := repo.Update(ctx, ref, func(k *APIKey) error {
 			k.Deactivate()
@@ -96,7 +93,6 @@ func testUpdate(t *testing.T, repo Repository, helper RepoTestHelper) {
 		ctx := t.Context()
 		domain := helper.CreateDomain(t)
 
-		// Create a key
 		result, err := NewAPIKey(domain, "test-key", nil)
 		require.NoError(t, err)
 
@@ -113,8 +109,8 @@ func testUpdate(t *testing.T, repo Repository, helper RepoTestHelper) {
 		// Attempt update that mutates key then returns error
 		testErr := errors.New("intentional test error")
 		_, err = repo.Update(ctx, ref, func(k *APIKey) error {
-			k.Deactivate() // Mutates the key
-			return testErr // But then fails
+			k.Deactivate()
+			return testErr
 		})
 		require.ErrorIs(t, err, testErr)
 
@@ -200,7 +196,6 @@ func testList(t *testing.T, repo Repository, helper RepoTestHelper) {
 		ctx := t.Context()
 		domain := helper.CreateDomain(t)
 
-		// Create multiple keys
 		for i := range 3 {
 			result, err := NewAPIKey(domain, fmt.Sprintf("key-%d", i), nil)
 			require.NoError(t, err)
@@ -218,7 +213,6 @@ func testList(t *testing.T, repo Repository, helper RepoTestHelper) {
 		ctx := t.Context()
 		domain := helper.CreateDomain(t)
 
-		// Create 2 active keys
 		for i := range 2 {
 			result, err := NewAPIKey(domain, fmt.Sprintf("active-key-%d", i), nil)
 			require.NoError(t, err)
@@ -227,7 +221,6 @@ func testList(t *testing.T, repo Repository, helper RepoTestHelper) {
 			require.NoError(t, err)
 		}
 
-		// Create 1 inactive key
 		inactiveResult, err := NewAPIKey(domain, "inactive-key", nil)
 		require.NoError(t, err)
 
@@ -241,7 +234,6 @@ func testList(t *testing.T, repo Repository, helper RepoTestHelper) {
 		})
 		require.NoError(t, err)
 
-		// List only active
 		keys, err := repo.List(ctx, domain, ListFilters{OnlyActive: true}, Pagination{Limit: 10, Offset: 0})
 		require.NoError(t, err)
 		assert.Len(t, keys, 2)
@@ -249,7 +241,6 @@ func testList(t *testing.T, repo Repository, helper RepoTestHelper) {
 			assert.True(t, k.IsActiveStatus())
 		}
 
-		// List all (including inactive)
 		allKeys, err := repo.List(ctx, domain, ListFilters{OnlyActive: false}, Pagination{Limit: 10, Offset: 0})
 		require.NoError(t, err)
 		assert.Len(t, allKeys, 3)
@@ -259,7 +250,6 @@ func testList(t *testing.T, repo Repository, helper RepoTestHelper) {
 		ctx := t.Context()
 		domain := helper.CreateDomain(t)
 
-		// Create 5 keys
 		for i := range 5 {
 			result, err := NewAPIKey(domain, fmt.Sprintf("key-%d", i), nil)
 			require.NoError(t, err)
@@ -268,17 +258,14 @@ func testList(t *testing.T, repo Repository, helper RepoTestHelper) {
 			require.NoError(t, err)
 		}
 
-		// Get first 2
 		page1, err := repo.List(ctx, domain, ListFilters{}, Pagination{Limit: 2, Offset: 0})
 		require.NoError(t, err)
 		assert.Len(t, page1, 2)
 
-		// Get next 2
 		page2, err := repo.List(ctx, domain, ListFilters{}, Pagination{Limit: 2, Offset: 2})
 		require.NoError(t, err)
 		assert.Len(t, page2, 2)
 
-		// Get last 1
 		page3, err := repo.List(ctx, domain, ListFilters{}, Pagination{Limit: 2, Offset: 4})
 		require.NoError(t, err)
 		assert.Len(t, page3, 1)

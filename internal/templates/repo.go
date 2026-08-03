@@ -16,11 +16,9 @@ type Pagination struct {
 // Returning a non-nil error aborts the update.
 type UpdateFunc func(t *Template) error
 
-// Repository persists Template entities.
-//
-// A Domain is named by an values.DomainName rather than a string, so a domain-scoped
-// lookup cannot be reached with a spelling that was never canonicalised — which
-// would silently answer "not found" for a Template that does exist.
+// Repository persists Template entities. A Domain is named by a values.DomainName rather than a
+// string, so a domain-scoped lookup cannot be reached with a spelling that was never canonicalised —
+// which would silently answer "not found" for a Template that does exist.
 type Repository interface {
 	// Create persists a new Template. The TemplateID must already be
 	// populated by NewPersistent or NewTransient.
