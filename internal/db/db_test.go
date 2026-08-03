@@ -43,12 +43,12 @@ func TestMain(m *testing.M) {
 func TestDomains(t *testing.T) {
 	// when user create a domain
 	domain, err := q.CreateDomain(t.Context(), CreateDomainParams{
-		Domain:         "test@test.com",
+		Domain:         "test.com",
 		DkimPrivateKey: "test",
 		DkimPublicKey:  "test",
 	})
 	assert.Nil(t, err)
-	assert.Equal(t, domain.Domain, "test@test.com")
+	assert.Equal(t, domain.Domain, "test.com")
 
 	// can list all domains present
 	domains, err := q.GetDomains(t.Context())
@@ -56,7 +56,7 @@ func TestDomains(t *testing.T) {
 	assert.Equal(t, len(domains), 1)
 
 	// can search a domain for domain
-	d, err := q.FindDomain(t.Context(), "test@test.com")
+	d, err := q.FindDomain(t.Context(), "test.com")
 	assert.Nil(t, err)
 	assert.Equal(t, d.ID, domain.ID)
 
@@ -89,12 +89,12 @@ func TestHashKeyMatchesPostgres(t *testing.T) {
 
 func TestTemplates(t *testing.T) {
 	domain, err := q.CreateDomain(t.Context(), CreateDomainParams{
-		Domain:         "test@test.com",
+		Domain:         "test.com",
 		DkimPrivateKey: "test",
 		DkimPublicKey:  "test",
 	})
 	assert.Nil(t, err)
-	assert.Equal(t, domain.Domain, "test@test.com")
+	assert.Equal(t, domain.Domain, "test.com")
 
 	template, err := q.CreateTemplate(t.Context(), CreateTemplateParams{
 		TemplateID: "template id",

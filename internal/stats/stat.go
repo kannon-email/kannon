@@ -3,6 +3,7 @@ package stats
 import (
 	"time"
 
+	"github.com/kannon-email/kannon/internal/values"
 	"github.com/kannon-email/kannon/proto/kannon/stats/types"
 )
 
@@ -22,18 +23,22 @@ const (
 )
 
 // Stat is the domain entity for a statistics event.
+//
+// Domain is the SenderDomain the event belongs to, and is the same FQDN a
+// Domain is created under: a stat filed against a different spelling would be
+// invisible to every query the tenant can make.
 type Stat struct {
 	ID        int32
 	Type      Type
 	Email     string
 	MessageID string
-	Domain    string
+	Domain    values.DomainName
 	Timestamp time.Time
 	Data      *types.StatsData
 }
 
 // NewStat creates a new Stat from an incoming stats event.
-func NewStat(email, messageID, domain string, timestamp time.Time, data *types.StatsData) *Stat {
+func NewStat(email, messageID string, domain values.DomainName, timestamp time.Time, data *types.StatsData) *Stat {
 	return &Stat{
 		Type:      DetermineType(data),
 		Email:     email,
@@ -45,7 +50,7 @@ func NewStat(email, messageID, domain string, timestamp time.Time, data *types.S
 }
 
 // LoadStat reconstructs a Stat from persistence.
-func LoadStat(id int32, stype Type, email, messageID, domain string, timestamp time.Time, data *types.StatsData) *Stat {
+func LoadStat(id int32, stype Type, email, messageID string, domain values.DomainName, timestamp time.Time, data *types.StatsData) *Stat {
 	return &Stat{
 		ID:        id,
 		Type:      stype,

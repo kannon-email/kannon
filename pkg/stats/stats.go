@@ -14,6 +14,7 @@ import (
 	"github.com/kannon-email/kannon/internal/tracking"
 	"github.com/kannon-email/kannon/internal/trackingpb"
 	"github.com/kannon-email/kannon/internal/utils"
+	"github.com/kannon-email/kannon/internal/values"
 	"github.com/kannon-email/kannon/proto/kannon/stats/types"
 	"github.com/kannon-email/kannon/x/container"
 	"google.golang.org/protobuf/proto"
@@ -157,13 +158,37 @@ func (h *statsHandler) handleAggregatedStatsMsg(ctx context.Context, msg jetstre
 		return msg.Term()
 	}
 
+	domain, ok := eventDomain(data)
+	if !ok {
+		return msg.Term()
+	}
+
 	statType := stats.DetermineTypeFromStats(data)
-	if err := h.service.IncrementAggregatedStat(ctx, data.Domain, data.Timestamp.AsTime(), statType); err != nil {
+	if err := h.service.IncrementAggregatedStat(ctx, domain, data.Timestamp.AsTime(), statType); err != nil {
 		slog.Error("cannot increment aggregated stat", "err", err)
 		return msg.Nak()
 	}
 
 	return msg.Ack()
+}
+
+// eventDomain canonicalises the Domain an event was published under, reporting
+// false when the value is not an FQDN at all.
+//
+// The published value comes from a Domain row, so a failure here means the event
+// could never be filed against any Domain a tenant can query — a fault in the
+// message rather than in this consumer. Both handlers therefore Term it, as they
+// do a payload that will not unmarshal: Nak'ing a permanent fault could only
+// reproduce the redelivery hot loop #396 fixed. It logs here rather than at each
+// caller because there is one reason to fail and one thing to say about it.
+func eventDomain(data *types.Stats) (values.DomainName, bool) {
+	domain, err := values.Parse(data.Domain)
+	if err != nil {
+		slog.Error("stat event carries a domain that is not an FQDN",
+			"domain", data.Domain, "batch", data.MessageId, "err", err)
+		return values.DomainName{}, false
+	}
+	return domain, true
 }
 
 // handleStatsMsg writes the per-recipient row for one stat event.
@@ -198,7 +223,12 @@ func (h *statsHandler) handleStatsMsg(ctx context.Context, msg jetstream.Msg) er
 		return msg.Term()
 	}
 
-	stat := stats.NewStat(data.Email, data.MessageId, data.Domain, data.Timestamp.AsTime(), data.Data)
+	domain, ok := eventDomain(data)
+	if !ok {
+		return msg.Term()
+	}
+
+	stat := stats.NewStat(data.Email, data.MessageId, domain, data.Timestamp.AsTime(), data.Data)
 	mode := trackingpb.ToMode(data.TrackingMode)
 
 	if mode == tracking.ModeAnonymous {

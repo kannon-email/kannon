@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/kannon-email/kannon/internal/apikeys"
+	"github.com/kannon-email/kannon/internal/values"
 )
 
 func TestInMemoryRepository(t *testing.T) {
@@ -18,6 +19,6 @@ type inMemoryTestHelper struct {
 	counter atomic.Int32
 }
 
-func (h *inMemoryTestHelper) CreateDomain(t *testing.T) string {
-	return fmt.Sprintf("test-domain-%d.example.com", h.counter.Add(1))
+func (h *inMemoryTestHelper) CreateDomain(t *testing.T) values.DomainName {
+	return values.MustParse(fmt.Sprintf("test-domain-%d.example.com", h.counter.Add(1)))
 }

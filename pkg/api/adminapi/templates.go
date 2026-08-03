@@ -4,11 +4,17 @@ import (
 	"context"
 
 	"github.com/kannon-email/kannon/internal/templates"
+	"github.com/kannon-email/kannon/internal/values"
 	pb "github.com/kannon-email/kannon/proto/kannon/admin/apiv1"
 )
 
 func (s *adminAPIService) CreateTemplate(ctx context.Context, req *pb.CreateTemplateReq) (*pb.CreateTemplateRes, error) {
-	tpl, err := templates.NewPersistent(req.Domain, req.Html, req.Title)
+	domain, err := values.Parse(req.Domain)
+	if err != nil {
+		return nil, err
+	}
+
+	tpl, err := templates.NewPersistent(domain, req.Html, req.Title)
 	if err != nil {
 		return nil, err
 	}
@@ -47,11 +53,16 @@ func (s *adminAPIService) GetTemplate(ctx context.Context, req *pb.GetTemplateRe
 }
 
 func (s *adminAPIService) GetTemplates(ctx context.Context, req *pb.GetTemplatesReq) (*pb.GetTemplatesRes, error) {
-	tpls, err := s.templates.List(ctx, req.Domain, templates.Pagination{Skip: uint(req.Skip), Take: uint(req.Take)})
+	domain, err := values.Parse(req.Domain)
 	if err != nil {
 		return nil, err
 	}
-	total, err := s.templates.Count(ctx, req.Domain)
+
+	tpls, err := s.templates.List(ctx, domain, templates.Pagination{Skip: uint(req.Skip), Take: uint(req.Take)})
+	if err != nil {
+		return nil, err
+	}
+	total, err := s.templates.Count(ctx, domain)
 	if err != nil {
 		return nil, err
 	}

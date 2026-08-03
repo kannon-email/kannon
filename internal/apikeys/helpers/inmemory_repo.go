@@ -6,20 +6,23 @@ import (
 	"time"
 
 	"github.com/kannon-email/kannon/internal/apikeys"
+	"github.com/kannon-email/kannon/internal/values"
 )
 
 // InMemoryRepository is a thread-safe in-memory implementation of apikeys.Repository
 type InMemoryRepository struct {
-	mu        sync.RWMutex
-	byID      map[string]map[apikeys.ID]*apikeys.APIKey // domain -> id -> key
-	byKeyHash map[string]map[string]*apikeys.APIKey     // domain -> keyHash -> key
+	mu sync.RWMutex
+	// values.DomainName is comparable, so it keys these indexes directly — and, being
+	// canonical by construction, one Domain cannot end up with two buckets.
+	byID      map[values.DomainName]map[apikeys.ID]*apikeys.APIKey // domain -> id -> key
+	byKeyHash map[values.DomainName]map[string]*apikeys.APIKey     // domain -> keyHash -> key
 }
 
 // NewInMemoryRepository creates a new in-memory repository
 func NewInMemoryRepository() *InMemoryRepository {
 	return &InMemoryRepository{
-		byID:      make(map[string]map[apikeys.ID]*apikeys.APIKey),
-		byKeyHash: make(map[string]map[string]*apikeys.APIKey),
+		byID:      make(map[values.DomainName]map[apikeys.ID]*apikeys.APIKey),
+		byKeyHash: make(map[values.DomainName]map[string]*apikeys.APIKey),
 	}
 }
 
@@ -28,7 +31,7 @@ func (r *InMemoryRepository) Create(ctx context.Context, key *apikeys.APIKey) er
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	domain := key.Domain()
+	domain := key.DomainName()
 
 	// Check if key already exists
 	if domainKeys, exists := r.byKeyHash[domain]; exists {
@@ -57,7 +60,7 @@ func (r *InMemoryRepository) Update(ctx context.Context, ref apikeys.KeyRef, upd
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	domain := ref.Domain()
+	domain := ref.DomainName()
 	keyID := ref.KeyID()
 
 	// Find the key
@@ -88,7 +91,7 @@ func (r *InMemoryRepository) Update(ctx context.Context, ref apikeys.KeyRef, upd
 }
 
 // GetByKeyHash finds an API key by its SHA-256 hash for a specific domain
-func (r *InMemoryRepository) GetByKeyHash(ctx context.Context, domain, keyHash string) (*apikeys.APIKey, error) {
+func (r *InMemoryRepository) GetByKeyHash(ctx context.Context, domain values.DomainName, keyHash string) (*apikeys.APIKey, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -110,7 +113,7 @@ func (r *InMemoryRepository) GetByID(ctx context.Context, ref apikeys.KeyRef) (*
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	domain := ref.Domain()
+	domain := ref.DomainName()
 	keyID := ref.KeyID()
 
 	domainKeys, exists := r.byID[domain]
@@ -127,7 +130,7 @@ func (r *InMemoryRepository) GetByID(ctx context.Context, ref apikeys.KeyRef) (*
 }
 
 // List returns API keys for a domain with filters and pagination
-func (r *InMemoryRepository) List(ctx context.Context, domain string, filters apikeys.ListFilters, page apikeys.Pagination) ([]*apikeys.APIKey, error) {
+func (r *InMemoryRepository) List(ctx context.Context, domain values.DomainName, filters apikeys.ListFilters, page apikeys.Pagination) ([]*apikeys.APIKey, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -166,7 +169,7 @@ func (r *InMemoryRepository) List(ctx context.Context, domain string, filters ap
 }
 
 // Count returns the total number of API keys for a domain with filters
-func (r *InMemoryRepository) Count(ctx context.Context, domain string, filters apikeys.ListFilters) (int, error) {
+func (r *InMemoryRepository) Count(ctx context.Context, domain values.DomainName, filters apikeys.ListFilters) (int, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -194,7 +197,7 @@ func (r *InMemoryRepository) cloneKey(key *apikeys.APIKey) *apikeys.APIKey {
 		KeyHash:       key.KeyHash(),
 		KeyPrefix:     key.KeyPrefix(),
 		Name:          key.Name(),
-		Domain:        key.Domain(),
+		Domain:        key.DomainName(),
 		CreatedAt:     key.CreatedAt(),
 		ExpiresAt:     r.cloneTimePtr(key.ExpiresAt()),
 		IsActive:      key.IsActiveStatus(),

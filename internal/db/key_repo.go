@@ -3,12 +3,14 @@ package sqlc
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/kannon-email/kannon/internal/apikeys"
+	"github.com/kannon-email/kannon/internal/values"
 )
 
 type apiKeysRepository struct {
@@ -30,7 +32,7 @@ func (r *apiKeysRepository) Create(ctx context.Context, key *apikeys.APIKey) err
 
 	_, err := q.CreateAPIKey(ctx, CreateAPIKeyParams{
 		ID:        key.ID().String(),
-		Domain:    key.Domain(),
+		Domain:    key.DomainName().String(),
 		KeyHash:   key.KeyHash(),
 		KeyPrefix: key.KeyPrefix(),
 		Name:      key.Name(),
@@ -59,7 +61,7 @@ func (r *apiKeysRepository) Update(ctx context.Context, ref apikeys.KeyRef, upda
 	// Get with row lock
 	row, err := txq.GetAPIKeyByIDForUpdate(ctx, GetAPIKeyByIDForUpdateParams{
 		ID:     ref.KeyID().String(),
-		Domain: ref.Domain(),
+		Domain: ref.DomainName().String(),
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -69,7 +71,10 @@ func (r *apiKeysRepository) Update(ctx context.Context, ref apikeys.KeyRef, upda
 	}
 
 	// Convert to domain model
-	key := rowToAPIKey(row)
+	key, err := rowToAPIKey(row)
+	if err != nil {
+		return nil, err
+	}
 
 	// Apply update function
 	if err := updateFn(key); err != nil {
@@ -90,7 +95,7 @@ func (r *apiKeysRepository) Update(ctx context.Context, ref apikeys.KeyRef, upda
 	// Persist changes
 	_, err = txq.UpdateAPIKey(ctx, UpdateAPIKeyParams{
 		ID:            key.ID().String(),
-		Domain:        key.Domain(),
+		Domain:        key.DomainName().String(),
 		Name:          key.Name(),
 		ExpiresAt:     expiresAt,
 		IsActive:      key.IsActiveStatus(),
@@ -108,13 +113,13 @@ func (r *apiKeysRepository) Update(ctx context.Context, ref apikeys.KeyRef, upda
 	return key, nil
 }
 
-func (r *apiKeysRepository) GetByKeyHash(ctx context.Context, domain, keyHash string) (*apikeys.APIKey, error) {
+func (r *apiKeysRepository) GetByKeyHash(ctx context.Context, domain values.DomainName, keyHash string) (*apikeys.APIKey, error) {
 	q := New(r.db)
 
 	// Always perform database lookup to prevent timing attacks
 	row, err := q.GetAPIKeyByHash(ctx, GetAPIKeyByHashParams{
 		KeyHash: keyHash,
-		Domain:  domain,
+		Domain:  domain.String(),
 	})
 
 	if err != nil {
@@ -124,7 +129,7 @@ func (r *apiKeysRepository) GetByKeyHash(ctx context.Context, domain, keyHash st
 		return nil, err
 	}
 
-	return rowToAPIKey(row), nil
+	return rowToAPIKey(row)
 }
 
 func (r *apiKeysRepository) GetByID(ctx context.Context, ref apikeys.KeyRef) (*apikeys.APIKey, error) {
@@ -132,7 +137,7 @@ func (r *apiKeysRepository) GetByID(ctx context.Context, ref apikeys.KeyRef) (*a
 
 	row, err := q.GetAPIKeyByID(ctx, GetAPIKeyByIDParams{
 		ID:     ref.KeyID().String(),
-		Domain: ref.Domain(),
+		Domain: ref.DomainName().String(),
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -141,14 +146,14 @@ func (r *apiKeysRepository) GetByID(ctx context.Context, ref apikeys.KeyRef) (*a
 		return nil, err
 	}
 
-	return rowToAPIKey(row), nil
+	return rowToAPIKey(row)
 }
 
-func (r *apiKeysRepository) List(ctx context.Context, domain string, filters apikeys.ListFilters, page apikeys.Pagination) ([]*apikeys.APIKey, error) {
+func (r *apiKeysRepository) List(ctx context.Context, domain values.DomainName, filters apikeys.ListFilters, page apikeys.Pagination) ([]*apikeys.APIKey, error) {
 	q := New(r.db)
 
 	rows, err := q.ListAPIKeysByDomain(ctx, ListAPIKeysByDomainParams{
-		Domain:  domain,
+		Domain:  domain.String(),
 		Column2: filters.OnlyActive,
 		Limit:   int32(page.Limit),
 		Offset:  int32(page.Offset),
@@ -159,17 +164,21 @@ func (r *apiKeysRepository) List(ctx context.Context, domain string, filters api
 
 	keys := make([]*apikeys.APIKey, len(rows))
 	for i, row := range rows {
-		keys[i] = rowToAPIKey(row)
+		key, err := rowToAPIKey(row)
+		if err != nil {
+			return nil, err
+		}
+		keys[i] = key
 	}
 
 	return keys, nil
 }
 
-func (r *apiKeysRepository) Count(ctx context.Context, domain string, filters apikeys.ListFilters) (int, error) {
+func (r *apiKeysRepository) Count(ctx context.Context, domain values.DomainName, filters apikeys.ListFilters) (int, error) {
 	q := New(r.db)
 
 	count, err := q.CountAPIKeysByDomain(ctx, CountAPIKeysByDomainParams{
-		Domain:  domain,
+		Domain:  domain.String(),
 		Column2: filters.OnlyActive,
 	})
 	if err != nil {
@@ -183,13 +192,23 @@ func (r *apiKeysRepository) Count(ctx context.Context, domain string, filters ap
 
 // rowToAPIKey converts an ApiKey row to domain model
 // Works with all query result types since they all use SELECT *
-func rowToAPIKey(row ApiKey) *apikeys.APIKey {
+//
+// The stored domain is canonicalised on the way in, as in the other row
+// converters: a key whose domain cannot be parsed belongs to a Domain no lookup
+// can name, and in an authentication path that must fail loudly rather than
+// resolve to something unaddressable.
+func rowToAPIKey(row ApiKey) (*apikeys.APIKey, error) {
+	domain, err := values.Parse(row.Domain)
+	if err != nil {
+		return nil, fmt.Errorf("api key row %q holds a non-canonical domain %q: %w", row.ID, row.Domain, err)
+	}
+
 	params := apikeys.LoadAPIKeyParams{
 		ID:        apikeys.ID(row.ID),
 		KeyHash:   row.KeyHash,
 		KeyPrefix: row.KeyPrefix,
 		Name:      row.Name,
-		Domain:    row.Domain,
+		Domain:    domain,
 		IsActive:  row.IsActive,
 	}
 
@@ -203,5 +222,5 @@ func rowToAPIKey(row ApiKey) *apikeys.APIKey {
 		params.DeactivatedAt = &row.DeactivatedAt.Time
 	}
 
-	return apikeys.LoadAPIKey(params)
+	return apikeys.LoadAPIKey(params), nil
 }

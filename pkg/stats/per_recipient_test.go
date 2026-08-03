@@ -12,6 +12,7 @@ import (
 	"github.com/kannon-email/kannon/internal/tests"
 	"github.com/kannon-email/kannon/internal/tracking"
 	"github.com/kannon-email/kannon/internal/trackingpb"
+	"github.com/kannon-email/kannon/internal/values"
 	"github.com/kannon-email/kannon/proto/kannon/stats/types"
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/stretchr/testify/assert"
@@ -68,13 +69,17 @@ func engagementEvent(t *testing.T, domain, email string, mode tracking.Mode) *fa
 
 // perRecipientRows counts the rows the per-recipient consumer left behind for a
 // Domain — what an operator reading the stats table would find.
+//
+// The three helpers below take the Domain in the string form the fixtures and the
+// published events use, and parse it at the repository call; MustParse is safe
+// because tests.FakeDomain only ever produces FQDNs.
 func perRecipientRows(t *testing.T, domain string) int64 {
 	t.Helper()
 
 	// An event timestamps itself in UTC, and the column is timezone-naive, so the
 	// window has to be stated in UTC too or it misses everything by the offset.
 	repo := sq.NewStatsRepository(db)
-	total, err := repo.Count(t.Context(), domain, stats.TimeRange{
+	total, err := repo.Count(t.Context(), values.MustParse(domain), stats.TimeRange{
 		Start: time.Now().UTC().Add(-time.Hour),
 		Stop:  time.Now().UTC().Add(time.Hour),
 	})
@@ -89,7 +94,7 @@ func perRecipientIdentities(t *testing.T, domain string) []string {
 	t.Helper()
 
 	repo := sq.NewStatsRepository(db)
-	rows, err := repo.Query(t.Context(), domain, stats.TimeRange{
+	rows, err := repo.Query(t.Context(), values.MustParse(domain), stats.TimeRange{
 		Start: time.Now().UTC().Add(-time.Hour),
 		Stop:  time.Now().UTC().Add(time.Hour),
 	}, stats.Pagination{Limit: 100, Offset: 0})
@@ -108,7 +113,7 @@ func aggregatedCount(t *testing.T, domain string, statType stats.Type) int64 {
 	t.Helper()
 
 	repo := sq.NewAggregatedStatsRepository(db)
-	rows, err := repo.Query(t.Context(), domain, stats.TimeRange{
+	rows, err := repo.Query(t.Context(), values.MustParse(domain), stats.TimeRange{
 		Start: time.Now().UTC().Add(-48 * time.Hour),
 		Stop:  time.Now().UTC().Add(48 * time.Hour),
 	})

@@ -22,6 +22,7 @@ import (
 	"github.com/kannon-email/kannon/internal/tracking"
 	"github.com/kannon-email/kannon/internal/trackingpb"
 	"github.com/kannon-email/kannon/internal/utils"
+	"github.com/kannon-email/kannon/internal/values"
 	pb "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1"
 	mailerv1connect "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1/apiv1connect"
 	mailertypes "github.com/kannon-email/kannon/proto/kannon/mailer/types"
@@ -50,7 +51,7 @@ func (s mailAPIService) SendHTML(ctx context.Context, req *connect.Request[pb.Se
 
 	req.Msg.Html = utils.ReplaceCustomFields(req.Msg.Html, req.Msg.GlobalFields)
 
-	template, err := s.createTransientTemplate(ctx, domain.Domain(), req.Msg.Html)
+	template, err := s.createTransientTemplate(ctx, domain.Name(), req.Msg.Html)
 	if err != nil {
 		slog.Error("cannot create template", "err", err)
 		return nil, fmt.Errorf("cannot create template %w", err)
@@ -86,7 +87,7 @@ func (s mailAPIService) sendTemplate(ctx context.Context, domain *domains.Domain
 		return nil, err
 	}
 
-	template, err := s.templates.FindByDomain(ctx, domain.Domain(), req.Msg.TemplateId)
+	template, err := s.templates.FindByDomain(ctx, domain.Name(), req.Msg.TemplateId)
 	if err != nil {
 		slog.Error("cannot find template", "err", err)
 		return nil, fmt.Errorf("cannot find template with id: %v", req.Msg.TemplateId)
@@ -356,10 +357,10 @@ func (s mailAPIService) createTemplateWithGlobalFields(ctx context.Context, temp
 		return template, nil
 	}
 
-	return s.createTransientTemplate(ctx, template.Domain(), newHTML)
+	return s.createTransientTemplate(ctx, template.DomainName(), newHTML)
 }
 
-func (s mailAPIService) createTransientTemplate(ctx context.Context, domain, html string) (*templates.Template, error) {
+func (s mailAPIService) createTransientTemplate(ctx context.Context, domain values.DomainName, html string) (*templates.Template, error) {
 	tpl, err := templates.NewTransient(domain, html)
 	if err != nil {
 		return nil, err
@@ -391,15 +392,24 @@ func (s mailAPIService) getCallDomainFromHeaders(ctx context.Context, headers ht
 	}
 	domainName, key := parts[0], parts[1]
 
+	// The credential is the other place an FQDN enters from the wire, so it is
+	// canonicalised here. A username that is not an FQDN at all cannot match a
+	// Domain, and is answered with the same generic error as a bad key so that
+	// nothing about which domains exist leaks.
+	callDomain, err := values.Parse(domainName)
+	if err != nil {
+		return nil, errors.New("invalid auth")
+	}
+
 	// Use API key repository for authentication
-	apiKey, err := s.apiKeys.ValidateForAuth(ctx, domainName, key)
+	apiKey, err := s.apiKeys.ValidateForAuth(ctx, callDomain, key)
 	if err != nil {
 		// Always return generic error (security requirement)
 		return nil, errors.New("invalid auth")
 	}
 
 	// Fetch full domain info
-	domain, err := s.domains.FindByName(ctx, apiKey.Domain())
+	domain, err := s.domains.FindByName(ctx, apiKey.DomainName())
 	if err != nil {
 		return nil, errors.New("invalid auth")
 	}

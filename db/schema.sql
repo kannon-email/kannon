@@ -172,7 +172,8 @@ CREATE TABLE public.domains (
     created_at timestamp without time zone DEFAULT now() NOT NULL,
     dkim_private_key character varying NOT NULL,
     dkim_public_key character varying NOT NULL,
-    tracking jsonb DEFAULT '{"links": "identified", "opens": "identified"}'::jsonb NOT NULL
+    tracking jsonb DEFAULT '{"links": "identified", "opens": "identified"}'::jsonb NOT NULL,
+    CONSTRAINT domains_domain_check CHECK (((domain)::text ~ '^[a-z0-9_-]+(\.[a-z0-9_-]+)+$'::text))
 );
 
 
@@ -747,4 +748,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20260509102644'),
     ('20260726084414'),
     ('20260727071416'),
-    ('20260803094036');
+    ('20260803094036'),
+    ('20260804082406');

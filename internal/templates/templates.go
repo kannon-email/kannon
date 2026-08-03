@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/kannon-email/kannon/internal/values"
 	pb "github.com/kannon-email/kannon/proto/kannon/admin/apiv1"
 	"github.com/nrednav/cuid2"
 )
@@ -43,7 +44,7 @@ type Template struct {
 	templateID string
 	html       string
 	title      string
-	domain     string
+	domain     values.DomainName
 	typ        Type
 	createdAt  time.Time
 	updatedAt  time.Time
@@ -51,10 +52,12 @@ type Template struct {
 
 // NewPersistent creates a new persistent Template with a freshly generated
 // ID. createdAt/updatedAt are populated by the repository on Create.
-func NewPersistent(domain, html, title string) (*Template, error) {
-	if domain == "" {
-		return nil, errors.New("domain is required")
-	}
+//
+// The Domain is not checked for emptiness: an values.DomainName can only come from
+// values.Parse, which has already refused an empty or malformed one — and, since
+// the id embeds it, refused the "@" and "/" that would make the id
+// unparseable.
+func NewPersistent(domain values.DomainName, html, title string) (*Template, error) {
 	return &Template{
 		templateID: newTemplateID(domain),
 		html:       html,
@@ -65,10 +68,7 @@ func NewPersistent(domain, html, title string) (*Template, error) {
 }
 
 // NewTransient creates a new transient Template with a freshly generated ID.
-func NewTransient(domain, html string) (*Template, error) {
-	if domain == "" {
-		return nil, errors.New("domain is required")
-	}
+func NewTransient(domain values.DomainName, html string) (*Template, error) {
 	return &Template{
 		templateID: newTemplateID(domain),
 		html:       html,
@@ -82,7 +82,7 @@ type LoadParams struct {
 	TemplateID string
 	Html       string
 	Title      string
-	Domain     string
+	Domain     values.DomainName
 	Type       Type
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
@@ -106,10 +106,15 @@ func Load(p LoadParams) *Template {
 func (t *Template) TemplateID() string   { return t.templateID }
 func (t *Template) Html() string         { return t.html }
 func (t *Template) Title() string        { return t.title }
-func (t *Template) Domain() string       { return t.domain }
 func (t *Template) Type() Type           { return t.typ }
 func (t *Template) CreatedAt() time.Time { return t.createdAt }
 func (t *Template) UpdatedAt() time.Time { return t.updatedAt }
+
+// FQDN is the Domain this Template belongs to, in the form a Repository is
+// addressed with. There is no string-rendering counterpart as there is on
+// domains.Domain: a Template's Domain is never displayed — Pb omits it — and is
+// only ever used to scope a lookup.
+func (t *Template) DomainName() values.DomainName { return t.domain }
 
 // Mutators
 
@@ -129,6 +134,9 @@ func (t *Template) Pb() *pb.Template {
 	}
 }
 
-func newTemplateID(domain string) string {
-	return fmt.Sprintf("template_%v@%v", cuid2.Generate(), domain)
+// newTemplateID composes the id from the canonical FQDN. The "@" is the
+// separator a later slice parses back out (issue #438), and it is sound only
+// because values.Parse refuses an "@" inside an FQDN.
+func newTemplateID(domain values.DomainName) string {
+	return fmt.Sprintf("template_%v@%v", cuid2.Generate(), domain.String())
 }

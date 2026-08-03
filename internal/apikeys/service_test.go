@@ -6,11 +6,14 @@ import (
 
 	"github.com/kannon-email/kannon/internal/apikeys"
 	apikeyshelpers "github.com/kannon-email/kannon/internal/apikeys/helpers"
+	"github.com/kannon-email/kannon/internal/values"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-const testDomain = "test.example.com"
+// testDomain is a package-level constant of this file, so MustParse is
+// appropriate: a bad value here is a bug in the test, not input.
+var testDomain = values.MustParse("test.example.com")
 
 func TestService_CreateKey(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
@@ -25,7 +28,7 @@ func TestService_CreateKey(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotNil(t, result.Key)
 		assert.NotEmpty(t, result.PlaintextKey)
-		assert.Equal(t, domain, result.Key.Domain())
+		assert.Equal(t, domain, result.Key.DomainName())
 		assert.Equal(t, name, result.Key.Name())
 		assert.False(t, result.Key.ID().IsZero())
 		assert.NotZero(t, result.Key.CreatedAt())
@@ -44,15 +47,6 @@ func TestService_CreateKey(t *testing.T) {
 		result, err := service.CreateKey(ctx, domain, name, &expiresAt)
 		require.NoError(t, err)
 		assert.NotNil(t, result.Key.ExpiresAt())
-	})
-
-	t.Run("InvalidDomain", func(t *testing.T) {
-		ctx := t.Context()
-		repo := apikeyshelpers.NewInMemoryRepository()
-		service := apikeys.NewService(repo)
-
-		_, err := service.CreateKey(ctx, "", "test-key", nil)
-		assert.Error(t, err)
 	})
 
 	t.Run("InvalidName", func(t *testing.T) {
@@ -186,15 +180,6 @@ func TestService_ListKeys(t *testing.T) {
 		assert.Len(t, page3, 1)
 		assert.Equal(t, 5, total3)
 	})
-
-	t.Run("InvalidDomain", func(t *testing.T) {
-		ctx := t.Context()
-		repo := apikeyshelpers.NewInMemoryRepository()
-		service := apikeys.NewService(repo)
-
-		_, _, err := service.ListKeys(ctx, "", false, apikeys.Pagination{Limit: 10, Offset: 0})
-		assert.Error(t, err)
-	})
 }
 
 func TestService_DeactivateKey(t *testing.T) {
@@ -291,7 +276,7 @@ func TestService_ValidateForAuth(t *testing.T) {
 			KeyHash:       result.Key.KeyHash(),
 			KeyPrefix:     result.Key.KeyPrefix(),
 			Name:          result.Key.Name(),
-			Domain:        result.Key.Domain(),
+			Domain:        result.Key.DomainName(),
 			CreatedAt:     result.Key.CreatedAt(),
 			ExpiresAt:     &pastTime,
 			IsActive:      true,

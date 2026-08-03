@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"time"
+
+	"github.com/kannon-email/kannon/internal/values"
 )
 
 // Service provides stats domain operations.
@@ -37,7 +39,7 @@ func (s *Service) InsertStat(ctx context.Context, stat *Stat) error {
 }
 
 // QueryStats returns stats with pagination and total count.
-func (s *Service) QueryStats(ctx context.Context, domain string, timeRange TimeRange, page Pagination) ([]*Stat, int64, error) {
+func (s *Service) QueryStats(ctx context.Context, domain values.DomainName, timeRange TimeRange, page Pagination) ([]*Stat, int64, error) {
 	stats, err := s.repo.Query(ctx, domain, timeRange, page)
 	if err != nil {
 		return nil, 0, err
@@ -52,7 +54,7 @@ func (s *Service) QueryStats(ctx context.Context, domain string, timeRange TimeR
 }
 
 // QueryTimeline returns aggregated stats for a time range.
-func (s *Service) QueryTimeline(ctx context.Context, domain string, timeRange TimeRange) ([]*AggregatedStat, error) {
+func (s *Service) QueryTimeline(ctx context.Context, domain values.DomainName, timeRange TimeRange) ([]*AggregatedStat, error) {
 	return s.repo.QueryTimeline(ctx, domain, timeRange)
 }
 
@@ -65,7 +67,7 @@ var ErrNoAggregatedRepo = errors.New("aggregated stats repository not configured
 // timeline (v1) reports: a consumer is then free to roll the buckets up into
 // days of whatever timezone it displays, which a UTC day bucket cannot do
 // without landing on the wrong day for negative offsets.
-func (s *Service) IncrementAggregatedStat(ctx context.Context, domain string, timestamp time.Time, statType Type) error {
+func (s *Service) IncrementAggregatedStat(ctx context.Context, domain values.DomainName, timestamp time.Time, statType Type) error {
 	if s.aggregatedRepo == nil {
 		return ErrNoAggregatedRepo
 	}
@@ -74,7 +76,7 @@ func (s *Service) IncrementAggregatedStat(ctx context.Context, domain string, ti
 }
 
 // QueryAggregatedStats returns aggregated stats for a domain within a time range.
-func (s *Service) QueryAggregatedStats(ctx context.Context, domain string, timeRange TimeRange) ([]*AggregatedStat, error) {
+func (s *Service) QueryAggregatedStats(ctx context.Context, domain values.DomainName, timeRange TimeRange) ([]*AggregatedStat, error) {
 	if s.aggregatedRepo == nil {
 		return nil, ErrNoAggregatedRepo
 	}

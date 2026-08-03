@@ -6,12 +6,13 @@ import (
 	"time"
 
 	"github.com/kannon-email/kannon/internal/apikeys"
+	"github.com/kannon-email/kannon/internal/values"
 	"github.com/stretchr/testify/require"
 )
 
 type testHelper struct{}
 
-func (h testHelper) CreateDomain(t *testing.T) string {
+func (h testHelper) CreateDomain(t *testing.T) values.DomainName {
 	ctx := t.Context()
 	domainName := fmt.Sprintf("test-apikeys-%d.com", time.Now().UnixNano())
 
@@ -23,7 +24,7 @@ func (h testHelper) CreateDomain(t *testing.T) string {
 	})
 	require.NoError(t, err)
 
-	return domainName
+	return values.MustParse(domainName)
 }
 
 func TestAPIKeysRepository(t *testing.T) {

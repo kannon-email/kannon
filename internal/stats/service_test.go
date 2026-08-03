@@ -6,7 +6,17 @@ import (
 	"time"
 
 	"github.com/kannon-email/kannon/internal/stats"
+	"github.com/kannon-email/kannon/internal/values"
 	"github.com/kannon-email/kannon/proto/kannon/stats/types"
+)
+
+// Fixture Domains. MustParse is right for package-level values in a test: a bad
+// one is a bug in this file rather than input.
+var (
+	exampleCom = values.MustParse("example.com")
+	aCom       = values.MustParse("a.com")
+	bCom       = values.MustParse("b.com")
+	dCom       = values.MustParse("d.com")
 )
 
 func newTestService() *stats.Service {
@@ -25,7 +35,7 @@ func TestInsertAndQueryStats(t *testing.T) {
 	now := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	tr := stats.TimeRange{Start: now.Add(-time.Hour), Stop: now.Add(time.Hour)}
 
-	stat := stats.NewStat("user@example.com", "msg-1", "example.com", now, &types.StatsData{
+	stat := stats.NewStat("user@example.com", "msg-1", exampleCom, now, &types.StatsData{
 		Data: &types.StatsData_Delivered{},
 	})
 
@@ -33,7 +43,7 @@ func TestInsertAndQueryStats(t *testing.T) {
 		t.Fatalf("InsertStat: %v", err)
 	}
 
-	results, total, err := svc.QueryStats(ctx, "example.com", tr, stats.Pagination{Limit: 10, Offset: 0})
+	results, total, err := svc.QueryStats(ctx, exampleCom, tr, stats.Pagination{Limit: 10, Offset: 0})
 	if err != nil {
 		t.Fatalf("QueryStats: %v", err)
 	}
@@ -60,7 +70,7 @@ func TestQueryStats_Pagination(t *testing.T) {
 	tr := stats.TimeRange{Start: base.Add(-time.Hour), Stop: base.Add(time.Hour)}
 
 	for i := range 5 {
-		s := stats.NewStat("user@example.com", "msg-1", "example.com", base.Add(time.Duration(i)*time.Minute), &types.StatsData{
+		s := stats.NewStat("user@example.com", "msg-1", exampleCom, base.Add(time.Duration(i)*time.Minute), &types.StatsData{
 			Data: &types.StatsData_Delivered{},
 		})
 		if err := svc.InsertStat(ctx, s); err != nil {
@@ -68,7 +78,7 @@ func TestQueryStats_Pagination(t *testing.T) {
 		}
 	}
 
-	results, total, err := svc.QueryStats(ctx, "example.com", tr, stats.Pagination{Limit: 2, Offset: 0})
+	results, total, err := svc.QueryStats(ctx, exampleCom, tr, stats.Pagination{Limit: 2, Offset: 0})
 	if err != nil {
 		t.Fatalf("QueryStats: %v", err)
 	}
@@ -79,7 +89,7 @@ func TestQueryStats_Pagination(t *testing.T) {
 		t.Errorf("expected 2 results, got %d", len(results))
 	}
 
-	results, _, err = svc.QueryStats(ctx, "example.com", tr, stats.Pagination{Limit: 10, Offset: 4})
+	results, _, err = svc.QueryStats(ctx, exampleCom, tr, stats.Pagination{Limit: 10, Offset: 4})
 	if err != nil {
 		t.Fatalf("QueryStats: %v", err)
 	}
@@ -97,8 +107,8 @@ func TestQueryStats_FiltersByDomain(t *testing.T) {
 
 	// Distinct message ids: two events of the same type, for the same recipient,
 	// at the same instant are the same event as far as the store is concerned.
-	for i, domain := range []string{"a.com", "b.com", "a.com"} {
-		s := stats.NewStat("u@"+domain, fmt.Sprintf("msg-%d", i), domain, now, &types.StatsData{
+	for i, domain := range []values.DomainName{aCom, bCom, aCom} {
+		s := stats.NewStat("u@"+domain.String(), fmt.Sprintf("msg-%d", i), domain, now, &types.StatsData{
 			Data: &types.StatsData_Accepted{},
 		})
 		if err := svc.InsertStat(ctx, s); err != nil {
@@ -106,7 +116,7 @@ func TestQueryStats_FiltersByDomain(t *testing.T) {
 		}
 	}
 
-	results, total, err := svc.QueryStats(ctx, "a.com", tr, stats.Pagination{Limit: 10})
+	results, total, err := svc.QueryStats(ctx, aCom, tr, stats.Pagination{Limit: 10})
 	if err != nil {
 		t.Fatalf("QueryStats: %v", err)
 	}
@@ -133,7 +143,7 @@ func TestQueryStats_FiltersByTimeRange(t *testing.T) {
 	}
 
 	for _, ts := range times {
-		s := stats.NewStat("u@d.com", "msg", "d.com", ts, &types.StatsData{
+		s := stats.NewStat("u@d.com", "msg", dCom, ts, &types.StatsData{
 			Data: &types.StatsData_Opened{},
 		})
 		if err := svc.InsertStat(ctx, s); err != nil {
@@ -141,7 +151,7 @@ func TestQueryStats_FiltersByTimeRange(t *testing.T) {
 		}
 	}
 
-	_, total, err := svc.QueryStats(ctx, "d.com", tr, stats.Pagination{Limit: 10})
+	_, total, err := svc.QueryStats(ctx, dCom, tr, stats.Pagination{Limit: 10})
 	if err != nil {
 		t.Fatalf("QueryStats: %v", err)
 	}
@@ -169,13 +179,13 @@ func TestQueryTimeline(t *testing.T) {
 	}
 
 	for _, ins := range inserts {
-		s := stats.NewStat("u@d.com", "msg", "d.com", ins.ts, ins.data)
+		s := stats.NewStat("u@d.com", "msg", dCom, ins.ts, ins.data)
 		if err := svc.InsertStat(ctx, s); err != nil {
 			t.Fatalf("InsertStat: %v", err)
 		}
 	}
 
-	timeline, err := svc.QueryTimeline(ctx, "d.com", tr)
+	timeline, err := svc.QueryTimeline(ctx, dCom, tr)
 	if err != nil {
 		t.Fatalf("QueryTimeline: %v", err)
 	}
@@ -199,7 +209,7 @@ func TestCleanup(t *testing.T) {
 	recent := now.Add(-time.Hour)
 
 	for i, ts := range []time.Time{old, old, recent} {
-		s := stats.NewStat("u@d.com", fmt.Sprintf("msg-%d", i), "d.com", ts, &types.StatsData{
+		s := stats.NewStat("u@d.com", fmt.Sprintf("msg-%d", i), dCom, ts, &types.StatsData{
 			Data: &types.StatsData_Delivered{},
 		})
 		if err := svc.InsertStat(ctx, s); err != nil {
@@ -216,7 +226,7 @@ func TestCleanup(t *testing.T) {
 	}
 
 	tr := stats.TimeRange{Start: now.Add(-72 * time.Hour), Stop: now.Add(time.Hour)}
-	_, total, err := svc.QueryStats(ctx, "d.com", tr, stats.Pagination{Limit: 10})
+	_, total, err := svc.QueryStats(ctx, dCom, tr, stats.Pagination{Limit: 10})
 	if err != nil {
 		t.Fatalf("QueryStats after cleanup: %v", err)
 	}
@@ -264,7 +274,7 @@ func TestIncrementAggregatedStat(t *testing.T) {
 
 	// Increment the same domain/hour/type 3 times.
 	for range 3 {
-		if err := svc.IncrementAggregatedStat(ctx, "example.com", ts, stats.TypeDelivered); err != nil {
+		if err := svc.IncrementAggregatedStat(ctx, exampleCom, ts, stats.TypeDelivered); err != nil {
 			t.Fatalf("IncrementAggregatedStat: %v", err)
 		}
 	}
@@ -273,7 +283,7 @@ func TestIncrementAggregatedStat(t *testing.T) {
 		Start: time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
 		Stop:  time.Date(2026, 1, 16, 0, 0, 0, 0, time.UTC),
 	}
-	results, err := svc.QueryAggregatedStats(ctx, "example.com", tr)
+	results, err := svc.QueryAggregatedStats(ctx, exampleCom, tr)
 	if err != nil {
 		t.Fatalf("QueryAggregatedStats: %v", err)
 	}
@@ -297,13 +307,13 @@ func TestIncrementAggregatedStat_SeparateEntries(t *testing.T) {
 	day2 := time.Date(2026, 1, 16, 14, 0, 0, 0, time.UTC)
 
 	// Different days and types should create separate entries.
-	if err := svc.IncrementAggregatedStat(ctx, "example.com", day1, stats.TypeDelivered); err != nil {
+	if err := svc.IncrementAggregatedStat(ctx, exampleCom, day1, stats.TypeDelivered); err != nil {
 		t.Fatalf("IncrementAggregatedStat: %v", err)
 	}
-	if err := svc.IncrementAggregatedStat(ctx, "example.com", day1, stats.TypeOpened); err != nil {
+	if err := svc.IncrementAggregatedStat(ctx, exampleCom, day1, stats.TypeOpened); err != nil {
 		t.Fatalf("IncrementAggregatedStat: %v", err)
 	}
-	if err := svc.IncrementAggregatedStat(ctx, "example.com", day2, stats.TypeDelivered); err != nil {
+	if err := svc.IncrementAggregatedStat(ctx, exampleCom, day2, stats.TypeDelivered); err != nil {
 		t.Fatalf("IncrementAggregatedStat: %v", err)
 	}
 
@@ -311,7 +321,7 @@ func TestIncrementAggregatedStat_SeparateEntries(t *testing.T) {
 		Start: time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
 		Stop:  time.Date(2026, 1, 17, 0, 0, 0, 0, time.UTC),
 	}
-	results, err := svc.QueryAggregatedStats(ctx, "example.com", tr)
+	results, err := svc.QueryAggregatedStats(ctx, exampleCom, tr)
 	if err != nil {
 		t.Fatalf("QueryAggregatedStats: %v", err)
 	}
@@ -333,7 +343,7 @@ func TestIncrementAggregatedStat_HourlyBuckets(t *testing.T) {
 	hour14 := time.Date(2026, 1, 15, 14, 30, 0, 0, time.UTC)
 
 	for _, ts := range []time.Time{hour10, sameHour, hour14} {
-		if err := svc.IncrementAggregatedStat(ctx, "example.com", ts, stats.TypeDelivered); err != nil {
+		if err := svc.IncrementAggregatedStat(ctx, exampleCom, ts, stats.TypeDelivered); err != nil {
 			t.Fatalf("IncrementAggregatedStat: %v", err)
 		}
 	}
@@ -342,7 +352,7 @@ func TestIncrementAggregatedStat_HourlyBuckets(t *testing.T) {
 		Start: time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
 		Stop:  time.Date(2026, 1, 16, 0, 0, 0, 0, time.UTC),
 	}
-	results, err := svc.QueryAggregatedStats(ctx, "example.com", tr)
+	results, err := svc.QueryAggregatedStats(ctx, exampleCom, tr)
 	if err != nil {
 		t.Fatalf("QueryAggregatedStats: %v", err)
 	}
@@ -369,10 +379,10 @@ func TestQueryAggregatedStats_FiltersByDomainAndTimeRange(t *testing.T) {
 
 	ts := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 
-	if err := svc.IncrementAggregatedStat(ctx, "a.com", ts, stats.TypeDelivered); err != nil {
+	if err := svc.IncrementAggregatedStat(ctx, aCom, ts, stats.TypeDelivered); err != nil {
 		t.Fatalf("IncrementAggregatedStat: %v", err)
 	}
-	if err := svc.IncrementAggregatedStat(ctx, "b.com", ts, stats.TypeDelivered); err != nil {
+	if err := svc.IncrementAggregatedStat(ctx, bCom, ts, stats.TypeDelivered); err != nil {
 		t.Fatalf("IncrementAggregatedStat: %v", err)
 	}
 
@@ -380,7 +390,7 @@ func TestQueryAggregatedStats_FiltersByDomainAndTimeRange(t *testing.T) {
 		Start: time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
 		Stop:  time.Date(2026, 1, 16, 0, 0, 0, 0, time.UTC),
 	}
-	results, err := svc.QueryAggregatedStats(ctx, "a.com", tr)
+	results, err := svc.QueryAggregatedStats(ctx, aCom, tr)
 	if err != nil {
 		t.Fatalf("QueryAggregatedStats: %v", err)
 	}
@@ -394,7 +404,7 @@ func TestQueryAggregatedStats_FiltersByDomainAndTimeRange(t *testing.T) {
 		Start: time.Date(2026, 1, 10, 0, 0, 0, 0, time.UTC),
 		Stop:  time.Date(2026, 1, 11, 0, 0, 0, 0, time.UTC),
 	}
-	results, err = svc.QueryAggregatedStats(ctx, "a.com", outOfRange)
+	results, err = svc.QueryAggregatedStats(ctx, aCom, outOfRange)
 	if err != nil {
 		t.Fatalf("QueryAggregatedStats: %v", err)
 	}

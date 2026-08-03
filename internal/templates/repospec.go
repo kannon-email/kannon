@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/kannon-email/kannon/internal/values"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -11,8 +12,8 @@ import (
 // RepoTestHelper provides test utilities for repository spec tests.
 type RepoTestHelper interface {
 	// CreateDomain creates a fresh domain row, registers cleanup, and
-	// returns the domain name.
-	CreateDomain(t *testing.T) string
+	// returns its canonical FQDN.
+	CreateDomain(t *testing.T) values.DomainName
 }
 
 // RunRepoSpec exercises any Repository implementation against the

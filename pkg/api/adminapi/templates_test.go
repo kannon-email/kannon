@@ -51,9 +51,13 @@ func TestDeleteTemplate(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, t1.TemplateId, res.Msg.Template.TemplateId)
 
+	// The Domain has to be stated: a list scoped to no Domain used to come back
+	// empty, which made this assertion pass for the wrong reason. GetTemplates now
+	// refuses a request that names no FQDN, so the test says which Domain it means.
 	resG, err := testservice.GetTemplates(ctx, connect.NewRequest(&pb.GetTemplatesReq{
-		Skip: 0,
-		Take: 10,
+		Skip:   0,
+		Take:   10,
+		Domain: d.Domain,
 	}))
 	assert.Nil(t, err)
 	assert.Equal(t, uint32(0), resG.Msg.Total)

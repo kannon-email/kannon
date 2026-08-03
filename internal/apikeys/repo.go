@@ -2,6 +2,8 @@ package apikeys
 
 import (
 	"context"
+
+	"github.com/kannon-email/kannon/internal/values"
 )
 
 // ListFilters contains filters for listing API keys
@@ -19,7 +21,12 @@ type Pagination struct {
 // Return an error to abort the transaction
 type UpdateFunc func(key *APIKey) error
 
-// Repository defines the interface for API key persistence operations
+// Repository defines the interface for API key persistence operations.
+//
+// Every domain-scoped method names the Domain with an values.DomainName, so a key
+// lookup cannot be reached with a spelling that was never canonicalised — for
+// an authentication path that would mean a valid key silently failing to
+// resolve.
 type Repository interface {
 	// Create creates a new API key
 	Create(ctx context.Context, key *APIKey) error
@@ -32,15 +39,15 @@ type Repository interface {
 	// GetByKeyHash finds an API key by its SHA-256 hash for a specific domain
 	// The caller is responsible for hashing the plaintext key before calling this method
 	// Returns ErrKeyNotFound if the key doesn't exist
-	GetByKeyHash(ctx context.Context, domain, keyHash string) (*APIKey, error)
+	GetByKeyHash(ctx context.Context, domain values.DomainName, keyHash string) (*APIKey, error)
 
 	// GetByID finds an API key by its ID for a specific domain
 	// Returns ErrKeyNotFound if the key doesn't exist for the domain
 	GetByID(ctx context.Context, ref KeyRef) (*APIKey, error)
 
 	// List returns API keys for a domain with filters and pagination
-	List(ctx context.Context, domain string, filters ListFilters, page Pagination) ([]*APIKey, error)
+	List(ctx context.Context, domain values.DomainName, filters ListFilters, page Pagination) ([]*APIKey, error)
 
 	// Count returns the total number of API keys for a domain with filters
-	Count(ctx context.Context, domain string, filters ListFilters) (int, error)
+	Count(ctx context.Context, domain values.DomainName, filters ListFilters) (int, error)
 }

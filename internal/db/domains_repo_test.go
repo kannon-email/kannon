@@ -6,6 +6,7 @@ import (
 
 	"github.com/kannon-email/kannon/internal/domains"
 	"github.com/kannon-email/kannon/internal/tracking"
+	"github.com/kannon-email/kannon/internal/values"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,19 +35,19 @@ func TestDomainCeilingSurvivesAMalformedRow(t *testing.T) {
 	})
 
 	repo := NewDomainsRepository(db)
-	fqdn := "malformed-tracking.test"
+	name := values.MustParse("malformed-tracking.test")
 
-	d, err := domains.New(fqdn)
+	d, err := domains.New(name)
 	require.NoError(t, err)
 	require.NoError(t, repo.Create(t.Context(), d))
 
 	// Straight SQL, as an operator or a hand-written migration would: links is
 	// left unstated entirely.
 	_, err = db.Exec(t.Context(),
-		`UPDATE domains SET tracking = '{"opens":"identified"}'::jsonb WHERE domain = $1`, fqdn)
+		`UPDATE domains SET tracking = '{"opens":"identified"}'::jsonb WHERE domain = $1`, name.String())
 	require.NoError(t, err)
 
-	got, err := repo.FindByName(t.Context(), fqdn)
+	got, err := repo.FindByName(t.Context(), name)
 	require.NoError(t, err)
 	require.Equal(t, tracking.ModeIdentified, got.TrackingPolicy().Opens)
 	require.Equal(t, tracking.ModeOff, got.TrackingPolicy().Links,

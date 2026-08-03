@@ -3,6 +3,8 @@ package apikeys
 import (
 	"context"
 	"time"
+
+	"github.com/kannon-email/kannon/internal/values"
 )
 
 type Service struct {
@@ -14,7 +16,7 @@ func NewService(repo Repository) *Service {
 	return &Service{repo: repo}
 }
 
-func (s *Service) CreateKey(ctx context.Context, domain, name string, expiresAt *time.Time) (*CreateResult, error) {
+func (s *Service) CreateKey(ctx context.Context, domain values.DomainName, name string, expiresAt *time.Time) (*CreateResult, error) {
 	// Create key entity (validation happens in NewAPIKey)
 	result, err := NewAPIKey(domain, name, expiresAt)
 	if err != nil {
@@ -33,11 +35,7 @@ func (s *Service) GetKey(ctx context.Context, ref KeyRef) (*APIKey, error) {
 	return s.repo.GetByID(ctx, ref)
 }
 
-func (s *Service) ListKeys(ctx context.Context, domain string, onlyActive bool, page Pagination) ([]*APIKey, int, error) {
-	if err := validateDomain(domain); err != nil {
-		return nil, 0, err
-	}
-
+func (s *Service) ListKeys(ctx context.Context, domain values.DomainName, onlyActive bool, page Pagination) ([]*APIKey, int, error) {
 	filters := ListFilters{
 		OnlyActive: onlyActive,
 	}
@@ -62,7 +60,7 @@ func (s *Service) DeactivateKey(ctx context.Context, ref KeyRef) (*APIKey, error
 	})
 }
 
-func (s *Service) ValidateForAuth(ctx context.Context, domain, key string) (*APIKey, error) {
+func (s *Service) ValidateForAuth(ctx context.Context, domain values.DomainName, key string) (*APIKey, error) {
 	// Hash the plaintext key before repo lookup
 	keyHash := HashKey(key)
 

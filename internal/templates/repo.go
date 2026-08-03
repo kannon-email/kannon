@@ -1,6 +1,10 @@
 package templates
 
-import "context"
+import (
+	"context"
+
+	"github.com/kannon-email/kannon/internal/values"
+)
 
 // Pagination contains pagination parameters for listing.
 type Pagination struct {
@@ -13,6 +17,10 @@ type Pagination struct {
 type UpdateFunc func(t *Template) error
 
 // Repository persists Template entities.
+//
+// A Domain is named by an values.DomainName rather than a string, so a domain-scoped
+// lookup cannot be reached with a spelling that was never canonicalised — which
+// would silently answer "not found" for a Template that does exist.
 type Repository interface {
 	// Create persists a new Template. The TemplateID must already be
 	// populated by NewPersistent or NewTransient.
@@ -32,12 +40,12 @@ type Repository interface {
 
 	// FindByDomain looks up a Template by ID, scoped to a domain.
 	// Returns ErrTemplateNotFound if not present.
-	FindByDomain(ctx context.Context, domain, templateID string) (*Template, error)
+	FindByDomain(ctx context.Context, domain values.DomainName, templateID string) (*Template, error)
 
 	// List returns persistent templates for a domain with pagination.
 	// Transient templates are excluded.
-	List(ctx context.Context, domain string, page Pagination) ([]*Template, error)
+	List(ctx context.Context, domain values.DomainName, page Pagination) ([]*Template, error)
 
 	// Count returns the total number of persistent templates for a domain.
-	Count(ctx context.Context, domain string) (int, error)
+	Count(ctx context.Context, domain values.DomainName) (int, error)
 }

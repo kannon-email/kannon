@@ -5,12 +5,20 @@ import (
 	"time"
 
 	"github.com/kannon-email/kannon/internal/apikeys"
+	"github.com/kannon-email/kannon/internal/values"
 	pb "github.com/kannon-email/kannon/proto/kannon/admin/apiv1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // CreateAPIKey creates a new API key for a domain
 func (s *adminAPIService) CreateAPIKey(ctx context.Context, in *pb.CreateAPIKeyRequest) (*pb.CreateAPIKeyResponse, error) {
+	// The request carries the domain as a bare string, so this is where it
+	// becomes an FQDN.
+	domain, err := values.Parse(in.Domain)
+	if err != nil {
+		return nil, err
+	}
+
 	// Set expiration if provided
 	var expiresAt *time.Time
 	if in.ExpiresAt != nil {
@@ -19,7 +27,7 @@ func (s *adminAPIService) CreateAPIKey(ctx context.Context, in *pb.CreateAPIKeyR
 	}
 
 	// Create the key via service
-	result, err := s.apiKeys.CreateKey(ctx, in.Domain, in.Name, expiresAt)
+	result, err := s.apiKeys.CreateKey(ctx, domain, in.Name, expiresAt)
 	if err != nil {
 		return nil, err
 	}
@@ -33,6 +41,11 @@ func (s *adminAPIService) CreateAPIKey(ctx context.Context, in *pb.CreateAPIKeyR
 
 // ListAPIKeys lists all API keys for a domain (masked)
 func (s *adminAPIService) ListAPIKeys(ctx context.Context, in *pb.ListAPIKeysRequest) (*pb.ListAPIKeysResponse, error) {
+	domain, err := values.Parse(in.Domain)
+	if err != nil {
+		return nil, err
+	}
+
 	// Set pagination defaults if not provided
 	page := apikeys.Pagination{
 		Limit:  100, // Default limit
@@ -46,7 +59,7 @@ func (s *adminAPIService) ListAPIKeys(ctx context.Context, in *pb.ListAPIKeysReq
 	}
 
 	// List keys via service
-	keys, total, err := s.apiKeys.ListKeys(ctx, in.Domain, in.OnlyActive, page)
+	keys, total, err := s.apiKeys.ListKeys(ctx, domain, in.OnlyActive, page)
 	if err != nil {
 		return nil, err
 	}

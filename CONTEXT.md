@@ -13,8 +13,8 @@ The input description of one target for a Batch: an email address plus per-recip
 _Avoid_: To, Addressee, Target (when meaning the Recipient)
 
 **Domain**:
-The sender-tenant entity. Identified by a fully qualified domain name (FQDN), holds a DKIM keypair, and owns API Keys, Templates, Batches, and Deliveries. In this codebase "Domain" *always* means this entity — the DDD sense of "domain" is not used. The string identifier is referred to as the **FQDN** (today the field is also named `domain`; rename to `fqdn` is queued — see `docs/REFACTORING.md` §4).
-_Avoid_: Tenant, Account, SenderIdentity (these are not used in Kannon's vocabulary)
+The sender-tenant entity. Identified by a **domain name**, holds a DKIM keypair, and owns API Keys, Templates, Batches, and Deliveries. In this codebase "Domain" *always* means this entity — the DDD sense of "domain" is not used. The domain name is canonical: lower-cased, at least two labels, and carrying none of the punctuation an authorization path is built from (`internal/values`). Its typed form is `values.DomainName`; the wire and DB field is `domain`, which agrees with the term, so the rename of that field this entry used to queue no longer has a reason.
+_Avoid_: Tenant, Account, SenderIdentity (these are not used in Kannon's vocabulary); FQDN — the trailing dot is what marks a name fully qualified and `values.Parse` refuses one, so the abbreviation would assert a form the type does not accept
 
 **Template**:
 A stored email body keyed by `template_id`, owned by a Domain. Has a **lifetime** that distinguishes how it was created and how it is managed.

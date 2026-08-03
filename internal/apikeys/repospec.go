@@ -6,13 +6,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kannon-email/kannon/internal/values"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // RepoTestHelper provides test utilities for repository tests
 type RepoTestHelper interface {
-	CreateDomain(t *testing.T) string // Creates a domain, registers cleanup, and returns its name
+	CreateDomain(t *testing.T) values.DomainName // Creates a domain, registers cleanup, and returns its canonical FQDN
 }
 
 // RunRepoSpec runs the repository specification tests against any Repository implementation
@@ -141,7 +142,7 @@ func testGetByKeyHash(t *testing.T, repo Repository, helper RepoTestHelper) {
 		require.NoError(t, err)
 		assert.Equal(t, result.Key.ID(), found.ID())
 		assert.Equal(t, result.Key.KeyHash(), found.KeyHash())
-		assert.Equal(t, domain, found.Domain())
+		assert.Equal(t, domain, found.DomainName())
 	})
 
 	t.Run("NotFound", func(t *testing.T) {
