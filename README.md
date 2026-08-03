@@ -19,9 +19,9 @@ A **Cloud Native SMTP mail sender** for Kubernetes and modern infrastructure.
 - [Configuration](#configuration)
 - [Database Schema](#database-schema)
 - [API Overview](#api-overview)
+- [Sending Mail](#sending-mail)
 - [Deployment](#deployment)
 - [Domain & DNS Setup](#domain--dns-setup)
-- [Sending Mail](#sending-mail)
 - [Testing & Demo Mode](#testing--demo-mode)
 - [Development & Contributing](#development--contributing)
 - [License](#license)
@@ -31,13 +31,15 @@ A **Cloud Native SMTP mail sender** for Kubernetes and modern infrastructure.
 ## Features
 
 - Cloud-native, scalable SMTP mail sending
-- gRPC API for sending HTML and templated emails
-- DKIM and SPF support for deliverability
-- Attachments support (JSONB in DB)
-- Custom fields for emails (JSONB in DB)
-- Statistics and analytics (DB + gRPC API)
+- HTTP API for sending HTML and templated emails, speaking Connect, gRPC and gRPC-Web on a single port
+- DKIM signing and SPF-friendly delivery
+- Per-recipient templating (custom fields), attachments and custom `To` / `Cc` headers
+- Open and click tracking, governed by a per-Domain / per-Batch / per-Recipient [Tracking Policy](docs/adr/0003-tracking-policy-ceiling-defaults-and-intake-resolution.md)
+- RFC 8058 one-click unsubscribe for your own unsubscribe endpoint
+- API Keys per Domain (hashed at rest, expirable, revocable)
+- Statistics and analytics, persisted and queryable over the API
 - Template management (CRUD via API)
-- Kubernetes-ready deployment
+- Standalone mode with embedded NATS, and a Kubernetes-ready deployment
 - Postgres-backed persistence
 
 **Planned:**
@@ -51,13 +53,13 @@ A single `SendHTML` / `SendTemplate` API call creates one **Batch** with N **Del
 
 Kannon is composed of several microservices and workers:
 
-- **Mailer API**: gRPC server that accepts `SendHTML` / `SendTemplate` and creates Batches with N Deliveries; together with the **Admin API** (Domains, Templates, API Keys) and **Stats API**, it forms the gRPC surface.
+- **Mailer API**: server that accepts `SendHTML` / `SendTemplate` and creates Batches with N Deliveries; together with the **Admin API** (Domains, Templates, API Keys), the **Stats API** and a **health** service, it forms the single HTTP API surface.
 - **Validator**: Pulls Deliveries with status `to_validate`, validates the recipient address, and either schedules or rejects them.
 - **Dispatcher**: Pulls scheduled Deliveries, builds DKIM-signed Envelopes, and publishes them to NATS. Also consumes delivery / bounce / error events and updates Delivery state.
 - **SMTPSender**: Consumes Envelopes from NATS, performs the outbound SMTP transmission, and publishes Delivered / Bounced / transient-error stats.
 - **SMTPServer**: Inbound SMTP listener for bounce / DSN traffic from remote mail systems; publishes asynchronous Bounced events to NATS.
 - **Tracker**: HTTP server for open and click tracking. Verifies signed tokens, redirects clicks, serves the tracking pixel, and emits Opened / Clicked events.
-- **Stats**: Consumes all `kannon.stats.*` events and persists them.
+- **Stats**: Consumes all `kannon.stats.*` events, persists them, and prunes them once past the retention window.
 
 All components can be enabled/disabled via CLI flags or config.
 
@@ -66,7 +68,7 @@ All components can be enabled/disabled via CLI flags or config.
 ```mermaid
 flowchart TD
     subgraph Core
-        API["gRPC API (Mailer / Admin / Stats)"]
+        API["API (Mailer / Admin / Stats / HZ)"]
         SMTPServer["SMTPServer (inbound DSN/bounce)"]
         SMTPSender["SMTPSender (outbound)"]
         Dispatcher["Dispatcher"]
@@ -94,7 +96,7 @@ flowchart TD
 
 ### Prerequisites
 
-- Go 1.26.2+
+- Go 1.26.5+ (see [`mise.toml`](mise.toml))
 - Docker (optional, for containerized deployment)
 - PostgreSQL database
 - NATS server (optional — embedded mode available in standalone command)
@@ -107,14 +109,18 @@ Run all Kannon components in a single process with embedded NATS (only PostgreSQ
 git clone https://github.com/kannon-email/kannon.git
 cd kannon
 go build -o kannon .
+./kannon migrate main --config ./config.yaml   # create/upgrade the schema
 ./kannon standalone --config ./config.yaml
 ```
 
 This mode:
+
 - Runs all components (API, SMTPServer, SMTPSender, Dispatcher, Validator, Tracker, Stats)
 - Embeds NATS server (no external NATS required)
 - Ideal for development, testing, or single-server deployments
 - Still requires a PostgreSQL database
+
+> **Note:** the schema is never migrated automatically at boot. Run `kannon migrate main` once against a fresh database, and after every upgrade that ships a migration.
 
 ### Local Run (Manual Component Selection)
 
@@ -125,126 +131,197 @@ go build -o kannon .
 ./kannon --run-api --run-smtp --run-sender --run-dispatcher --config ./config.yaml
 ```
 
-> **Note:** This mode requires an external NATS server configured in your config file.
+> **Note:** This mode requires an external NATS server configured in your config file (or `use_embedded_nats: true`).
 
 ### Docker Compose
 
-See [`examples/docker-compose/`](examples/docker-compose/) for ready-to-use files.
+See [`examples/docker-compose/`](examples/docker-compose/) for ready-to-use files. The compose file runs the migration as a separate `migrator` service before starting Kannon.
 
 ```sh
-docker-compose -f examples/docker-compose/docker-compose.yaml up
+docker compose -f examples/docker-compose/docker-compose.yaml up
+# or: make docker-up
 ```
 
 - Edit `examples/docker-compose/kannon.yaml` to configure your environment.
 
 ### Makefile Targets
 
-- `make test` — Run all tests
-- `make generate` — Generate DB and proto code
-- `make lint` — Run linters
+- `make test` — Run unit and integration tests (`go test ./... -race -short`)
+- `make test-e2e` — Run the end-to-end suite in [`e2e/`](e2e/) (needs Docker)
+- `make bench` — Run benchmarks
+- `make generate` — Generate DB (`sqlc`) and proto (`buf`) code
+- `make lint` — Run `golangci-lint` and the deadcode check
+- `make docker-up` — Bring up the example Docker Compose stack
 
 ## Configuration
 
-Kannon can be configured via YAML file, environment variables, or CLI flags. Precedence: CLI > Env > YAML.
+Kannon reads configuration from a YAML file and, for a handful of top-level keys, from the environment. CLI flags select which components run. Precedence: CLI flag > env > YAML.
 
-**Main config options:**
+The config file is `--config <path>`, defaulting to `$HOME/.kannon.yaml`.
 
-| Key / Env Var                                   | Type     | Default        | Description                            |
-| ----------------------------------------------- | -------- | -------------- | -------------------------------------- |
-| `database_url` / `K_DATABASE_URL`               | string   | (required)     | PostgreSQL connection string           |
-| `nats_url` / `K_NATS_URL`                       | string   | (required)     | NATS server URL for internal messaging |
-| `debug` / `K_DEBUG`                             | bool     | false          | Enable debug logging                   |
-| `api.port` / `K_API_PORT`                       | int      | 50051          | gRPC API port                          |
-| `sender.hostname` / `K_SENDER_HOSTNAME`         | string   | (required)     | Hostname for outgoing mail             |
-| `sender.max_jobs` / `K_SENDER_MAX_JOBS`         | int      | 10             | Max parallel sending jobs              |
-| `sender.demo_sender` / `K_SENDER_DEMO_SENDER`   | bool     | false          | Enable demo sender mode for testing    |
-| `smtp.address` / `K_SMTP_ADDRESS`               | string   | :25            | SMTP server listen address             |
-| `smtp.domain` / `K_SMTP_DOMAIN`                 | string   | localhost      | SMTP server domain                     |
-| `smtp.read_timeout` / `K_SMTP_READ_TIMEOUT`     | duration | 10s            | SMTP read timeout                      |
-| `smtp.write_timeout` / `K_SMTP_WRITE_TIMEOUT`   | duration | 10s            | SMTP write timeout                     |
-| `smtp.max_payload` / `K_SMTP_MAX_PAYLOAD`       | size     | 1024kb         | Max SMTP message size                  |
-| `smtp.max_recipients` / `K_SMTP_MAX_RECIPIENTS` | int      | 50             | Max recipients per SMTP message        |
-| `tracker.port` / `K_TRACKER_PORT`               | int      | 8080           | Open/click tracking HTTP server port   |
-| `run-api` / `K_RUN_API`                         | bool     | false          | Enable API server                      |
-| `run-smtp` / `K_RUN_SMTP`                       | bool     | false          | Enable SMTP server                     |
-| `run-sender` / `K_RUN_SENDER`                   | bool     | false          | Enable sender worker                   |
-| `run-dispatcher` / `K_RUN_DISPATCHER`           | bool     | false          | Enable dispatcher worker               |
-| `run-validator` / `K_RUN_VALIDATOR`             | bool     | false          | Enable validator worker                |
-| `run-tracker` / `K_RUN_TRACKER`                 | bool     | false          | Enable tracker worker                  |
-| `run-stats` / `K_RUN_STATS`                     | bool     | false          | Enable stats worker                    |
-| `config`                                        | string   | ~/.kannon.yaml | Path to config file                    |
+**Top-level options** (these are the only keys that can be set from the environment):
+
+| YAML key            | Env var                | Type   | Default    | Description                                                        |
+| ------------------- | ---------------------- | ------ | ---------- | ------------------------------------------------------------------ |
+| `database_url`      | `K_DATABASE_URL`       | string | (required) | PostgreSQL connection string                                       |
+| `nats_url`          | `K_NATS_URL`           | string | (required) | NATS server URL — not needed when NATS is embedded                 |
+| `use_embedded_nats` | `K_USE_EMBEDDED_NATS`  | bool   | false      | Run an in-process NATS server. `kannon standalone` forces this on  |
+| `debug`             | `K_DEBUG`              | bool   | false      | Enable debug logging                                               |
+
+**Per-component options** (YAML only, under their own section):
+
+| YAML key              | Type     | Default        | Description                                     |
+| --------------------- | -------- | -------------- | ----------------------------------------------- |
+| `api.port`            | int      | 50051          | API listen port                                 |
+| `sender.hostname`     | string   | (required)     | Hostname announced for outgoing mail            |
+| `sender.max_jobs`     | int      | 10             | Max parallel sending jobs                       |
+| `sender.demo_sender`  | bool     | false          | Enable demo sender mode for testing             |
+| `smtp.address`        | string   | `:25`          | Inbound SMTP server listen address              |
+| `smtp.domain`         | string   | localhost      | Inbound SMTP server domain                      |
+| `smtp.read_timeout`   | duration | 10s            | SMTP read timeout                               |
+| `smtp.write_timeout`  | duration | 10s            | SMTP write timeout                              |
+| `smtp.max_payload`    | int      | 1048576        | Max SMTP message size, in bytes                 |
+| `smtp.max_recipients` | int      | 50             | Max recipients per inbound SMTP message         |
+| `tracker.port`        | int      | 8080           | Open/click tracking HTTP server port            |
+| `stats.retention`     | duration | 8760h (1 year) | How long raw per-Delivery stats are kept        |
+
+**Component selection** (CLI flag, or the same name as a top-level YAML key):
+
+| Flag / YAML key   | Default | Description              |
+| ----------------- | ------- | ------------------------ |
+| `--run-api`       | false   | Enable API server        |
+| `--run-smtp`      | false   | Enable inbound SMTP server |
+| `--run-sender`    | false   | Enable sender worker     |
+| `--run-dispatcher`| false   | Enable dispatcher worker |
+| `--run-validator` | false   | Enable validator worker  |
+| `--run-tracker`   | false   | Enable tracker worker    |
+| `--run-stats`     | false   | Enable stats worker      |
+
+> [!IMPORTANT]
+> **Environment variables only work for the four top-level keys in the first table.** Nested keys (`K_API_PORT`, `K_SENDER_HOSTNAME`, `K_SMTP_ADDRESS`, …) and the `run-*` flags (`K_RUN_API`, …) are **silently ignored** — set them in the YAML file, or pass the `--run-*` flags on the command line.
 
 - See [`examples/docker-compose/kannon.yaml`](examples/docker-compose/kannon.yaml) for a full example.
 
-> **Deprecated aliases:** `run-verifier` / `K_RUN_VERIFIER` continue to work as aliases for `run-validator` / `K_RUN_VALIDATOR`; `run-bounce` / `K_RUN_BOUNCE` continue to work as aliases for `run-tracker` / `K_RUN_TRACKER`; and the `bump:` YAML section / `K_BUMP_PORT` env var continue to work as aliases for `tracker:` / `K_TRACKER_PORT`. They will be removed in a future major version.
+> **Deprecated aliases:** `run-verifier` continues to work as an alias for `run-validator`, `run-bounce` for `run-tracker`, and the `bump:` YAML section (plus the `K_BUMP_PORT` env var) for `tracker:`. They will be removed in a future major version.
 
 ## Database Schema
 
-Kannon requires a PostgreSQL database. Main tables (physical names retained for backward compatibility; see [`CONTEXT.md`](./CONTEXT.md) for the corresponding domain entities):
+Kannon requires a PostgreSQL database, migrated with [dbmate](https://github.com/amacneil/dbmate) via `kannon migrate main`. Main tables (physical names retained for backward compatibility; see [`CONTEXT.md`](./CONTEXT.md) for the corresponding domain entities):
 
-- **domains**: Registered sender Domains (FQDN + DKIM keypair)
-- **api_keys**: API Keys for authentication (multiple keys per Domain; expirable, revocable)
-- **messages**: One row per **Batch** — subject, Sender, template reference, attachments, custom headers (legacy table name; the entity is a Batch)
-- **sending_pool_emails**: The Pool — one row per **Delivery** (recipient, scheduled time, retry count, per-recipient fields). Rows are deleted on terminal outcomes
+- **domains**: Registered sender Domains (FQDN + DKIM keypair + Tracking Policy ceiling)
+- **api_keys**: API Keys for authentication (multiple keys per Domain; hashed at rest, expirable, revocable)
+- **messages**: One row per **Batch** — subject, Sender, template reference, attachments, custom headers, Tracking Policy (legacy table name; the entity is a Batch)
+- **sending_pool_emails**: The Pool — one row per **Delivery** (recipient, scheduled time, retry count, per-recipient fields, frozen Tracking Policy). Rows are deleted on terminal outcomes
 - **templates**: Persistent and Transient Templates owned by a Domain
-- **stats**: Per-Delivery outcome events (Validated / Rejected / Delivered / Bounced / Opened / Clicked)
+- **stats**: Per-Delivery outcome events (Validated / Rejected / Delivered / Bounced / Opened / Clicked), pruned by `stats.retention`
+- **aggregated_stats**: Per-Domain hourly event counters, never pruned — the only record of events collected in anonymous tracking mode
 - **stats_keys**: Signing keys for tracking tokens
 
 See [`db/migrations/`](./db/migrations/) for full schema and migrations.
 
 ## API Overview
 
-Kannon exposes a gRPC API for sending mail, managing domains/templates, and retrieving stats.
+Kannon exposes a single HTTP server (default port `50051`) built with [Connect](https://connectrpc.com), serving the Connect, gRPC and gRPC-Web protocols over HTTP/1.1 and h2c. The simplest client is plain `curl` with JSON; any gRPC client works too.
+
+> The server does **not** register gRPC server reflection, so tools like `grpcurl` need the schema passed explicitly: `grpcurl -import-path .proto -proto kannon/mailer/apiv1/mailerapiv1.proto …`. The proto sources live in [`.proto/`](.proto/); `proto/` holds the generated Go code.
 
 ### Services & Methods
 
-- **Mailer API** ([proto](./proto/kannon/mailer/apiv1/mailerapiv1.proto))
+- **Mailer API** — `pkg.kannon.mailer.apiv1.Mailer` ([proto](./.proto/kannon/mailer/apiv1/mailerapiv1.proto))
   - `SendHTML`: Send a raw HTML email
   - `SendTemplate`: Send an email using a stored template
-- **Admin API** ([proto](./proto/kannon/admin/apiv1/adminapiv1.proto))
+- **Admin API** — `pkg.kannon.admin.apiv1.Api` ([proto](./.proto/kannon/admin/apiv1/adminapiv1.proto))
   - **Domains**: `GetDomains`, `GetDomain`, `CreateDomain`, `SetTrackingPolicy`
   - **Templates**: `CreateTemplate`, `UpdateTemplate`, `DeleteTemplate`, `GetTemplate`, `GetTemplates`
   - **API Keys**: `CreateAPIKey`, `ListAPIKeys`, `GetAPIKey`, `DeactivateAPIKey`
-- **Stats API** ([proto](./proto/kannon/stats/apiv1/statsapiv1.proto))
+- **Stats API v1** — `kannon.StatsApiV1` ([proto](./.proto/kannon/stats/apiv1/statsapiv1.proto))
   - `GetStats`, `GetStatsAggregated`
+- **Stats API v2** — `kannon.stats.apiv2.StatsApiV2` ([proto](./.proto/kannon/stats/apiv2/statsapiv2.proto))
+  - `GetAggregatedStats`: hourly buckets served from `aggregated_stats`
+- **Health** — `pkg.kannon.admin.apiv1.HZService` ([proto](./.proto/kannon/admin/apiv1/hz.proto))
+  - `HZ`: per-dependency status map, `"OK"` or the error string
 
 ### Authentication
 
-All gRPC APIs use Basic Auth with your domain and API key:
+> [!WARNING]
+> **Only the Mailer API authenticates.** The Admin API, the Stats APIs and the health service currently accept unauthenticated calls, so anyone who can reach the port can create Domains, mint API Keys and read another tenant's statistics. Do not expose the API port publicly: keep it on an internal network, or put your own authenticating proxy in front of it.
+
+The Mailer API uses Basic Auth with a Domain and one of its API Keys:
 
 ```
 token = base64(<your domain>:<your api key>)
 ```
 
-Pass this in the `Authorization` metadata for gRPC calls:
+Pass it in the `Authorization` header (gRPC metadata):
 
-```json
-{
-  "Authorization": "Basic <your token>"
-}
+```
+Authorization: Basic <your token>
 ```
 
-### Example: SendHTML Request
+An API Key is shown in full **only** in the `CreateAPIKey` response — it is stored hashed, so a lost key must be replaced rather than recovered.
 
-```json
+## Sending Mail
+
+### Bootstrapping a Domain and an API Key
+
+```sh
+# 1. Register the sender Domain. The response carries the DKIM public key to publish.
+curl -sX POST http://localhost:50051/pkg.kannon.admin.apiv1.Api/CreateDomain \
+  -H 'Content-Type: application/json' \
+  -d '{"domain":"mail.yourdomain.com"}'
+
+# 2. Mint an API Key for it. `key` is returned once and never again.
+curl -sX POST http://localhost:50051/pkg.kannon.admin.apiv1.Api/CreateAPIKey \
+  -H 'Content-Type: application/json' \
+  -d '{"domain":"mail.yourdomain.com","name":"backend"}'
+```
+
+### Example: SendHTML
+
+```sh
+TOKEN=$(printf '%s' 'mail.yourdomain.com:<your api key>' | base64)
+
+curl -sX POST http://localhost:50051/pkg.kannon.mailer.apiv1.Mailer/SendHTML \
+  -H 'Content-Type: application/json' \
+  -H "Authorization: Basic $TOKEN" \
+  -d @- <<'JSON'
 {
-  "sender": {
-    "email": "no-reply@yourdomain.com",
-    "alias": "Your Name"
-  },
-  "recipients": ["user@example.com"],
+  "sender": { "email": "no-reply@mail.yourdomain.com", "alias": "Your Name" },
   "subject": "Test",
-  "html": "<h1>Hello</h1><p>This is a test.</p>",
-  "attachments": [
-    { "filename": "file.txt", "content": "base64-encoded-content" }
+  "html": "<html><body><h1>Hello {{ name }}</h1><p>Plan: {{ plan }}</p></body></html>",
+  "recipients": [
+    { "email": "user@example.com", "fields": { "name": "Ada" } },
+    { "email": "other@example.com", "fields": { "name": "Grace" } }
   ],
-  "fields": { "custom": "value" },
-  "headers": {
-    "to": ["visible-recipient@example.com"],
-    "cc": ["cc@example.com"]
-  }
+  "global_fields": { "plan": "pro" },
+  "attachments": [{ "filename": "file.txt", "content": "<base64-encoded-content>" }],
+  "headers": { "to": ["team@example.com"], "cc": ["cc@example.com"] },
+  "scheduled_time": "2026-01-01T09:00:00Z"
+}
+JSON
+```
+
+Fields worth calling out:
+
+- **`recipients`**: a list of objects, not of strings. Each carries its own `fields` (substituted per Delivery) and, optionally, its own `tracking` policy.
+- **`global_fields`**: substituted once into the Batch template, for values shared by every Recipient. Recipient `fields` win where both define a placeholder.
+- **`scheduled_time`**: optional RFC 3339 timestamp; the Batch is held in the Pool until then.
+- **`tracking`**: optional Batch-level [Tracking Policy](docs/adr/0003-tracking-policy-ceiling-defaults-and-intake-resolution.md). It may only narrow the Domain's ceiling; asking for more fails the call.
+
+The response reports what was actually queued, so a partial send needs no polling:
+
+```json
+{
+  "messageId": "...",
+  "templateId": "...",
+  "scheduledTime": "2026-01-01T09:00:00Z",
+  "acceptedCount": 1,
+  "rejectedCount": 1,
+  "rejectedRecipients": [{ "email": "bad@", "reason": "invalid_email" }]
 }
 ```
+
+`reason` is a stable token — `invalid_email`, `tracking_above_ceiling`, `unsupported_tracking_mode`, `unsubscribe_url_unresolved` — and the set grows over time, so treat an unrecognised value as a refusal of unknown cause.
 
 #### Headers
 
@@ -303,16 +380,31 @@ Links a redirect cannot serve are never rewritten and need no attribute: `mailto
 
 #### Open tracking
 
-When the Tracking Policy governing a message allows open tracking, a hidden 1-pixel image is inserted immediately before the closing `</body>` tag. HTML with no closing tag — a bare fragment such as `<h1>Hello</h1>` — has no end of body to place it at, so it is delivered without an open pixel.
+When the Tracking Policy governing a message allows open tracking, a hidden 1-pixel image is inserted immediately before the closing `</body>` tag, served from `https://stats.<your-domain>/o/<token>`. HTML with no closing tag — a bare fragment such as `<h1>Hello</h1>` — has no end of body to place it at, so it is delivered without an open pixel.
 
-See the [proto files](./proto/kannon/) for all fields and options.
+See the [proto files](./.proto/kannon/) for all fields and options.
+
+### Reading statistics
+
+```sh
+# Raw per-Delivery events (v1)
+curl -sX POST http://localhost:50051/kannon.StatsApiV1/GetStats \
+  -H 'Content-Type: application/json' \
+  -d '{"domain":"mail.yourdomain.com","take":50}'
+
+# Hourly aggregates (v2)
+curl -sX POST http://localhost:50051/kannon.stats.apiv2.StatsApiV2/GetAggregatedStats \
+  -H 'Content-Type: application/json' \
+  -d '{"domain":"mail.yourdomain.com"}'
+```
 
 ## Deployment
 
 ### Kubernetes
 
-- See [`k8s/deployment.yaml`](k8s/deployment.yaml) for a production-ready manifest.
-- Configure your environment via a mounted YAML file or environment variables.
+- See [`k8s/deployment.yaml`](k8s/deployment.yaml) for a starting manifest: it runs every component in one pod and exposes the API (50051), the Tracker (8080) and the inbound SMTP listener (25).
+- Supply a ConfigMap named `kannon-config` with a `config.yaml` key. The manifest mounts it at `/etc/kannon`, and Kannon exits at boot if it is missing — most settings cannot be set from the environment.
+- Terminate TLS in front of the Tracker: tracking URLs are always `https://stats.<your-domain>/…` while the Tracker itself serves plain HTTP.
 
 ### Docker Compose
 
@@ -320,19 +412,17 @@ See the [proto files](./proto/kannon/) for all fields and options.
 
 ## Domain & DNS Setup
 
-To send mail, you must register a sender domain and configure DNS:
+To send mail, you must register a sender domain and configure DNS. In the records below, `<SENDER_NAME>` is `sender.hostname` from your config, and `<YOUR_DOMAIN>` is the Domain registered through the Admin API:
 
-1. Register a domain via the Admin API
+1. Register a domain via the Admin API (`CreateDomain`) and keep the `dkim_pub_key` it returns
 2. Set up DNS records:
    - **A record**: `<SENDER_NAME>` → your server IP
    - **Reverse DNS**: your server IP → `<SENDER_NAME>`
-   - **SPF TXT**: `<SENDER_NAME>` → `v=spf1 ip4:<YOUR SENDER IP> -all`
-   - **DKIM TXT**: `smtp._domainkey.<YOUR_DOMAIN>` → `k=rsa; p=<YOUR DKIM KEY HERE>`
+   - **SPF TXT**: `<YOUR_DOMAIN>` → `v=spf1 ip4:<YOUR SENDER IP> -all`
+   - **DKIM TXT**: `kannon._domainkey.<YOUR_DOMAIN>` → `k=rsa; p=<dkim_pub_key>`
+   - **A record**: `stats.<YOUR_DOMAIN>` → the host serving the Tracker, if you use open/click tracking (tracking URLs are always built as `https://stats.<YOUR_DOMAIN>/…`, and the Tracker serves plain HTTP on `tracker.port`, so terminate TLS in front of it)
 
-## Sending Mail
-
-- Use the gRPC API (`SendHTML` or `SendTemplate`) with Basic Auth as above.
-- See the [proto file](./proto/kannon/mailer/apiv1/mailerapiv1.proto) for all fields and options.
+> The DKIM selector is fixed to `kannon`.
 
 ## Testing & Demo Mode
 
@@ -345,7 +435,7 @@ Kannon includes a **demo sender mode** for testing and development without actua
 
 ### Enabling Demo Mode
 
-Set `sender.demo_sender: true` in your configuration:
+Set `sender.demo_sender: true` in your config file — there is no CLI flag or env var for it:
 
 ```yaml
 sender:
@@ -354,21 +444,21 @@ sender:
   demo_sender: true # Enable demo sender mode
 ```
 
-Or via environment variable:
+Then start Kannon as usual:
 
-```bash
-export K_SENDER_DEMO_SENDER=true
+```sh
+./kannon --run-api --run-sender --run-dispatcher --run-validator --run-stats --config ./config.yaml
 ```
 
 ### Demo Sender Behavior
 
 When demo mode is enabled:
 
-- **Emails are not actually sent** - they're processed through the pipeline but not delivered
-- **Statistics are still collected** - you can track delivery attempts and errors.
-- **Error simulation** - emails containing "error" in the recipient address will simulate delivery failures
-- **Full pipeline testing** - all components (API, dispatcher, sender, stats) work normally
-- **Template processing** - HTML templates and custom fields are processed correctly
+- **Emails are not actually sent** — they're processed through the pipeline but not delivered
+- **Statistics are still collected** — you can track delivery attempts and errors
+- **Error simulation** — a recipient address containing `error` yields a retryable SMTP failure (code 512)
+- **Full pipeline testing** — all components (API, validator, dispatcher, sender, stats) work normally
+- **Template processing** — HTML templates and custom fields are processed correctly
 
 This mode mocks the SMTP client and does not actually send emails.
 
@@ -377,21 +467,19 @@ This mode mocks the SMTP client and does not actually send emails.
 - mock opens, clicks, etc.
 - mock bounce, spam, etc.
 
-### Example: Testing with Demo Mode
+### Local Environment for Integration Development
 
-```bash
-# Start Kannon with demo sender enabled
-./kannon --run-api --run-sender --run-dispatcher \
-  --sender-demo-sender \
-  --sender-hostname test.example.com \
-  --config ./config.yaml
+The [`examples/docker-compose/`](examples/docker-compose/) stack is the fastest way to develop against Kannon: it starts PostgreSQL, NATS, a one-shot migrator, and Kannon with every component enabled and `demo_sender: true`.
 
-# Send test emails via API
-# Emails will be processed but not actually sent
-# Statistics will be collected normally
+```sh
+docker compose -f examples/docker-compose/docker-compose.yaml up -d
 ```
 
-This makes it easy to test your email integration without setting up SMTP servers or worrying about deliverability during development.
+The API is then available at `localhost:50051`. Follow [Sending Mail](#sending-mail) to create a Domain, mint an API Key, send, and read the stats back — the whole pipeline runs, statistics are collected, and nothing leaves your machine.
+
+To customise it, edit `examples/docker-compose/kannon.yaml` (Kannon config) or `examples/docker-compose/docker-compose.yaml` (infrastructure), then `docker compose … down && docker compose … up`.
+
+When moving to production, set `demo_sender: false` and make sure outbound port 25 is reachable. Your integration code does not change.
 
 ## Development & Contributing
 
@@ -410,129 +498,22 @@ We welcome contributions! Please:
 - **[REPOSITORY_GUIDE.md](docs/REPOSITORY_GUIDE.md)** — PostgreSQL repository implementation patterns
 - **[UPGRADING.md](docs/UPGRADING.md)** — Behaviour changes an existing installation needs to know about, and how to restore the previous behaviour
 - **[docs/adr/](docs/adr/)** — Architecture Decision Records, with the alternatives that were rejected
+- **[e2e/README.md](e2e/README.md)** — How the end-to-end suite wires real Postgres, NATS and a capturing SMTP server
 - **[CLAUDE.md](CLAUDE.md)** — AI assistant guidance for working with the codebase
 
 ### Local Development
 
 - Build: `go build -o kannon .`
-- Test: `make test` or `go test ./...`
-- Generate code: `make generate`
+- Test: `make test`
+- End-to-end: `make test-e2e`
+- Generate code: `make generate` (`sqlc` + `buf`)
 - Lint: `make lint`
 
 ### Testing
 
-- Unit and integration tests are in `internal/`, `pkg/`, and run with `go test ./...`
-- Some tests use Docker to spin up a test Postgres instance
-- **E2E tests** include comprehensive email sending pipeline testing with demo sender mode
-
----
-
-## Local Testing for Integrations Development
-
-For developers building integrations with Kannon, we provide a complete local testing environment using Docker Compose with demo sender mode. This allows you to test the entire email pipeline without actually sending emails or requiring SMTP server setup.
-
-### Quick Start with Docker Compose
-
-The simplest way to get started is using the provided Docker Compose configuration:
-
-```bash
-cd examples/docker-compose/
-docker-compose up
-```
-
-This will start:
-
-- **PostgreSQL database** with automatic migrations
-- **NATS server** for internal messaging
-- **Kannon server** with all components enabled and **demo sender mode activated**
-
-The API will be available at `localhost:50051` (gRPC).
-
-### Demo Sender Mode Benefits
-
-When using the docker-compose setup, demo sender mode is automatically enabled (`demo_sender: true` in `kannon.yaml`), which means:
-
-- ✅ **Complete pipeline testing** - All API endpoints, template processing, and statistics work normally
-- ✅ **No real emails sent** - Safe for development and testing environments
-- ✅ **Statistics collection** - Track delivery attempts, errors, and metrics
-- ✅ **Error simulation** - Recipients containing "error" will simulate delivery failures
-- ✅ **Template processing** - HTML templates, custom fields, and attachments work correctly
-- ✅ **Authentication testing** - Full gRPC API authentication flow
-
-### Configuration
-
-The demo environment uses the configuration in `examples/docker-compose/kannon.yaml`:
-
-```yaml
-sender:
-  hostname: kannon.ludusrusso.dev
-  max_jobs: 100
-  demo_sender: true # Mock SMTP sending
-
-# All components enabled for full testing
-run-smtp: true
-run-tracker: true
-run-dispatcher: true
-run-validator: true
-run-sender: true
-run-api: true
-run-stats: true
-```
-
-### Testing Your Integration
-
-1. **Start the environment:**
-
-   ```bash
-   cd examples/docker-compose/
-   docker-compose up -d
-   ```
-
-2. **Create a test domain** (using grpcurl or your gRPC client):
-
-   ```bash
-   # Register a domain for testing
-   grpcurl -plaintext -d '{"domain":"test.example.com"}' \
-     localhost:50051 kannon.admin.apiv1.AdminApiV1Service/CreateDomain
-   ```
-
-3. **Send test emails** via the API:
-
-   ```bash
-   # Send HTML email (will be processed but not actually sent)
-   grpcurl -plaintext \
-     -H "Authorization: Basic $(echo -n 'test.example.com:your-domain-key' | base64)" \
-     -d '{"sender":{"email":"test@test.example.com","alias":"Test"},"recipients":["user@example.com"],"subject":"Test Email","html":"<h1>Hello World</h1>"}' \
-     localhost:50051 kannon.mailer.apiv1.MailerApiV1Service/SendHTML
-   ```
-
-4. **Check statistics:**
-   ```bash
-   # View delivery stats (will show processed emails)
-   grpcurl -plaintext \
-     -H "Authorization: Basic $(echo -n 'test.example.com:your-domain-key' | base64)" \
-     localhost:50051 kannon.stats.apiv1.StatsApiV1Service/GetStats
-   ```
-
-### Integration Development Workflow
-
-1. **Develop against the local API** - Use `localhost:50051` as your Kannon endpoint
-2. **Test email templates** - Use `SendTemplate` API with your template designs
-3. **Verify statistics** - Check that your integration correctly handles delivery stats
-4. **Test error scenarios** - Send emails to recipients containing "error" to simulate failures
-5. **Validate attachments** - Test file attachments and custom fields functionality
-
-### Customizing the Environment
-
-To modify the demo environment:
-
-1. **Edit `examples/docker-compose/kannon.yaml`** for Kannon configuration
-2. **Edit `examples/docker-compose/docker-compose.yaml`** for infrastructure changes
-3. **Restart the environment:** `docker-compose down && docker-compose up`
-
-### Production Transition
-
-When ready for production, simply change `demo_sender: false` in your configuration and provide real SMTP credentials. Your integration code remains unchanged.
+- Unit and integration tests live next to the code in `internal/`, `pkg/` and `x/`; `make test` runs them with `-race -short`
+- Some tests use Docker to spin up a test Postgres instance, and are skipped by `-short`
+- **E2E tests** in [`e2e/`](e2e/) exercise the whole sending pipeline with the demo sender
 
 ## License
 
