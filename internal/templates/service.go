@@ -23,9 +23,15 @@ import (
 // never went through values.Parse would be a second name for one Domain and the
 // whole path model rests on there being one (ADR 0008).
 //
-// The Mailer API deliberately does not come through here: it writes transient
-// Templates as part of a send it has already authenticated by API Key, and
-// wiring its Principal is the next slice. It holds the Repository directly.
+// The Mailer API deliberately does not come through here, and now that it resolves
+// a Principal of its own the reason is worth stating plainly rather than left as a
+// wiring accident. A send writes a transient Template — the rendered body of that
+// one Batch, addressable by nobody — and the authority a send needs is create on
+// the Domain's Batches. A key's sender Grant holds exactly that and no authority
+// over Templates at all, so routing the transient write through this Service would
+// refuse every send. The transient Template is part of the Batch rather than a
+// Template the caller authored, so the Mailer API holds the Repository directly and
+// the guard on the send is what authorizes it.
 type Service struct {
 	repo Repository
 }

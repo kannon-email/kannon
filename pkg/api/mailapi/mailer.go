@@ -13,6 +13,8 @@ import (
 	"connectrpc.com/connect"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/kannon-email/kannon/internal/apikeys"
+	"github.com/kannon-email/kannon/internal/authz"
+	"github.com/kannon-email/kannon/internal/authzconnect"
 	"github.com/kannon-email/kannon/internal/batch"
 	sqlc "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/delivery"
@@ -44,7 +46,7 @@ type mailAPIService struct {
 }
 
 func (s mailAPIService) SendHTML(ctx context.Context, req *connect.Request[pb.SendHTMLReq]) (*connect.Response[pb.SendRes], error) {
-	domain, err := s.getCallDomainFromHeaders(ctx, req.Header())
+	ctx, domain, err := s.authenticate(ctx, req.Header())
 	if err != nil {
 		return nil, errors.New("invalid or wrong auth")
 	}
@@ -74,7 +76,7 @@ func (s mailAPIService) SendHTML(ctx context.Context, req *connect.Request[pb.Se
 }
 
 func (s mailAPIService) SendTemplate(ctx context.Context, req *connect.Request[pb.SendTemplateReq]) (*connect.Response[pb.SendRes], error) {
-	domain, err := s.getCallDomainFromHeaders(ctx, req.Header())
+	ctx, domain, err := s.authenticate(ctx, req.Header())
 	if err != nil {
 		return nil, errors.New("invalid or wrong auth")
 	}
@@ -99,10 +101,33 @@ func (s mailAPIService) sendTemplate(ctx context.Context, domain *domains.Domain
 		return nil, fmt.Errorf("cannot create template %w", err)
 	}
 
-	if err := validateSender(req.Msg.Sender, domain.Domain()); err != nil {
+	from, err := senderAddressOf(req.Msg.Sender)
+	if err != nil {
 		return nil, err
 	}
 
+	// Sending is create on a Domain's Batches (ADR 0008), so the authority a send
+	// needs is asked for here, once, by the guard — the explicit comparison of the
+	// From domain against the authenticated tenant that used to stand on this line
+	// is gone, and with it the possibility of the two mechanisms disagreeing.
+	res, err := authz.Guard(ctx, authz.Create, senderBatches(from.canonical, domain.Name()),
+		func() (*connect.Response[pb.SendRes], error) {
+			return s.createBatch(ctx, domain, template, req)
+		})
+	if err != nil {
+		return nil, sendError(err, from.host, domain.Domain())
+	}
+	return res, nil
+}
+
+// createBatch is the send itself, performed only once the caller has been
+// authorized to make it.
+//
+// It is a function of its own so that the guard wraps the whole of it: "check,
+// then proceed" is then one expression with nothing to fall through, and a refused
+// send cannot have created a Batch row or scheduled a Delivery on its way to being
+// refused.
+func (s mailAPIService) createBatch(ctx context.Context, domain *domains.Domain, template *templates.Template, req *connect.Request[pb.SendTemplateReq]) (*connect.Response[pb.SendRes], error) {
 	sender := batch.Sender{
 		Email: req.Msg.Sender.Email,
 		Alias: req.Msg.Sender.Alias,
@@ -371,24 +396,40 @@ func (s mailAPIService) createTransientTemplate(ctx context.Context, domain valu
 	return tpl, nil
 }
 
-func (s mailAPIService) getCallDomainFromHeaders(ctx context.Context, headers http.Header) (*domains.Domain, error) {
+// authenticate resolves the credential on an incoming request into the Domain it
+// belongs to and a context carrying that credential's Principal.
+//
+// HTTP Basic carrying <fqdn>:<key>. This is the one place in this package that
+// knows a credential was verified, so it is where the Principal is planted; every
+// guard downstream reads it from the context and nothing else in this package puts
+// one there.
+//
+// It returns the context rather than the Principal so that forgetting to use it
+// fails closed: a handler that dropped it would reach the guard with nothing
+// authenticating the request and every send would be refused, instead of one being
+// performed under an authority nobody resolved.
+//
+// Every refusal is the same error whatever the cause — a username that is not an
+// FQDN, an unknown, expired or deactivated key, a Domain deleted since the key was
+// minted — so that nothing about which Domains or keys exist leaks.
+func (s mailAPIService) authenticate(ctx context.Context, headers http.Header) (context.Context, *domains.Domain, error) {
 	auth := headers.Get("Authorization")
 
 	if !strings.HasPrefix(auth, "Basic ") {
-		return nil, errors.New("invalid auth")
+		return nil, nil, errors.New("invalid auth")
 	}
 
 	token := strings.Replace(auth, "Basic ", "", 1)
 	data, err := base64.StdEncoding.DecodeString(token)
 	if err != nil {
-		return nil, errors.New("invalid auth")
+		return nil, nil, errors.New("invalid auth")
 	}
 
 	authData := string(data)
 
 	parts := strings.Split(authData, ":")
 	if len(parts) != 2 {
-		return nil, errors.New("invalid auth")
+		return nil, nil, errors.New("invalid auth")
 	}
 	domainName, key := parts[0], parts[1]
 
@@ -398,57 +439,194 @@ func (s mailAPIService) getCallDomainFromHeaders(ctx context.Context, headers ht
 	// nothing about which domains exist leaks.
 	callDomain, err := values.Parse(domainName)
 	if err != nil {
-		return nil, errors.New("invalid auth")
+		return nil, nil, errors.New("invalid auth")
 	}
 
 	// Use API key repository for authentication
 	apiKey, err := s.apiKeys.ValidateForAuth(ctx, callDomain, key)
 	if err != nil {
 		// Always return generic error (security requirement)
-		return nil, errors.New("invalid auth")
+		return nil, nil, errors.New("invalid auth")
+	}
+
+	// The key authenticated, so it now says what it may do: sender on its own
+	// Domain and nothing else. A failure here is a Domain that cannot carry an
+	// Anchor — a corrupt row, not a bad request — and the request is refused
+	// rather than continued with a Principal holding less, which would be turned
+	// away by the guard below with a message blaming the caller's From address.
+	principal, err := apiKey.Principal()
+	if err != nil {
+		slog.Error("cannot resolve api key to a principal", "err", err)
+		return nil, nil, errors.New("invalid auth")
 	}
 
 	// Fetch full domain info
 	domain, err := s.domains.FindByName(ctx, apiKey.DomainName())
 	if err != nil {
-		return nil, errors.New("invalid auth")
+		return nil, nil, errors.New("invalid auth")
 	}
 
-	return domain, nil
+	return authz.NewContext(ctx, principal), domain, nil
 }
 
-func validateSender(s *mailertypes.Sender, tenantDomain string) error {
+// senderAddress is a Batch's From address as intake resolved it.
+//
+// Two forms of one host, kept together because both are needed and neither will do
+// for the other's job. canonical is what the authority model compares, since a
+// Resource segment must have exactly one spelling (ADR 0008); host is the text the
+// caller wrote, which is what a refusal quotes back, so that the message a client
+// has always received does not silently change spelling.
+//
+// A host that cannot be a canonical FQDN leaves canonical zero, and that is not an
+// error state for a caller to branch on: the zero FQDN composes a Resource with an
+// empty segment, which nothing covers, so the guard refuses it by the same
+// mechanism and with the same message as a host belonging to somebody else. Which
+// is the right answer — a host no Domain can be spelled as is neither the caller's
+// own Domain nor a parent of it.
+type senderAddress struct {
+	host      string
+	canonical values.DomainName
+}
+
+// senderAddressOf validates a Batch's From address and resolves its host.
+//
+// Everything checked here is a property of the request rather than of the caller's
+// authority: an absent Sender, an Alias that would inject an SMTP header, an
+// address with no host to speak of. Whether the caller may send *as* that host is a
+// different question with a different answer, and the guard asks it.
+func senderAddressOf(s *mailertypes.Sender) (senderAddress, error) {
 	if s == nil {
-		return connect.NewError(connect.CodeInvalidArgument, errors.New("sender is required"))
+		return senderAddress{}, connect.NewError(connect.CodeInvalidArgument, errors.New("sender is required"))
 	}
 	if err := assertHeaderSafe("sender alias", s.Alias); err != nil {
-		return err
+		return senderAddress{}, err
 	}
-	fromDomain, err := smtputils.GetEmailDomain(s.Email)
+	host, err := smtputils.GetEmailDomain(s.Email)
 	if err != nil {
-		return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid sender email %q: %w", s.Email, err))
+		return senderAddress{}, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid sender email %q: %w", s.Email, err))
 	}
-	if !senderDomainAllowed(fromDomain, tenantDomain) {
-		return connect.NewError(connect.CodePermissionDenied,
-			fmt.Errorf("sender domain %q is not authorized for tenant %q", fromDomain, tenantDomain))
-	}
-	return nil
+	return senderAddress{host: host, canonical: canonicalSenderHost(host)}, nil
 }
 
-// senderDomainAllowed reports whether a Sender.Email whose host is fromDomain
-// is permitted for a tenant authenticated as tenantDomain. The sender domain
-// is allowed when it equals the tenant domain or is a parent of it — e.g.
-// tenant "k.example.com" may legitimately send from "@example.com".
-func senderDomainAllowed(fromDomain, tenantDomain string) bool {
-	from := strings.ToLower(strings.TrimSuffix(fromDomain, "."))
-	tenant := strings.ToLower(strings.TrimSuffix(tenantDomain, "."))
-	if from == "" || tenant == "" {
+// canonicalSenderHost canonicalises the host of a From address, or returns the zero
+// FQDN when it is not one.
+//
+// The trailing dot is trimmed before values.Parse, which refuses one. That is not a
+// liberty taken here: the check this replaces already tolerated it (a TrimSuffix in
+// the old senderDomainAllowed), "example.com." and "example.com" are one mail
+// domain to DNS, SMTP and DKIM, and narrowing what a customer may send as is as
+// much a regression as widening it. Lower-casing is values.Parse's own, for the same
+// reason the old code did it.
+//
+// The trimming happens here, at the edge, and not in the authorization layer, which
+// must never normalise anything (ADR 0008): a Grant on "TEST.com" reaching another
+// Domain's data would be the escalation rather than the convenience.
+//
+// One host the old string rule permitted is refused here, and it is unreachable
+// rather than accepted: a single label, which was a suffix of the tenant and so a
+// permitted parent, is not a canonical FQDN — "batches", "stats" and "apikeys" are
+// all valid single-label hostnames and also segments of the Resource tree. No
+// address of the form "a@com" gets past smtputils.Validate, which wants a dot after
+// the "@", so no send ever asked for one. The differential in sender_domain_test.go
+// holds that reasoning to the code: it fails if this or any other difference from
+// the old rule becomes reachable.
+func canonicalSenderHost(host string) values.DomainName {
+	f, err := values.Parse(strings.TrimSuffix(strings.TrimSpace(host), "."))
+	if err != nil {
+		return values.DomainName{}
+	}
+	return f
+}
+
+// senderBatches names the Resource a send must hold Create on for its From host to
+// be permitted.
+//
+// Normally that is the host's own Batches. Sending is create on a Domain's Batches
+// (ADR 0008) and the From host is what says which Domain the mail goes out as, so a
+// key — sender anchored on its own Domain, whose one rule composes
+// domains/<own>/batches — reaches domains/<host>/batches under prefix domination
+// exactly when the host *is* its own Domain. That single check is the whole of the
+// cross-Domain refusal an explicit tenant comparison used to perform here, now
+// performed by the one matcher that answers every other question about authority in
+// the system.
+//
+// The exception is the parent-domain allowance, which Kannon has always granted and
+// which the path model cannot express: a tenant authenticated as k.example.com may
+// send from @example.com. Those are two Resources differing in their second
+// segment, and prefix domination compares segments while this rule is hostname
+// suffix matching, so no Anchor covers both. Two ways to fold it into the model were
+// considered and rejected:
+//
+//   - Give the key a second Grant on the parent Domain. That is real authority over
+//     another Domain's Batches — a Domain that may belong to another customer — and
+//     every future guard on that path would honour it, not only this one. ADR 0008
+//     is explicit that an API Key carries exactly one fixed Grant.
+//   - Teach the matcher about hostnames. It is the single matcher in the system, so
+//     that would change the meaning of every Grant ever issued, in a layer whose
+//     whole discipline is that it compares and never interprets.
+//
+// So the parent case is authorized against the caller's *own* Batches, which is what
+// this returns for it. What the guard then verifies is precisely the authority the
+// caller holds, so the allowance widens which host may appear in From and can never
+// widen who may send: a Principal that may not send for its own Domain is refused
+// here too — which the old comparison, reached only after authentication and
+// consulting no authority at all, could not manage.
+func senderBatches(from, tenant values.DomainName) authz.Resource {
+	if isParentDomain(from, tenant) {
+		return authz.Batches(tenant)
+	}
+	return authz.Batches(from)
+}
+
+// isParentDomain reports whether from is a proper parent of tenant, in the sense
+// DNS gives the word: the parent of a.b.example.com is b.example.com, and so on up.
+// The last label alone is not among them, since it cannot be a canonical FQDN —
+// see canonicalSenderHost for why nothing ever asks.
+//
+// Proper, so equality is left to the guard. The two clauses of the rule must not
+// overlap, or the exception would be quietly doing the guard's work and a change to
+// the authority model would leave no trace here.
+//
+// Both arguments are canonical, so this compares and never normalises: the
+// lower-casing and trailing-dot trimming the old string version performed have
+// already happened at the edge. The zero FQDN is nobody's parent, so a host that
+// could not be canonicalised reaches the guard's refusal rather than this
+// allowance.
+func isParentDomain(from, tenant values.DomainName) bool {
+	if from.IsZero() || tenant.IsZero() {
 		return false
 	}
-	if from == tenant {
-		return true
+	return strings.HasSuffix(tenant.String(), "."+from.String())
+}
+
+// sendError renders whatever the guarded send returned as the error its caller
+// receives.
+//
+// An authorization refusal keeps the code and the wording the explicit tenant
+// comparison produced — permission denied, `sender domain %q is not authorized for
+// tenant %q`, the host quoted as the caller wrote it — deliberately and to the
+// letter. What refuses a cross-Domain sender has changed; a client branching on the
+// code, or matching the message, must not be able to tell.
+//
+// ErrNoPrincipal is unreachable through either handler, since both authenticate
+// first and authentication is what plants the Principal. It is rendered apart from
+// the refusal above rather than folded into it because the two are different
+// operational problems, and authzconnect.Error is where that difference is logged:
+// were a future path ever to reach a send without authenticating, the log should say
+// so instead of blaming the caller's From address.
+//
+// Everything else is returned exactly as it arrived, so every other Connect code a
+// send can produce is untouched.
+func sendError(err error, host, tenant string) error {
+	switch {
+	case errors.Is(err, authz.ErrForbidden):
+		return connect.NewError(connect.CodePermissionDenied,
+			fmt.Errorf("sender domain %q is not authorized for tenant %q", host, tenant))
+	case errors.Is(err, authz.ErrNoPrincipal):
+		return authzconnect.Error(err, connect.CodePermissionDenied)
+	default:
+		return err
 	}
-	return strings.HasSuffix(tenant, "."+from)
 }
 
 // assertHeaderSafe rejects strings containing CR or LF, which would let an

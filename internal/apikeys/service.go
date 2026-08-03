@@ -111,8 +111,8 @@ func (s *Service) DeactivateKey(ctx context.Context, ref KeyRef) (*APIKey, error
 // nothing on failure — every refusal is the same ErrKeyNotFound, so a caller
 // cannot use it to learn which keys exist.
 //
-// Wrapping the key it returns in a Principal carrying a sender Grant on the key's
-// own Domain belongs to the slice that authorizes the Mailer API.
+// The key it returns says what it may do through Principal (principal.go), which
+// the Mailer API calls the moment this succeeds.
 func (s *Service) ValidateForAuth(ctx context.Context, domain values.DomainName, key string) (*APIKey, error) {
 	// Hash the plaintext key before repo lookup
 	keyHash := HashKey(key)

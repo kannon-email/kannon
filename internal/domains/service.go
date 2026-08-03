@@ -18,8 +18,10 @@ import (
 // translation — parse the wire, render the response.
 //
 // The Mailer API deliberately does not come through here. It resolves the calling
-// Domain from an API Key it has already authenticated, and its Principal is the
-// next slice; it holds the Repository directly.
+// Domain from an API Key it has already authenticated, so the read is part of
+// authentication rather than an operation a caller asked for — and a key's sender
+// Grant does not hold read on its own Domain anyway, so guarding that lookup would
+// refuse every send. It holds the Repository directly.
 type Service struct {
 	repo Repository
 }
