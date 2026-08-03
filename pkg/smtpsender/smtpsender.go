@@ -227,6 +227,16 @@ func (s *smtpSender) handleSendError(sendErr smtp.SenderError, data *msgtypes.Em
 		Timestamp: timestamppb.Now(),
 	}
 	if !data.ShouldRetry || sendErr.IsPermanent() {
+		// Permanent below still reads sendErr.IsPermanent(), not the reason
+		// this branch was taken: a 4xx that lands here because ShouldRetry
+		// is already false is terminal for us, but it is not evidence the
+		// address is dead, and Bounced.Permanent tracks the SMTP reply
+		// class, never the retry decision. #378 read this as the wrong flag
+		// at retry exhaustion; #433 re-specified `permanent` to follow the
+		// reply class on both the synchronous and asynchronous path
+		// (CONTEXT.md, Bounced), which is exactly what this line already
+		// did. "Fixing" it would regress the async 4xx assertions in
+		// e2e/e2e_test.go.
 		msg.Data = &statstypes.StatsData{
 			Data: &statstypes.StatsData_Bounced{
 				Bounced: &statstypes.StatsDataBounced{

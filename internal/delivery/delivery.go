@@ -16,6 +16,13 @@ var (
 	ErrDeliveryNotFound = errors.New("delivery not found")
 )
 
+// DefaultRetryWindow is the Retry Budget a Delivery is given when its caller
+// states none: 24 hours from the moment its Batch asked for it to be sent
+// (CONTEXT.md, *Retry Budget*). It reproduces the reach of the retry cap it
+// replaced and coincides with the MaxAge of the kannon-sending stream, past
+// which an Envelope cannot survive anyway (ADR 0007).
+const DefaultRetryWindow = 24 * time.Hour
+
 // Delivery is the per-recipient transmission unit of a Batch.
 type Delivery struct {
 	batchID               batch.ID
@@ -26,6 +33,7 @@ type Delivery struct {
 	scheduledTime         time.Time
 	originalScheduledTime time.Time
 	backoff               BackoffPolicy
+	retryWindow           time.Duration
 	tracking              tracking.Policy
 }
 
@@ -37,6 +45,9 @@ type NewParams struct {
 	Domain        string
 	ScheduledTime time.Time
 	Backoff       BackoffPolicy
+	// RetryWindow is this Delivery's Retry Budget. Zero substitutes
+	// DefaultRetryWindow, on the same terms as Backoff.
+	RetryWindow time.Duration
 	// Tracking is the effective Tracking Policy for this Delivery, already
 	// resolved by the caller at intake (ADR 0003).
 	Tracking tracking.Policy
@@ -63,6 +74,7 @@ func New(p NewParams) (*Delivery, error) {
 		scheduledTime:         p.ScheduledTime,
 		originalScheduledTime: p.ScheduledTime,
 		backoff:               policyOrDefault(p.Backoff),
+		retryWindow:           windowOrDefault(p.RetryWindow),
 		tracking:              p.Tracking.Normalized(),
 	}, nil
 }
@@ -77,6 +89,7 @@ type LoadParams struct {
 	ScheduledTime         time.Time
 	OriginalScheduledTime time.Time
 	Backoff               BackoffPolicy
+	RetryWindow           time.Duration
 	Tracking              tracking.Policy
 }
 
@@ -91,6 +104,7 @@ func Load(p LoadParams) *Delivery {
 		scheduledTime:         p.ScheduledTime,
 		originalScheduledTime: p.OriginalScheduledTime,
 		backoff:               policyOrDefault(p.Backoff),
+		retryWindow:           windowOrDefault(p.RetryWindow),
 		tracking:              p.Tracking,
 	}
 }
@@ -120,9 +134,38 @@ func (d *Delivery) NextRetryAt() time.Time {
 	return d.originalScheduledTime.Add(d.backoff.Delay(d.sendAttempts))
 }
 
+// CanRetry reports whether this Delivery may be attempted again: the next
+// retry must still fall inside the Retry Budget window.
+//
+// This is the one predicate that stops a Delivery being tried, consulted by
+// every path that hands one back to the Pool (ADR 0007). It replaces the
+// maxRetry = 10 constant that used to live in internal/envelope, and admits
+// exactly the same retries: under DefaultBackoff the tenth retry falls at
+// 2m·2⁹ = 17h04m, inside the 24h window, and the eleventh at 2m·2¹⁰ = 34h08m,
+// outside it.
+//
+// It takes no clock. Both instants derive from originalScheduledTime, so the
+// predicate reduces to backoff.Delay(sendAttempts) < retryWindow — deterministic
+// in tests, and indifferent to how late the Delivery is being handled. That is
+// the non-obvious virtue of measuring the budget from the Batch's own scheduled
+// time: a Dispatcher that was down for three days does not mass-terminate the
+// Batch it finds waiting on resumption, and a Delivery always gets at least one
+// attempt however late it is offered one — by construction, not by a special
+// case for the first attempt.
+func (d *Delivery) CanRetry() bool {
+	return d.NextRetryAt().Before(d.originalScheduledTime.Add(d.retryWindow))
+}
+
 func policyOrDefault(p BackoffPolicy) BackoffPolicy {
 	if p == nil {
 		return DefaultBackoff
 	}
 	return p
+}
+
+func windowOrDefault(w time.Duration) time.Duration {
+	if w <= 0 {
+		return DefaultRetryWindow
+	}
+	return w
 }

@@ -239,6 +239,11 @@ func TestDetermineType(t *testing.T) {
 		{"clicked", &types.StatsData{Data: &types.StatsData_Clicked{}}, stats.TypeClicked},
 		{"bounced", &types.StatsData{Data: &types.StatsData_Bounced{}}, stats.TypeBounce},
 		{"error", &types.StatsData{Data: &types.StatsData_Error{}}, stats.TypeError},
+		// Failed is the absence of any reply at all — a Delivery whose retry
+		// budget ran out without a single attempt ever being answered
+		// (CONTEXT.md, Failed / ADR 0007). Before this case existed it fell
+		// through to TypeUnknown like any unmapped variant.
+		{"failed", &types.StatsData{Data: &types.StatsData_Failed{}}, stats.TypeFailed},
 	}
 
 	for _, tt := range tests {

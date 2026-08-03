@@ -12,5 +12,6 @@ const (
 	StatsTypeClicked   StatsType = "clicked"
 	StatsTypeBounce    StatsType = "bounced"
 	StatsTypeError     StatsType = "error"
+	StatsTypeFailed    StatsType = "failed"
 	StatsTypeUnknown   StatsType = "unknown"
 )

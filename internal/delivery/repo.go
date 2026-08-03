@@ -2,9 +2,39 @@ package delivery
 
 import (
 	"context"
+	"time"
 
 	"github.com/kannon-email/kannon/internal/batch"
 )
+
+// InFlight names the operation a worker has claimed a Delivery for. There are
+// exactly two, one per claiming worker, and the value alone determines both
+// where a claim of that kind was taken from and whether handing the Delivery
+// back counts as a spent send attempt — so a caller cannot pair the wrong
+// status with the wrong bump.
+type InFlight uint8
+
+const (
+	// InFlightForDispatch is a Delivery the Dispatcher has claimed for
+	// transmission (see Repository.PrepareForSend).
+	InFlightForDispatch InFlight = iota + 1
+
+	// InFlightForValidation is a Delivery the Validator has claimed for
+	// address validation (see Repository.PrepareForValidate).
+	InFlightForValidation
+)
+
+// String names the claim for logs.
+func (f InFlight) String() string {
+	switch f {
+	case InFlightForDispatch:
+		return "dispatch"
+	case InFlightForValidation:
+		return "validation"
+	default:
+		return "unknown"
+	}
+}
 
 // Repository persists Delivery entities (per-recipient sending pool rows).
 type Repository interface {
@@ -33,4 +63,17 @@ type Repository interface {
 
 	// Clean removes a terminated Delivery.
 	Clean(ctx context.Context, batchID batch.ID, email string) error
+
+	// ReclaimStranded hands back to the pool up to max Deliveries that have
+	// been claimed for f since longer ago than olderThan, and returns them as
+	// they now stand — pre-claim state, no claim held, attempt counter bumped
+	// if a claim of that kind spends one.
+	//
+	// olderThan is measured from the moment of the claim, never from the
+	// scheduled time: a claim does not move the scheduled time, so under a
+	// backlog a Delivery claimed one second ago looks hours overdue.
+	//
+	// It recovers; it never terminates. Only the Retry Budget ends a Delivery
+	// (ADR 0007).
+	ReclaimStranded(ctx context.Context, f InFlight, olderThan time.Duration, max int) ([]*Delivery, error)
 }

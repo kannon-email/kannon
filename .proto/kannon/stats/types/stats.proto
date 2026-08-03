@@ -48,7 +48,12 @@ message StatsDataRejected {
 
 message StatsDataDelivered {}
 
-message StatsDataFailed {}
+// Failed is a Delivery whose retry budget ran out without a single attempt
+// ever being answered, so there is no reply to classify: deliberately no
+// `code`, only a `reason`, like Rejected.
+message StatsDataFailed {
+  string reason = 1;
+}
 
 message StatsDataBounced {
   bool permanent = 1;

@@ -62,6 +62,17 @@ type AggregatedStat struct {
 	Count     int64
 }
 
+type AggregatedStatsCutoff struct {
+	Ts pgtype.Timestamp
+}
+
+type AggregatedStatsHourly struct {
+	Domain    string
+	Timestamp pgtype.Timestamp
+	Type      string
+	Count     int64
+}
+
 type ApiKey struct {
 	ID            string
 	Name          string
@@ -107,6 +118,7 @@ type SendingPoolEmail struct {
 	CreatedAt             pgtype.Timestamp
 	Domain                string
 	Tracking              tracking.Policy
+	ClaimedAt             pgtype.Timestamp
 }
 
 type Stat struct {

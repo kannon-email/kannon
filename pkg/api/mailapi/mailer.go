@@ -36,6 +36,10 @@ type mailAPIService struct {
 	batches    batch.Repository
 	deliveries delivery.Repository
 	backoff    delivery.BackoffPolicy
+	// retryWindow is the Retry Budget stamped on every Delivery created at
+	// intake. It travels with backoff so a fresh Delivery cannot carry a
+	// different budget from the same Delivery once rehydrated from its row.
+	retryWindow time.Duration
 }
 
 func (s mailAPIService) SendHTML(ctx context.Context, req *connect.Request[pb.SendHTMLReq]) (*connect.Response[pb.SendRes], error) {
@@ -258,6 +262,7 @@ func (s mailAPIService) scheduleBatch(ctx context.Context, domain *domains.Domai
 			Domain:        b.Domain(),
 			ScheduledTime: scheduled,
 			Backoff:       s.backoff,
+			RetryWindow:   s.retryWindow,
 			Tracking:      policy,
 		})
 		if err != nil {
@@ -509,20 +514,21 @@ func validateHeaders(h *mailertypes.Headers) (batch.Headers, error) {
 	return batch.Headers{To: h.To, Cc: h.Cc}, nil
 }
 
-func NewMailerAPIV1(db *pgxpool.Pool, backoff delivery.BackoffPolicy) mailerv1connect.MailerHandler {
+func NewMailerAPIV1(db *pgxpool.Pool, backoff delivery.BackoffPolicy, retryWindow time.Duration) mailerv1connect.MailerHandler {
 	domainsCli := sqlc.NewDomainsRepository(db)
 	apiKeysRepo := sqlc.NewAPIKeysRepository(db)
 	apiKeysService := apikeys.NewService(apiKeysRepo)
 	batchRepo := sqlc.NewBatchRepository(db)
-	deliveryRepo := sqlc.NewDeliveryRepository(db, backoff)
+	deliveryRepo := sqlc.NewDeliveryRepository(db, backoff, retryWindow)
 	templatesRepo := sqlc.NewTemplatesRepository(db)
 
 	return &mailAPIService{
-		domains:    domainsCli,
-		apiKeys:    apiKeysService,
-		batches:    batchRepo,
-		deliveries: deliveryRepo,
-		templates:  templatesRepo,
-		backoff:    backoff,
+		domains:     domainsCli,
+		apiKeys:     apiKeysService,
+		batches:     batchRepo,
+		deliveries:  deliveryRepo,
+		templates:   templatesRepo,
+		backoff:     backoff,
+		retryWindow: retryWindow,
 	}
 }

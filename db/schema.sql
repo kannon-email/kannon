@@ -1,3 +1,5 @@
+\restrict dbmate
+
 -- Dumped from database version 17.6 (Homebrew)
 -- Dumped by pg_dump version 17.6 (Homebrew)
 
@@ -235,7 +237,8 @@ CREATE TABLE public.sending_pool_emails (
     status character varying(100) DEFAULT 'initializing'::character varying NOT NULL,
     created_at timestamp without time zone DEFAULT now() NOT NULL,
     domain character varying NOT NULL,
-    tracking jsonb DEFAULT '{"links": "identified", "opens": "identified"}'::jsonb NOT NULL
+    tracking jsonb DEFAULT '{"links": "identified", "opens": "identified"}'::jsonb NOT NULL,
+    claimed_at timestamp without time zone
 );
 
 
@@ -606,6 +609,13 @@ CREATE INDEX messages_message_id_idx ON public.messages USING btree (message_id)
 
 
 --
+-- Name: sending_pool_emails_status_claimed_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sending_pool_emails_status_claimed_at_idx ON public.sending_pool_emails USING btree (status, claimed_at) WHERE ((status)::text = ANY ((ARRAY['sending'::character varying, 'validating'::character varying])::text[]));
+
+
+--
 -- Name: sending_pool_emails_status_scheduled_time_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -712,6 +722,8 @@ ALTER TABLE ONLY public.sending_pool_emails
 -- PostgreSQL database dump complete
 --
 
+\unrestrict dbmate
+
 
 --
 -- Dbmate schema migrations
@@ -734,4 +746,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20260214120002'),
     ('20260509102644'),
     ('20260726084414'),
-    ('20260727071416');
+    ('20260727071416'),
+    ('20260803094036');

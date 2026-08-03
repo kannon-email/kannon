@@ -474,8 +474,12 @@ func (*StatsDataDelivered) Descriptor() ([]byte, []int) {
 	return file_kannon_stats_types_stats_proto_rawDescGZIP(), []int{5}
 }
 
+// Failed is a Delivery whose retry budget ran out without a single attempt
+// ever being answered, so there is no reply to classify: deliberately no
+// `code`, only a `reason`, like Rejected.
 type StatsDataFailed struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Reason        string                 `protobuf:"bytes,1,opt,name=reason,proto3" json:"reason,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -508,6 +512,13 @@ func (x *StatsDataFailed) ProtoReflect() protoreflect.Message {
 // Deprecated: Use StatsDataFailed.ProtoReflect.Descriptor instead.
 func (*StatsDataFailed) Descriptor() ([]byte, []int) {
 	return file_kannon_stats_types_stats_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *StatsDataFailed) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
 }
 
 type StatsDataBounced struct {
@@ -765,8 +776,9 @@ const file_kannon_stats_types_stats_proto_rawDesc = "" +
 	"\x11StatsDataAccepted\"+\n" +
 	"\x11StatsDataRejected\x12\x16\n" +
 	"\x06reason\x18\x01 \x01(\tR\x06reason\"\x14\n" +
-	"\x12StatsDataDelivered\"\x11\n" +
-	"\x0fStatsDataFailed\"V\n" +
+	"\x12StatsDataDelivered\")\n" +
+	"\x0fStatsDataFailed\x12\x16\n" +
+	"\x06reason\x18\x01 \x01(\tR\x06reason\"V\n" +
 	"\x10StatsDataBounced\x12\x1c\n" +
 	"\tpermanent\x18\x01 \x01(\bR\tpermanent\x12\x12\n" +
 	"\x04code\x18\x02 \x01(\rR\x04code\x12\x10\n" +

@@ -32,6 +32,7 @@ type Container struct {
 	senderHostname  string
 	demoSender      bool
 	backoff         delivery.BackoffPolicy
+	retryWindow     time.Duration
 
 	// singleton instances
 	db                 *singleton[*pgxpool.Pool]
@@ -69,6 +70,7 @@ func New(ctx context.Context) *Container {
 		senderHostname:     sc.Hostname,
 		demoSender:         sc.DemoSender,
 		backoff:            delivery.DefaultBackoff,
+		retryWindow:        delivery.DefaultRetryWindow,
 		db:                 &singleton[*pgxpool.Pool]{},
 		nats:               &singleton[*nats.Conn]{},
 		embeddedNatsServer: &singleton[*server.Server]{},
@@ -96,6 +98,14 @@ func WithBackoff(p delivery.BackoffPolicy) TestOption {
 	return func(c *Container) { c.backoff = p }
 }
 
+// WithRetryWindow overrides the Retry Budget. Tests shrink it in step with
+// WithBackoff — the window has to be scaled by the same factor as the backoff
+// base, or a collapsed curve would race through the whole budget in
+// milliseconds and terminate every Delivery in the suite.
+func WithRetryWindow(w time.Duration) TestOption {
+	return func(c *Container) { c.retryWindow = w }
+}
+
 // NewForTest builds a Container without reading viper, applying the supplied
 // options. Tests use this to wire a synthetic container without inventing
 // per-package backdoors.
@@ -103,6 +113,7 @@ func NewForTest(ctx context.Context, opts ...TestOption) *Container {
 	c := &Container{
 		ctx:                ctx,
 		backoff:            delivery.DefaultBackoff,
+		retryWindow:        delivery.DefaultRetryWindow,
 		db:                 &singleton[*pgxpool.Pool]{},
 		nats:               &singleton[*nats.Conn]{},
 		embeddedNatsServer: &singleton[*server.Server]{},
@@ -296,6 +307,18 @@ func (c *Container) NatsJetStream() jetstream.JetStream {
 // Production uses delivery.DefaultBackoff; tests may override via WithBackoff.
 func (c *Container) BackoffPolicy() delivery.BackoffPolicy {
 	return c.backoff
+}
+
+// RetryWindow returns the canonical Retry Budget for this Container: how long
+// Kannon keeps trying to get a Delivery out, counted from the moment its Batch
+// asked for it to be sent. Production uses delivery.DefaultRetryWindow; tests
+// may override via WithRetryWindow.
+//
+// It travels with BackoffPolicy because the two are inseparable — the window
+// bounds the very curve the policy draws — and, like it, is a wiring point
+// rather than a viper key (ADR 0007, ADR 0001 §"No viper key").
+func (c *Container) RetryWindow() time.Duration {
+	return c.retryWindow
 }
 
 func (c *Container) Sender() smtp.Sender {

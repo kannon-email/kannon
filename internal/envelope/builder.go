@@ -15,8 +15,6 @@ import (
 	"github.com/kannon-email/kannon/internal/utils"
 )
 
-const maxRetry = 10
-
 // SendingData is the per-Batch lookup the Builder needs to render an
 // outgoing Envelope: template HTML + Domain DKIM keys + Batch metadata.
 // It is populated by a SendingDataSource at the storage boundary.
@@ -120,12 +118,16 @@ func (b *defaultBuilder) Build(ctx context.Context, d *delivery.Delivery) (*Enve
 	}
 
 	return New(Params{
-		EmailID:     buildEmailID(d.Email(), data.MessageID),
-		From:        data.SenderEmail,
-		To:          d.Email(),
-		ReturnPath:  returnPath,
-		Body:        signedMsg,
-		ShouldRetry: d.SendAttempts() < maxRetry,
+		EmailID:    buildEmailID(d.Email(), data.MessageID),
+		From:       data.SenderEmail,
+		To:         d.Email(),
+		ReturnPath: returnPath,
+		Body:       signedMsg,
+		// The Envelope carries the Delivery's own answer to "may this be tried
+		// again", so the SMTPSender does not have to hold a second opinion: the
+		// decision to stop belongs to the Delivery and is a span of time, not a
+		// count of attempts (ADR 0007).
+		ShouldRetry: d.CanRetry(),
 	}), nil
 }
 

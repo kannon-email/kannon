@@ -28,6 +28,12 @@ _Avoid_: treating `template_type` as a source-format axis (HTML/MJML/etc.); that
 One Recipient's slot in a Batch. Persistent record carrying lifecycle state, retry count, scheduled time, and per-recipient personalisation fields. The unit Validator and Dispatcher operate on.
 _Avoid_: SendingPoolEmail, PoolEmail, Email (when meaning the row, not the address)
 
+**Retry Budget**:
+How long Kannon keeps trying to get a Delivery out, counted from the moment its Batch asked for it to be sent. A Delivery is retried for as long as the next retry would still fall inside the window, and always gets at least one attempt however late it is offered one.
+
+The allowance is a span of time rather than a number of attempts, so it is indifferent to *what* consumed the attempts — a remote MX answering transiently, an Envelope that could not be built or handed on, a send whose outcome never came back. Every Delivery gets the same span, and Kannon's own faults cannot eat into a sender's chances of delivery. Running out is what makes a Delivery terminal without an answer: **Bounced** if the attempt that ran out the clock was answered, **Failed** if none ever was.
+_Avoid_: Retry Count, Max Retries, Attempts — the attempt tally exists, but it shapes the backoff curve rather than deciding when to stop
+
 **Envelope**:
 A built, DKIM-signed, transmission-ready message for one Delivery. Transient — exists in flight on the `kannon.sending` NATS topic, handed from Dispatcher to the Sender worker. Immutable once built.
 _Avoid_: EmailToSend, OutboundMail
@@ -106,9 +112,19 @@ Terminal delivery failure — no further attempt will be made. Two sources, both
 
 Carries `permanent`, `code`, `msg`. `permanent` qualifies *why* the Delivery is terminal, by SMTP reply class: 5xx means the address itself is dead and worth writing off, 4xx means someone gave up after retrying — us on the synchronous path, the remote MTA on the asynchronous one. Both sources classify it the same way. A transient failure that still has retries left is not a Bounce at all (see Errored).
 
+A Bounce always carries a reply code, because a Bounce is a remote mail system having spoken. A Delivery that ends without one ever having spoken is **Failed**, not Bounced.
+
 Terminality is a property of the event, not of the Pool row: by the time an asynchronous DSN arrives the Delivery has usually been Delivered and dropped from the Pool already, so the event lands as a stat with no row left to transition.
 
 _Known gap_: the SMTPServer reads only the DSN's `Diagnostic-Code` and treats every DSN as a failure. An RFC 3464 `Action: delayed` — the remote MTA is still retrying, so no outcome has been reached — is therefore recorded as a Bounce and inflates the bounce rate. Tracked separately from #376.
+
+**Failed**:
+Terminal failure in which no attempt at this Delivery ever produced an outcome. Carries a `reason` and — unlike **Bounced** — no reply code, because there is none to carry: no remote mail system ever spoke. Emitted by the **Dispatcher** when a Delivery exhausts its retry budget without a single attempt having been answered, whether because no Envelope could be built for it (its Batch's Template is gone, its Domain's DKIM key is unusable) or because none of its Envelopes could be handed on.
+
+Failed states what Kannon knows, which is less than what happened: an Envelope may have been transmitted and its outcome lost on the way back, and such a Delivery is Failed too. Kannon claims only that it never learned of an outcome — never that the recipient did not receive the mail.
+
+Distinct from **Rejected**, which is a judgement Kannon passed on the Recipient *before* attempting anything. Failed is the absence of an answer *after* attempting, repeatedly.
+_Avoid_: Errored (that is the transient retry signal), Dropped, Abandoned, Expired
 
 **Opened**:
 A tracking pixel was retrieved. Engagement event — non-terminal, may fire multiple times per Delivery. Only occurs when the Delivery's Tracking Policy allows opens. Carries the Tracking Mode that governed it, and carries `ip` / `user_agent` only under Full — under Identified it names the Recipient and nothing more, and under Anonymous it names nobody at all and leaves no stat row. The Mode reaches the Tracker as a signed claim in the token, not from a database lookup: the Delivery may already be gone, and a Recipient must not be able to choose how much is retained about them. An event that is *not* Anonymous yet arrives naming nobody is a bug, and is logged as an error rather than quietly discarded.
@@ -131,9 +147,11 @@ stateDiagram-v2
     Validated --> Delivered: SMTPSender: 250 OK
     Validated --> Bounced: SMTPSender: 5xx,\nor 4xx with no retries left (sync)
     Validated --> Validated: transient send error\n(retry with backoff)
+    Validated --> Failed: Dispatcher: retry budget spent\nwith no attempt ever answered
     Delivered --> Bounced: SMTPServer: DSN received\n(async)
     Rejected --> [*]
     Bounced --> [*]
+    Failed --> [*]
     Delivered --> [*]
 
     note right of Delivered
@@ -157,6 +175,12 @@ Notes:
 **Pool**:
 The internal work-in-progress board for in-flight Deliveries (PostgreSQL table `sending_pool_emails`). Rows are **deleted** on terminal outcomes — successful or failed — rather than flagged. Pool state values are implementation detail and intentionally NOT part of the shared language; see `docs/REFACTORING.md` §1 and `internal/db/pool.go`.
 _Avoid_: Queue, SendingPool (when discussed as a domain concept — it isn't one)
+
+**Reclaim**:
+Handing a Delivery back to the Pool because the **claim** a worker held on it outlived the work. A worker takes a claim by moving the row into one of the two in-flight Pool statuses — the kind of claim is a `delivery.InFlight` — and a Delivery is **stranded** when nothing is coming to move it out again: the worker died holding the claim, or the outcome of the work never came back. Nobody else can move it, because the only exits from an in-flight status belong to the worker that took the claim. So each claiming worker reclaims its own status on a timer, past a threshold of its own — the Dispatcher what it claimed for dispatch, the Validator what it claimed for validation (ADR 0004, ADR 0007).
+
+A reclaim recovers and never terminates. It asserts nothing about what happened to the Delivery in the meantime, because it cannot know, so it emits no outcome and the sender is told nothing: only the **Retry Budget** ends a Delivery.
+_Avoid_: Reaper / Reaping, Sweep / Sweeper, Requeue, Janitor, Unstick. *Stranded* names the condition a reclaim recovers from and *claim* the thing it takes back — neither is a name for the recovery itself.
 
 ## Relationships
 

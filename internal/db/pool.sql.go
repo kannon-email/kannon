@@ -105,7 +105,7 @@ func (q *Queries) GetMessage(ctx context.Context, messageID string) (Message, er
 }
 
 const getPool = `-- name: GetPool :one
-SELECT id, scheduled_time, original_scheduled_time, send_attempts_cnt, email, message_id, fields, status, created_at, domain, tracking FROM  sending_pool_emails 
+SELECT id, scheduled_time, original_scheduled_time, send_attempts_cnt, email, message_id, fields, status, created_at, domain, tracking, claimed_at FROM  sending_pool_emails 
 WHERE email = $1 AND message_id = $2
 `
 
@@ -129,6 +129,7 @@ func (q *Queries) GetPool(ctx context.Context, arg GetPoolParams) (SendingPoolEm
 		&i.CreatedAt,
 		&i.Domain,
 		&i.Tracking,
+		&i.ClaimedAt,
 	)
 	return i, err
 }
@@ -183,7 +184,7 @@ func (q *Queries) GetSendingData(ctx context.Context, messageID string) (GetSend
 }
 
 const getSendingPoolsEmails = `-- name: GetSendingPoolsEmails :many
-SELECT id, scheduled_time, original_scheduled_time, send_attempts_cnt, email, message_id, fields, status, created_at, domain, tracking FROM sending_pool_emails WHERE message_id = $1 ORDER BY id LIMIT $2 OFFSET $3
+SELECT id, scheduled_time, original_scheduled_time, send_attempts_cnt, email, message_id, fields, status, created_at, domain, tracking, claimed_at FROM sending_pool_emails WHERE message_id = $1 ORDER BY id LIMIT $2 OFFSET $3
 `
 
 type GetSendingPoolsEmailsParams struct {
@@ -213,6 +214,7 @@ func (q *Queries) GetSendingPoolsEmails(ctx context.Context, arg GetSendingPools
 			&i.CreatedAt,
 			&i.Domain,
 			&i.Tracking,
+			&i.ClaimedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -226,7 +228,7 @@ func (q *Queries) GetSendingPoolsEmails(ctx context.Context, arg GetSendingPools
 
 const prepareForSend = `-- name: PrepareForSend :many
 UPDATE sending_pool_emails AS sp
-    SET status = 'sending'
+    SET status = 'sending', claimed_at = NOW()
     FROM (
             SELECT id FROM sending_pool_emails
             WHERE scheduled_time <= NOW() AND status = 'scheduled'
@@ -234,7 +236,7 @@ UPDATE sending_pool_emails AS sp
             LIMIT $1
         ) AS t
     WHERE sp.id = t.id
-    RETURNING sp.id, sp.scheduled_time, sp.original_scheduled_time, sp.send_attempts_cnt, sp.email, sp.message_id, sp.fields, sp.status, sp.created_at, sp.domain, sp.tracking
+    RETURNING sp.id, sp.scheduled_time, sp.original_scheduled_time, sp.send_attempts_cnt, sp.email, sp.message_id, sp.fields, sp.status, sp.created_at, sp.domain, sp.tracking, sp.claimed_at
 `
 
 func (q *Queries) PrepareForSend(ctx context.Context, limit int32) ([]SendingPoolEmail, error) {
@@ -258,6 +260,7 @@ func (q *Queries) PrepareForSend(ctx context.Context, limit int32) ([]SendingPoo
 			&i.CreatedAt,
 			&i.Domain,
 			&i.Tracking,
+			&i.ClaimedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -271,7 +274,7 @@ func (q *Queries) PrepareForSend(ctx context.Context, limit int32) ([]SendingPoo
 
 const prepareForValidate = `-- name: PrepareForValidate :many
 UPDATE sending_pool_emails AS sp
-    SET status = 'validating'
+    SET status = 'validating', claimed_at = NOW()
     FROM (
             SELECT id FROM sending_pool_emails
             WHERE status = 'to_validate'
@@ -279,7 +282,7 @@ UPDATE sending_pool_emails AS sp
             LIMIT $1
         ) AS t
     WHERE sp.id = t.id
-    RETURNING sp.id, sp.scheduled_time, sp.original_scheduled_time, sp.send_attempts_cnt, sp.email, sp.message_id, sp.fields, sp.status, sp.created_at, sp.domain, sp.tracking
+    RETURNING sp.id, sp.scheduled_time, sp.original_scheduled_time, sp.send_attempts_cnt, sp.email, sp.message_id, sp.fields, sp.status, sp.created_at, sp.domain, sp.tracking, sp.claimed_at
 `
 
 func (q *Queries) PrepareForValidate(ctx context.Context, limit int32) ([]SendingPoolEmail, error) {
@@ -303,6 +306,79 @@ func (q *Queries) PrepareForValidate(ctx context.Context, limit int32) ([]Sendin
 			&i.CreatedAt,
 			&i.Domain,
 			&i.Tracking,
+			&i.ClaimedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const reclaimStranded = `-- name: ReclaimStranded :many
+UPDATE sending_pool_emails AS sp
+    SET status = $1,
+        claimed_at = NULL,
+        send_attempts_cnt = sp.send_attempts_cnt + CASE WHEN $2::bool THEN 1 ELSE 0 END
+    FROM (
+            SELECT s.id FROM sending_pool_emails AS s
+            WHERE s.status = $3
+              AND s.claimed_at < NOW() - $4::interval
+            FOR UPDATE SKIP LOCKED
+            LIMIT $5
+        ) AS t
+    WHERE sp.id = t.id
+    RETURNING sp.id, sp.scheduled_time, sp.original_scheduled_time, sp.send_attempts_cnt, sp.email, sp.message_id, sp.fields, sp.status, sp.created_at, sp.domain, sp.tracking, sp.claimed_at
+`
+
+type ReclaimStrandedParams struct {
+	ToStatus     SendingPoolStatus
+	BumpAttempts bool
+	FromStatus   SendingPoolStatus
+	StrandedFor  pgtype.Interval
+	Max          int32
+}
+
+// ReclaimStranded hands rows that have sat in an in-flight status past a
+// threshold back to the status they were claimed from, and clears the claim.
+// One query serves every in-flight status so the two cannot drift; the caller
+// supplies the status pair and whether the recovery counts as a send attempt,
+// and delivery.InFlight is what keeps those three from being paired wrongly.
+//
+// The threshold is measured from claimed_at, never from scheduled_time: the
+// claim does not touch scheduled_time, so under a backlog that column is hours
+// in the past on a row claimed a second ago (ADR 0007).
+func (q *Queries) ReclaimStranded(ctx context.Context, arg ReclaimStrandedParams) ([]SendingPoolEmail, error) {
+	rows, err := q.db.Query(ctx, reclaimStranded,
+		arg.ToStatus,
+		arg.BumpAttempts,
+		arg.FromStatus,
+		arg.StrandedFor,
+		arg.Max,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SendingPoolEmail
+	for rows.Next() {
+		var i SendingPoolEmail
+		if err := rows.Scan(
+			&i.ID,
+			&i.ScheduledTime,
+			&i.OriginalScheduledTime,
+			&i.SendAttemptsCnt,
+			&i.Email,
+			&i.MessageID,
+			&i.Fields,
+			&i.Status,
+			&i.CreatedAt,
+			&i.Domain,
+			&i.Tracking,
+			&i.ClaimedAt,
 		); err != nil {
 			return nil, err
 		}
