@@ -46,7 +46,11 @@ func ParseBounceReturnPath(returnPath string) (email string, messageID string, d
 	messageID = match[2]
 	found = true
 
-	emailBytes, err := base64.StdEncoding.DecodeString(emailHash)
+	// The email segment is encoded with the URL-safe alphabet by buildReturnPath
+	// (internal/envelope/message.go) — '+' is the field separator in
+	// "bump_<email>+<messageID>", so the standard alphabet, which can itself
+	// emit '+', is not a valid choice for this segment. The decoder must match.
+	emailBytes, err := base64.URLEncoding.DecodeString(emailHash)
 	if err != nil {
 		return "", "", "", false, fmt.Errorf("invalid returnPath: %w", err)
 	}

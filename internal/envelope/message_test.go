@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/kannon-email/kannon/internal/batch"
+	"github.com/kannon-email/kannon/internal/utils"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -661,4 +662,37 @@ func TestIssue276Link(t *testing.T) {
 	})
 	assert.Nil(t, err)
 	assert.Equal(t, expectedhtml, res)
+}
+
+// TestBuildReturnPathRoundTripsThroughParseBounceReturnPath pins the encoder and
+// the decoder together: buildReturnPath here writes the Recipient with the
+// URL-safe base64 alphabet, and utils.ParseBounceReturnPath must read it back.
+// The two used to disagree on the last two alphabet symbols ('-'/'_' versus
+// '+'/'/'), so any address whose encoding hit one of them produced a return path
+// the bounce handler could not decode and the DSN was silently dropped (#432).
+//
+// Unlike the decoder-side test in internal/utils, this one calls the real
+// encoder, so it fails if either side ever changes alphabet alone.
+func TestBuildReturnPathRoundTripsThroughParseBounceReturnPath(t *testing.T) {
+	messageID := "msg_cl6g7ndft0001018ut5octeun@k.test.com"
+
+	emails := []string{
+		"test@test.com", // plain: both alphabets agree
+		"ab~@test.com",  // encodes to '-' under URL-safe, '+' under standard
+		"aÿ@test.com",   // non-ASCII (SMTPUTF8): '_' under URL-safe, '/' under standard
+	}
+
+	for _, want := range emails {
+		t.Run(want, func(t *testing.T) {
+			returnPath := buildReturnPath(want, messageID)
+
+			email, gotMessageID, domain, found, err := utils.ParseBounceReturnPath(returnPath)
+
+			assert.Nil(t, err)
+			assert.True(t, found)
+			assert.Equal(t, want, email)
+			assert.Equal(t, messageID, gotMessageID)
+			assert.Equal(t, "k.test.com", domain)
+		})
+	}
 }
