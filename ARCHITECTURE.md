@@ -218,13 +218,12 @@ Kannon uses NATS JetStream for reliable, decoupled messaging between its modules
 | kannon.sending         | Emails to be sent via SMTP     | Dispatcher           | SMTPSender          |
 | kannon.stats.accepted  | Email accepted for sending     | Validator            | Stats               |
 | kannon.stats.rejected  | Email rejected (invalid, etc.) | Validator            | Stats               |
-| kannon.stats.delivered | Email delivered successfully   | SMTPSender           | Stats               |
-| kannon.stats.bounced   | Email bounced (permanent)      | SMTPSender, SMTP Server | Stats            |
-| kannon.stats.soft-bounce | Email soft-bounced (transient) | SMTP Server        | Stats               |
-| kannon.stats.error     | Transient send error (retried) | SMTPSender           | Stats               |
+| kannon.stats.delivered | Email delivered successfully   | SMTPSender           | Stats, Dispatcher   |
+| kannon.stats.bounced   | Email bounced, synchronously or by a later DSN. Carries `permanent` (5xx vs 4xx) | SMTPSender, SMTP Server | Stats, Dispatcher |
+| kannon.stats.error     | Transient send error (retried) | SMTPSender           | Stats, Dispatcher   |
 | kannon.stats.opened    | Email opened (tracking pixel)  | Tracker              | Stats               |
 | kannon.stats.clicked   | Link clicked in email          | Tracker              | Stats               |
-| kannon.bounce          | Bounce events from SMTP server | SMTP Server          | Dispatcher, Stats   |
+| kannon.bounce          | Stream declared in `x/container`, but nothing publishes or consumes it | — | — |
 
 ### Example NATS JetStream Configuration
 
@@ -249,12 +248,12 @@ streams:
 
 ### Module Interactions with NATS
 
-- **Dispatcher**: Publishes to `kannon.sending`, listens to `kannon.bounce` and delivery/bounce/error events from NATS.
+- **Dispatcher**: Publishes to `kannon.sending`, and consumes `kannon.stats.delivered`, `kannon.stats.bounced` and `kannon.stats.error` to advance a Delivery out of `sending`.
 - **SMTPSender**: Consumes from `kannon.sending`, publishes to `kannon.stats.delivered`, `kannon.stats.bounced`, etc.
 - **Validator**: Publishes to `kannon.stats.accepted` and `kannon.stats.rejected`.
 - **Tracker**: Publishes to `kannon.stats.opened` and `kannon.stats.clicked`.
 - **Stats**: Consumes all `kannon.stats.*` topics.
-- **SMTP Server**: Publishes to `kannon.bounce` and `kannon.stats.bounced`.
+- **SMTP Server**: Publishes asynchronous DSN bounces to `kannon.stats.bounced`, the same subject SMTPSender uses for synchronous ones. Both go through `publisher.PublishStat`, which derives the subject from the payload rather than naming it at the call site.
 
 ### NATS Messaging Diagram
 
@@ -263,17 +262,15 @@ flowchart TD
     subgraph NATS
         SENDING["kannon.sending"]
         STATS["kannon.stats.*"]
-        BOUNCE["kannon.bounce"]
     end
     Dispatcher -- "publish" --> SENDING
     SENDING -- "consume" --> SMTPSender
     SMTPSender -- "publish" --> STATS
     Validator -- "publish" --> STATS
     Tracker -- "publish" --> STATS
-    SMTPServer -- "publish" --> BOUNCE
-    BOUNCE -- "consume" --> Dispatcher
-    BOUNCE -- "consume" --> Stats
+    SMTPServer -- "publish (async DSN bounce)" --> STATS
     STATS -- "consume" --> Stats
+    STATS -- "consume (delivered/bounced/error)" --> Dispatcher
 ```
 
 ## Architecture Diagram

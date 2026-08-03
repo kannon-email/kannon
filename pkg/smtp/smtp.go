@@ -10,16 +10,19 @@ import (
 	"strconv"
 
 	"github.com/emersion/go-smtp"
+	"github.com/kannon-email/kannon/internal/publisher"
 	"github.com/kannon-email/kannon/internal/utils"
 	st "github.com/kannon-email/kannon/proto/kannon/stats/types"
-	"github.com/nats-io/nats.go"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // The Backend implements SMTP server methods.
+//
+// The bounce feed is held as a publisher.Publisher rather than a *nats.Conn
+// (which satisfies it) so the subject a DSN lands on is observable in a test —
+// see #376, where it silently drifted onto one nobody consumed.
 type Backend struct {
-	nc *nats.Conn
+	nc publisher.Publisher
 }
 
 func (bkd *Backend) NewSession(_ *smtp.Conn) (smtp.Session, error) {
@@ -32,7 +35,7 @@ func (bkd *Backend) NewSession(_ *smtp.Conn) (smtp.Session, error) {
 type Session struct {
 	From string
 	To   string
-	nc   *nats.Conn
+	nc   publisher.Publisher
 }
 
 func (s *Session) AuthPlain(username, password string) error {
@@ -76,7 +79,7 @@ func (s *Session) Data(r io.Reader) error {
 		Data: &st.StatsData{
 			Data: &st.StatsData_Bounced{
 				Bounced: &st.StatsDataBounced{
-					Permanent: true,
+					Permanent: isPermanentCode(code),
 					Code:      uint32(code),
 					Msg:       errMsg,
 				},
@@ -86,19 +89,26 @@ func (s *Session) Data(r io.Reader) error {
 
 	slog.Info(fmt.Sprintf("[🤷 got bounce] %vs - %d - %s", utils.ObfuscateEmail(email), code, errMsg))
 
-	msg, err := proto.Marshal(m)
-	if err != nil {
-		slog.Error("Cannot marshal data", "err", err)
-		return nil
-	}
-
-	err = s.nc.Publish("kannon.stats.soft-bounce", msg)
-	if err != nil {
+	// PublishStat derives the subject from the payload, so an asynchronous
+	// bounce lands on the same kannon.stats.bounced as a synchronous one.
+	// Naming the subject by hand here is what put these events on a topic no
+	// consumer subscribed to (#376).
+	if err := publisher.PublishStat(s.nc, m); err != nil {
 		slog.Error("Cannot publish data", "err", err)
 		return nil
 	}
 
 	return nil
+}
+
+// isPermanentCode classifies a DSN diagnostic code by its SMTP reply class,
+// the same rule the synchronous path applies to a live rejection
+// (internal/smtp.newSMTPErrorFromSTMP). The Delivery is terminal either way —
+// the flag records whether the address itself is worth writing off (5xx) or
+// whether someone merely gave up after retrying (4xx: us on the synchronous
+// path, the remote MTA on this one).
+func isPermanentCode(code int) bool {
+	return code >= 500 && code < 600
 }
 
 func (s *Session) Reset() {}
