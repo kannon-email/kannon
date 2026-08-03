@@ -1,0 +1,386 @@
+// Package authz_test exercises the authority model from outside the package, so
+// that every assertion is one an eventual caller could make.
+//
+// That is deliberate rather than incidental. ADR 0008 records that coverage
+// cannot be tested through the API during the transition — with a synthetic admin
+// Principal everywhere, every check passes and no guard is ever exercised by a
+// refusal — so this table *is* the seam the model is verified at. Assertions are
+// therefore about decisions and construction verdicts, never about how a pattern
+// happens to be represented: the representation is free to change, the decisions
+// are not.
+package authz_test
+
+import (
+	"testing"
+
+	"github.com/kannon-email/kannon/internal/authz"
+	"github.com/kannon-email/kannon/internal/values"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// Two multi-label Domains. Multi-label because internal/values requires a dot: a
+// single-label name could equal a segment of the Resource tree and alias it.
+var (
+	example = values.MustParse("example.com")
+	other   = values.MustParse("other.com")
+)
+
+// resourceActions is the closed vocabulary minus Attribute, spelled out here
+// rather than borrowed from the package so that adding an Action to the model
+// does not silently widen what these sweeps assert.
+var resourceActions = []authz.Action{
+	authz.Create,
+	authz.Read,
+	authz.List,
+	authz.Update,
+	authz.Delete,
+}
+
+func principalWith(grants ...authz.Grant) authz.Principal {
+	return authz.MustNewPrincipal("key-1@example.com", grants...)
+}
+
+func adminOn(a authz.Anchor) authz.Principal {
+	return principalWith(authz.MustNewGrant(authz.RoleAdmin, a))
+}
+
+func senderOn(a authz.Anchor) authz.Principal {
+	return principalWith(authz.MustNewGrant(authz.RoleSender, a))
+}
+
+// decision is one row of the tables below: given this Principal, may it perform
+// this Action on this Resource?
+type decision struct {
+	name      string
+	principal authz.Principal
+	action    authz.Action
+	resource  authz.Resource
+	want      bool
+}
+
+func runDecisions(t *testing.T, tests []decision) {
+	t.Helper()
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := authz.Can(tc.principal, tc.action, tc.resource)
+			assert.Equal(t, tc.want, got, "%s asked %s on %s", tc.principal, tc.action, tc.resource)
+		})
+	}
+}
+
+// everyResource is one Resource of every shape in the tree, for both Domains, so
+// that a sweep cannot miss a kind.
+func everyResource() []authz.Resource {
+	resources := []authz.Resource{authz.Domains()}
+	for _, f := range []values.DomainName{example, other} {
+		resources = append(resources,
+			authz.Domain(f),
+			authz.Batches(f),
+			authz.Templates(f),
+			authz.Template(f, "welcome"),
+			authz.APIKeys(f),
+			authz.APIKey(f, "key-1"),
+			authz.Stats(f),
+			authz.AggregatedStats(f),
+		)
+	}
+	return resources
+}
+
+// everyGrant is every Grant the seeded catalogue and the two grantable Anchor
+// kinds can produce between them.
+//
+// A Role that cannot be anchored somewhere is skipped rather than asserted
+// about — that refusal is TestNewGrantRefuses' business — so this stays correct
+// when a Role is added.
+//
+// What the skip must not do is let a sweep go vacuous. The tables that consume
+// this are negative sweeps — no Grant confers Attribute, no Grant confers create
+// without read — and a sweep over fewer Grants than intended passes for the
+// wrong reason. So every Role must yield at least one Grant, and a Role of pure
+// shape must yield one on *every* grantable Anchor, since naming no kind is
+// exactly what makes it fit either kind. A shortfall means the model changed
+// underneath these assertions, which is the moment to hear about it.
+func everyGrant(t *testing.T) []authz.Grant {
+	t.Helper()
+
+	anchors := []authz.Anchor{
+		authz.RootAnchor(),
+		authz.AllDomainsAnchor(),
+		authz.DomainAnchor(example),
+		authz.DomainAnchor(other),
+	}
+
+	var grants []authz.Grant
+	for _, name := range authz.RoleNames() {
+		anchored := 0
+		for _, a := range anchors {
+			g, err := authz.NewGrant(name, a)
+			if err != nil {
+				continue
+			}
+			anchored++
+			grants = append(grants, g)
+		}
+		require.NotZero(t, anchored,
+			"role %q is grantable on no Anchor, so every sweep below would skip it", name)
+
+		if name == authz.RoleAdmin {
+			require.Len(t, anchors, anchored,
+				"admin names no kind, so it must be grantable on every grantable Anchor")
+		}
+	}
+
+	require.NotEmpty(t, grants)
+	return grants
+}
+
+// Sending mail is create on a Domain's Batches — there is no send Action, because
+// a Batch is what one Mailer API call creates, so a send *is* a creation.
+//
+// This is what an API Key resolves to, and the "and nothing else" half of it is
+// the load-bearing half: the rule pins the kind and the Anchor pins the place.
+func TestSendIsCreateOnADomainsBatches(t *testing.T) {
+	own := senderOn(authz.DomainAnchor(example))
+
+	runDecisions(t, []decision{
+		{"sends for its own Domain", own, authz.Create, authz.Batches(example), true},
+		{"cannot send for another Domain", own, authz.Create, authz.Batches(other), false},
+		{"cannot read its own Domain", own, authz.Read, authz.Domain(example), false},
+		{"cannot read back the Batches it creates", own, authz.Read, authz.Batches(example), false},
+		{"cannot change the Tracking Policy", own, authz.Update, authz.Domain(example), false},
+		{"cannot rewrite a Template", own, authz.Update, authz.Template(example, "welcome"), false},
+		{"cannot mint an API Key", own, authz.Create, authz.APIKeys(example), false},
+		{"cannot read statistics", own, authz.Read, authz.Stats(example), false},
+		{"cannot read the counters", own, authz.Read, authz.AggregatedStats(example), false},
+		{"cannot create a Domain", own, authz.Create, authz.Domains(), false},
+		{"cannot list Domains", own, authz.List, authz.Domains(), false},
+		{"holds no attribute", own, authz.Attribute, authz.Batches(example), false},
+	})
+}
+
+// The same Role on the every-Domain Anchor: further reach, not one extra Action.
+func TestSenderOnEveryDomainSendsEverywhereAndDoesNothingElse(t *testing.T) {
+	all := senderOn(authz.AllDomainsAnchor())
+
+	runDecisions(t, []decision{
+		{"sends for one Domain", all, authz.Create, authz.Batches(example), true},
+		{"sends for the other", all, authz.Create, authz.Batches(other), true},
+		{"cannot read a Domain", all, authz.Read, authz.Domain(example), false},
+		{"cannot create a Template", all, authz.Create, authz.Templates(example), false},
+		{"cannot create a Domain", all, authz.Create, authz.Domains(), false},
+	})
+}
+
+// SetTrackingPolicy is update on domains/<fqdn>, which by domination also reaches
+// that Domain's Templates. ADR 0008 accepts that the two are not separable: both
+// are things a Domain administrator does, and a domains/<fqdn>/tracking path
+// would correspond to no entity in the language.
+func TestSetTrackingPolicyIsUpdateOnTheDomain(t *testing.T) {
+	owner := adminOn(authz.DomainAnchor(example))
+
+	runDecisions(t, []decision{
+		{"updates its own Domain", owner, authz.Update, authz.Domain(example), true},
+		{"reaches that Domain's Templates by domination", owner, authz.Update, authz.Template(example, "welcome"), true},
+		{"reaches the Templates collection too", owner, authz.Update, authz.Templates(example), true},
+		{"cannot update another Domain", owner, authz.Update, authz.Domain(other), false},
+		{"cannot update another Domain's Template", owner, authz.Update, authz.Template(other, "welcome"), false},
+	})
+}
+
+// CreateDomain is create on the domains collection, which only the root Anchor
+// reaches. Nothing narrower does, and the two near misses are asserted
+// explicitly: domains/* is every Domain, not the collection above them.
+func TestCreateDomainIsReachableOnlyFromTheRoot(t *testing.T) {
+	runDecisions(t, []decision{
+		{"admin on the root creates a Domain", adminOn(authz.RootAnchor()), authz.Create, authz.Domains(), true},
+		{"admin on the root lists Domains", adminOn(authz.RootAnchor()), authz.List, authz.Domains(), true},
+		{"admin on every Domain cannot create one", adminOn(authz.AllDomainsAnchor()), authz.Create, authz.Domains(), false},
+		{"admin on every Domain cannot list them", adminOn(authz.AllDomainsAnchor()), authz.List, authz.Domains(), false},
+		{"admin on one Domain cannot create one", adminOn(authz.DomainAnchor(example)), authz.Create, authz.Domains(), false},
+		{"sender on every Domain cannot create one", senderOn(authz.AllDomainsAnchor()), authz.Create, authz.Domains(), false},
+	})
+}
+
+// admin on the root is the Role that can do everything on every Domain: one at()
+// rule holding the five resource Actions, extended to every kind by domination.
+func TestAdminOnTheRootCanDoEverythingEverywhere(t *testing.T) {
+	root := adminOn(authz.RootAnchor())
+
+	for _, r := range everyResource() {
+		for _, a := range resourceActions {
+			t.Run(a.String()+" on "+r.String(), func(t *testing.T) {
+				assert.True(t, authz.Can(root, a, r))
+			})
+		}
+	}
+}
+
+// Same Role, one Domain: that Domain's owner, and nothing of any other.
+func TestAdminOnOneDomainIsThatDomainsOwner(t *testing.T) {
+	owner := adminOn(authz.DomainAnchor(example))
+
+	for _, a := range resourceActions {
+		for _, r := range []authz.Resource{
+			authz.Domain(example),
+			authz.Batches(example),
+			authz.Templates(example),
+			authz.Template(example, "welcome"),
+			authz.APIKeys(example),
+			authz.APIKey(example, "key-1"),
+			authz.Stats(example),
+			authz.AggregatedStats(example),
+		} {
+			t.Run("reaches "+a.String()+" on "+r.String(), func(t *testing.T) {
+				assert.True(t, authz.Can(owner, a, r))
+			})
+		}
+
+		for _, r := range []authz.Resource{
+			authz.Domains(),
+			authz.Domain(other),
+			authz.Batches(other),
+			authz.Templates(other),
+			authz.Template(other, "welcome"),
+			authz.APIKeys(other),
+			authz.APIKey(other, "key-1"),
+			authz.Stats(other),
+			authz.AggregatedStats(other),
+		} {
+			t.Run("does not reach "+a.String()+" on "+r.String(), func(t *testing.T) {
+				assert.False(t, authz.Can(owner, a, r))
+			})
+		}
+	}
+}
+
+// The every-Domain Anchor reaches inside every Domain and stops below the
+// collection: its wildcard stands for exactly one segment, so it cannot match the
+// shorter path above it.
+func TestAdminOnEveryDomainReachesEveryDomainButNotTheCollection(t *testing.T) {
+	all := adminOn(authz.AllDomainsAnchor())
+
+	runDecisions(t, []decision{
+		{"reaches one Domain", all, authz.Update, authz.Domain(example), true},
+		{"reaches the other", all, authz.Update, authz.Domain(other), true},
+		{"reaches beneath a Domain", all, authz.Delete, authz.APIKey(other, "key-1"), true},
+		{"reaches the counters", all, authz.Read, authz.AggregatedStats(example), true},
+		{"does not reach the collection", all, authz.Read, authz.Domains(), false},
+		{"does not reach the collection to list", all, authz.List, authz.Domains(), false},
+	})
+}
+
+// Authority over the per-Delivery rows implies authority over the counters,
+// because stats/aggregated is a child of stats rather than its sibling. The
+// converse must not hold, and nothing in the seeded catalogue can express it.
+func TestStatisticsNestRatherThanSitAsSiblings(t *testing.T) {
+	owner := adminOn(authz.DomainAnchor(example))
+
+	runDecisions(t, []decision{
+		{"reads the per-Delivery rows", owner, authz.Read, authz.Stats(example), true},
+		{"reads the counters beneath them", owner, authz.Read, authz.AggregatedStats(example), true},
+	})
+}
+
+func TestAPrincipalWithNoGrantsCanDoNothing(t *testing.T) {
+	// Not the same as an unauthenticated request, which Guard reports
+	// separately: this is a credential whose authority has been revoked.
+	empty := principalWith()
+
+	for _, r := range everyResource() {
+		for _, a := range resourceActions {
+			assert.False(t, authz.Can(empty, a, r))
+		}
+	}
+}
+
+// The zero value of a Grant — and so of its Anchor — must confer nothing. This is
+// the property the root's explicit flag exists to protect: were "everything"
+// spelled as an empty pattern, a forgotten assignment would be the widest
+// authority in the system rather than the narrowest.
+func TestAZeroValueGrantConfersNothing(t *testing.T) {
+	p := principalWith(authz.Grant{})
+
+	for _, r := range everyResource() {
+		for _, a := range resourceActions {
+			assert.False(t, authz.Can(p, a, r), "zero Grant reached %s on %s", a, r)
+		}
+	}
+
+	// And the root, for contrast, covers every one of them.
+	root := adminOn(authz.RootAnchor())
+	for _, r := range everyResource() {
+		assert.True(t, authz.Can(root, authz.Read, r))
+	}
+}
+
+// A Resource that is not well formed — a zero FQDN or a blank identifier reaching
+// a constructor — is covered by nothing, not even by the root. Programming errors
+// on this path fail closed rather than falling back on whatever the shorter path
+// would have matched.
+func TestAMalformedResourceIsCoveredByNothing(t *testing.T) {
+	root := adminOn(authz.RootAnchor())
+
+	runDecisions(t, []decision{
+		{"zero Resource", root, authz.Read, authz.Resource{}, false},
+		{"zero FQDN", root, authz.Read, authz.Domain(values.DomainName{}), false},
+		{"blank Template identifier", root, authz.Read, authz.Template(example, ""), false},
+		{"zero FQDN beneath a Domain", root, authz.Read, authz.Batches(values.DomainName{}), false},
+	})
+}
+
+func TestCatalogueHoldsExactlyAdminAndSender(t *testing.T) {
+	assert.Equal(t, []authz.RoleName{authz.RoleAdmin, authz.RoleSender}, authz.RoleNames())
+}
+
+// No seeded Role holds attribute. admin deliberately does not: naming a person is
+// not an administrative power over Kannon's resources, and with nothing
+// authenticated yet there is no trusted front-end to be one (ADR 0008). So
+// Attribution has no producer, which this asserts rather than assumes.
+func TestNoSeededRoleHoldsAttribute(t *testing.T) {
+	for _, g := range everyGrant(t) {
+		p := principalWith(g)
+		for _, r := range everyResource() {
+			assert.False(t, authz.Can(p, authz.Attribute, r), "%s reached attribute on %s", g, r)
+		}
+	}
+}
+
+// ADR 0008 records "every rule holding create also holds read, visibly, so a
+// credential can always read back what it just created" as a property of the
+// vocabulary it documents. admin satisfies it; sender does not.
+//
+// That exception is deliberate rather than an oversight, and it is enumerated
+// here rather than skipped. ADR 0008's Consequences pin an API Key to "sender
+// anchored on its own Domain … and nothing else", so giving sender read would
+// widen every API Key in circulation — a change to the credential model, not a
+// tidy-up. Listing the exception keeps the invariant biting for every Role added
+// later, and makes a second one impossible to introduce quietly.
+func TestCreateImpliesReadExceptForSender(t *testing.T) {
+	var exceptions []string
+
+	for _, g := range everyGrant(t) {
+		p := principalWith(g)
+		for _, r := range everyResource() {
+			if authz.Can(p, authz.Create, r) && !authz.Can(p, authz.Read, r) {
+				exceptions = append(exceptions, g.String()+" -> "+r.String())
+			}
+		}
+	}
+
+	assert.ElementsMatch(t, []string{
+		"sender on domains/* -> domains/example.com/batches",
+		"sender on domains/* -> domains/other.com/batches",
+		"sender on domains/example.com -> domains/example.com/batches",
+		"sender on domains/other.com -> domains/other.com/batches",
+	}, exceptions)
+}
+
+// Require is Can as an error, for call sites that propagate rather than branch.
+func TestRequireReportsForbidden(t *testing.T) {
+	owner := adminOn(authz.DomainAnchor(example))
+
+	require.NoError(t, authz.Require(owner, authz.Update, authz.Domain(example)))
+	assert.ErrorIs(t, authz.Require(owner, authz.Update, authz.Domain(other)), authz.ErrForbidden)
+}
