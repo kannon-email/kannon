@@ -100,11 +100,15 @@ The Recipient was refused and no Delivery will be attempted. Terminal — the De
 The remote MX accepted the SMTP handoff (e.g. responded `250 OK`). Does **not** mean the message reached an inbox — only that the next hop accepted responsibility. A subsequent asynchronous DSN can still bounce a Delivered Delivery.
 
 **Bounced**:
-Permanent delivery failure. Two sources:
-- *Synchronous*: the remote MX rejected with a 5xx during transmission (emitted by **SMTPSender**).
+Terminal delivery failure — no further attempt will be made. Two sources, both emitted on `kannon.stats.bounced`:
+- *Synchronous*: the remote MX rejected during transmission (emitted by **SMTPSender**), either with a 5xx or with a 4xx once the retry budget ran out.
 - *Asynchronous*: a DSN was received later (emitted by **SMTPServer**, possibly long after **Delivered**).
 
-Carries `permanent`, `code`, `msg`. The `permanent` flag is true in both cases today; transient failures are not Bounces (see Errored).
+Carries `permanent`, `code`, `msg`. `permanent` qualifies *why* the Delivery is terminal, by SMTP reply class: 5xx means the address itself is dead and worth writing off, 4xx means someone gave up after retrying — us on the synchronous path, the remote MTA on the asynchronous one. Both sources classify it the same way. A transient failure that still has retries left is not a Bounce at all (see Errored).
+
+Terminality is a property of the event, not of the Pool row: by the time an asynchronous DSN arrives the Delivery has usually been Delivered and dropped from the Pool already, so the event lands as a stat with no row left to transition.
+
+_Known gap_: the SMTPServer reads only the DSN's `Diagnostic-Code` and treats every DSN as a failure. An RFC 3464 `Action: delayed` — the remote MTA is still retrying, so no outcome has been reached — is therefore recorded as a Bounce and inflates the bounce rate. Tracked separately from #376.
 
 **Opened**:
 A tracking pixel was retrieved. Engagement event — non-terminal, may fire multiple times per Delivery. Only occurs when the Delivery's Tracking Policy allows opens. Carries the Tracking Mode that governed it, and carries `ip` / `user_agent` only under Full — under Identified it names the Recipient and nothing more, and under Anonymous it names nobody at all and leaves no stat row. The Mode reaches the Tracker as a signed claim in the token, not from a database lookup: the Delivery may already be gone, and a Recipient must not be able to choose how much is retained about them. An event that is *not* Anonymous yet arrives naming nobody is a bug, and is logged as an error rather than quietly discarded.
@@ -125,7 +129,7 @@ stateDiagram-v2
     Created --> Rejected: Validator: address invalid
     [*] --> Rejected: intake: refused before a Delivery exists\n(reported in the send response, not as a stat)
     Validated --> Delivered: SMTPSender: 250 OK
-    Validated --> Bounced: SMTPSender: 5xx (sync)
+    Validated --> Bounced: SMTPSender: 5xx,\nor 4xx with no retries left (sync)
     Validated --> Validated: transient send error\n(retry with backoff)
     Delivered --> Bounced: SMTPServer: DSN received\n(async)
     Rejected --> [*]
