@@ -11,6 +11,7 @@ package templates
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/kannon-email/kannon/internal/values"
@@ -135,8 +136,59 @@ func (t *Template) Pb() *pb.Template {
 }
 
 // newTemplateID composes the id from the canonical FQDN. The "@" is the
-// separator a later slice parses back out (issue #438), and it is sound only
-// because values.Parse refuses an "@" inside an FQDN.
+// separator DomainFromID parses back out, and it is sound only because
+// values.Parse refuses an "@" inside an FQDN.
 func newTemplateID(domain values.DomainName) string {
-	return fmt.Sprintf("template_%v@%v", cuid2.Generate(), domain.String())
+	return fmt.Sprintf("template_%v%v%v", cuid2.Generate(), idSeparator, domain.String())
+}
+
+// idSeparator divides a Template id's generated part from the Domain it belongs to.
+//
+// Named rather than written twice: it is the whole of DomainFromID's parse, and a
+// literal that appears in both the constructor and the parse is a literal somebody
+// can change in one of them.
+const idSeparator = "@"
+
+// DomainFromID recovers the Domain a Template id was composed from.
+//
+// It is the inverse of newTemplateID and lives beside it deliberately: the two
+// halves of one format have to be read together, because a change to the
+// composition that missed the parse would produce ids this function silently
+// disagreed with.
+//
+// It exists for the three Admin API operations whose request carries only a
+// template_id — GetTemplate, UpdateTemplate and DeleteTemplate. The proto is not
+// being changed, so the Domain an authorization decision needs is not on the
+// wire and the identifier is the only place left that holds it (ADR 0008).
+//
+// Exactly one "@" is required, and that is the whole of the strictness. An FQDN
+// can no longer contain one, so a well-formed id has exactly one; accepting more
+// would be the "template_x@a.com@b.com" hazard ADR 0008 names, where a lenient
+// split takes one side and the rest of the system takes the other. Refusing the
+// ambiguity is cheaper than deciding which side wins.
+//
+// Authorizing on a value parsed out of caller-supplied input is sound because
+// the parse can only *narrow*. The load that follows goes through
+// Repository.FindByDomain with this same value, so a caller who fabricates a
+// Domain is authorized for a Template that lookup will not find — the
+// cross-Domain isolation the repository spec's WrongDomain case already asserts.
+// What no fabrication can do is reach a Template belonging to a Domain the
+// caller does not hold, since that would need the id to name one Domain and the
+// row to belong to another.
+//
+// It returns an error rather than a zero FQDN. A zero one would render a
+// Resource that no Anchor covers, so it would fail closed — but it would fail
+// closed as a refusal on an unreadable path, several frames away from the
+// malformed input that caused it, which is a bug report nobody can act on.
+func DomainFromID(templateID string) (values.DomainName, error) {
+	if n := strings.Count(templateID, idSeparator); n != 1 {
+		return values.DomainName{}, fmt.Errorf("template id %q must contain exactly one %q, found %d", templateID, idSeparator, n)
+	}
+
+	_, raw, _ := strings.Cut(templateID, idSeparator)
+	domain, err := values.Parse(raw)
+	if err != nil {
+		return values.DomainName{}, fmt.Errorf("template id %q carries no Domain: %w", templateID, err)
+	}
+	return domain, nil
 }

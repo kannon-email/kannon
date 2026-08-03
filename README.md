@@ -198,7 +198,19 @@ The config file is `--config <path>`, defaulting to `$HOME/.kannon.yaml`.
 | `--run-stats`     | false   | Enable stats worker      |
 
 > [!IMPORTANT]
-> **Environment variables only work for the four top-level keys in the first table.** Nested keys (`K_API_PORT`, `K_SENDER_HOSTNAME`, `K_SMTP_ADDRESS`, …) and the `run-*` flags (`K_RUN_API`, …) are **silently ignored** — set them in the YAML file, or pass the `--run-*` flags on the command line.
+> **Environment variables work for the four top-level keys in the first table, and for `K_API_ADMIN_TOKEN`.** Every other nested key (`K_API_PORT`, `K_SENDER_HOSTNAME`, `K_SMTP_ADDRESS`, …) and the `run-*` flags (`K_RUN_API`, …) are **silently ignored** — set them in the YAML file, or pass the `--run-*` flags on the command line.
+
+**Access control**:
+
+| YAML key          | Env var              | Type   | Default    | Description                                                     |
+| ----------------- | -------------------- | ------ | ---------- | --------------------------------------------------------------- |
+| `api.admin_token` | `K_API_ADMIN_TOKEN`  | string | (required) | Credential authenticating the Admin API and both Stats APIs      |
+
+> [!IMPORTANT]
+> `api.admin_token` is the one nested key that **can** be set from the environment, as `K_API_ADMIN_TOKEN` — a secret belongs in a Secret rather than in a ConfigMap. It is required whenever `--run-api` is set: a process asked to serve the API without it refuses to boot, rather than come up answering every Admin and Stats request with `unauthenticated`. Workers that do not serve the API need no token.
+
+> [!WARNING]
+> The admin token is a single shared secret that authorizes **everything on every Domain** — creating Domains, minting API Keys, rewriting Templates and reading any Domain's per-Delivery statistics. It names no operator, so an audit record can only say that a holder acted, and it is revoked by changing it and restarting. Give it to as few callers as possible, and keep the API listener off untrusted networks.
 
 - See [`examples/docker-compose/kannon.yaml`](examples/docker-compose/kannon.yaml) for a full example.
 
@@ -208,7 +220,7 @@ The config file is `--config <path>`, defaulting to `$HOME/.kannon.yaml`.
 
 Kannon requires a PostgreSQL database, migrated with [dbmate](https://github.com/amacneil/dbmate) via `kannon migrate main`. Main tables (physical names retained for backward compatibility; see [`CONTEXT.md`](./CONTEXT.md) for the corresponding domain entities):
 
-- **domains**: Registered sender Domains (FQDN + DKIM keypair + Tracking Policy ceiling)
+- **domains**: Registered sender Domains (domain name + DKIM keypair + Tracking Policy ceiling)
 - **api_keys**: API Keys for authentication (multiple keys per Domain; hashed at rest, expirable, revocable)
 - **messages**: One row per **Batch** — subject, Sender, template reference, attachments, custom headers, Tracking Policy (legacy table name; the entity is a Batch)
 - **sending_pool_emails**: The Pool — one row per **Delivery** (recipient, scheduled time, retry count, per-recipient fields, frozen Tracking Policy). Rows are deleted on terminal outcomes
@@ -243,10 +255,20 @@ Kannon exposes a single HTTP server (default port `50051`) built with [Connect](
 
 ### Authentication
 
-> [!WARNING]
-> **Only the Mailer API authenticates.** The Admin API, the Stats APIs and the health service currently accept unauthenticated calls, so anyone who can reach the port can create Domains, mint API Keys and read another tenant's statistics. Do not expose the API port publicly: keep it on an internal network, or put your own authenticating proxy in front of it.
+Every API but health authenticates, and each with the credential that fits what it does.
 
-The Mailer API uses Basic Auth with a Domain and one of its API Keys:
+**Admin API and both Stats APIs** — the operator's admin token, in a header of its own:
+
+```
+X-Kannon-Admin-Token: <api.admin_token>
+```
+
+It authorizes everything on every Domain, so a caller holding it can create Domains, mint API Keys and read any Domain's statistics. A request without it, or with the wrong one, is refused with `unauthenticated`.
+
+> [!NOTE]
+> The health service (`pkg.kannon.admin.apiv1.HZService`) stays open: it discloses no tenant data and is polled by probes that carry no credential.
+
+**Mailer API** — Basic Auth with a Domain and one of its API Keys:
 
 ```
 token = base64(<your domain>:<your api key>)
@@ -265,14 +287,19 @@ An API Key is shown in full **only** in the `CreateAPIKey` response — it is st
 ### Bootstrapping a Domain and an API Key
 
 ```sh
+# Both calls are on the Admin API, so both carry the admin token.
+ADMIN_TOKEN='<api.admin_token>'
+
 # 1. Register the sender Domain. The response carries the DKIM public key to publish.
 curl -sX POST http://localhost:50051/pkg.kannon.admin.apiv1.Api/CreateDomain \
   -H 'Content-Type: application/json' \
+  -H "X-Kannon-Admin-Token: $ADMIN_TOKEN" \
   -d '{"domain":"mail.yourdomain.com"}'
 
 # 2. Mint an API Key for it. `key` is returned once and never again.
 curl -sX POST http://localhost:50051/pkg.kannon.admin.apiv1.Api/CreateAPIKey \
   -H 'Content-Type: application/json' \
+  -H "X-Kannon-Admin-Token: $ADMIN_TOKEN" \
   -d '{"domain":"mail.yourdomain.com","name":"backend"}'
 ```
 
@@ -387,14 +414,18 @@ See the [proto files](./.proto/kannon/) for all fields and options.
 ### Reading statistics
 
 ```sh
+ADMIN_TOKEN='<api.admin_token>'
+
 # Raw per-Delivery events (v1)
 curl -sX POST http://localhost:50051/kannon.StatsApiV1/GetStats \
   -H 'Content-Type: application/json' \
+  -H "X-Kannon-Admin-Token: $ADMIN_TOKEN" \
   -d '{"domain":"mail.yourdomain.com","take":50}'
 
 # Hourly aggregates (v2)
 curl -sX POST http://localhost:50051/kannon.stats.apiv2.StatsApiV2/GetAggregatedStats \
   -H 'Content-Type: application/json' \
+  -H "X-Kannon-Admin-Token: $ADMIN_TOKEN" \
   -d '{"domain":"mail.yourdomain.com"}'
 ```
 

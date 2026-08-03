@@ -12,14 +12,22 @@ import (
 	pb "github.com/kannon-email/kannon/proto/kannon/admin/apiv1"
 )
 
+// adminAPIService is the Admin API's translation layer: it parses the wire,
+// delegates to a domain service, and renders the answer.
+//
+// It holds services rather than repositories, and that is the point of this file
+// rather than an incidental refactor. Authorization is declared at the service seam
+// (internal/domains, internal/templates, internal/apikeys), so the wiring below is
+// what decides whether an operation is checked at all. A method reaching past a
+// service to a repository would compile, work, and be unguarded.
 type adminAPIService struct {
-	domains   domains.Repository
-	templates templates.Repository
+	domains   *domains.Service
+	templates *templates.Service
 	apiKeys   *apikeys.Service
 }
 
 func (s *adminAPIService) GetDomains(ctx context.Context, in *pb.GetDomainsReq) (*pb.GetDomainsResponse, error) {
-	all, err := s.domains.List(ctx)
+	all, err := s.domains.GetDomains(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +48,7 @@ func (s *adminAPIService) GetDomain(ctx context.Context, in *pb.GetDomainReq) (*
 		return nil, err
 	}
 
-	d, err := s.domains.FindByName(ctx, name)
+	d, err := s.domains.GetDomain(ctx, name)
 	if err != nil {
 		return nil, err
 	}
@@ -56,11 +64,8 @@ func (s *adminAPIService) CreateDomain(ctx context.Context, in *pb.CreateDomainR
 		return nil, err
 	}
 
-	d, err := domains.New(name)
+	d, err := s.domains.CreateDomain(ctx, name)
 	if err != nil {
-		return nil, err
-	}
-	if err := s.domains.Create(ctx, d); err != nil {
 		return nil, err
 	}
 	return d.Pb(), nil

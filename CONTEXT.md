@@ -96,6 +96,10 @@ _Avoid_: Impersonation (in Kubernetes and GCP that means *acquiring another prin
 A claim accompanying a Principal that names who asked, on the far side of a caller Kannon cannot see into — a front-end that has its own people and hands their requests on. Unverifiable in principle, since those people exist only in that system, so an Attribution is **recorded and never consulted**: it can no more widen what a Principal may do than it can be checked. Making one requires the `attribute` Action, because writing an arbitrary name into the record of who did what is itself a power and not every credential should hold it. The Principal that actually called is recorded whether or not an Attribution accompanies it, so the record never leaves the question of who acted unanswered.
 _Avoid_: Actor, Subject (RFC 8693 uses both for exactly this shape, and its `actor` is the *calling* party — the opposite of how the word reads), Impersonation, On-Behalf-Of, User; and "attribute" as a *noun* (that is a field, and the A of ABAC — as a verb it is the Action, as a noun the word is always Attribution)
 
+**Admin Token**:
+The credential the Admin API and both Stats APIs authenticate with: one secret an operator configures, resolving to a Principal that is `admin` on the root. It names the credential and not a person — the record of an administrative act can say a holder of the token did it and never which holder — which is what makes it the interim answer it is, alongside a revocation that is a restart. What replaces it is per-operator credentials carrying Grants of their own, which the model already expresses (ADR 0009).
+_Avoid_: Root Token, Master Key, Superuser; API Key (that is the Domain-bound credential the Mailer API authenticates, and it resolves to `sender` on one Domain)
+
 ### Actors
 
 **Mailer API**:

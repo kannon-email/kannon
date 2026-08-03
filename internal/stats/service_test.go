@@ -1,10 +1,12 @@
 package stats_test
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
 
+	"github.com/kannon-email/kannon/internal/authz"
 	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/internal/values"
 	"github.com/kannon-email/kannon/proto/kannon/stats/types"
@@ -19,6 +21,20 @@ var (
 	dCom       = values.MustParse("d.com")
 )
 
+// authorizedCtx carries a Principal that may do everything, because the tests in
+// this file are about what each query returns and not about who may ask for it. The
+// three read operations are authorized at the service seam, so without a Principal
+// they would refuse before reaching the repository.
+//
+// Which Action and Resource each one demands, and who is refused, is pinned in
+// service_authz_test.go instead: a behavioural test that also carried an
+// authorization claim would pass for either reason.
+func authorizedCtx(t *testing.T) context.Context {
+	t.Helper()
+	return authz.NewContext(t.Context(), authz.MustNewPrincipal("test-admin",
+		authz.MustNewGrant(authz.RoleAdmin, authz.RootAnchor())))
+}
+
 func newTestService() *stats.Service {
 	return stats.NewService(stats.NewInMemRepository())
 }
@@ -30,7 +46,7 @@ func newTestServiceWithAggregated() *stats.Service {
 
 func TestInsertAndQueryStats(t *testing.T) {
 	svc := newTestService()
-	ctx := t.Context()
+	ctx := authorizedCtx(t)
 
 	now := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	tr := stats.TimeRange{Start: now.Add(-time.Hour), Stop: now.Add(time.Hour)}
@@ -64,7 +80,7 @@ func TestInsertAndQueryStats(t *testing.T) {
 
 func TestQueryStats_Pagination(t *testing.T) {
 	svc := newTestService()
-	ctx := t.Context()
+	ctx := authorizedCtx(t)
 
 	base := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	tr := stats.TimeRange{Start: base.Add(-time.Hour), Stop: base.Add(time.Hour)}
@@ -100,7 +116,7 @@ func TestQueryStats_Pagination(t *testing.T) {
 
 func TestQueryStats_FiltersByDomain(t *testing.T) {
 	svc := newTestService()
-	ctx := t.Context()
+	ctx := authorizedCtx(t)
 
 	now := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	tr := stats.TimeRange{Start: now.Add(-time.Hour), Stop: now.Add(time.Hour)}
@@ -130,7 +146,7 @@ func TestQueryStats_FiltersByDomain(t *testing.T) {
 
 func TestQueryStats_FiltersByTimeRange(t *testing.T) {
 	svc := newTestService()
-	ctx := t.Context()
+	ctx := authorizedCtx(t)
 
 	base := time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)
 	tr := stats.TimeRange{Start: base, Stop: base.Add(2 * time.Hour)}
@@ -162,7 +178,7 @@ func TestQueryStats_FiltersByTimeRange(t *testing.T) {
 
 func TestQueryTimeline(t *testing.T) {
 	svc := newTestService()
-	ctx := t.Context()
+	ctx := authorizedCtx(t)
 
 	base := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	tr := stats.TimeRange{Start: base, Stop: base.Add(3 * time.Hour)}
@@ -202,7 +218,7 @@ func TestQueryTimeline(t *testing.T) {
 
 func TestCleanup(t *testing.T) {
 	svc := newTestService()
-	ctx := t.Context()
+	ctx := authorizedCtx(t)
 
 	now := time.Now().UTC()
 	old := now.Add(-48 * time.Hour)
@@ -268,7 +284,7 @@ func TestDetermineType(t *testing.T) {
 
 func TestIncrementAggregatedStat(t *testing.T) {
 	svc := newTestServiceWithAggregated()
-	ctx := t.Context()
+	ctx := authorizedCtx(t)
 
 	ts := time.Date(2026, 1, 15, 14, 30, 0, 0, time.UTC)
 
@@ -301,7 +317,7 @@ func TestIncrementAggregatedStat(t *testing.T) {
 
 func TestIncrementAggregatedStat_SeparateEntries(t *testing.T) {
 	svc := newTestServiceWithAggregated()
-	ctx := t.Context()
+	ctx := authorizedCtx(t)
 
 	day1 := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	day2 := time.Date(2026, 1, 16, 14, 0, 0, 0, time.UTC)
@@ -336,7 +352,7 @@ func TestIncrementAggregatedStat_SeparateEntries(t *testing.T) {
 // are two rows, and only events sharing an hour are summed together.
 func TestIncrementAggregatedStat_HourlyBuckets(t *testing.T) {
 	svc := newTestServiceWithAggregated()
-	ctx := t.Context()
+	ctx := authorizedCtx(t)
 
 	hour10 := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	sameHour := time.Date(2026, 1, 15, 10, 59, 59, 0, time.UTC)
@@ -375,7 +391,7 @@ func TestIncrementAggregatedStat_HourlyBuckets(t *testing.T) {
 
 func TestQueryAggregatedStats_FiltersByDomainAndTimeRange(t *testing.T) {
 	svc := newTestServiceWithAggregated()
-	ctx := t.Context()
+	ctx := authorizedCtx(t)
 
 	ts := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 

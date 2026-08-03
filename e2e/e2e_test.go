@@ -169,6 +169,10 @@ func runKannon(t *testing.T, infra *TestInfrastructure, senderMock *senderMock) 
 
 	viper.Reset()
 	viper.Set("api.port", infra.apiPort)
+	// Without this the API runnable refuses to start, which is the point of it: the suite
+	// configures the credential the way an operator does and then presents it on every Admin
+	// and Stats call, so the whole authenticated path is what these tests exercise.
+	viper.Set("api.admin_token", adminToken)
 	viper.Set("tracker.port", infra.trackerPort)
 	viper.Set("stats.retention", "8760h")
 	viper.Set("smtp.address", fmt.Sprintf(":%d", infra.smtpPort))

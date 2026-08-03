@@ -6,8 +6,10 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/kannon-email/kannon/internal/apikeys"
+	"github.com/kannon-email/kannon/internal/authzconnect"
 	sqlc "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/domains"
+	"github.com/kannon-email/kannon/internal/templates"
 	"github.com/kannon-email/kannon/internal/trackingpb"
 
 	"connectrpc.com/connect"
@@ -24,7 +26,7 @@ type adminAPIConnectAdapter struct {
 func (a *adminAPIConnectAdapter) GetDomains(ctx context.Context, req *connect.Request[pb.GetDomainsReq]) (*connect.Response[pb.GetDomainsResponse], error) {
 	resp, err := a.impl.GetDomains(ctx, req.Msg)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, serviceError(err)
 	}
 	return connect.NewResponse(resp), nil
 }
@@ -32,7 +34,7 @@ func (a *adminAPIConnectAdapter) GetDomains(ctx context.Context, req *connect.Re
 func (a *adminAPIConnectAdapter) GetDomain(ctx context.Context, req *connect.Request[pb.GetDomainReq]) (*connect.Response[pb.GetDomainRes], error) {
 	resp, err := a.impl.GetDomain(ctx, req.Msg)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, serviceError(err)
 	}
 	return connect.NewResponse(resp), nil
 }
@@ -40,7 +42,7 @@ func (a *adminAPIConnectAdapter) GetDomain(ctx context.Context, req *connect.Req
 func (a *adminAPIConnectAdapter) CreateDomain(ctx context.Context, req *connect.Request[pb.CreateDomainRequest]) (*connect.Response[pb.Domain], error) {
 	resp, err := a.impl.CreateDomain(ctx, req.Msg)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, serviceError(err)
 	}
 	return connect.NewResponse(resp), nil
 }
@@ -53,6 +55,18 @@ func (a *adminAPIConnectAdapter) SetTrackingPolicy(ctx context.Context, req *con
 	return connect.NewResponse(resp), nil
 }
 
+// serviceError maps what a guarded service returns onto a Connect code.
+//
+// Every method of this adapter used to answer CodeInternal for everything, which
+// was survivable while the only errors were bugs and bad input. It is not
+// survivable now: a refusal reported as an internal fault tells the caller to
+// retry something that will never succeed and tells whoever watches the error rate
+// that Kannon is broken. So an authorization refusal becomes
+// CodePermissionDenied and the rest keeps the behaviour it had.
+func serviceError(err error) *connect.Error {
+	return authzconnect.Error(err, connect.CodeInternal)
+}
+
 // trackingPolicyError maps the ways a Tracking Policy can be refused onto
 // Connect codes, so that a caller can tell a policy decision from a bug: a Mode
 // this build does not know is a bad argument, and an unknown Domain is not
@@ -63,6 +77,11 @@ func (a *adminAPIConnectAdapter) SetTrackingPolicy(ctx context.Context, req *con
 // bad Mode does not mean two different things depending on which API was asked.
 // Whatever else can go wrong differs: setting a Policy on a Domain can fail to
 // find the Domain, and taking one in on a send cannot.
+//
+// An authorization refusal is neither of the two sentinels, so it falls through to
+// serviceError and lands on CodePermissionDenied. The ordering matters and is worth
+// stating: a caller that may not touch this Domain must not be told whether the
+// Domain exists, and the Domain lookup only happens after the guard has passed.
 func trackingPolicyError(err error) *connect.Error {
 	switch {
 	case errors.Is(err, trackingpb.ErrUnknownMode):
@@ -70,14 +89,14 @@ func trackingPolicyError(err error) *connect.Error {
 	case errors.Is(err, domains.ErrDomainNotFound):
 		return connect.NewError(connect.CodeNotFound, err)
 	default:
-		return connect.NewError(connect.CodeInternal, err)
+		return serviceError(err)
 	}
 }
 
 func (a *adminAPIConnectAdapter) CreateTemplate(ctx context.Context, req *connect.Request[pb.CreateTemplateReq]) (*connect.Response[pb.CreateTemplateRes], error) {
 	resp, err := a.impl.CreateTemplate(ctx, req.Msg)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, serviceError(err)
 	}
 	return connect.NewResponse(resp), nil
 }
@@ -85,7 +104,7 @@ func (a *adminAPIConnectAdapter) CreateTemplate(ctx context.Context, req *connec
 func (a *adminAPIConnectAdapter) UpdateTemplate(ctx context.Context, req *connect.Request[pb.UpdateTemplateReq]) (*connect.Response[pb.UpdateTemplateRes], error) {
 	resp, err := a.impl.UpdateTemplate(ctx, req.Msg)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, serviceError(err)
 	}
 	return connect.NewResponse(resp), nil
 }
@@ -93,7 +112,7 @@ func (a *adminAPIConnectAdapter) UpdateTemplate(ctx context.Context, req *connec
 func (a *adminAPIConnectAdapter) DeleteTemplate(ctx context.Context, req *connect.Request[pb.DeleteTemplateReq]) (*connect.Response[pb.DeleteTemplateRes], error) {
 	resp, err := a.impl.DeleteTemplate(ctx, req.Msg)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, serviceError(err)
 	}
 	return connect.NewResponse(resp), nil
 }
@@ -101,7 +120,7 @@ func (a *adminAPIConnectAdapter) DeleteTemplate(ctx context.Context, req *connec
 func (a *adminAPIConnectAdapter) GetTemplate(ctx context.Context, req *connect.Request[pb.GetTemplateReq]) (*connect.Response[pb.GetTemplateRes], error) {
 	resp, err := a.impl.GetTemplate(ctx, req.Msg)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, serviceError(err)
 	}
 	return connect.NewResponse(resp), nil
 }
@@ -109,7 +128,7 @@ func (a *adminAPIConnectAdapter) GetTemplate(ctx context.Context, req *connect.R
 func (a *adminAPIConnectAdapter) GetTemplates(ctx context.Context, req *connect.Request[pb.GetTemplatesReq]) (*connect.Response[pb.GetTemplatesRes], error) {
 	resp, err := a.impl.GetTemplates(ctx, req.Msg)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, serviceError(err)
 	}
 	return connect.NewResponse(resp), nil
 }
@@ -117,7 +136,7 @@ func (a *adminAPIConnectAdapter) GetTemplates(ctx context.Context, req *connect.
 func (a *adminAPIConnectAdapter) CreateAPIKey(ctx context.Context, req *connect.Request[pb.CreateAPIKeyRequest]) (*connect.Response[pb.CreateAPIKeyResponse], error) {
 	resp, err := a.impl.CreateAPIKey(ctx, req.Msg)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, serviceError(err)
 	}
 	return connect.NewResponse(resp), nil
 }
@@ -125,7 +144,7 @@ func (a *adminAPIConnectAdapter) CreateAPIKey(ctx context.Context, req *connect.
 func (a *adminAPIConnectAdapter) ListAPIKeys(ctx context.Context, req *connect.Request[pb.ListAPIKeysRequest]) (*connect.Response[pb.ListAPIKeysResponse], error) {
 	resp, err := a.impl.ListAPIKeys(ctx, req.Msg)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, serviceError(err)
 	}
 	return connect.NewResponse(resp), nil
 }
@@ -133,7 +152,7 @@ func (a *adminAPIConnectAdapter) ListAPIKeys(ctx context.Context, req *connect.R
 func (a *adminAPIConnectAdapter) GetAPIKey(ctx context.Context, req *connect.Request[pb.GetAPIKeyRequest]) (*connect.Response[pb.GetAPIKeyResponse], error) {
 	resp, err := a.impl.GetAPIKey(ctx, req.Msg)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, serviceError(err)
 	}
 	return connect.NewResponse(resp), nil
 }
@@ -141,21 +160,27 @@ func (a *adminAPIConnectAdapter) GetAPIKey(ctx context.Context, req *connect.Req
 func (a *adminAPIConnectAdapter) DeactivateAPIKey(ctx context.Context, req *connect.Request[pb.DeactivateAPIKeyRequest]) (*connect.Response[pb.DeactivateAPIKeyResponse], error) {
 	resp, err := a.impl.DeactivateAPIKey(ctx, req.Msg)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, serviceError(err)
 	}
 	return connect.NewResponse(resp), nil
 }
 
+// CreateAdminAPIService assembles the Admin API over the three guarded services.
+//
+// Note what this constructor does *not* do: it installs no Principal. A caller
+// holding this handler — the API runnable, or a test — reaches guarded operations
+// that will refuse unless something put a Principal in the request context. In
+// production that something is the interceptor at the composition point
+// (pkg/api/api.go), and only while the operator leaves the open surfaces open.
 func CreateAdminAPIService(db *pgxpool.Pool) adminv1connect.ApiHandler {
 	domainsRepo := sqlc.NewDomainsRepository(db)
-	tm := sqlc.NewTemplatesRepository(db)
+	templatesRepo := sqlc.NewTemplatesRepository(db)
 	apiKeysRepo := sqlc.NewAPIKeysRepository(db)
-	apiKeysService := apikeys.NewService(apiKeysRepo)
 	return &adminAPIConnectAdapter{
 		impl: &adminAPIService{
-			domains:   domainsRepo,
-			templates: tm,
-			apiKeys:   apiKeysService,
+			domains:   domains.NewService(domainsRepo),
+			templates: templates.NewService(templatesRepo),
+			apiKeys:   apikeys.NewService(apiKeysRepo),
 		},
 	}
 }

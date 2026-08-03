@@ -75,13 +75,57 @@ Kannon is a cloud-native, scalable SMTP mail sender designed for Kubernetes and 
 
 - Defines the SenderDomain entity (the sender-tenant identity per
   `CONTEXT.md`), `Repository` interface, and `New` / `Load` constructors
-  for the FQDN + DKIM key pair under which Batches are authored. Follows
-  the same pattern as `internal/apikeys/` (entity + repo + repospec); the
-  sqlc-backed implementation lives in `internal/db/`. The Go type is
-  named `Domain` for historical reasons; renaming the wire/DB-visible
-  field to `fqdn` is wire/DB breaking and deferred. Carries the Domain's
-  Tracking Policy, which acts as the ceiling for every Batch and Recipient
-  sent under it.
+  for the domain name + DKIM key pair under which Batches are authored.
+  Follows the same pattern as `internal/apikeys/` (entity + repo + repospec);
+  the sqlc-backed implementation lives in `internal/db/`. The Go type is
+  named `Domain` rather than `SenderDomain` for historical reasons; the
+  wire/DB-visible field is `domain`, which is what the sanctioned term calls
+  it, so no rename is owed there. Carries the Domain's Tracking Policy, which
+  acts as the ceiling for every Batch and Recipient sent under it.
+
+#### `internal/values/`
+
+- Holds `DomainName`, the canonical form of a Domain's name: lower-cased, at
+  most 254 characters, at least one dot, and free of `/`, `@` and `*`.
+  Constructible only through `Parse`, so a value cannot originate from a
+  conversion, and the zero value renders a Resource no Anchor covers — a
+  programming error therefore fails closed. It is `DomainName` rather than
+  `FQDN` because a trailing dot is what marks a name fully qualified and
+  `Parse` refuses one. Canonicalisation lives here and never in
+  `internal/authz/`: while two case-differing Domains could coexist,
+  lower-casing inside an authorization decision would itself be the
+  escalation (ADR 0008).
+
+#### `internal/authz/`
+
+- Decides what a request may do, and nothing else: `Can` is a pure function with
+  no context, no I/O and no repository, so the whole model is verifiable as a
+  table. A Principal carries Grants, each a Role *name* fixed to an Anchor; a
+  Role is a named set of typed rules defined in this package's catalogue rather
+  than in the database, so one reviewable diff changes what every credential of
+  that Role may do. Authority is the union of a Principal's Grants and nothing
+  subtracts from it — there are no deny rules. Also holds Attenuation (narrowing
+  a Grant's Anchor) and the `Guard` decorator. See ADR 0008 and ADR 0008, and
+  `CONTEXT.md` §Access control.
+
+#### `internal/authzconnect/`
+
+- Where the authority model meets Connect: reads the admin token off
+  `X-Kannon-Admin-Token`, puts the Principal it resolves to into the request's
+  context, and maps a refusal onto `CodePermissionDenied`. It is a separate
+  package so that `internal/authz/` imports no transport at all — two transports
+  over one domain must reach the same answer, and the surest way to keep that
+  true is that the package holding the decision cannot reach a transport. It
+  holds both sides of the header, so a client and the handler that checks it
+  cannot come to spell it differently.
+
+#### `internal/admintoken/`
+
+- The credential the Admin API and both Stats APIs authenticate with: one shared
+  secret an operator configures, resolving to `admin` on the root. Kept apart
+  from `internal/authz/` because it is authentication rather than authority, and
+  apart from the transport because what it confers does not depend on how it
+  arrived. See ADR 0009.
 
 #### `internal/tracking/`
 
@@ -96,7 +140,7 @@ Kannon is a cloud-native, scalable SMTP mail sender designed for Kubernetes and 
   not on the protobuf packages. The rank order is plain Go, deliberately not
   the protobuf enum numbers, so a Mode can be inserted mid-scale without
   renumbering the wire. Also owns the identities the Modes that name nobody
-  carry: the `track.<fqdn>` namespace reserved for them, the constant Anonymous
+  carry: the `track.<domain>` namespace reserved for them, the constant Anonymous
   sentinel inside it, and the 128-bit `crypto/rand` pseudonym, along with the
   namespace test the mint applies. See ADR 0002, ADR 0003 and ADR 0006.
 
