@@ -20,7 +20,14 @@ type TestInfrastructure struct {
 	natsURL     string
 	apiPort     uint
 	trackerPort uint
+	smtpPort    uint
 	cleanup     []func() error
+}
+
+// smtpAddr is where the bounce-receiving SMTP server listens: the address a
+// remote MTA would deliver a DSN to.
+func (infra *TestInfrastructure) smtpAddr() string {
+	return fmt.Sprintf("localhost:%d", infra.smtpPort)
 }
 
 func (infra *TestInfrastructure) Cleanup() {
@@ -112,10 +119,16 @@ func setupTestInfrastructure(ctx context.Context) (*TestInfrastructure, error) {
 		return infra, fmt.Errorf("could not find available port for tracker: %w", err)
 	}
 
+	smtpPort, err := findAvailablePort()
+	if err != nil {
+		return infra, fmt.Errorf("could not find available port for smtp: %w", err)
+	}
+
 	infra.dbURL = dbURL
 	infra.natsURL = natsURL
 	infra.apiPort = apiPort
 	infra.trackerPort = trackerPort
+	infra.smtpPort = smtpPort
 
 	return infra, nil
 }

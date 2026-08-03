@@ -5,21 +5,26 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
+	netsmtp "net/smtp"
 	"regexp"
 	"testing"
 	"time"
 
 	"connectrpc.com/connect"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/kannon-email/kannon/internal/delivery"
 	"github.com/kannon-email/kannon/internal/tests"
 	"github.com/kannon-email/kannon/pkg/api"
 	"github.com/kannon-email/kannon/pkg/dispatcher"
+	kannonsmtp "github.com/kannon-email/kannon/pkg/smtp"
 	"github.com/kannon-email/kannon/pkg/smtpsender"
 	"github.com/kannon-email/kannon/pkg/stats"
 	"github.com/kannon-email/kannon/pkg/tracker"
@@ -92,6 +97,11 @@ func TestE2EEmailSending(t *testing.T) {
 		testPermanentBounce(t, factory, senderMock, infra)
 	})
 
+	t.Run("AsyncSoftBounce", func(t *testing.T) {
+		t.Parallel()
+		testAsyncSoftBounce(t, factory, senderMock, infra)
+	})
+
 	t.Run("TransientThenDeliver", func(t *testing.T) {
 		t.Parallel()
 		testTransientThenDeliver(t, factory, senderMock, infra)
@@ -156,6 +166,7 @@ func runKannon(t *testing.T, infra *TestInfrastructure, senderMock *senderMock) 
 	viper.Set("api.port", infra.apiPort)
 	viper.Set("tracker.port", infra.trackerPort)
 	viper.Set("stats.retention", "8760h")
+	viper.Set("smtp.address", fmt.Sprintf(":%d", infra.smtpPort))
 
 	cnt := container.NewForTest(ctx,
 		container.WithDBURL(infra.dbURL),
@@ -179,6 +190,10 @@ func runKannon(t *testing.T, infra *TestInfrastructure, senderMock *senderMock) 
 	reg.Register(validator.New(cnt))
 	reg.Register(stats.New(cnt))
 	reg.Register(tracker.New(cnt))
+	// The inbound SMTP server: the leg that receives asynchronous DSNs. Unlike
+	// the outbound SMTPSender it needs no test double — a subtest plays the
+	// remote MTA by connecting to it and delivering a real DSN.
+	reg.Register(kannonsmtp.New(cnt))
 
 	// Custom SMTPSender wired against the test sender mock; the package's
 	// New(c) builds a real SMTP sender from the container, which the e2e
@@ -542,6 +557,176 @@ func testPermanentBounce(t *testing.T, clientFactory *clientFactory, senderMock 
 	// senderMock should have observed exactly one attempt — permanent
 	// bounces are not retried.
 	assert.Len(t, senderMock.History(to), 1, "permanent bounce should not be retried")
+}
+
+// dsnTemplate is a delivery status notification in the multipart/report shape
+// of RFC 3464, the format a remote MTA uses to report a delivery it accepted
+// and could not complete.
+const dsnTemplate = `From: MAILER-DAEMON@mx.example.com
+To: %s
+Subject: Undelivered Mail Returned to Sender
+Content-Type: multipart/report; report-type=delivery-status; boundary="B"
+
+--B
+Content-Type: text/plain; charset=us-ascii
+
+This is the mail system at host mx.example.com.
+
+--B
+Content-Type: message/delivery-status
+
+Reporting-MTA: dns; mx.example.com
+Final-Recipient: rfc822; %s
+Action: failed
+Diagnostic-Code: SMTP; %d %s
+
+--B--
+`
+
+// deliverDSN plays the remote MTA: it connects to Kannon's inbound SMTP server
+// and delivers a bounce report addressed to the Envelope's return path, which
+// is the only thing tying the report back to a Batch and a Recipient.
+func deliverDSN(t *testing.T, infra *TestInfrastructure, returnPath, recipient string, code int, reason string) {
+	t.Helper()
+
+	// The registry starts every module concurrently, so the listener may not
+	// be up yet when a parallel subtest gets here. Wait for the port rather
+	// than retrying the SMTP exchange, which would double-report the bounce.
+	require.Eventually(t, func() bool {
+		conn, err := net.DialTimeout("tcp", infra.smtpAddr(), time.Second)
+		if err != nil {
+			return false
+		}
+		conn.Close()
+		return true
+	}, 30*time.Second, 200*time.Millisecond, "inbound SMTP server never accepted connections")
+
+	c, err := netsmtp.Dial(infra.smtpAddr())
+	require.NoError(t, err)
+	defer c.Close()
+
+	require.NoError(t, c.Mail("MAILER-DAEMON@mx.example.com"))
+	require.NoError(t, c.Rcpt(returnPath))
+
+	w, err := c.Data()
+	require.NoError(t, err)
+	_, err = fmt.Fprintf(w, dsnTemplate, returnPath, recipient, code, reason)
+	require.NoError(t, err)
+	require.NoError(t, w.Close())
+	require.NoError(t, c.Quit())
+}
+
+// watchBounceSubject subscribes to kannon.stats.bounced and returns a function
+// that waits for the bounce belonging to the given Recipient.
+//
+// Asserting through the stats API is not enough to pin the subject. The Stats
+// worker consumes the kannon.stats.* wildcard and types each row off the
+// payload, never the subject, so it records an asynchronous bounce even when it
+// is published somewhere no consumer subscribes — which is precisely how #376
+// went unnoticed. Watching the subject on the wire is the only assertion that
+// fails when the two bounce paths drift apart again.
+func watchBounceSubject(t *testing.T, infra *TestInfrastructure, email string) func(*testing.T) *statstypes.Stats {
+	t.Helper()
+
+	nc, err := nats.Connect(infra.natsURL)
+	require.NoError(t, err)
+	t.Cleanup(nc.Close)
+
+	got := make(chan *statstypes.Stats, 8)
+	// The subscription needs no explicit teardown: the deferred nc.Close above
+	// drops it with the connection.
+	_, err = nc.Subscribe("kannon.stats.bounced", func(m *nats.Msg) {
+		s := &statstypes.Stats{}
+		if err := proto.Unmarshal(m.Data, s); err != nil {
+			return
+		}
+		if s.Email == email {
+			got <- s
+		}
+	})
+	require.NoError(t, err)
+
+	// Flush so the subscription is registered on the server before the caller
+	// triggers the event it means to observe.
+	require.NoError(t, nc.Flush())
+
+	return func(t *testing.T) *statstypes.Stats {
+		t.Helper()
+		select {
+		case s := <-got:
+			return s
+		case <-time.After(20 * time.Second):
+			t.Fatalf("no bounce for %s arrived on kannon.stats.bounced", email)
+			return nil
+		}
+	}
+}
+
+// testAsyncSoftBounce closes the loop #376 left open: a Delivery is accepted by
+// the relay and reported Delivered, and only later does a DSN come back saying
+// it could not be completed.
+//
+// It is the asynchronous leg end to end — inbound SMTP server, NATS, Stats
+// worker, stats API — and it pins down two things the fix decided. The event
+// must land on kannon.stats.bounced, the same subject as a synchronous bounce
+// (it used to go to kannon.stats.soft-bounce, which nothing consumed). And
+// `permanent` must follow the SMTP reply class, not be asserted unconditionally:
+// a 4xx DSN means the remote MTA gave up after its own retries, which is
+// terminal for us but no evidence the address is dead.
+//
+// Note what does NOT happen: the Delivery is long gone from the Pool by now,
+// dropped when Delivered arrived, so the Dispatcher terms the stat and nothing
+// is rescheduled. The bounce is a record, not a state transition.
+func testAsyncSoftBounce(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
+	client := clientFactory.NewClient(t, infra)
+
+	// A plain address: the relay accepts it, so this Delivery reaches
+	// Delivered before the DSN arrives — which is what makes it asynchronous.
+	to := fmt.Sprintf("softbounce.%s@%s", tests.FakeUsername(t), client.domain)
+
+	client.SendEmail(t, &mailerapiv1.SendHTMLReq{
+		Sender:        client.Sender(),
+		Recipients:    []*mailertypes.Recipient{{Email: to}},
+		Subject:       "Async Soft Bounce Test",
+		Html:          "<h1>Hello!</h1>",
+		ScheduledTime: timestamppb.Now(),
+	})
+
+	requireStat(t, client, to, "delivered", 1)
+
+	// The return path the SMTPSender used as envelope-from is where a real
+	// MTA would send its report.
+	sent := senderMock.GetEmail(to)
+	require.NotNil(t, sent, "senderMock should have captured the delivered Envelope")
+	require.Contains(t, sent.From, "bump_", "envelope-from should be a bounce return path")
+
+	// Start watching the subject before provoking the event.
+	awaitOnSubject := watchBounceSubject(t, infra, to)
+
+	deliverDSN(t, infra, sent.From, to, 450, "Mailbox temporarily unavailable")
+
+	// First half: the event travelled on kannon.stats.bounced.
+	onWire := awaitOnSubject(t).Data.GetBounced()
+	require.NotNil(t, onWire, "async bounce should carry typed Bounced data")
+	assert.False(t, onWire.Permanent,
+		"a 4xx DSN is terminal but not permanent: the address is not proven dead")
+	assert.EqualValues(t, 450, onWire.Code)
+	assert.Contains(t, onWire.Msg, "Mailbox temporarily unavailable")
+
+	// Second half: it was persisted and is readable back through the API.
+	matched := requireStat(t, client, to, "bounced", 1)
+	bounced := matched[0].Data.GetBounced()
+	require.NotNil(t, bounced, "persisted bounce should carry typed Bounced data")
+	assert.False(t, bounced.Permanent)
+	assert.EqualValues(t, 450, bounced.Code)
+
+	// The Delivered stat stays: both events are true of this Delivery, in
+	// order. The bounce does not retract or overwrite it.
+	requireStat(t, client, to, "delivered", 1)
+
+	// Nothing was rescheduled off the back of the DSN.
+	assert.Len(t, senderMock.History(to), 1,
+		"an asynchronous bounce must not trigger another send attempt")
 }
 
 func testTransientThenDeliver(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
