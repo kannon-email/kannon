@@ -62,6 +62,40 @@ The **sender's own** unsubscribe endpoint, stated once per Batch as an `https` U
 Stated at Batch level only — there is no Domain default and no Recipient override. A Domain default would stamp an unsubscribe on the password resets and receipts that are this sender's core traffic, offering a recipient something the sender cannot honour; and a Recipient override would add nothing, since personalising the template from the Recipient's fields is already what makes the endpoint per-Recipient. This is a deliberate asymmetry with **Tracking Policy**, which does cascade: a Policy expresses a permission that is meaningful to narrow by degrees, while this is an operational instruction that is meaningful only where the intent of a single Batch lives.
 _Avoid_: Unsubscribe Link (suggests something to click, and therefore something trackable), Unsubscribe List / Suppression List (Kannon keeps neither), Opt-out (a consent notion, which under ADR 0002 Kannon does not store)
 
+### Access control
+
+**Principal**:
+Who is making a request, as resolved by whatever authenticated it. A value object rather than a stored record: each authentication method populates one in its own way — an API Key by looking it up, a token by reading its claims — so what a Principal *is* never depends on how it arrived. Carries an identifier naming the credential it came from and the **Grants** that say what it may do. A Principal *describes* authority; it does not decide. Something else asks it.
+_Avoid_: User, Identity, Account (Kannon knows of no persons; the nearest thing to one reaches it as an **Attribution**, which is not a Principal), Subject, Caller
+
+**Action**:
+One verb a Principal may be allowed to perform on a **Resource**. The vocabulary is small and closed — `create`, `read`, `list`, `update`, `delete`, `attribute` — and deliberately says nothing about *what* is being acted on, since the Resource already carries that: giving Kannon a new kind of thing to manage adds no new Actions, and a Grant that makes no sense cannot be written down. Sending mail is therefore `create` on a Domain's Batches rather than a verb of its own, which is what the language already says a send *is*. `list` is separate from `read` because a path and everything beneath it can only be held together: without the distinction, knowing *which* things exist could never be granted apart from inspecting them, and enumeration discloses something different from inspection.
+_Avoid_: Permission (ambiguous between the verb, the verb-and-Resource pair a request needs, and the Grant that satisfies it — say Action or Grant), Scope, Capability, `send` / `manage` / any verb naming what it acts on
+
+**Resource**:
+What a request acts on, named by a hierarchical path: `domains`, `domains/example.com`, `domains/example.com/templates/abc`. Authority over a path extends to everything beneath it, so authority over `domains/example.com` reaches that Domain's Templates and Batches without naming them. Two things are deliberately inexpressible: holding a path *without* what lies under it, and taking anything back — authority is only ever added, never subtracted.
+_Avoid_: Scope (says nothing about the tree shape and collides with OAuth's meaning), Object, Path (too generic once several kinds of path exist)
+
+**Role**:
+A named set of rules, each pairing Actions with the *kind* of thing they act on — "create and update on Templates, read on API Keys" — stated relative to the Anchor of the Grant that places it. Defined in code rather than stored, so that what a Role means is settled in one place at review time and a change to it takes effect everywhere at once — including for credentials issued long before. A Role says what may be done and on what kinds of things, never *where*: the where is the Grant's Anchor. A Role whose rules name no kind at all is pure shape — "everything beneath the Anchor" — and is meaningful anywhere; a Role whose rules name kinds fits only the kind of Anchor they were written against.
+_Avoid_: Group, Policy (collides with Tracking Policy), Permission Set, ClusterRole (a Kubernetes role is scoped by where it is *defined*; a Kannon Role is scoped only by the Anchor of its Grant)
+
+**Grant**:
+A Role fixed to an Anchor — *this* Role, *anchored here*. A Principal carries a set of Grants and its authority is their union. Reach and power stay independent: the Anchor decides how far the Role's rules reach and adds nothing to what they can do, so the same Role on a wider Anchor reaches further without gaining a single Action.
+_Avoid_: Assignment, Binding, RoleBinding, Rule (a rule is part of a Role; a Grant places rules, it does not state them)
+
+**Anchor**:
+The Resource a Grant fixes its Role to — where the Role's rules attach. A Grant is issued on exactly two kinds of Anchor: the root, written `*`, meaning the whole tree; or a Domain — one (`domains/example.com`) or every (`domains/*`). Nothing in between is grantable: the `domains` collection and paths inside a Domain are refused rather than left to mean something other than what they say. Attenuation may later narrow an Anchor to any concrete path the Role's rules still fit.
+_Avoid_: Scope (collides with OAuth), Namespace (the Kubernetes analogue — Kannon's name for that place is the Domain)
+
+**Attenuation**:
+Narrowing a Principal's Grants to smaller Anchors — the same identity with less reach. Authority can only shrink, because the narrowed set is the *intersection* of what was asked for with what was already held: asking for more than one holds yields less rather than more, so widening is not a mistake one can make. No Action is needed to do it, since giving up power one already holds is always safe. An attenuated Principal keeps the identifier of the credential it came from, so narrowing changes what may be done and never who did it.
+_Avoid_: Impersonation (in Kubernetes and GCP that means *acquiring another principal's* authority, which is precisely what Attenuation cannot do), Delegation, Sudo
+
+**Attribution**:
+A claim accompanying a Principal that names who asked, on the far side of a caller Kannon cannot see into — a front-end that has its own people and hands their requests on. Unverifiable in principle, since those people exist only in that system, so an Attribution is **recorded and never consulted**: it can no more widen what a Principal may do than it can be checked. Making one requires the `attribute` Action, because writing an arbitrary name into the record of who did what is itself a power and not every credential should hold it. The Principal that actually called is recorded whether or not an Attribution accompanies it, so the record never leaves the question of who acted unanswered.
+_Avoid_: Actor, Subject (RFC 8693 uses both for exactly this shape, and its `actor` is the *calling* party — the opposite of how the word reads), Impersonation, On-Behalf-Of, User; and "attribute" as a *noun* (that is a field, and the A of ABAC — as a verb it is the Action, as a noun the word is always Attribution)
+
 ### Actors
 
 **Mailer API**:

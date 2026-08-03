@@ -19,14 +19,14 @@ func RunRepoSpec(t *testing.T, repo Repository) {
 	t.Run("SetTrackingPolicy", func(t *testing.T) { testSetTrackingPolicy(t, repo) })
 }
 
-func freshFQDN(prefix string) string {
+func freshName(prefix string) string {
 	return fmt.Sprintf("%s-%d.test", prefix, time.Now().UnixNano())
 }
 
 func testCreate(t *testing.T, repo Repository) {
 	t.Run("Success", func(t *testing.T) {
 		ctx := t.Context()
-		fqdn := freshFQDN("create")
+		fqdn := freshName("create")
 
 		d, err := New(fqdn)
 		require.NoError(t, err)
@@ -54,7 +54,7 @@ func testCreate(t *testing.T, repo Repository) {
 func testFindByName(t *testing.T, repo Repository) {
 	t.Run("Success", func(t *testing.T) {
 		ctx := t.Context()
-		fqdn := freshFQDN("find")
+		fqdn := freshName("find")
 
 		d, err := New(fqdn)
 		require.NoError(t, err)
@@ -67,7 +67,7 @@ func testFindByName(t *testing.T, repo Repository) {
 
 	t.Run("NotFound", func(t *testing.T) {
 		ctx := t.Context()
-		_, err := repo.FindByName(ctx, freshFQDN("missing"))
+		_, err := repo.FindByName(ctx, freshName("missing"))
 		assert.ErrorIs(t, err, ErrDomainNotFound)
 	})
 }
@@ -79,7 +79,7 @@ func testFindByName(t *testing.T, repo Repository) {
 func testSetTrackingPolicy(t *testing.T, repo Repository) {
 	t.Run("UnstatedModeIsNormalisedToOff", func(t *testing.T) {
 		ctx := t.Context()
-		fqdn := freshFQDN("tracking")
+		fqdn := freshName("tracking")
 
 		d, err := New(fqdn)
 		require.NoError(t, err)
@@ -104,7 +104,7 @@ func testList(t *testing.T, repo Repository) {
 
 		want := map[string]bool{}
 		for i := range 3 {
-			fqdn := freshFQDN(fmt.Sprintf("list-%d", i))
+			fqdn := freshName(fmt.Sprintf("list-%d", i))
 			d, err := New(fqdn)
 			require.NoError(t, err)
 			require.NoError(t, repo.Create(ctx, d))

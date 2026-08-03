@@ -37,7 +37,7 @@ func ReservedNamespace(fqdn string) string {
 	return reservedLabel + "." + fqdn
 }
 
-// AnonymousIdentity returns the sentinel an Anonymous token carries for fqdn.
+// AnonymousIdentity returns the sentinel an Anonymous token carries for values.
 //
 // It exists for uniformity of the claim type and nothing else: an Anonymous event
 // is counted in aggregate only and never reaches the `stats` table. Being constant
