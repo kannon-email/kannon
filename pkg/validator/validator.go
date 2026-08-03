@@ -16,6 +16,7 @@ import (
 	"github.com/kannon-email/kannon/internal/runner"
 	"github.com/kannon-email/kannon/proto/kannon/stats/types"
 	"github.com/kannon-email/kannon/x/container"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -41,7 +42,7 @@ func New(cnt *container.Container) container.Runnable {
 	return container.Runnable{
 		Name: "validator",
 		Run: func(ctx context.Context) error {
-			claimer := pool.NewClaimer(sqlc.NewDeliveryRepository(cnt.DB(), cnt.BackoffPolicy()))
+			claimer := pool.NewClaimer(sqlc.NewDeliveryRepository(cnt.DB(), cnt.BackoffPolicy(), cnt.RetryWindow()))
 
 			v := Validator{
 				claimer: claimer,
@@ -50,7 +51,17 @@ func New(cnt *container.Container) container.Runnable {
 
 			v.log().Info("🚀 Starting validator")
 
-			return runner.Run(ctx, v.Cycle, runner.WaitLoop(1*time.Second))
+			eg, ctx := errgroup.WithContext(ctx)
+
+			eg.Go(func() error {
+				return runner.Run(ctx, v.Cycle, runner.WaitLoop(1*time.Second))
+			})
+
+			eg.Go(func() error {
+				return runner.Run(ctx, v.reclaimLoop, runner.WaitLoop(pool.ReclaimInterval))
+			})
+
+			return eg.Wait()
 		},
 	}
 }

@@ -5,7 +5,7 @@ package dispatcher
 // In production a single multi-recipient Batch saw a large tail of its
 // Deliveries fail inside eb.Build with err="context deadline exceeded",
 // all within a few milliseconds, and remain stranded in status='sending'
-// forever (no reaper, no retry): the per-cycle context budget was SHARED
+// forever (no reclaim, no retry): the per-cycle context budget was SHARED
 // across the whole claimed page, and a claimed-but-failed Delivery had no
 // recovery path at all.
 //
@@ -159,7 +159,12 @@ func TestDispatchCycle_BudgetDeathMidPage_NoDeliveryLost(t *testing.T) {
 	// Deliveries become due again within test time (the e2e suite does the
 	// same via container.WithBackoff).
 	backoff := delivery.ExponentialBackoff{Base: 10 * time.Millisecond, Min: 10 * time.Millisecond}
-	repo := sqlc.NewDeliveryRepository(testDB, backoff)
+	// The production Retry Budget against a collapsed curve is effectively
+	// unreachable (10ms·2ⁿ passes 24h only around the 23rd attempt), which is
+	// what this test wants: it asserts that every rescheduled victim is
+	// eventually published, so nothing here may be terminated. The budget's own
+	// boundary is exercised in retry_budget_test.go.
+	repo := sqlc.NewDeliveryRepository(testDB, backoff, delivery.DefaultRetryWindow)
 	claimer := pool.NewClaimer(repo)
 
 	ds := make([]*delivery.Delivery, total)

@@ -17,6 +17,7 @@ const (
 	TypeClicked   Type = "clicked"
 	TypeBounce    Type = "bounced"
 	TypeError     Type = "error"
+	TypeFailed    Type = "failed"
 	TypeUnknown   Type = "unknown"
 )
 
@@ -76,6 +77,8 @@ func DetermineType(d *types.StatsData) Type {
 		return TypeOpened
 	case *types.StatsData_Error:
 		return TypeError
+	case *types.StatsData_Failed:
+		return TypeFailed
 	default:
 		return TypeUnknown
 	}
@@ -94,6 +97,7 @@ var DisplayName = map[Type]string{
 	TypeClicked:   "Clicked",
 	TypeDelivered: "Delivered",
 	TypeError:     "Send Error",
+	TypeFailed:    "Failed",
 	TypeOpened:    "Opened",
 	TypeUnknown:   "Unknown",
 }

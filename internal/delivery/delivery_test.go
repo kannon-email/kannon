@@ -69,6 +69,82 @@ func TestNew(t *testing.T) {
 	})
 }
 
+func TestCanRetry(t *testing.T) {
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	load := func(attempts int, window time.Duration) *Delivery {
+		return Load(LoadParams{
+			BatchID:               batch.NewID("example.com"),
+			Email:                 "to@example.com",
+			Domain:                "example.com",
+			SendAttempts:          attempts,
+			ScheduledTime:         base,
+			OriginalScheduledTime: base,
+			Backoff:               DefaultBackoff,
+			RetryWindow:           window,
+		})
+	}
+
+	// The equivalence with the retry cap this replaced. maxRetry = 10 inside
+	// internal/envelope admitted attempts 0..9 and refused the 10th; under
+	// DefaultBackoff the tenth retry falls at 2m·2⁹ = 17h04m and the eleventh at
+	// 2m·2¹⁰ = 34h08m, so a 24h window admits exactly the same retries.
+	t.Run("EquivalentToTheRetryCapItReplaced", func(t *testing.T) {
+		assert.Equal(t, 17*time.Hour+4*time.Minute, DefaultBackoff.Delay(9))
+		assert.Equal(t, 34*time.Hour+8*time.Minute, DefaultBackoff.Delay(10))
+
+		assert.True(t, load(9, DefaultRetryWindow).CanRetry(),
+			"the tenth retry falls at 17h04m, inside the 24h window")
+		assert.False(t, load(10, DefaultRetryWindow).CanRetry(),
+			"the eleventh retry falls at 34h08m, outside the 24h window")
+	})
+
+	t.Run("WindowDefaultsWhenZero", func(t *testing.T) {
+		// A caller that states no window gets DefaultRetryWindow, so a missing
+		// wire-up degrades to the production budget rather than to a Delivery
+		// nothing will ever retry.
+		assert.True(t, load(9, 0).CanRetry())
+		assert.False(t, load(10, 0).CanRetry())
+
+		// And a stated window is honoured: the same Delivery that has run out
+		// under 24h still has room under 48h.
+		assert.True(t, load(10, 48*time.Hour).CanRetry())
+	})
+
+	t.Run("FirstAttemptSurvivesArbitraryLateness", func(t *testing.T) {
+		// The design's own claim: both instants CanRetry compares derive from
+		// originalScheduledTime, so lateness cannot spend the budget. A
+		// Dispatcher that was down for a week does not mass-terminate the Batch
+		// it finds waiting on resumption — the guarantee holds by construction
+		// rather than by a special case for the first attempt.
+		late := Load(LoadParams{
+			BatchID:               batch.NewID("example.com"),
+			Email:                 "to@example.com",
+			Domain:                "example.com",
+			ScheduledTime:         time.Now().UTC().Add(-7 * 24 * time.Hour),
+			OriginalScheduledTime: time.Now().UTC().Add(-7 * 24 * time.Hour),
+			Backoff:               DefaultBackoff,
+			RetryWindow:           DefaultRetryWindow,
+		})
+		assert.True(t, late.CanRetry(), "a Delivery offered its first attempt a week late still gets one")
+	})
+
+	t.Run("NewCarriesTheWindow", func(t *testing.T) {
+		d, err := New(NewParams{
+			BatchID:       batch.NewID("example.com"),
+			Email:         "to@example.com",
+			Domain:        "example.com",
+			ScheduledTime: base,
+			Backoff:       DefaultBackoff,
+			RetryWindow:   time.Nanosecond,
+		})
+		require.NoError(t, err)
+		// A Delivery created at intake carries the same budget as one rehydrated
+		// from its row, so the two cannot disagree about when it is over.
+		assert.False(t, d.CanRetry())
+	})
+}
+
 func TestNextRetryAt(t *testing.T) {
 	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 

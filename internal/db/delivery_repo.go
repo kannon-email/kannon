@@ -3,6 +3,8 @@ package sqlc
 import (
 	"context"
 	"errors"
+	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -12,17 +14,24 @@ import (
 )
 
 type deliveryRepository struct {
-	db      *pgxpool.Pool
-	backoff delivery.BackoffPolicy
+	db          *pgxpool.Pool
+	backoff     delivery.BackoffPolicy
+	retryWindow time.Duration
 }
 
 // NewDeliveryRepository creates a new PostgreSQL-backed Delivery repository.
-// It writes to and reads from the sending_pool_emails table. The backoff
-// policy is applied to every Delivery rehydrated from a row, so the
-// repository's reschedule path uses the canonical curve threaded through the
-// Container (see x/container.Container.BackoffPolicy).
-func NewDeliveryRepository(db *pgxpool.Pool, backoff delivery.BackoffPolicy) delivery.Repository {
-	return &deliveryRepository{db: db, backoff: backoff}
+// It writes to and reads from the sending_pool_emails table. The backoff policy
+// and the Retry Budget window are applied to every Delivery rehydrated from a
+// row, so the repository's reschedule path uses the canonical curve and the
+// canonical budget threaded through the Container (see
+// x/container.Container.BackoffPolicy and .RetryWindow).
+//
+// Both are positional and required rather than functional options: a silent
+// fallback would leave a test container's Deliveries on the production curve or
+// the production budget, which surfaces as a multi-minute wait or a Delivery
+// that never gives up instead of as a compile error (ADR 0001).
+func NewDeliveryRepository(db *pgxpool.Pool, backoff delivery.BackoffPolicy, retryWindow time.Duration) delivery.Repository {
+	return &deliveryRepository{db: db, backoff: backoff, retryWindow: retryWindow}
 }
 
 func (r *deliveryRepository) Schedule(ctx context.Context, ds ...*delivery.Delivery) error {
@@ -114,6 +123,59 @@ func (r *deliveryRepository) Clean(ctx context.Context, batchID batch.ID, email 
 	})
 }
 
+// reclaimTarget is the storage-level meaning of a delivery.InFlight: the status
+// a claim of that kind holds a row in, the status it was taken from and must go
+// back to, and whether handing it back spends a send attempt.
+type reclaimTarget struct {
+	from         SendingPoolStatus
+	to           SendingPoolStatus
+	bumpAttempts bool
+}
+
+// reclaimTargets is the single place the two in-flight statuses are paired with
+// their pre-claim status and their attempt-counter policy, so the two cannot
+// drift apart.
+var reclaimTargets = map[delivery.InFlight]reclaimTarget{
+	// A dispatch reclaim bumps the attempt counter: it is what makes a
+	// condition that strands systematically converge on termination through
+	// the Retry Budget instead of looping for ever.
+	delivery.InFlightForDispatch: {
+		from:         SendingPoolStatusSending,
+		to:           SendingPoolStatusScheduled,
+		bumpAttempts: true,
+	},
+	// A validation reclaim does not. It is not a send attempt, and bumping it
+	// would silently advance the backoff curve of a Delivery that has never
+	// been near an MX. A row that strands there has no per-row cause either —
+	// the Validator passes an address or Drops it as Rejected — so the cause is
+	// always infrastructural and always transient, and looping is correct.
+	delivery.InFlightForValidation: {
+		from:         SendingPoolStatusValidating,
+		to:           SendingPoolStatusToValidate,
+		bumpAttempts: false,
+	},
+}
+
+func (r *deliveryRepository) ReclaimStranded(ctx context.Context, f delivery.InFlight, olderThan time.Duration, max int) ([]*delivery.Delivery, error) {
+	target, ok := reclaimTargets[f]
+	if !ok {
+		return nil, fmt.Errorf("cannot reclaim: unknown in-flight claim %d", uint8(f))
+	}
+
+	q := New(r.db)
+	rows, err := q.ReclaimStranded(ctx, ReclaimStrandedParams{
+		FromStatus:   target.from,
+		ToStatus:     target.to,
+		BumpAttempts: target.bumpAttempts,
+		StrandedFor:  PgIntervalFromDuration(olderThan),
+		Max:          int32(max),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return r.rowsToDeliveries(rows), nil
+}
+
 func (r *deliveryRepository) rowsToDeliveries(rows []SendingPoolEmail) []*delivery.Delivery {
 	out := make([]*delivery.Delivery, len(rows))
 	for i, row := range rows {
@@ -132,6 +194,7 @@ func (r *deliveryRepository) rowToDelivery(row SendingPoolEmail) *delivery.Deliv
 		ScheduledTime:         row.ScheduledTime.Time,
 		OriginalScheduledTime: row.OriginalScheduledTime.Time,
 		Backoff:               r.backoff,
+		RetryWindow:           r.retryWindow,
 		Tracking:              row.Tracking,
 	})
 }

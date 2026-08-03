@@ -112,6 +112,11 @@ func TestE2EEmailSending(t *testing.T) {
 		testDispatchFailureRecovery(t, factory, senderMock, infra)
 	})
 
+	t.Run("RetryBudgetExhausted", func(t *testing.T) {
+		t.Parallel()
+		testRetryBudgetExhausted(t, factory, infra)
+	})
+
 	t.Run("Opened", func(t *testing.T) {
 		t.Parallel()
 		testOpened(t, factory, senderMock, infra)
@@ -177,6 +182,17 @@ func runKannon(t *testing.T, infra *TestInfrastructure, senderMock *senderMock) 
 			Base: 50 * time.Millisecond,
 			Min:  50 * time.Millisecond,
 		}),
+		// The Retry Budget has to be scaled by the same factor as the backoff
+		// base, or a collapsed curve races through the whole budget and
+		// terminates every Delivery in the suite. Production is 24h against
+		// 2m·2ⁿ; this curve is 50ms·2ⁿ, i.e. 2400× faster, and 24h/2400 = 36s.
+		//
+		// That derivation keeps the boundary exactly where production has it:
+		// 50ms·2⁹ = 25.6s is inside the window and 50ms·2¹⁰ = 51.2s is outside
+		// it, so ten retries are admitted and the eleventh refused — identical
+		// to the maxRetry = 10 constant this replaced. No subtest that relies on
+		// being retried, DispatchFailureRecovery included, changes behaviour.
+		container.WithRetryWindow(36*time.Second),
 	)
 	t.Cleanup(func() {
 		if err := cnt.CloseWithTimeout(30 * time.Second); err != nil {
@@ -839,6 +855,89 @@ func testDispatchFailureRecovery(t *testing.T, clientFactory *clientFactory, sen
 		require.NoError(tt, db.QueryRow(t.Context(),
 			`SELECT count(*) FROM sending_pool_emails WHERE message_id = $1`, msgID).Scan(&n))
 		require.Zero(tt, n, "delivered Deliveries must be cleaned from the pool")
+	}, 30*time.Second, 500*time.Millisecond, "pool must drain for the batch")
+}
+
+// testRetryBudgetExhausted closes the loop testDispatchFailureRecovery opens.
+// That test heals the Batch's Template and the Delivery goes out; this one never
+// heals it, which before #378 meant the Delivery was rescheduled with a doubling
+// backoff until its next attempt was years away — the sender's last stat being
+// `accepted`, permanently. Now the Retry Budget ends it: a Failed stat the sender
+// can read, and the Pool row gone (ADR 0007).
+//
+// The Template is broken with the same reversible SQL surgery the neighbouring
+// test uses, and the Delivery is then jumped past its budget with a second piece
+// of surgery: send_attempts_cnt is set to 10, which under this container's 36s
+// window is the very first retry the budget refuses (50ms·2¹⁰ = 51.2s). Reaching
+// that boundary honestly costs 50ms·2⁹ ≈ 26s of wall clock, too slow and
+// too flaky for a subtest running alongside seventeen others; the surgery moves
+// the Delivery to the boundary and leaves the real Dispatcher to decide what
+// happens there, which is the part under test. Where the boundary itself sits is
+// pinned away from here and for free: TestCanRetry/EquivalentToTheRetryCapItReplaced
+// in internal/delivery pins that the tenth retry is admitted and the eleventh
+// refused, and pkg/dispatcher/retry_budget_test.go walks a Delivery across it one
+// dispatch cycle at a time.
+//
+// ADR 0001 rejected "test-only DB mutation of sending_pool_emails.scheduled_time"
+// on two grounds, and only one of them reaches this test. Its load-bearing
+// objection was that such a mutation bypasses the production path *under test* —
+// there, the reschedule loop itself — and nothing under test here is bypassed:
+// the real Dispatcher still claims this Delivery, still tries to build its
+// Envelope, and still makes the termination decision, which is the behaviour #378
+// added. The reschedule loop this jump skips is covered where it is cheap to
+// cover honestly, in pkg/dispatcher/retry_budget_test.go: rescheduled at 0 and 1
+// attempts, terminated at 2, no surgery. The other objection does apply and is
+// accepted — writing send_attempts_cnt couples this test to a column name that is
+// internal to the Pool.
+func testRetryBudgetExhausted(t *testing.T, clientFactory *clientFactory, infra *TestInfrastructure) {
+	client := clientFactory.NewClient(t, infra)
+
+	db, err := pgxpool.New(t.Context(), infra.dbURL)
+	require.NoError(t, err)
+	t.Cleanup(db.Close)
+
+	to := fmt.Sprintf("spent.%s@%s", tests.FakeUsername(t), client.domain)
+
+	// Scheduled slightly in the future, as in testDispatchFailureRecovery: the
+	// gap is the window for both operations below, before the Dispatcher can
+	// claim the Delivery. The Validator ignores scheduled_time, so validation
+	// still happens now.
+	msgID := client.SendEmail(t, &mailerapiv1.SendHTMLReq{
+		Sender:        client.Sender(),
+		Recipients:    []*mailertypes.Recipient{{Email: to}},
+		Subject:       "Retry Budget Exhausted Test",
+		Html:          "<h1>Hello!</h1>",
+		ScheduledTime: timestamppb.New(time.Now().Add(3 * time.Second)),
+	})
+
+	var templateID string
+	require.NoError(t, db.QueryRow(t.Context(),
+		`SELECT template_id FROM messages WHERE message_id = $1`, msgID).Scan(&templateID))
+	_, err = db.Exec(t.Context(),
+		`UPDATE templates SET template_id = $1 WHERE template_id = $2`, templateID+".broken", templateID)
+	require.NoError(t, err)
+
+	_, err = db.Exec(t.Context(),
+		`UPDATE sending_pool_emails SET send_attempts_cnt = 10 WHERE message_id = $1 AND email = $2`,
+		msgID, to)
+	require.NoError(t, err)
+
+	// Half one: the sender is told, and told something it can act on.
+	matched := requireStat(t, client, to, "failed", 1)
+	require.NotNil(t, matched[0].Data)
+	failed := matched[0].Data.GetFailed()
+	require.NotNil(t, failed, "failed stat should carry typed Failed data")
+	assert.Contains(t, failed.Reason, "retry budget",
+		"a Failed stat states what ran out; unlike Bounced it carries no reply code")
+	assert.NotContains(t, failed.Reason, to, "the reason is customer-visible and must name no address")
+
+	// Half two: the Delivery is terminal, so it leaves the Pool — it is not
+	// waiting for a retry that will never be allowed.
+	require.EventuallyWithT(t, func(tt *assert.CollectT) {
+		var n int
+		require.NoError(tt, db.QueryRow(t.Context(),
+			`SELECT count(*) FROM sending_pool_emails WHERE message_id = $1`, msgID).Scan(&n))
+		require.Zero(tt, n, "a Delivery whose Retry Budget is spent must be dropped from the pool")
 	}, 30*time.Second, 500*time.Millisecond, "pool must drain for the batch")
 }
 

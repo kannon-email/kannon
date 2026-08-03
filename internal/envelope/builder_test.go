@@ -524,7 +524,13 @@ func decodeQuotedPrintable(b []byte) (string, error) {
 	return string(out), nil
 }
 
-func TestBuilderShouldRetryFalseAfterMaxAttempts(t *testing.T) {
+// TestBuilderShouldRetryFollowsTheRetryBudget pins that the Envelope's
+// ShouldRetry flag is the Delivery's own Retry Budget predicate and nothing else
+// (ADR 0007). The Builder used to hold a maxRetry = 10 constant of its own; the
+// window admits exactly the same retries, so the boundary is unchanged — under
+// DefaultBackoff the tenth retry falls inside the 24h budget at 17h04m and the
+// eleventh outside it at 34h08m.
+func TestBuilderShouldRetryFollowsTheRetryBudget(t *testing.T) {
 	priv := newDKIMKeys(t)
 	src := stubSource{data: envelope.SendingData{
 		HTML:           "<html><body>x</body></html>",
@@ -536,16 +542,23 @@ func TestBuilderShouldRetryFalseAfterMaxAttempts(t *testing.T) {
 	}}
 	b := envelope.NewBuilderWith(src, stubTokens{})
 
-	d := delivery.Load(delivery.LoadParams{
-		BatchID:      batch.ID("msg-1@test.com"),
-		Email:        "rcpt@example.com",
-		Domain:       "test.com",
-		SendAttempts: 10,
-		Backoff:      delivery.DefaultBackoff,
-	})
-	env, err := b.Build(t.Context(), d)
-	assert.Nil(t, err)
-	assert.False(t, env.ShouldRetry())
+	build := func(t *testing.T, attempts int) *envelope.Envelope {
+		t.Helper()
+		d := delivery.Load(delivery.LoadParams{
+			BatchID:      batch.ID("msg-1@test.com"),
+			Email:        "rcpt@example.com",
+			Domain:       "test.com",
+			SendAttempts: attempts,
+			Backoff:      delivery.DefaultBackoff,
+			RetryWindow:  delivery.DefaultRetryWindow,
+		})
+		env, err := b.Build(t.Context(), d)
+		require.NoError(t, err)
+		return env
+	}
+
+	assert.True(t, build(t, 9).ShouldRetry(), "the tenth retry is still inside the budget")
+	assert.False(t, build(t, 10).ShouldRetry(), "the eleventh retry falls outside the budget")
 }
 
 func TestEnvelopeToProto(t *testing.T) {

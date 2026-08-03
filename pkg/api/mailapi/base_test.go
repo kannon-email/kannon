@@ -36,7 +36,7 @@ func TestMain(m *testing.M) {
 	}
 
 	q = sqlc.New(db)
-	ts = mailapi.NewMailerAPIV1(db, delivery.DefaultBackoff)
+	ts = mailapi.NewMailerAPIV1(db, delivery.DefaultBackoff, delivery.DefaultRetryWindow)
 	adminAPI = adminapi.CreateAdminAPIService(db)
 
 	code := m.Run()

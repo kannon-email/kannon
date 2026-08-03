@@ -23,7 +23,7 @@ func (h claimerTestHelper) Schedule(t *testing.T, ds ...*delivery.Delivery) {
 }
 
 func TestPoolClaimer(t *testing.T) {
-	deliveries := NewDeliveryRepository(db, delivery.DefaultBackoff)
+	deliveries := NewDeliveryRepository(db, delivery.DefaultBackoff, delivery.DefaultRetryWindow)
 	c := pool.NewClaimer(deliveries)
 	pool.RunClaimerSpec(t, c, claimerTestHelper{deliveries: deliveries})
 }

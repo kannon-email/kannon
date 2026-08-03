@@ -11,6 +11,7 @@ import (
 	"github.com/kannon-email/kannon/internal/tests"
 	"github.com/kannon-email/kannon/internal/utils"
 	msgtypes "github.com/kannon-email/kannon/proto/kannon/mailer/types"
+	statstypes "github.com/kannon-email/kannon/proto/kannon/stats/types"
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -124,6 +125,105 @@ func TestShortAckDeadlineRedeliversButDoesNotResend(t *testing.T) {
 	assert.Equal(t, []string{"kannon.stats.delivered"}, pub.subjects())
 }
 
+// TestHandleSendErrorClassifiesByReplyClassNotByRetryDecision is the
+// synchronous mirror of the asynchronous DSN assertion in
+// e2e/e2e_test.go:testAsyncSoftBounce (~line 711): Bounced.Permanent must
+// track the SMTP reply class, never the reason handleSendError took the
+// Bounced branch in the first place.
+//
+// #378 read the line `Permanent: sendErr.IsPermanent()` at retry exhaustion
+// as the wrong flag — "it should be true, we gave up". #433 re-specified
+// `permanent` to follow the reply class on both the synchronous and the
+// asynchronous path (CONTEXT.md, Bounced), which is exactly what the code
+// already did: a transient (4xx) reply stays non-permanent even once
+// ShouldRetry is false, and a permanent (5xx) reply is permanent regardless
+// of ShouldRetry. This test pins that mapping down so it cannot be "fixed"
+// into a regression again.
+func TestHandleSendErrorClassifiesByReplyClassNotByRetryDecision(t *testing.T) {
+	tests := []struct {
+		name          string
+		shouldRetry   bool
+		sendErr       *fakeSenderError
+		wantSubject   string
+		wantPermanent bool
+	}{
+		{
+			name:          "retries exhausted, transient (4xx) reply publishes Bounced with permanent=false",
+			shouldRetry:   false,
+			sendErr:       &fakeSenderError{msg: "451 try again later", permanent: false, code: 451},
+			wantSubject:   "kannon.stats.bounced",
+			wantPermanent: false,
+		},
+		{
+			name:          "retries exhausted, permanent (5xx) reply publishes Bounced with permanent=true",
+			shouldRetry:   false,
+			sendErr:       &fakeSenderError{msg: "550 no such user", permanent: true, code: 550},
+			wantSubject:   "kannon.stats.bounced",
+			wantPermanent: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pub := &recordingPublisher{}
+			s := &smtpSender{publisher: pub}
+
+			data := envelope("bounce@example.com")
+			data.ShouldRetry = tt.shouldRetry
+
+			require.NoError(t, s.handleSendError(tt.sendErr, data))
+
+			require.Equal(t, []string{tt.wantSubject}, pub.subjects())
+			published := pub.stats(t)
+			require.Len(t, published, 1)
+
+			bounced := published[0].Data.GetBounced()
+			require.NotNil(t, bounced, "expected a typed Bounced payload")
+			assert.Equal(t, tt.wantPermanent, bounced.Permanent)
+			assert.EqualValues(t, tt.sendErr.code, bounced.Code)
+			assert.Equal(t, tt.sendErr.msg, bounced.Msg)
+		})
+	}
+}
+
+// TestHandleSendErrorWithRetriesRemainingPublishesError contrasts the
+// exhausted-retries cases above: a transient reply with retries still
+// available must publish the internal Error retry signal, not a Bounced
+// outcome — Bounced is reserved for a Delivery that is actually terminal.
+func TestHandleSendErrorWithRetriesRemainingPublishesError(t *testing.T) {
+	pub := &recordingPublisher{}
+	s := &smtpSender{publisher: pub}
+
+	sendErr := &fakeSenderError{msg: "451 try again later", permanent: false, code: 451}
+	data := envelope("retry@example.com")
+	data.ShouldRetry = true
+
+	require.NoError(t, s.handleSendError(sendErr, data))
+
+	require.Equal(t, []string{"kannon.stats.error"}, pub.subjects())
+	published := pub.stats(t)
+	require.Len(t, published, 1)
+
+	errData := published[0].Data.GetError()
+	require.NotNil(t, errData, "expected a typed Error payload")
+	assert.EqualValues(t, sendErr.code, errData.Code)
+	assert.Equal(t, sendErr.msg, errData.Msg)
+	assert.Nil(t, published[0].Data.GetBounced(), "a retryable transient failure must not be reported as Bounced")
+}
+
+// fakeSenderError is a local stand-in for smtp.SenderError: the concrete
+// smtpError type in internal/smtp is unexported, so a test outside that
+// package cannot construct one directly.
+type fakeSenderError struct {
+	msg       string
+	permanent bool
+	code      uint32
+}
+
+func (e *fakeSenderError) Error() string     { return e.msg }
+func (e *fakeSenderError) IsPermanent() bool { return e.permanent }
+func (e *fakeSenderError) Code() uint32      { return e.code }
+
 func mustSendingStream(ctx context.Context, t *testing.T, js jetstream.JetStream) {
 	t.Helper()
 	_, err := js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{
@@ -208,12 +308,14 @@ func (s *blockingSender) Send(from, to string, body []byte) smtp.SenderError {
 type recordingPublisher struct {
 	mu   sync.Mutex
 	subj []string
+	data [][]byte
 }
 
-func (p *recordingPublisher) Publish(subj string, _ []byte) error {
+func (p *recordingPublisher) Publish(subj string, data []byte) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.subj = append(p.subj, subj)
+	p.data = append(p.data, data)
 	return nil
 }
 
@@ -221,6 +323,22 @@ func (p *recordingPublisher) subjects() []string {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return append([]string(nil), p.subj...)
+}
+
+// stats unmarshals every payload published so far, in publish order, so a
+// test can assert on the typed StatsData a subject carried rather than only
+// on the subject it was published to.
+func (p *recordingPublisher) stats(t *testing.T) []*statstypes.Stats {
+	t.Helper()
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	out := make([]*statstypes.Stats, len(p.data))
+	for i, d := range p.data {
+		s := &statstypes.Stats{}
+		require.NoError(t, proto.Unmarshal(d, s))
+		out[i] = s
+	}
+	return out
 }
 
 // countingGuard counts how many deliveries reached the guard, which is how a

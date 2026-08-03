@@ -33,7 +33,7 @@ func run(ctx context.Context, cnt *container.Container) error {
 	q := cnt.Queries()
 
 	ss := statssec.NewStatsService(q)
-	claimer := pool.NewClaimer(sqlc.NewDeliveryRepository(cnt.DB(), cnt.BackoffPolicy()))
+	claimer := pool.NewClaimer(sqlc.NewDeliveryRepository(cnt.DB(), cnt.BackoffPolicy(), cnt.RetryWindow()))
 	eb := envelope.NewBuilder(q, ss)
 
 	js := cnt.NatsJetStream()
@@ -67,6 +67,10 @@ func run(ctx context.Context, cnt *container.Container) error {
 
 	eg.Go(func() error {
 		return runner.Run(ctx, d.DispatchCycle, runner.WaitLoop(1*time.Second))
+	})
+
+	eg.Go(func() error {
+		return runner.Run(ctx, d.reclaimLoop, runner.WaitLoop(pool.ReclaimInterval))
 	})
 
 	return eg.Wait()

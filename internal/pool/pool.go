@@ -6,6 +6,7 @@ package pool
 
 import (
 	"context"
+	"time"
 
 	"github.com/kannon-email/kannon/internal/batch"
 	"github.com/kannon-email/kannon/internal/delivery"
@@ -39,6 +40,17 @@ type Claimer interface {
 	// Lookup loads a Delivery by its (BatchID, Email) key. Used by
 	// stats-driven consumers that only have the storage key on hand.
 	Lookup(ctx context.Context, batchID batch.ID, email string) (*delivery.Delivery, error)
+
+	// ReclaimStranded hands back to the pool up to max Deliveries that have
+	// been in flight for f since longer ago than olderThan — a worker died
+	// holding the claim, or the outcome of the work never came back — and
+	// returns them as they now stand, for the caller to log and count.
+	//
+	// Called by the worker that owns the claim: the Dispatcher reclaims what it
+	// claimed for dispatch, the Validator what it claimed for validation. It
+	// recovers and makes no claim about what happened to the Delivery in the
+	// meantime; only the Retry Budget terminates one (ADR 0007).
+	ReclaimStranded(ctx context.Context, f delivery.InFlight, olderThan time.Duration, max int) ([]*delivery.Delivery, error)
 }
 
 type claimer struct {
@@ -72,4 +84,8 @@ func (c *claimer) Drop(ctx context.Context, d *delivery.Delivery) error {
 
 func (c *claimer) Lookup(ctx context.Context, batchID batch.ID, email string) (*delivery.Delivery, error) {
 	return c.deliveries.Get(ctx, batchID, email)
+}
+
+func (c *claimer) ReclaimStranded(ctx context.Context, f delivery.InFlight, olderThan time.Duration, max int) ([]*delivery.Delivery, error) {
+	return c.deliveries.ReclaimStranded(ctx, f, olderThan, max)
 }

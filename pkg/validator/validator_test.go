@@ -45,10 +45,10 @@ func TestMain(m *testing.M) {
 	}
 
 	q = sqlc.New(db)
-	claimer := pool.NewClaimer(sqlc.NewDeliveryRepository(db, delivery.DefaultBackoff))
+	claimer := pool.NewClaimer(sqlc.NewDeliveryRepository(db, delivery.DefaultBackoff, delivery.DefaultRetryWindow))
 	vt = validator.NewValidator(claimer, &mp)
 
-	ts = mailapi.NewMailerAPIV1(db, delivery.DefaultBackoff)
+	ts = mailapi.NewMailerAPIV1(db, delivery.DefaultBackoff, delivery.DefaultRetryWindow)
 	adminAPI = adminapi.CreateAdminAPIService(db)
 
 	code := m.Run()

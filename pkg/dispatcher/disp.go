@@ -17,6 +17,7 @@ import (
 	statstypes "github.com/kannon-email/kannon/proto/kannon/stats/types"
 	"github.com/nats-io/nats.go/jetstream"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type disp struct {
@@ -38,6 +39,21 @@ func (d *disp) log() *slog.Logger {
 const (
 	claimTimeout       = 10 * time.Second
 	perDeliveryTimeout = 5 * time.Second
+)
+
+// The reason carried by the Failed stat of a Delivery whose Retry Budget ran
+// out. It states what ran out and on which leg, and nothing else: this string is
+// customer-visible through the stats API, so it may never carry a raw error
+// string, an email address, or anything about the database.
+const (
+	// reasonBudgetSpentDispatching: no Envelope for this Delivery could be built
+	// or handed on before the budget ran out — its Batch's Template is gone, its
+	// Domain's DKIM key is unusable, or NATS would not take the Envelope.
+	reasonBudgetSpentDispatching = "retry budget exhausted while dispatching"
+
+	// reasonBudgetSpentSending: the budget ran out with a transmission attempt
+	// outstanding.
+	reasonBudgetSpentSending = "retry budget exhausted while sending"
 )
 
 func (d *disp) DispatchCycle(ctx context.Context) error {
@@ -63,11 +79,12 @@ func (d *disp) claimForDispatch(ctx context.Context) ([]*delivery.Delivery, erro
 }
 
 // dispatchOne builds and publishes the Envelope for one claimed Delivery.
-// On any failure the Delivery is handed back to the pool (Reschedule):
-// the claim already flipped it to 'sending', and the only other exits from
+// On any failure the Delivery goes back through the retry chokepoint: the
+// claim already flipped it to 'sending', and the only other exits from
 // that status are stats-feedback driven — which can never arrive for an
 // Envelope that was never published. Dropping the row on the floor here
-// loses it silently and permanently (#400).
+// loses it silently and permanently (#400), so it is either handed back to
+// the pool or ended as Failed, never neither.
 func (d *disp) dispatchOne(ctx context.Context, dlv *delivery.Delivery) {
 	log := d.log().With(
 		"email", utils.ObfuscateEmail(dlv.Email()),
@@ -95,16 +112,85 @@ func (d *disp) dispatchOne(ctx context.Context, dlv *delivery.Delivery) {
 	log.Info("[✅ accepted]")
 }
 
-// reschedule returns a claimed-but-failed Delivery to the pool with the
-// usual retry backoff. It runs on a context detached from cancellation:
-// the failure being handled is often the cycle context dying, and the
-// recovery write must not share that fate.
+// reschedule is dispatchOne's side of the chokepoint. It logs what retryOrFail
+// reports instead of returning it, because a dispatch cycle handles each
+// Delivery's failure in-loop and must carry on with the rest of the claimed page
+// (#400) — whereas the error-stat consumer needs the error to drive Nak/Ack.
 func (d *disp) reschedule(ctx context.Context, dlv *delivery.Delivery, log *slog.Logger) {
+	if err := d.retryOrFail(ctx, dlv, reasonBudgetSpentDispatching); err != nil {
+		log.With("err", err).Error("Cannot hand delivery back to the pool after dispatch failure")
+	}
+}
+
+// retryOrFail hands a Delivery back to the Pool for another attempt, or ends it
+// as Failed when its Retry Budget has no room for one.
+//
+// This is the single chokepoint for both paths that return a Delivery to the
+// Pool — the Dispatcher's own dispatch failure and the error-stat consumer — so
+// the give-up decision cannot drift between them. One predicate on the entity
+// governs every retry in the system (ADR 0007).
+//
+// It runs on a context detached from cancellation: the failure being handled is
+// often the cycle context dying, and neither the recovery write nor the terminal
+// one may share that fate.
+//
+// A reader will trip on Failed being emitted here rather than Bounced, since
+// CONTEXT.md (*Retry Budget*) says an exhausted Delivery is Bounced when the
+// attempt that ran out the clock was answered and Failed when none ever was —
+// and the error-stat leg has an SMTP reply in hand. The two agree, because a
+// Delivery whose ShouldRetry is already false never reaches this leg: the
+// SMTPSender bounces it itself (handleSendError). The only way a spent budget
+// arrives here is that the attempt tally advanced through an *unanswered*
+// internal event — a dispatch failure, or a reclaim of a stranded row — after the
+// Envelope was built, and it is that event, not the answered one, that ran out
+// the clock.
+func (d *disp) retryOrFail(ctx context.Context, dlv *delivery.Delivery, reason string) error {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), claimTimeout)
 	defer cancel()
-	if err := d.claimer.Reschedule(ctx, dlv); err != nil {
-		log.With("err", err).Error("Cannot reschedule delivery after dispatch failure")
+
+	if dlv.CanRetry() {
+		return d.claimer.Reschedule(ctx, dlv)
 	}
+	return d.fail(ctx, dlv, reason)
+}
+
+// fail ends a Delivery whose Retry Budget is spent: the sender is told, and the
+// row leaves the Pool.
+//
+// The stat is published before the row is dropped. If the publish fails the row
+// stays in an in-flight status and the next reclaim brings it back for this same
+// verdict, at worst emitting the outcome twice — stats accumulate per Delivery
+// and the latest one wins, so a duplicate is harmless. The other order trades
+// that for the bug being fixed here: a Delivery that vanishes with `accepted` as
+// its last word.
+func (d *disp) fail(ctx context.Context, dlv *delivery.Delivery, reason string) error {
+	stat := &statstypes.Stats{
+		MessageId: dlv.BatchID().String(),
+		Domain:    dlv.Domain(),
+		Email:     dlv.Email(),
+		Timestamp: timestamppb.Now(),
+		Data: &statstypes.StatsData{
+			Data: &statstypes.StatsData_Failed{
+				Failed: &statstypes.StatsDataFailed{Reason: reason},
+			},
+		},
+	}
+	// PublishStat derives kannon.stats.failed from the payload, so the subject
+	// cannot disagree with the outcome it carries.
+	if err := publisher.PublishStat(d.pub, stat); err != nil {
+		return fmt.Errorf("cannot publish failed stat: %w", err)
+	}
+
+	if err := d.claimer.Drop(ctx, dlv); err != nil {
+		return fmt.Errorf("cannot drop delivery with a spent retry budget: %w", err)
+	}
+
+	d.log().Warn("[❌ failed] retry budget exhausted",
+		"email", utils.ObfuscateEmail(dlv.Email()),
+		"batch_id", dlv.BatchID().String(),
+		"send_attempts", dlv.SendAttempts(),
+		"reason", reason)
+	return nil
 }
 
 func (d *disp) handleErrors(ctx context.Context) error {
@@ -123,8 +209,8 @@ func (d *disp) parseErrorsFunc(ctx context.Context, m *statstypes.Stats) error {
 	if err != nil {
 		return fmt.Errorf("cannot lookup delivery: %w", err)
 	}
-	if err := d.claimer.Reschedule(ctx, dlv); err != nil {
-		return fmt.Errorf("cannot set delivered: %w", err)
+	if err := d.retryOrFail(ctx, dlv, reasonBudgetSpentSending); err != nil {
+		return fmt.Errorf("cannot hand delivery back to the pool after a send error: %w", err)
 	}
 	return nil
 }
