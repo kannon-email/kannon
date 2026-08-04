@@ -9,10 +9,11 @@ import (
 type RoleName string
 
 const (
-	// RoleAdmin is one at() rule holding every Action, extended to every kind beneath its
-	// Anchor by prefix domination — so the same Role is everything on the root and one
-	// Domain's owner on a Domain. Attribute included: the credential that administers
-	// Kannon is the one a front-end holds, so it is what has people to name (ADR 0009).
+	// RoleAdmin is one at() rule holding every Action, Attribute included, extended to every
+	// kind beneath its Anchor by prefix domination — so the same Role is everything on the
+	// root and one Domain's owner on a Domain (ADR 0008). Attribute belongs to it because the
+	// credential that administers Kannon is the one a front-end holds, so it is what has
+	// people to name (ADR 0009).
 	RoleAdmin RoleName = "admin"
 
 	// RoleSender is what an API Key resolves to: on(batches, create), anchored on the

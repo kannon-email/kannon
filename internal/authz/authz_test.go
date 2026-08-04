@@ -312,10 +312,10 @@ func TestCatalogueHoldsExactlyAdminAndSender(t *testing.T) {
 	assert.Equal(t, []authz.RoleName{authz.RoleAdmin, authz.RoleSender}, authz.RoleNames())
 }
 
-// admin holds attribute and sender does not: the credential that administers Kannon is the one a
-// front-end holds, so it is the one with people to name, while a customer's send key must not be
-// able to claim a Batch was sent on somebody else's behalf (ADR 0009). And attribute is an Action
-// like any other, so it reaches exactly as far as its Grant's Anchor and no further.
+// admin holds attribute and sender does not (ADR 0008): the credential that administers Kannon is
+// the one a front-end holds (ADR 0009), so it is the one with people to name, while a customer's
+// send key must not be able to claim a Batch was sent on somebody else's behalf. And attribute is
+// an Action like any other, so it reaches exactly as far as its Grant's Anchor and no further.
 func TestAdminHoldsAttributeAndSenderDoesNot(t *testing.T) {
 	runDecisions(t, []decision{
 		{"admin on the root names who asked at the collection", adminOn(authz.RootAnchor()), authz.Attribute, authz.Domains(), true},

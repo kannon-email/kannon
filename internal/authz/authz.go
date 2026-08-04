@@ -1,6 +1,6 @@
 // Package authz decides what a request is allowed to do: a Principal carries Grants, each a
 // Role name fixed to an Anchor, and authority over a path extends to everything beneath it,
-// with no deny rules. Can is pure; nothing here parses a path or normalises (ADR 0008, 0009).
+// with no deny rules. Can is pure; nothing here parses a path or normalises (ADR 0008).
 package authz
 
 import "errors"

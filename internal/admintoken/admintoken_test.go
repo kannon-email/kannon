@@ -91,9 +91,10 @@ func TestAuthenticate(t *testing.T) {
 	}
 }
 
-// What the token confers, asked of Can rather than read off the Grant: admin on the root reaches
-// every Domain — including one created after the token was configured, since the Anchor names no
-// Domain — and holds every Action, attribute included (ADR 0009).
+// What the token confers, asked of Can rather than read off the Grant: it resolves to admin on the
+// root (ADR 0009), which reaches every Domain — including one created after the token was
+// configured, since the Anchor names no Domain — and holds every Action, attribute included
+// (ADR 0008).
 func TestTheAdminPrincipalIsAdminEverywhere(t *testing.T) {
 	p := admintoken.AdminPrincipal()
 	domain := values.MustParse("example.com")

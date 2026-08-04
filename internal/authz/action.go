@@ -30,7 +30,7 @@ const (
 
 	// Attribute permits stating an Attribution: naming who asked, on the far side of a
 	// caller Kannon cannot see into. An Action rather than a flag on the Principal, so it
-	// can be permitted within part of the tree — admin holds it, sender does not (ADR 0009).
+	// can be permitted within part of the tree — admin holds it, sender does not (ADR 0008).
 	Attribute Action = "attribute"
 )
 

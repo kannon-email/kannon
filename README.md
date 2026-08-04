@@ -184,6 +184,8 @@ The config file is `--config <path>`, defaulting to `$HOME/.kannon.yaml`.
 | `smtp.max_recipients` | int      | 50             | Max recipients per inbound SMTP message         |
 | `tracker.port`        | int      | 8080           | Open/click tracking HTTP server port            |
 | `stats.retention`     | duration | 8760h (1 year) | How long raw per-Delivery stats are kept        |
+| `audit.enabled`       | bool     | false          | Record every authorization decision (see below) |
+| `audit.retention`     | duration | 720h (30 days) | How long an Audit Record is kept                |
 
 **Component selection** (CLI flag, or the same name as a top-level YAML key):
 
@@ -196,6 +198,7 @@ The config file is `--config <path>`, defaulting to `$HOME/.kannon.yaml`.
 | `--run-validator` | false   | Enable validator worker  |
 | `--run-tracker`   | false   | Enable tracker worker    |
 | `--run-stats`     | false   | Enable stats worker      |
+| `--run-audit`     | false   | Enable audit writer — needs `audit.enabled` |
 
 > [!IMPORTANT]
 > **Environment variables work for the four top-level keys in the first table, and for `K_API_ADMIN_TOKEN`.** Every other nested key (`K_API_PORT`, `K_SENDER_HOSTNAME`, `K_SMTP_ADDRESS`, …) and the `run-*` flags (`K_RUN_API`, …) are **silently ignored** — set them in the YAML file, or pass the `--run-*` flags on the command line.
@@ -210,7 +213,15 @@ The config file is `--config <path>`, defaulting to `$HOME/.kannon.yaml`.
 > `api.admin_token` is the one nested key that **can** be set from the environment, as `K_API_ADMIN_TOKEN` — a secret belongs in a Secret rather than in a ConfigMap. It is required whenever `--run-api` is set: a process asked to serve the API without it refuses to boot, rather than come up answering every Admin and Stats request with `unauthenticated`. Workers that do not serve the API need no token.
 
 > [!WARNING]
-> The admin token is a single shared secret that authorizes **everything on every Domain** — creating Domains, minting API Keys, rewriting Templates and reading any Domain's per-Delivery statistics. It names no operator, so an audit record can only say that a holder acted, and it is revoked by changing it and restarting. Give it to as few callers as possible, and keep the API listener off untrusted networks.
+> The admin token is a single shared secret that authorizes **everything on every Domain** — creating Domains, minting API Keys, rewriting Templates and reading any Domain's per-Delivery statistics. It names no operator, so an Audit Record can only say that a holder acted, and it is revoked by changing it and restarting. Give it to as few callers as possible, and keep the API listener off untrusted networks.
+
+**Audit trail** (off by default):
+
+Set `audit.enabled` and run a process with `--run-audit`, and Kannon writes an **Audit Record** for every authorization decision it reaches — permitted, refused, and the case where nothing authenticated a request that reached a guarded operation. Records land in the `audit_records` table and are deleted automatically, hourly, once older than `audit.retention`. Decisions also go on the NATS subjects `kannon.audit.allowed` and `kannon.audit.denied`, so refusals can be alerted on without querying the table.
+
+Both halves are needed. `audit.enabled` alone publishes Records that nobody writes down, and they expire off the stream after seven days — the API logs a warning when it sees that happening. `--run-audit` alone consumes nothing, and the worker says so and stops rather than idling. Leave `audit.enabled` unset and nothing is collected at all: the API process does not even connect to NATS on account of the feature.
+
+An Audit Record holds the identifier of the credential that acted, the Action, the Resource path, the outcome, the instant, the Grants the credential held, and — when the request carried an `X-Kannon-Attribution` header — the person that header named. **That claim is personal data**, which is why its retention is yours to set. The caller's IP address is deliberately **not** collected. Kannon never reads this table back, so nothing in it can influence an authorization decision. See [ADR 0010](./docs/adr/0010-every-authorization-decision-becomes-an-audit-record.md).
 
 - See [`examples/docker-compose/kannon.yaml`](examples/docker-compose/kannon.yaml) for a full example.
 
@@ -228,6 +239,7 @@ Kannon requires a PostgreSQL database, migrated with [dbmate](https://github.com
 - **stats**: Per-Delivery outcome events (Validated / Rejected / Delivered / Bounced / Opened / Clicked), pruned by `stats.retention`
 - **aggregated_stats**: Per-Domain hourly event counters, never pruned — the only record of events collected in anonymous tracking mode
 - **stats_keys**: Signing keys for tracking tokens
+- **audit_records**: One row per authorization decision — written only when `audit.enabled`, never read by Kannon, pruned by `audit.retention`
 
 See [`db/migrations/`](./db/migrations/) for full schema and migrations.
 

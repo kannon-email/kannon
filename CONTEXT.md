@@ -100,6 +100,10 @@ _Avoid_: Actor, Subject (RFC 8693 uses both for exactly this shape, and its `act
 The credential the Admin API and both Stats APIs authenticate with: one secret an operator configures, resolving to a Principal that is `admin` on the root. It names the credential and not a person — the record of an administrative act can say a holder of the token did it and never which holder — which is what makes it the interim answer it is, alongside a revocation that is a restart. Being what a front-end holds, it is also the credential that may state an **Attribution**: the token says a holder acted, the claim says who asked, and one of the two was checked. What replaces it is per-operator credentials carrying Grants of their own, which the model already expresses (ADR 0009).
 _Avoid_: Root Token, Master Key, Superuser; API Key (that is the Domain-bound credential the Mailer API authenticates, and it resolves to `sender` on one Domain)
 
+**Audit Record**:
+One authorization decision, written down: the Principal, the Action, the Resource and the outcome — permitted, denied, or nothing having authenticated the request at all. Its scope is exactly that, and deliberately not everything an operator might one day want a register of: a credential refused at the edge never became a decision about authority, so it is not an Audit Record. Written and never read back by Kannon, which reaches no decision from one — an Audit Record describes what was decided and can no more change it than an **Attribution** can. It carries the Attribution when a request made one, so a single record can hold both the credential that was checked and the person that was claimed, side by side.
+_Avoid_: Access Log (a transport's account of requests and status codes, which this is not), Audit Trail (the whole register rather than one entry — say Audit Record for the entry), Event, Log Entry
+
 ### Actors
 
 **Mailer API**:

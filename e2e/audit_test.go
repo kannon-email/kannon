@@ -53,7 +53,7 @@ type auditRecord struct {
 }
 
 // auditDB opens a handle for reading the register back. A raw query and not a repository read: ADR
-// 0012 gives the register no read path at all — no API, no query surface, and a Repository with no
+// 0010 gives the register no read path at all — no API, no query surface, and a Repository with no
 // method that could return a Record — so that no authorization decision can ever be influenced by
 // what the register says about the decisions before it. SQL is what is left, and is the right tool.
 func auditDB(t *testing.T, infra *TestInfrastructure) *pgxpool.Pool {
@@ -198,11 +198,12 @@ func testRefusedOperationIsRecordedAsDenied(t *testing.T, clientFactory *clientF
 		"a security reviewer reads a refusal for the authority the Principal actually held")
 }
 
-// testAttributionIsRecordedBesideTheCredential is ADR 0008's deferral discharged: a front-end holding
-// the operator's token names one of its own users, and the claim survives into a durable record
-// instead of a log line the integrator does not control. Both must be in the same row, and told
-// apart — one of the two was checked and the other cannot be, so a record that folded the claim into
-// the principal column would read as though Kannon knew the person it names.
+// testAttributionIsRecordedBesideTheCredential joins the two halves of an Attribution: a front-end
+// holding the operator's token names one of its own users on the header that carries a claim
+// (ADR 0009), and the claim survives into a durable record (ADR 0010) instead of a log line the
+// integrator does not control. Both must be in the same row, and told apart — one of the two was
+// checked and the other cannot be, so a record that folded the claim into the principal column
+// would read as though Kannon knew the person it names.
 func testAttributionIsRecordedBesideTheCredential(t *testing.T, clientFactory *clientFactory, infra *TestInfrastructure) {
 	db := auditDB(t, infra)
 	client := clientFactory.NewClient(t, infra)
