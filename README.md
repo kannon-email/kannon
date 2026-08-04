@@ -268,6 +268,18 @@ It authorizes everything on every Domain, so a caller holding it can create Doma
 > [!NOTE]
 > The health service (`pkg.kannon.admin.apiv1.HZService`) stays open: it discloses no tenant data and is polled by probes that carry no credential.
 
+#### Naming who asked
+
+A front-end holding the admin token serves its own people, and Kannon cannot see them. It may name one per request, on the same three surfaces:
+
+```
+X-Kannon-Attribution: alice@corp.com
+```
+
+The name is **recorded and never consulted**: Kannon has nothing to check it against, so it can no more widen what the request may do than it can be verified. Every operation carrying one is logged as `attributed operation`, with the authenticated credential beside the claim — one was checked and the other was asserted, and the record keeps them apart. The header is optional; sending nothing records the credential alone.
+
+A claim must be at most 256 bytes of UTF-8 with no control characters. A malformed one is refused with `invalid_argument` rather than dropped, so a front-end never believes a name was recorded when it was not. An API Key cannot make a claim at all: the Mailer API does not read the header, and a key resolves to `sender`, which may not name anybody.
+
 **Mailer API** — Basic Auth with a Domain and one of its API Keys:
 
 ```

@@ -30,16 +30,14 @@ const (
 
 	// Attribute permits stating an Attribution: naming who asked, on the far side of a
 	// caller Kannon cannot see into. An Action rather than a flag on the Principal, so it
-	// can be permitted within part of the tree. No Role holds it yet — see ADR 0008.
+	// can be permitted within part of the tree — admin holds it, sender does not (ADR 0009).
 	Attribute Action = "attribute"
 )
 
-// resourceActions are the Actions over Kannon's own resources. Attribute is
-// excluded: it is a front-end capability rather than an administrative one.
-var resourceActions = []Action{Create, Read, List, Update, Delete}
-
-// allActions is every Action in the vocabulary.
-var allActions = append(append([]Action{}, resourceActions...), Attribute)
+// allActions is every Action in the vocabulary, which is what admin holds. Not split into
+// "the resource ones" and Attribute: the two Roles that hold anything are told apart by
+// their rules, so a second list would be a classification nothing reads.
+var allActions = []Action{Create, Read, List, Update, Delete, Attribute}
 
 // ParseAction validates a string against the closed vocabulary.
 func ParseAction(s string) (Action, error) {

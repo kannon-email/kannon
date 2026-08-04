@@ -69,8 +69,8 @@ func (t Token) Authenticate(presented string) (authz.Principal, error) {
 }
 
 // AdminPrincipal is the authority the token confers: admin on the root, so every Domain and
-// everything beneath it. It carries no Attribution, and not as a special case somebody could
-// forget — admin holds no attribute, so one set on it causes a Guard to refuse (ADR 0008).
+// everything beneath it, and every Action including attribute. It carries no Attribution of its
+// own — a credential names no person; a request does, and the transport applies it (ADR 0009).
 func AdminPrincipal() authz.Principal {
 	return authz.MustNewPrincipal(principalID, authz.MustNewGrant(authz.RoleAdmin, authz.RootAnchor()))
 }

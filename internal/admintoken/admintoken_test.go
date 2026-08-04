@@ -93,7 +93,7 @@ func TestAuthenticate(t *testing.T) {
 
 // What the token confers, asked of Can rather than read off the Grant: admin on the root reaches
 // every Domain — including one created after the token was configured, since the Anchor names no
-// Domain — and holds every resource Action but attribute (ADR 0008).
+// Domain — and holds every Action, attribute included (ADR 0009).
 func TestTheAdminPrincipalIsAdminEverywhere(t *testing.T) {
 	p := admintoken.AdminPrincipal()
 	domain := values.MustParse("example.com")
@@ -104,8 +104,11 @@ func TestTheAdminPrincipalIsAdminEverywhere(t *testing.T) {
 	assert.True(t, authz.Can(p, authz.Delete, authz.APIKey(domain, "key-id")))
 	assert.True(t, authz.Can(p, authz.Read, authz.Stats(domain)))
 	assert.True(t, authz.Can(p, authz.Create, authz.Batches(domain)))
+	assert.True(t, authz.Can(p, authz.Attribute, authz.Domain(domain)),
+		"the token is what a front-end holds, so it is what may name the person who asked")
 
-	assert.False(t, authz.Can(p, authz.Attribute, authz.Domain(domain)),
-		"a shared token names no trusted front-end, so it may not write a name into the record of who acted")
+	// The credential itself names nobody: a claim belongs to one request, and a
+	// Principal that arrived carrying one would name the same person for every
+	// request made with the token.
 	assert.Empty(t, p.Attribution())
 }

@@ -105,14 +105,18 @@ Kannon is a cloud-native, scalable SMTP mail sender designed for Kubernetes and 
   than in the database, so one reviewable diff changes what every credential of
   that Role may do. Authority is the union of a Principal's Grants and nothing
   subtracts from it — there are no deny rules. Also holds Attenuation (narrowing
-  a Grant's Anchor) and the `Guard` decorator. See ADR 0008 and ADR 0008, and
-  `CONTEXT.md` §Access control.
+  a Grant's Anchor) and the `Guard` decorator, which requires the `attribute`
+  Action of any request that names who asked and records the operation it was
+  named for. See ADR 0008, ADR 0008 and ADR 0009, and `CONTEXT.md`
+  §Access control.
 
 #### `internal/authzconnect/`
 
 - Where the authority model meets Connect: reads the admin token off
   `X-Kannon-Admin-Token`, puts the Principal it resolves to into the request's
-  context, and maps a refusal onto `CodePermissionDenied`. It is a separate
+  context — carrying whatever claim `X-Kannon-Attribution` names, refused as
+  `CodeInvalidArgument` if malformed — and maps a refusal onto
+  `CodePermissionDenied`. It is a separate
   package so that `internal/authz/` imports no transport at all — two transports
   over one domain must reach the same answer, and the surest way to keep that
   true is that the package holding the decision cannot reach a transport. It
@@ -122,10 +126,11 @@ Kannon is a cloud-native, scalable SMTP mail sender designed for Kubernetes and 
 #### `internal/admintoken/`
 
 - The credential the Admin API and both Stats APIs authenticate with: one shared
-  secret an operator configures, resolving to `admin` on the root. Kept apart
-  from `internal/authz/` because it is authentication rather than authority, and
-  apart from the transport because what it confers does not depend on how it
-  arrived. See ADR 0009.
+  secret an operator configures, resolving to `admin` on the root — every Action
+  including `attribute`, since this is the credential a front-end holds. Kept
+  apart from `internal/authz/` because it is authentication rather than
+  authority, and apart from the transport because what it confers does not
+  depend on how it arrived. See ADR 0009 and ADR 0009.
 
 #### `internal/tracking/`
 

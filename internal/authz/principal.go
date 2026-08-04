@@ -6,16 +6,6 @@ import (
 	"strings"
 )
 
-// Attribution is a claim naming who asked, on the far side of a caller Kannon cannot see
-// into. Unverifiable in principle, so it is recorded and never consulted — reaching an
-// authorization decision would let a holder choose its own authority. It is personal data.
-type Attribution string
-
-// String returns the claim as written.
-func (a Attribution) String() string {
-	return string(a)
-}
-
 // Principal is who is making a request, as resolved by whatever authenticated it: a value
 // object, so what a Principal is never depends on how it arrived. Its identifier names the
 // credential and is invariant under Attenuation. It describes authority; Can decides.

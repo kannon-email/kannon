@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"connectrpc.com/connect"
@@ -140,6 +141,135 @@ func TestAdminTokenClientOptionsAuthenticate(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, "admin-token", sawPrincipal.ID())
+}
+
+// The other header, end to end: a front-end holding the token names one of its own users, and the
+// Principal the operation runs under carries the claim. A malformed one is refused as invalid
+// argument — the credential was fine and the operation permitted — and never quietly dropped,
+// since a front-end whose claim was discarded would go on believing a name had been recorded.
+func TestTheAttributionHeaderNamesWhoAsked(t *testing.T) {
+	tests := []struct {
+		name      string
+		presented string
+		setHeader bool
+		wantClaim authz.Attribution
+		wantCode  connect.Code
+	}{
+		{
+			name:      "a claim the admin token may make",
+			presented: "alice@corp.com",
+			setHeader: true,
+			wantClaim: "alice@corp.com",
+		},
+		{
+			name:      "padded on the way in",
+			presented: " alice@corp.com ",
+			setHeader: true,
+			wantClaim: "alice@corp.com",
+		},
+		{
+			// The shape of every administrative request Kannon has ever served: the
+			// operation runs, and the record names the credential and nobody else.
+			name:      "no header at all: the request names nobody",
+			setHeader: false,
+		},
+		{
+			// Indistinguishable from the above for most client libraries, so it
+			// must mean the same thing rather than be an error of its own.
+			name:      "an empty header is no claim either",
+			presented: "",
+			setHeader: true,
+		},
+		{
+			// The HTTP layer strips the surrounding whitespace of a header value, so a
+			// claim of nothing but spaces arrives as no claim at all and cannot be told
+			// from an absent one here. ParseAttribution refuses it for a producer that
+			// is not a header — a config field, or a second transport.
+			name:      "whitespace, which the transport strips to nothing",
+			presented: "   ",
+			setHeader: true,
+		},
+		{
+			name:      "a claim over the length limit",
+			presented: strings.Repeat("a", 257),
+			setHeader: true,
+			wantCode:  connect.CodeInvalidArgument,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			p := newProbe(t, authzconnect.AdminTokenClientOptions(serverSecret)...)
+
+			req := connect.NewRequest(&pb.GetDomainsReq{})
+			if tc.setHeader {
+				req.Header().Set(authzconnect.AttributionHeader, tc.presented)
+			}
+			_, err := p.client.CallUnary(t.Context(), req)
+
+			assert.Equal(t, tc.wantCode == 0, p.reached)
+			if tc.wantCode != 0 {
+				assert.Equal(t, tc.wantCode, connect.CodeOf(err))
+				return
+			}
+			require.NoError(t, err)
+			// The claim never replaces the identifier: one was authenticated and the
+			// other cannot be, so both are what the operation runs under.
+			assert.Equal(t, "admin-token", p.principal.ID())
+			assert.Equal(t, tc.wantClaim, p.principal.Attribution())
+		})
+	}
+}
+
+// The client side of the same header, so that no caller spells it. Composed with the token's
+// options rather than folded into them: the credential says who may act, the claim says who asked,
+// and a client naming a user is the same client whether it has one to name on this call or not.
+func TestAttributionClientOptionsNameWhoAsked(t *testing.T) {
+	opts := append(authzconnect.AdminTokenClientOptions(serverSecret),
+		authzconnect.AttributionClientOptions("alice@corp.com")...)
+	p := newProbe(t, opts...)
+
+	_, err := p.client.CallUnary(t.Context(), connect.NewRequest(&pb.GetDomainsReq{}))
+
+	require.NoError(t, err)
+	assert.Equal(t, "admin-token", p.principal.ID())
+	assert.Equal(t, authz.Attribution("alice@corp.com"), p.principal.Attribution())
+}
+
+// probe is the guarded operation behind a real Connect server, with what it saw: whether it ran at
+// all, and the Principal it ran under. Guarded exactly as a real operation is, so what these tables
+// test is the pair — an installed Principal and a guard that consults it.
+type probe struct {
+	client    *connect.Client[pb.GetDomainsReq, pb.GetDomainsResponse]
+	reached   bool
+	principal authz.Principal
+}
+
+func newProbe(t *testing.T, opts ...connect.ClientOption) *probe {
+	t.Helper()
+	p := &probe{}
+
+	handler := connect.NewUnaryHandler(procedure,
+		func(ctx context.Context, _ *connect.Request[pb.GetDomainsReq]) (*connect.Response[pb.GetDomainsResponse], error) {
+			_, err := authz.Guard(ctx, authz.Create, authz.Domains(), func() (struct{}, error) {
+				p.reached = true
+				p.principal, _ = authz.FromContext(ctx)
+				return struct{}{}, nil
+			})
+			if err != nil {
+				return nil, authzconnect.Error(err, connect.CodeInternal)
+			}
+			return connect.NewResponse(&pb.GetDomainsResponse{}), nil
+		},
+		authzconnect.AdminTokenHandlerOptions(admintoken.MustParse(serverSecret))...)
+
+	mux := http.NewServeMux()
+	mux.Handle(procedure, handler)
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+
+	p.client = connect.NewClient[pb.GetDomainsReq, pb.GetDomainsResponse](server.Client(), server.URL+procedure, opts...)
+	return p
 }
 
 // Both refusals reach the caller as permission denied and both stay distinguishable behind it. The

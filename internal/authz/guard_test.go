@@ -1,7 +1,9 @@
 package authz_test
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
 	"testing"
 
 	"github.com/kannon-email/kannon/internal/authz"
@@ -65,13 +67,14 @@ func TestGuardDistinguishesAMissingPrincipalFromAForbiddenOne(t *testing.T) {
 
 // A Principal carrying an Attribution it holds no attribute for is refused. Setting one checks
 // nothing, since entitlement depends on the Resource, so it is verified here — an Attribution can
-// only cause a refusal. No seeded Role holds attribute, so every claim is refused today.
+// only cause a refusal. A send key is the case that matters: it may create a Batch, and must not
+// be able to say somebody else asked for it.
 func TestGuardRefusesAnAttributionThePrincipalCannotMake(t *testing.T) {
-	owner := adminOn(authz.DomainAnchor(example)).WithAttribution("alice@corp.com")
-	ctx := authz.NewContext(context.Background(), owner)
+	claiming := senderOn(authz.DomainAnchor(example)).WithAttribution("alice@corp.com")
+	ctx := authz.NewContext(context.Background(), claiming)
 
 	called := false
-	_, err := authz.Guard(ctx, authz.Update, authz.Domain(example), func() (struct{}, error) {
+	_, err := authz.Guard(ctx, authz.Create, authz.Batches(example), func() (struct{}, error) {
 		called = true
 		return struct{}{}, nil
 	})
@@ -81,11 +84,73 @@ func TestGuardRefusesAnAttributionThePrincipalCannotMake(t *testing.T) {
 
 	// The same Principal without the claim is allowed, so the refusal is about
 	// the Attribution and not about the operation.
-	allowed := authz.NewContext(context.Background(), adminOn(authz.DomainAnchor(example)))
-	_, err = authz.Guard(allowed, authz.Update, authz.Domain(example), func() (struct{}, error) {
+	allowed := authz.NewContext(context.Background(), senderOn(authz.DomainAnchor(example)))
+	_, err = authz.Guard(allowed, authz.Create, authz.Batches(example), func() (struct{}, error) {
 		return struct{}{}, nil
 	})
 	require.NoError(t, err)
+}
+
+// The Principal that may: admin holds attribute, so the operation runs with the claim attached to
+// the Principal it carries. The operation can therefore read who asked — what it must never do is
+// decide anything from it, which is the property the whole design rests on (ADR 0008).
+func TestGuardRunsAnAttributedOperationThePrincipalMayMake(t *testing.T) {
+	ctx := authz.NewContext(context.Background(),
+		adminOn(authz.DomainAnchor(example)).WithAttribution("alice@corp.com"))
+
+	got, err := authz.Guard(ctx, authz.Update, authz.Domain(example), func() (authz.Attribution, error) {
+		p, _ := authz.FromContext(ctx)
+		return p.Attribution(), nil
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, authz.Attribution("alice@corp.com"), got)
+}
+
+// Recording the claim is the whole point of permitting it, so the record is asserted rather than
+// assumed. It names the authenticated credential beside the claim — one was checked and the other
+// cannot be — and the operation it was made for, since a name with no act attached records nothing.
+func TestGuardRecordsAnAttributedOperation(t *testing.T) {
+	logged := captureSlog(t)
+
+	ctx := authz.NewContext(context.Background(),
+		adminOn(authz.DomainAnchor(example)).WithAttribution("alice@corp.com"))
+	_, err := authz.Guard(ctx, authz.Create, authz.APIKeys(example), func() (struct{}, error) {
+		return struct{}{}, nil
+	})
+	require.NoError(t, err)
+
+	record := logged.String()
+	assert.Contains(t, record, "attributed operation")
+	assert.Contains(t, record, "principal=key-1@example.com")
+	assert.Contains(t, record, "attribution=alice@corp.com")
+	assert.Contains(t, record, "action=create")
+	assert.Contains(t, record, "resource=domains/example.com/apikeys")
+}
+
+// An operation nobody was named for is recorded by nothing at this level: the RBAC line every check
+// writes is at debug, and this record is at info because it holds personal data an operator has to
+// be able to find. Were it written for every operation, the two would be indistinguishable.
+func TestGuardRecordsNothingWithoutAnAttribution(t *testing.T) {
+	logged := captureSlog(t)
+
+	ctx := authz.NewContext(context.Background(), adminOn(authz.DomainAnchor(example)))
+	_, err := authz.Guard(ctx, authz.Create, authz.APIKeys(example), func() (struct{}, error) {
+		return struct{}{}, nil
+	})
+	require.NoError(t, err)
+
+	assert.NotContains(t, logged.String(), "attributed operation")
+}
+
+// captureSlog redirects the default logger for the duration of one test.
+func captureSlog(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+	return &buf
 }
 
 // The context is transport only — Can never sees it — but the boolean matters:

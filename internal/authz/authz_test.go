@@ -21,7 +21,8 @@ var (
 
 // resourceActions is the closed vocabulary minus Attribute, spelled out here
 // rather than borrowed from the package so that adding an Action to the model
-// does not silently widen what these sweeps assert.
+// does not silently widen what these sweeps assert. Attribute is left out
+// because it acts on nothing of Kannon's: it has its own table below.
 var resourceActions = []authz.Action{
 	authz.Create,
 	authz.Read,
@@ -311,11 +312,30 @@ func TestCatalogueHoldsExactlyAdminAndSender(t *testing.T) {
 	assert.Equal(t, []authz.RoleName{authz.RoleAdmin, authz.RoleSender}, authz.RoleNames())
 }
 
-// No seeded Role holds attribute, admin deliberately included: naming a person is not an
-// administrative power, and with nothing authenticated there is no trusted front-end to be one
-// (ADR 0008). So Attribution has no producer, which this asserts rather than assumes.
-func TestNoSeededRoleHoldsAttribute(t *testing.T) {
+// admin holds attribute and sender does not: the credential that administers Kannon is the one a
+// front-end holds, so it is the one with people to name, while a customer's send key must not be
+// able to claim a Batch was sent on somebody else's behalf (ADR 0009). And attribute is an Action
+// like any other, so it reaches exactly as far as its Grant's Anchor and no further.
+func TestAdminHoldsAttributeAndSenderDoesNot(t *testing.T) {
+	runDecisions(t, []decision{
+		{"admin on the root names who asked at the collection", adminOn(authz.RootAnchor()), authz.Attribute, authz.Domains(), true},
+		{"admin on the root, inside a Domain", adminOn(authz.RootAnchor()), authz.Attribute, authz.Template(example, "welcome"), true},
+		{"admin on one Domain, within it", adminOn(authz.DomainAnchor(example)), authz.Attribute, authz.APIKeys(example), true},
+		{"admin on one Domain, not in another", adminOn(authz.DomainAnchor(example)), authz.Attribute, authz.APIKeys(other), false},
+		{"admin on one Domain, not above it", adminOn(authz.DomainAnchor(example)), authz.Attribute, authz.Domains(), false},
+		{"sender, on the Batches it may create", senderOn(authz.DomainAnchor(example)), authz.Attribute, authz.Batches(example), false},
+		{"sender on every Domain, still not", senderOn(authz.AllDomainsAnchor()), authz.Attribute, authz.Batches(example), false},
+	})
+}
+
+// The same rule as a sweep over the whole catalogue: nothing but admin reaches attribute anywhere
+// in the tree. Written as an exclusion rather than a list of the Roles that must not hold it, so
+// that a Role added to the catalogue is refused this power until somebody says otherwise here.
+func TestNoRoleButAdminReachesAttribute(t *testing.T) {
 	for _, g := range everyGrant(t) {
+		if g.Role() == authz.RoleAdmin {
+			continue
+		}
 		p := principalWith(g)
 		for _, r := range everyResource() {
 			assert.False(t, authz.Can(p, authz.Attribute, r), "%s reached attribute on %s", g, r)
