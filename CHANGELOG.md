@@ -1,5 +1,36 @@
 # Changelog
 
+## [1.0.0](https://github.com/kannon-email/kannon/compare/v0.5.1...v1.0.0) (2026-08-04)
+
+
+### ⚠ BREAKING CHANGES
+
+* **authz:** the Admin API and both Stats API versions now require the `X-Kannon-Admin-Token` header and answer `unauthenticated` to any request that does not carry it, and a process started with `--run-api` refuses to boot until `api.admin_token` (or `K_API_ADMIN_TOKEN`) is set. Upgrading deployments must configure that secret and give it to every caller of those three APIs before rolling out. The Mailer API's HTTP Basic credential and the health endpoint are unchanged.
+* **stats:** GetAggregatedStats (stats API v2) returns one row per hour instead of one per day; a consumer that assumed one bucket per day must sum the hourly buckets itself.
+* tracking Policy: per-Domain/Batch/Recipient control over open and link tracking ([#420](https://github.com/kannon-email/kannon/issues/420))
+
+### Features
+
+* **authz:** authorize the Admin, Stats and Mailer APIs from typed Roles anchored by Grants ([#442](https://github.com/kannon-email/kannon/issues/442)) ([d8a7f71](https://github.com/kannon-email/kannon/commit/d8a7f710cd8eb379c012d579f8ae629272e59dff)), closes [#443](https://github.com/kannon-email/kannon/issues/443) [#437](https://github.com/kannon-email/kannon/issues/437)
+* **envelope:** per-link tracking opt-out and skip non-HTTP link schemes ([#421](https://github.com/kannon-email/kannon/issues/421)) ([306bcf6](https://github.com/kannon-email/kannon/commit/306bcf60d00898afda8b3c5bc9b4e10ead560cea))
+* **mailer:** carry a one-click unsubscribe endpoint (RFC 8058) ([#429](https://github.com/kannon-email/kannon/issues/429)) ([97c95e1](https://github.com/kannon-email/kannon/commit/97c95e138c36e91965295bc75e8b276e2d2aac3b))
+* **stats:** bucket aggregated stats by hour instead of day ([#426](https://github.com/kannon-email/kannon/issues/426)) ([e9713eb](https://github.com/kannon-email/kannon/commit/e9713ebe8e5269e34d2aaa1559866630c36570a4))
+* tracking Policy: per-Domain/Batch/Recipient control over open and link tracking ([#420](https://github.com/kannon-email/kannon/issues/420)) ([1de5695](https://github.com/kannon-email/kannon/commit/1de56959cf48adbe7665d69c13cc8a3db61ac8d6))
+* **tracking:** implement the pseudonymous Tracking Mode ([9d8b9f4](https://github.com/kannon-email/kannon/commit/9d8b9f416ca9b385c6ad6a2c84279f368202502d))
+
+
+### Bug Fixes
+
+* **db:** strip psql meta-commands from the embedded schema dump ([1f98d55](https://github.com/kannon-email/kannon/commit/1f98d5542fef07688b8140833436075df88df0f7))
+* **delivery:** bound the retry path with a time-based Retry Budget ([3130565](https://github.com/kannon-email/kannon/commit/3130565947ccd774e9b4fe284fc75234cdb1184d)), closes [#378](https://github.com/kannon-email/kannon/issues/378)
+* **dispatcher:** reschedule claimed deliveries on dispatch failure ([#403](https://github.com/kannon-email/kannon/issues/403)) ([f9ec1ef](https://github.com/kannon-email/kannon/commit/f9ec1ef1dd0af2b27404ff4edab0d0d4d7580bb4))
+* **dispatcher:** retry NATS stream configuration with backoff at startup ([10fda0a](https://github.com/kannon-email/kannon/commit/10fda0a3921d6412d20d8af5d50fd8a3b8c23456)), closes [#365](https://github.com/kannon-email/kannon/issues/365)
+* **k8s:** make the reference manifest bootable and complete ([9112102](https://github.com/kannon-email/kannon/commit/91121026de19cf586138582d2145f9ea535272f3))
+* **sender:** stop physically re-sending emails on JetStream redelivery ([#427](https://github.com/kannon-email/kannon/issues/427)) ([68ef9d2](https://github.com/kannon-email/kannon/commit/68ef9d25caa390865fb741e767fbad61096c8e43)), closes [#425](https://github.com/kannon-email/kannon/issues/425)
+* **smtp:** route asynchronous DSN bounces to kannon.stats.bounced ([#433](https://github.com/kannon-email/kannon/issues/433)) ([155c4ec](https://github.com/kannon-email/kannon/commit/155c4ec8b8ff303fc6772f587b3cf05f0ee3042d))
+* **stats:** make stat insertion idempotent under JetStream redelivery ([#428](https://github.com/kannon-email/kannon/issues/428)) ([4bace5c](https://github.com/kannon-email/kannon/commit/4bace5c8a1d728c2b1013709f82c92025e9331db))
+* **utils:** decode bounce return path with the URL-safe alphabet ([ca8d861](https://github.com/kannon-email/kannon/commit/ca8d861e0b4c83228904ac362eab5d7a4ec7559f)), closes [#432](https://github.com/kannon-email/kannon/issues/432)
+
 ## [0.5.1](https://github.com/kannon-email/kannon/compare/v0.5.0...v0.5.1) (2026-05-22)
 
 
