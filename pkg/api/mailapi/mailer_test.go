@@ -1,6 +1,8 @@
 package mailapi_test
 
 import (
+	"encoding/base64"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -41,6 +43,125 @@ func TestSendMail_RejectsCrossDomainSender(t *testing.T) {
 	_, err := ts.SendHTML(t.Context(), req)
 	assert.NotNil(t, err)
 	assert.Equal(t, connect.CodePermissionDenied, connect.CodeOf(err))
+	// The refusal is the guard's now, and the wording is asserted literally: a
+	// client that branches on the code or matches the message must not be able to
+	// tell that the mechanism behind it changed (#438).
+	assert.Equal(t, fmt.Sprintf("permission_denied: sender domain %q is not authorized for tenant %q",
+		"other-tenant.com", d.Domain.Domain), err.Error())
+}
+
+// TestSendMail_RejectsSenderOfAnotherRegisteredDomain is the cross-Domain refusal with both Domains
+// real: a key reaches its own Domain's Batches and nothing else, DKIM keypair or not. It also
+// asserts the refusal leaves nothing behind, since the guard wraps the whole of the send.
+func TestSendMail_RejectsSenderOfAnotherRegisteredDomain(t *testing.T) {
+	defer cleanDB(t)
+
+	mine := createTestDomain(t)
+	theirs := createTestDomain(t)
+
+	req := connect.NewRequest(&mailerv1.SendHTMLReq{
+		Sender: &types.Sender{
+			Email: "ceo@" + theirs.Domain.Domain,
+			Alias: "CEO",
+		},
+		Recipients: []*types.Recipient{
+			{Email: "victim@example.com"},
+		},
+		Subject:       "Spoofed",
+		Html:          "<p>hi</p>",
+		ScheduledTime: timestamppb.Now(),
+	})
+	authRequest(req, mine)
+
+	_, err := ts.SendHTML(t.Context(), req)
+	require.Error(t, err)
+	assert.Equal(t, connect.CodePermissionDenied, connect.CodeOf(err))
+	assert.Equal(t, fmt.Sprintf("permission_denied: sender domain %q is not authorized for tenant %q",
+		theirs.Domain.Domain, mine.Domain.Domain), err.Error())
+
+	var msgCount int
+	err = db.QueryRow(t.Context(), "SELECT count(*) FROM messages").Scan(&msgCount)
+	require.NoError(t, err)
+	assert.Equal(t, 0, msgCount, "a refused send must not create a Batch")
+}
+
+// TestSendMail_RefusesWithoutCredential covers the surface the Mailer API has always had and keeps:
+// nothing in front of it hands it an authority, so a request carrying no credential resolves to no
+// Principal and no Domain, and never reaches a guard at all.
+func TestSendMail_RefusesWithoutCredential(t *testing.T) {
+	defer cleanDB(t)
+
+	d := createTestDomain(t)
+
+	newReq := func() *connect.Request[mailerv1.SendHTMLReq] {
+		return connect.NewRequest(&mailerv1.SendHTMLReq{
+			Sender: &types.Sender{
+				Email: "test@" + d.Domain.Domain,
+				Alias: "Test",
+			},
+			Recipients:    []*types.Recipient{{Email: "recipient@example.com"}},
+			Subject:       "Test",
+			Html:          "<p>Hello</p>",
+			ScheduledTime: timestamppb.Now(),
+		})
+	}
+
+	t.Run("no Authorization header", func(t *testing.T) {
+		_, err := ts.SendHTML(t.Context(), newReq())
+		require.Error(t, err)
+		assert.Equal(t, "invalid or wrong auth", err.Error())
+	})
+
+	t.Run("wrong key for a real Domain", func(t *testing.T) {
+		req := newReq()
+		req.Header().Set("Authorization", "Basic "+
+			base64.StdEncoding.EncodeToString([]byte(d.Domain.Domain+":k_wrong12345678901234567890")))
+
+		_, err := ts.SendHTML(t.Context(), req)
+		require.Error(t, err)
+		assert.Equal(t, "invalid or wrong auth", err.Error())
+	})
+}
+
+// TestSendMail_IgnoresAnAdminPrincipalInTheContext is the assertion behind the one
+// security-relevant line of pkg/api/api.go: the Mailer handler is mounted without the admin-token
+// options, and planting an admin Principal anyway changes nothing — authentication replaces it.
+func TestSendMail_IgnoresAnAdminPrincipalInTheContext(t *testing.T) {
+	defer cleanDB(t)
+
+	mine := createTestDomain(t)
+	theirs := createTestDomain(t)
+	adminCtx := tests.AdminContext(t.Context())
+
+	req := connect.NewRequest(&mailerv1.SendHTMLReq{
+		Sender: &types.Sender{
+			Email: "ceo@" + theirs.Domain.Domain,
+			Alias: "CEO",
+		},
+		Recipients:    []*types.Recipient{{Email: "victim@example.com"}},
+		Subject:       "Spoofed",
+		Html:          "<p>hi</p>",
+		ScheduledTime: timestamppb.Now(),
+	})
+	authRequest(req, mine)
+
+	_, err := ts.SendHTML(adminCtx, req)
+	require.Error(t, err)
+	assert.Equal(t, connect.CodePermissionDenied, connect.CodeOf(err))
+	assert.Equal(t, fmt.Sprintf("permission_denied: sender domain %q is not authorized for tenant %q",
+		theirs.Domain.Domain, mine.Domain.Domain), err.Error())
+
+	unauthenticated := connect.NewRequest(&mailerv1.SendHTMLReq{
+		Sender:        &types.Sender{Email: "ceo@" + mine.Domain.Domain, Alias: "CEO"},
+		Recipients:    []*types.Recipient{{Email: "victim@example.com"}},
+		Subject:       "Spoofed",
+		Html:          "<p>hi</p>",
+		ScheduledTime: timestamppb.Now(),
+	})
+
+	_, err = ts.SendHTML(adminCtx, unauthenticated)
+	require.Error(t, err)
+	assert.Equal(t, "invalid or wrong auth", err.Error())
 }
 
 func TestSendMail_AcceptsSenderFromParentDomain(t *testing.T) {
@@ -278,7 +399,7 @@ func TestSendMailFreezesResolvedTrackingPolicy(t *testing.T) {
 			d := createTestDomain(t)
 
 			if tc.domain != nil {
-				_, err := adminAPI.SetTrackingPolicy(t.Context(), connect.NewRequest(&adminv1.SetTrackingPolicyReq{
+				_, err := adminAPI.SetTrackingPolicy(tests.AdminContext(t.Context()), connect.NewRequest(&adminv1.SetTrackingPolicyReq{
 					Domain:   d.Domain.Domain,
 					Tracking: tc.domain,
 				}))
@@ -317,13 +438,9 @@ func TestSendMailFreezesResolvedTrackingPolicy(t *testing.T) {
 	}
 }
 
-// TestSendMailBatchTrackingPolicy covers the Batch level of the Tracking
-// Policy cascade (#417): a Batch may state a Policy at or below its Domain's
-// ceiling, which is resolved onto every Delivery and kept verbatim on the
-// Batch row as provenance; a Batch stating more than the ceiling allows fails
-// the call outright rather than being silently clamped, naming the offending
-// axis (ADR 0003); the two axes are evaluated independently; and a Batch
-// stating a Mode this build cannot read fails the call as a bad argument.
+// TestSendMailBatchTrackingPolicy covers the Batch level of the Tracking Policy cascade (#417): at
+// or below the Domain's ceiling it resolves onto every Delivery and stays on the Batch row as
+// provenance; above it the call fails naming the axis (ADR 0003), as it does for an unreadable Mode.
 func TestSendMailBatchTrackingPolicy(t *testing.T) {
 	t.Run("AtOrBelowCeilingIsAcceptedAndApplied", func(t *testing.T) {
 		cases := []struct {
@@ -403,7 +520,7 @@ func TestSendMailBatchTrackingPolicy(t *testing.T) {
 		defer cleanDB(t)
 
 		d := createTestDomain(t)
-		_, err := adminAPI.SetTrackingPolicy(t.Context(), connect.NewRequest(&adminv1.SetTrackingPolicyReq{
+		_, err := adminAPI.SetTrackingPolicy(tests.AdminContext(t.Context()), connect.NewRequest(&adminv1.SetTrackingPolicyReq{
 			Domain: d.Domain.Domain,
 			Tracking: &trackingtypes.TrackingPolicy{
 				Opens: trackingtypes.TrackingMode_TRACKING_MODE_OFF,
@@ -444,7 +561,7 @@ func TestSendMailBatchTrackingPolicy(t *testing.T) {
 		defer cleanDB(t)
 
 		d := createTestDomain(t)
-		_, err := adminAPI.SetTrackingPolicy(t.Context(), connect.NewRequest(&adminv1.SetTrackingPolicyReq{
+		_, err := adminAPI.SetTrackingPolicy(tests.AdminContext(t.Context()), connect.NewRequest(&adminv1.SetTrackingPolicyReq{
 			Domain: d.Domain.Domain,
 			Tracking: &trackingtypes.TrackingPolicy{
 				Opens: trackingtypes.TrackingMode_TRACKING_MODE_IDENTIFIED,
@@ -607,11 +724,9 @@ func TestSendMailWithInvalidHeaders(t *testing.T) {
 	}
 }
 
-// TestSendMailRecipientTrackingPolicy covers the Recipient level of the Tracking
-// Policy cascade (#419) — the most specific of the three, where a caller states
-// the consent it holds in its own CRM (ADR 0002). Everything asserted here is
-// what an API caller can observe: the send response, and the concrete Policy
-// frozen on each Delivery, which is what the Builder will act on.
+// TestSendMailRecipientTrackingPolicy covers the Recipient level of the cascade (#419) — the most
+// specific of the three, where a caller states the consent it holds in its own CRM (ADR 0002).
+// Everything asserted is observable: the send response, and the Policy frozen on each Delivery.
 func TestSendMailRecipientTrackingPolicy(t *testing.T) {
 	t.Run("TheCascadeResolvesToTheMostRestrictiveLevel", func(t *testing.T) {
 		cases := []struct {
@@ -745,10 +860,9 @@ func TestSendMailRecipientTrackingPolicy(t *testing.T) {
 		}
 	})
 
-	// Pseudonymous is a Mode a Recipient may state like any other since #424
-	// (ADR 0006): under the identified/identified default it is a narrowing, so
-	// it is accepted and frozen on that Recipient's Delivery alone — the axis it
-	// was not stated on, and the Recipients that stated nothing, are untouched.
+	// Pseudonymous is a Mode a Recipient may state like any other since #424 (ADR 0006): under
+	// the identified/identified default it is a narrowing, so it is accepted and frozen on that
+	// Recipient's Delivery alone, leaving the other axis and the other Recipients untouched.
 	t.Run("PseudonymousIsAcceptedAndFrozenOnThatRecipient", func(t *testing.T) {
 		defer cleanDB(t)
 
@@ -896,17 +1010,16 @@ func setDomainTracking(t *testing.T, d *tests.DomainWithKey, p *trackingtypes.Tr
 	if p == nil {
 		return
 	}
-	_, err := adminAPI.SetTrackingPolicy(t.Context(), connect.NewRequest(&adminv1.SetTrackingPolicyReq{
+	_, err := adminAPI.SetTrackingPolicy(tests.AdminContext(t.Context()), connect.NewRequest(&adminv1.SetTrackingPolicyReq{
 		Domain:   d.Domain.Domain,
 		Tracking: p,
 	}))
 	require.NoError(t, err)
 }
 
-// requireSend performs one send for d with an optional Batch-level Policy and
-// the given Recipients, and returns the response — the surface an API caller
-// actually sees. It requires the call itself to succeed, so a test asserting a
-// per-Recipient rejection is asserting that the Batch was *not* failed.
+// requireSend performs one send for d with an optional Batch-level Policy and the given Recipients,
+// returning the response an API caller actually sees. It requires the call itself to succeed, so a
+// test asserting a per-Recipient rejection is asserting that the Batch was not failed.
 func requireSend(t *testing.T, d *tests.DomainWithKey, batchPolicy *trackingtypes.TrackingPolicy, recipients ...*types.Recipient) *mailerv1.SendRes {
 	t.Helper()
 	req := connect.NewRequest(&mailerv1.SendHTMLReq{

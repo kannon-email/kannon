@@ -7,18 +7,22 @@ import (
 	"github.com/kannon-email/kannon/internal/domains"
 	"github.com/kannon-email/kannon/internal/templates"
 	"github.com/kannon-email/kannon/internal/trackingpb"
+	"github.com/kannon-email/kannon/internal/values"
 
 	pb "github.com/kannon-email/kannon/proto/kannon/admin/apiv1"
 )
 
+// adminAPIService is the Admin API's translation layer: it parses the wire, delegates to a domain
+// service, and renders the answer. It holds services rather than repositories because that wiring
+// is what decides whether an operation is checked at all — reaching past one would be unguarded.
 type adminAPIService struct {
-	domains   domains.Repository
-	templates templates.Repository
+	domains   *domains.Service
+	templates *templates.Service
 	apiKeys   *apikeys.Service
 }
 
 func (s *adminAPIService) GetDomains(ctx context.Context, in *pb.GetDomainsReq) (*pb.GetDomainsResponse, error) {
-	all, err := s.domains.List(ctx)
+	all, err := s.domains.GetDomains(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -30,8 +34,16 @@ func (s *adminAPIService) GetDomains(ctx context.Context, in *pb.GetDomainsReq) 
 	return &res, nil
 }
 
+// The request field is a bare string, so this handler is where a domain name
+// enters the system: it is parsed here and the error is returned to the caller,
+// rather than being carried any deeper as a string.
 func (s *adminAPIService) GetDomain(ctx context.Context, in *pb.GetDomainReq) (*pb.GetDomainRes, error) {
-	d, err := s.domains.FindByName(ctx, in.Domain)
+	name, err := values.Parse(in.Domain)
+	if err != nil {
+		return nil, err
+	}
+
+	d, err := s.domains.GetDomain(ctx, name)
 	if err != nil {
 		return nil, err
 	}
@@ -42,23 +54,30 @@ func (s *adminAPIService) GetDomain(ctx context.Context, in *pb.GetDomainReq) (*
 }
 
 func (s *adminAPIService) CreateDomain(ctx context.Context, in *pb.CreateDomainRequest) (*pb.Domain, error) {
-	d, err := domains.New(in.Domain)
+	name, err := values.Parse(in.Domain)
 	if err != nil {
 		return nil, err
 	}
-	if err := s.domains.Create(ctx, d); err != nil {
+
+	d, err := s.domains.CreateDomain(ctx, name)
+	if err != nil {
 		return nil, err
 	}
 	return d.Pb(), nil
 }
 
 func (s *adminAPIService) SetTrackingPolicy(ctx context.Context, in *pb.SetTrackingPolicyReq) (*pb.SetTrackingPolicyRes, error) {
+	name, err := values.Parse(in.Domain)
+	if err != nil {
+		return nil, err
+	}
+
 	policy, err := trackingpb.ToPolicy(in.Tracking)
 	if err != nil {
 		return nil, err
 	}
 
-	d, err := s.domains.SetTrackingPolicy(ctx, in.Domain, policy)
+	d, err := s.domains.SetTrackingPolicy(ctx, name, policy)
 	if err != nil {
 		return nil, err
 	}

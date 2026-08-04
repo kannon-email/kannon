@@ -6,38 +6,37 @@ import (
 	"time"
 
 	"github.com/kannon-email/kannon/internal/apikeys"
+	"github.com/kannon-email/kannon/internal/values"
 )
 
 // InMemoryRepository is a thread-safe in-memory implementation of apikeys.Repository
 type InMemoryRepository struct {
-	mu        sync.RWMutex
-	byID      map[string]map[apikeys.ID]*apikeys.APIKey // domain -> id -> key
-	byKeyHash map[string]map[string]*apikeys.APIKey     // domain -> keyHash -> key
+	mu sync.RWMutex
+	// values.DomainName is comparable, so it keys these indexes directly — and, being
+	// canonical by construction, one Domain cannot end up with two buckets.
+	byID      map[values.DomainName]map[apikeys.ID]*apikeys.APIKey // domain -> id -> key
+	byKeyHash map[values.DomainName]map[string]*apikeys.APIKey     // domain -> keyHash -> key
 }
 
-// NewInMemoryRepository creates a new in-memory repository
 func NewInMemoryRepository() *InMemoryRepository {
 	return &InMemoryRepository{
-		byID:      make(map[string]map[apikeys.ID]*apikeys.APIKey),
-		byKeyHash: make(map[string]map[string]*apikeys.APIKey),
+		byID:      make(map[values.DomainName]map[apikeys.ID]*apikeys.APIKey),
+		byKeyHash: make(map[values.DomainName]map[string]*apikeys.APIKey),
 	}
 }
 
-// Create creates a new API key
 func (r *InMemoryRepository) Create(ctx context.Context, key *apikeys.APIKey) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	domain := key.Domain()
+	domain := key.DomainName()
 
-	// Check if key already exists
 	if domainKeys, exists := r.byKeyHash[domain]; exists {
 		if _, exists := domainKeys[key.KeyHash()]; exists {
 			return apikeys.ErrKeyAlreadyExists
 		}
 	}
 
-	// Initialize domain maps if needed
 	if _, exists := r.byID[domain]; !exists {
 		r.byID[domain] = make(map[apikeys.ID]*apikeys.APIKey)
 	}
@@ -45,7 +44,6 @@ func (r *InMemoryRepository) Create(ctx context.Context, key *apikeys.APIKey) er
 		r.byKeyHash[domain] = make(map[string]*apikeys.APIKey)
 	}
 
-	// Store in both indexes
 	r.byID[domain][key.ID()] = key
 	r.byKeyHash[domain][key.KeyHash()] = key
 
@@ -57,10 +55,9 @@ func (r *InMemoryRepository) Update(ctx context.Context, ref apikeys.KeyRef, upd
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	domain := ref.Domain()
+	domain := ref.DomainName()
 	keyID := ref.KeyID()
 
-	// Find the key
 	domainKeys, exists := r.byID[domain]
 	if !exists {
 		return nil, apikeys.ErrKeyNotFound
@@ -74,12 +71,10 @@ func (r *InMemoryRepository) Update(ctx context.Context, ref apikeys.KeyRef, upd
 	// Clone the key before applying update to prevent corruption on error
 	keyClone := r.cloneKey(key)
 
-	// Apply the update function to the clone
 	if err := updateFn(keyClone); err != nil {
 		return nil, err
 	}
 
-	// Success: update the stored key
 	r.byID[domain][keyID] = keyClone
 	r.byKeyHash[domain][key.KeyHash()] = keyClone
 
@@ -88,7 +83,7 @@ func (r *InMemoryRepository) Update(ctx context.Context, ref apikeys.KeyRef, upd
 }
 
 // GetByKeyHash finds an API key by its SHA-256 hash for a specific domain
-func (r *InMemoryRepository) GetByKeyHash(ctx context.Context, domain, keyHash string) (*apikeys.APIKey, error) {
+func (r *InMemoryRepository) GetByKeyHash(ctx context.Context, domain values.DomainName, keyHash string) (*apikeys.APIKey, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -105,12 +100,11 @@ func (r *InMemoryRepository) GetByKeyHash(ctx context.Context, domain, keyHash s
 	return r.cloneKey(apiKey), nil
 }
 
-// GetByID finds an API key by its ID for a specific domain
 func (r *InMemoryRepository) GetByID(ctx context.Context, ref apikeys.KeyRef) (*apikeys.APIKey, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	domain := ref.Domain()
+	domain := ref.DomainName()
 	keyID := ref.KeyID()
 
 	domainKeys, exists := r.byID[domain]
@@ -126,8 +120,7 @@ func (r *InMemoryRepository) GetByID(ctx context.Context, ref apikeys.KeyRef) (*
 	return r.cloneKey(apiKey), nil
 }
 
-// List returns API keys for a domain with filters and pagination
-func (r *InMemoryRepository) List(ctx context.Context, domain string, filters apikeys.ListFilters, page apikeys.Pagination) ([]*apikeys.APIKey, error) {
+func (r *InMemoryRepository) List(ctx context.Context, domain values.DomainName, filters apikeys.ListFilters, page apikeys.Pagination) ([]*apikeys.APIKey, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -136,17 +129,14 @@ func (r *InMemoryRepository) List(ctx context.Context, domain string, filters ap
 		return []*apikeys.APIKey{}, nil
 	}
 
-	// Collect all keys for the domain
 	allKeys := make([]*apikeys.APIKey, 0, len(domainKeys))
 	for _, key := range domainKeys {
-		// Apply active filter
 		if filters.OnlyActive && !key.IsActiveStatus() {
 			continue
 		}
 		allKeys = append(allKeys, key)
 	}
 
-	// Apply pagination
 	start := page.Offset
 	if start > len(allKeys) {
 		return []*apikeys.APIKey{}, nil
@@ -165,8 +155,7 @@ func (r *InMemoryRepository) List(ctx context.Context, domain string, filters ap
 	return result, nil
 }
 
-// Count returns the total number of API keys for a domain with filters
-func (r *InMemoryRepository) Count(ctx context.Context, domain string, filters apikeys.ListFilters) (int, error) {
+func (r *InMemoryRepository) Count(ctx context.Context, domain values.DomainName, filters apikeys.ListFilters) (int, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -177,7 +166,6 @@ func (r *InMemoryRepository) Count(ctx context.Context, domain string, filters a
 
 	count := 0
 	for _, key := range domainKeys {
-		// Apply active filter
 		if filters.OnlyActive && !key.IsActiveStatus() {
 			continue
 		}
@@ -194,7 +182,7 @@ func (r *InMemoryRepository) cloneKey(key *apikeys.APIKey) *apikeys.APIKey {
 		KeyHash:       key.KeyHash(),
 		KeyPrefix:     key.KeyPrefix(),
 		Name:          key.Name(),
-		Domain:        key.Domain(),
+		Domain:        key.DomainName(),
 		CreatedAt:     key.CreatedAt(),
 		ExpiresAt:     r.cloneTimePtr(key.ExpiresAt()),
 		IsActive:      key.IsActiveStatus(),
@@ -202,7 +190,6 @@ func (r *InMemoryRepository) cloneKey(key *apikeys.APIKey) *apikeys.APIKey {
 	})
 }
 
-// cloneTimePtr clones a *time.Time
 func (r *InMemoryRepository) cloneTimePtr(t *time.Time) *time.Time {
 	if t == nil {
 		return nil

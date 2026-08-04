@@ -13,7 +13,7 @@ import (
 
 func TestCreateTemplate(t *testing.T) {
 	d := createTestDomain(t)
-	ctx := t.Context()
+	ctx := adminCtx(t)
 
 	res, err := testservice.CreateTemplate(ctx, connect.NewRequest(&pb.CreateTemplateReq{
 		Html:   "Hello {{ name }}",
@@ -27,7 +27,7 @@ func TestCreateTemplate(t *testing.T) {
 
 func TestGetTemplate(t *testing.T) {
 	d := createTestDomain(t)
-	ctx := t.Context()
+	ctx := adminCtx(t)
 
 	t1 := createTemplate(t, ctx, d, "Hello {{ name }}")
 
@@ -41,7 +41,7 @@ func TestGetTemplate(t *testing.T) {
 
 func TestDeleteTemplate(t *testing.T) {
 	d := createTestDomain(t)
-	ctx := t.Context()
+	ctx := adminCtx(t)
 
 	t1 := createTemplate(t, ctx, d, "Hello {{ name }}")
 
@@ -51,9 +51,13 @@ func TestDeleteTemplate(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, t1.TemplateId, res.Msg.Template.TemplateId)
 
+	// The Domain has to be stated: a list scoped to no Domain used to come back
+	// empty, which made this assertion pass for the wrong reason. GetTemplates now
+	// refuses a request that names no Domain, so the test says which one it means.
 	resG, err := testservice.GetTemplates(ctx, connect.NewRequest(&pb.GetTemplatesReq{
-		Skip: 0,
-		Take: 10,
+		Skip:   0,
+		Take:   10,
+		Domain: d.Domain,
 	}))
 	assert.Nil(t, err)
 	assert.Equal(t, uint32(0), resG.Msg.Total)
@@ -63,7 +67,7 @@ func TestDeleteTemplate(t *testing.T) {
 
 func TestGetTemplates(t *testing.T) {
 	d := createTestDomain(t)
-	ctx := t.Context()
+	ctx := adminCtx(t)
 
 	t1 := createTemplate(t, ctx, d, "Hello {{ name }}")
 	t2 := createTemplate(t, ctx, d, "Hello 2 {{ name }}")
@@ -84,11 +88,10 @@ func TestGetTemplates(t *testing.T) {
 
 func TestUpdateTemplates(t *testing.T) {
 	d := createTestDomain(t)
-	ctx := t.Context()
+	ctx := adminCtx(t)
 
 	t1 := createTemplate(t, ctx, d, "Hello {{ name }}")
 
-	// update template
 	res, err := testservice.UpdateTemplate(ctx, connect.NewRequest(&pb.UpdateTemplateReq{
 		TemplateId: t1.TemplateId,
 		Html:       "Hello Updated",
@@ -97,6 +100,58 @@ func TestUpdateTemplates(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, t1.TemplateId, res.Msg.Template.TemplateId)
 	assert.Equal(t, "Hello Updated", res.Msg.Template.Html)
+
+	cleanDB(t)
+}
+
+// The three operations whose request carries no Domain recover it from the identifier, so an
+// identifier carrying none cannot be served at all — there is nothing to authorize against. Each of
+// the three is walked, because each is a separate adapter and the recovery is three separate lines.
+func TestDomainlessOperationsRefuseAnIdThatCarriesNoDomain(t *testing.T) {
+	ctx := adminCtx(t)
+
+	ids := []struct {
+		name string
+		id   string
+	}{
+		{"no separator", "template_ckv0d2n"},
+		{"two separators", "template_ckv0d2n@a.com@b.com"},
+		{"single-label domain", "template_ckv0d2n@templates"},
+		{"empty", ""},
+	}
+
+	for _, tc := range ids {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := testservice.GetTemplate(ctx, connect.NewRequest(&pb.GetTemplateReq{TemplateId: tc.id}))
+			assert.Error(t, err)
+
+			_, err = testservice.UpdateTemplate(ctx, connect.NewRequest(&pb.UpdateTemplateReq{TemplateId: tc.id, Html: "x"}))
+			assert.Error(t, err)
+
+			_, err = testservice.DeleteTemplate(ctx, connect.NewRequest(&pb.DeleteTemplateReq{TemplateId: tc.id}))
+			assert.Error(t, err)
+		})
+	}
+}
+
+// And the recovered Domain is the Domain the load is scoped to: a Template of one Domain is not
+// reachable by asking for it under another. The id is rewritten to name a second Domain — all a
+// caller could do — and the guard then authorizes against that Domain while the lookup finds nothing.
+func TestDomainlessOperationsCannotReachAnotherDomainsTemplate(t *testing.T) {
+	first := createTestDomain(t)
+	second := createTestDomain(t)
+	ctx := adminCtx(t)
+
+	tpl := createTemplate(t, ctx, first, "Hello {{ name }}")
+	forged := strings.Replace(tpl.TemplateId, "@"+first.Domain, "@"+second.Domain, 1)
+
+	_, err := testservice.GetTemplate(ctx, connect.NewRequest(&pb.GetTemplateReq{TemplateId: forged}))
+	assert.Error(t, err)
+
+	// The original is untouched and still readable under its own Domain.
+	got, err := testservice.GetTemplate(ctx, connect.NewRequest(&pb.GetTemplateReq{TemplateId: tpl.TemplateId}))
+	assert.Nil(t, err)
+	assert.Equal(t, "Hello {{ name }}", got.Msg.Template.Html)
 
 	cleanDB(t)
 }

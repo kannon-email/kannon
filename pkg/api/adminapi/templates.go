@@ -4,42 +4,65 @@ import (
 	"context"
 
 	"github.com/kannon-email/kannon/internal/templates"
+	"github.com/kannon-email/kannon/internal/values"
 	pb "github.com/kannon-email/kannon/proto/kannon/admin/apiv1"
 )
 
 func (s *adminAPIService) CreateTemplate(ctx context.Context, req *pb.CreateTemplateReq) (*pb.CreateTemplateRes, error) {
-	tpl, err := templates.NewPersistent(req.Domain, req.Html, req.Title)
+	domain, err := values.Parse(req.Domain)
 	if err != nil {
 		return nil, err
 	}
-	if err := s.templates.Create(ctx, tpl); err != nil {
+
+	tpl, err := s.templates.CreateTemplate(ctx, domain, req.Html, req.Title)
+	if err != nil {
 		return nil, err
 	}
 	return &pb.CreateTemplateRes{Template: tpl.Pb()}, nil
 }
 
+// UpdateTemplate is a legacy adapter: UpdateTemplateReq carries only a template_id, so the Domain
+// is recovered from the identifier with templates.DomainFromID, which records why authorizing on a
+// parsed value can only narrow. Deletable when a proto revision carries the Domain.
 func (s *adminAPIService) UpdateTemplate(ctx context.Context, req *pb.UpdateTemplateReq) (*pb.UpdateTemplateRes, error) {
-	updated, err := s.templates.Update(ctx, req.TemplateId, func(t *templates.Template) error {
-		t.SetHTML(req.Html)
-		t.SetTitle(req.Title)
-		return nil
-	})
+	domain, err := templates.DomainFromID(req.TemplateId)
+	if err != nil {
+		return nil, err
+	}
+
+	updated, err := s.templates.UpdateTemplate(ctx, domain, req.TemplateId, req.Html, req.Title)
 	if err != nil {
 		return nil, err
 	}
 	return &pb.UpdateTemplateRes{Template: updated.Pb()}, nil
 }
 
+// DeleteTemplate is a legacy adapter, for the reason given on UpdateTemplate:
+// DeleteTemplateReq carries only a template_id, and the Domain is recovered from
+// it. Deletable when the proto carries the Domain.
 func (s *adminAPIService) DeleteTemplate(ctx context.Context, req *pb.DeleteTemplateReq) (*pb.DeleteTemplateRes, error) {
-	deleted, err := s.templates.Delete(ctx, req.TemplateId)
+	domain, err := templates.DomainFromID(req.TemplateId)
+	if err != nil {
+		return nil, err
+	}
+
+	deleted, err := s.templates.DeleteTemplate(ctx, domain, req.TemplateId)
 	if err != nil {
 		return nil, err
 	}
 	return &pb.DeleteTemplateRes{Template: deleted.Pb()}, nil
 }
 
+// GetTemplate is a legacy adapter, for the reason given on UpdateTemplate:
+// GetTemplateReq carries only a template_id, and the Domain is recovered from it.
+// Deletable when the proto carries the Domain.
 func (s *adminAPIService) GetTemplate(ctx context.Context, req *pb.GetTemplateReq) (*pb.GetTemplateRes, error) {
-	tpl, err := s.templates.GetByID(ctx, req.TemplateId)
+	domain, err := templates.DomainFromID(req.TemplateId)
+	if err != nil {
+		return nil, err
+	}
+
+	tpl, err := s.templates.GetTemplate(ctx, domain, req.TemplateId)
 	if err != nil {
 		return nil, err
 	}
@@ -47,11 +70,12 @@ func (s *adminAPIService) GetTemplate(ctx context.Context, req *pb.GetTemplateRe
 }
 
 func (s *adminAPIService) GetTemplates(ctx context.Context, req *pb.GetTemplatesReq) (*pb.GetTemplatesRes, error) {
-	tpls, err := s.templates.List(ctx, req.Domain, templates.Pagination{Skip: uint(req.Skip), Take: uint(req.Take)})
+	domain, err := values.Parse(req.Domain)
 	if err != nil {
 		return nil, err
 	}
-	total, err := s.templates.Count(ctx, req.Domain)
+
+	tpls, total, err := s.templates.GetTemplates(ctx, domain, templates.Pagination{Skip: uint(req.Skip), Take: uint(req.Take)})
 	if err != nil {
 		return nil, err
 	}

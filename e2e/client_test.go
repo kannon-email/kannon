@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"github.com/kannon-email/kannon/internal/authzconnect"
 	"github.com/kannon-email/kannon/internal/tests"
 	adminapiv1 "github.com/kannon-email/kannon/proto/kannon/admin/apiv1"
 	adminv1connect "github.com/kannon-email/kannon/proto/kannon/admin/apiv1/apiv1connect"
@@ -24,6 +25,11 @@ import (
 )
 
 const defaultSenderAlias = "Test Sender"
+
+// adminToken is the credential the suite configures Kannon with and presents on every Admin and
+// Stats call. The Mailer client never gets it: those calls authenticate with a Domain's own API
+// Key, and a suite that handed both to every client could not tell the two apart.
+const adminToken = "e2e-admin-token"
 
 type clientTest struct {
 	mailerClient  mailerv1connect.MailerClient
@@ -171,6 +177,7 @@ func makeFactory(infra *TestInfrastructure) *clientFactory {
 	adminClient := adminv1connect.NewApiClient(
 		http.DefaultClient,
 		fmt.Sprintf("http://localhost:%d", infra.apiPort),
+		authzconnect.AdminTokenClientOptions(adminToken)...,
 	)
 
 	mailerClient := mailerv1connect.NewMailerClient(
@@ -181,11 +188,13 @@ func makeFactory(infra *TestInfrastructure) *clientFactory {
 	statsClient := statsv1connect.NewStatsApiV1Client(
 		http.DefaultClient,
 		fmt.Sprintf("http://localhost:%d", infra.apiPort),
+		authzconnect.AdminTokenClientOptions(adminToken)...,
 	)
 
 	statsV2Client := statsv2connect.NewStatsApiV2Client(
 		http.DefaultClient,
 		fmt.Sprintf("http://localhost:%d", infra.apiPort),
+		authzconnect.AdminTokenClientOptions(adminToken)...,
 	)
 
 	hzClient := adminv1connect.NewHZServiceClient(

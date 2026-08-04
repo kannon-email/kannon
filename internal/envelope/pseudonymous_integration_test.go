@@ -6,6 +6,7 @@ import (
 	"connectrpc.com/connect"
 	"github.com/kannon-email/kannon/internal/batch"
 	"github.com/kannon-email/kannon/internal/statssec"
+	"github.com/kannon-email/kannon/internal/tests"
 	"github.com/kannon-email/kannon/internal/tracking"
 	pb "github.com/kannon-email/kannon/proto/kannon/mailer/types"
 	trackingtypes "github.com/kannon-email/kannon/proto/kannon/tracking/types"
@@ -17,22 +18,15 @@ import (
 	mailerapiv1 "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1"
 )
 
-// TestPseudonymousDeliveryEndToEnd walks the rung from the Mailer API call that
-// states it to the tokens a recipient actually receives, through the real mint,
-// because that is the only place its guarantees can be checked as a whole: the
-// Builder decides what identity to draw, statssec decides what survives into the
-// claim, and neither on its own proves what ends up in the URL.
-//
-// It pins the four things ADR 0006 promises an operator who states pseudonymous:
-// no recipient address in any tracking URL, one pseudonym shared by the pixel and
-// every link of a Delivery, and pseudonyms that collide neither between two
-// Recipients of a Batch nor between two Batches of one Recipient.
+// TestPseudonymousDeliveryEndToEnd walks the rung from the Mailer API call that states it to the
+// tokens a recipient receives, through the real mint, since neither the Builder nor statssec alone
+// proves what ends up in the URL. It pins the four things ADR 0006 promises.
 func TestPseudonymousDeliveryEndToEnd(t *testing.T) {
-	const fqdn = "pseudonymous-test.com"
+	const domain = "pseudonymous-test.com"
 	const first = "first@emailtest.com"
 	const second = "second@emailtest.com"
 
-	sender := newPseudonymousSender(t, fqdn)
+	sender := newPseudonymousSender(t, domain)
 	ss := statssec.NewStatsService(q)
 
 	batchOne := sender.send(t, first, second)
@@ -47,8 +41,8 @@ func TestPseudonymousDeliveryEndToEnd(t *testing.T) {
 		for _, token := range one.all() {
 			claims := verifyAny(t, ss, token)
 			assert.NotEqual(t, first, claims.identity)
-			assert.True(t, tracking.InReservedNamespace(claims.identity, fqdn),
-				"a pseudonymous token must name a sentinel of %q, got %q", fqdn, claims.identity)
+			assert.True(t, tracking.InReservedNamespace(claims.identity, domain),
+				"a pseudonymous token must name a sentinel of %q, got %q", domain, claims.identity)
 			assert.Equal(t, tracking.ModePseudonymous, claims.mode)
 		}
 	})
@@ -85,13 +79,13 @@ type pseudonymousSender struct {
 	apiKey string
 }
 
-func newPseudonymousSender(t *testing.T, fqdn string) pseudonymousSender {
+func newPseudonymousSender(t *testing.T, domain string) pseudonymousSender {
 	t.Helper()
 
-	d, err := adminAPI.CreateDomain(t.Context(), connect.NewRequest(&adminapiv1.CreateDomainRequest{Domain: fqdn}))
+	d, err := adminAPI.CreateDomain(tests.AdminContext(t.Context()), connect.NewRequest(&adminapiv1.CreateDomainRequest{Domain: domain}))
 	require.NoError(t, err)
 
-	key, err := adminAPI.CreateAPIKey(t.Context(), connect.NewRequest(&adminapiv1.CreateAPIKeyRequest{
+	key, err := adminAPI.CreateAPIKey(tests.AdminContext(t.Context()), connect.NewRequest(&adminapiv1.CreateAPIKeyRequest{
 		Domain: d.Msg.Domain,
 		Name:   "pseudonymous-key",
 	}))

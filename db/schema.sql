@@ -141,6 +141,21 @@ CREATE TABLE public.api_keys (
 
 
 --
+-- Name: audit_records; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.audit_records (
+    id text NOT NULL,
+    occurred_at timestamp with time zone NOT NULL,
+    principal text NOT NULL,
+    resource text[] NOT NULL,
+    action text NOT NULL,
+    outcome text NOT NULL,
+    data jsonb NOT NULL
+);
+
+
+--
 -- Name: domain_template; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -172,7 +187,8 @@ CREATE TABLE public.domains (
     created_at timestamp without time zone DEFAULT now() NOT NULL,
     dkim_private_key character varying NOT NULL,
     dkim_public_key character varying NOT NULL,
-    tracking jsonb DEFAULT '{"links": "identified", "opens": "identified"}'::jsonb NOT NULL
+    tracking jsonb DEFAULT '{"links": "identified", "opens": "identified"}'::jsonb NOT NULL,
+    CONSTRAINT domains_domain_check CHECK (((domain)::text ~ '^[a-z0-9_-]+(\.[a-z0-9_-]+)+$'::text))
 );
 
 
@@ -431,6 +447,14 @@ ALTER TABLE ONLY public.api_keys
 
 
 --
+-- Name: audit_records audit_records_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.audit_records
+    ADD CONSTRAINT audit_records_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: domain_template domain_template_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -564,6 +588,13 @@ CREATE INDEX api_keys_expires_at_idx ON public.api_keys USING btree (expires_at)
 --
 
 CREATE INDEX api_keys_key_hash_active_idx ON public.api_keys USING btree (key_hash) WHERE (is_active = true);
+
+
+--
+-- Name: audit_records_occurred_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX audit_records_occurred_at_idx ON public.audit_records USING btree (occurred_at);
 
 
 --
@@ -747,4 +778,6 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20260509102644'),
     ('20260726084414'),
     ('20260727071416'),
-    ('20260803094036');
+    ('20260803094036'),
+    ('20260804082406'),
+    ('20260804135145');

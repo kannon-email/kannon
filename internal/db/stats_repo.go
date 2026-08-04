@@ -2,11 +2,13 @@ package sqlc
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/kannon-email/kannon/internal/stats"
+	"github.com/kannon-email/kannon/internal/values"
 )
 
 // StatsRepository implements stats.Repository using sqlc queries.
@@ -14,7 +16,6 @@ type StatsRepository struct {
 	db *pgxpool.Pool
 }
 
-// NewStatsRepository creates a new StatsRepository.
 func NewStatsRepository(db *pgxpool.Pool) *StatsRepository {
 	return &StatsRepository{db: db}
 }
@@ -26,15 +27,15 @@ func (r *StatsRepository) Insert(ctx context.Context, stat *stats.Stat) error {
 		MessageID: stat.MessageID,
 		Type:      StatsType(stat.Type),
 		Timestamp: toPgTimestamp(stat.Timestamp),
-		Domain:    stat.Domain,
+		Domain:    stat.Domain.String(),
 		Data:      stat.Data,
 	})
 }
 
-func (r *StatsRepository) Query(ctx context.Context, domain string, timeRange stats.TimeRange, page stats.Pagination) ([]*stats.Stat, error) {
+func (r *StatsRepository) Query(ctx context.Context, domain values.DomainName, timeRange stats.TimeRange, page stats.Pagination) ([]*stats.Stat, error) {
 	q := New(r.db)
 	rows, err := q.QueryStats(ctx, QueryStatsParams{
-		Domain: domain,
+		Domain: domain.String(),
 		Start:  toPgTimestamp(timeRange.Start),
 		Stop:   toPgTimestamp(timeRange.Stop),
 		Skip:   int32(page.Offset),
@@ -46,24 +47,28 @@ func (r *StatsRepository) Query(ctx context.Context, domain string, timeRange st
 
 	result := make([]*stats.Stat, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, toDomainStat(row))
+		stat, err := toDomainStat(row)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, stat)
 	}
 	return result, nil
 }
 
-func (r *StatsRepository) Count(ctx context.Context, domain string, timeRange stats.TimeRange) (int64, error) {
+func (r *StatsRepository) Count(ctx context.Context, domain values.DomainName, timeRange stats.TimeRange) (int64, error) {
 	q := New(r.db)
 	return q.CountQueryStats(ctx, CountQueryStatsParams{
-		Domain: domain,
+		Domain: domain.String(),
 		Start:  toPgTimestamp(timeRange.Start),
 		Stop:   toPgTimestamp(timeRange.Stop),
 	})
 }
 
-func (r *StatsRepository) QueryTimeline(ctx context.Context, domain string, timeRange stats.TimeRange) ([]*stats.AggregatedStat, error) {
+func (r *StatsRepository) QueryTimeline(ctx context.Context, domain values.DomainName, timeRange stats.TimeRange) ([]*stats.AggregatedStat, error) {
 	q := New(r.db)
 	rows, err := q.QueryStatsTimeline(ctx, QueryStatsTimelineParams{
-		Domain: domain,
+		Domain: domain.String(),
 		Start:  toPgTimestamp(timeRange.Start),
 		Stop:   toPgTimestamp(timeRange.Stop),
 	})
@@ -94,14 +99,21 @@ func toPgTimestamp(t time.Time) pgtype.Timestamp {
 	}
 }
 
-func toDomainStat(row Stat) *stats.Stat {
+// toDomainStat rebuilds the entity from its row, canonicalising the stored domain as the other row
+// converters do. stats.domain is the one domain-name column with no length bound, so a row holding
+// something Parse refuses is reported rather than counted against a Domain nothing can query.
+func toDomainStat(row Stat) (*stats.Stat, error) {
+	domain, err := values.Parse(row.Domain)
+	if err != nil {
+		return nil, fmt.Errorf("stat row %d holds a non-canonical domain %q: %w", row.ID, row.Domain, err)
+	}
 	return stats.LoadStat(
 		row.ID,
 		stats.Type(row.Type),
 		row.Email,
 		row.MessageID,
-		row.Domain,
+		domain,
 		row.Timestamp.Time,
 		row.Data,
-	)
+	), nil
 }

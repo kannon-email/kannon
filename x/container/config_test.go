@@ -59,6 +59,43 @@ func TestLoadConfig_PanicsOnTypeMismatch(t *testing.T) {
 	LoadConfig("foo", &out)
 }
 
+// There is no default, and an unset key must answer with nothing rather than with something a
+// caller could authenticate against. Asserted with no key set at all, because a reader running
+// without the cmd layer's config setup must still get the documented answer.
+func TestAPIAdminToken_EmptyWhenUnset(t *testing.T) {
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+
+	if got := APIAdminToken(); got != "" {
+		t.Errorf("expected no admin token when the key is unset, got %q", got)
+	}
+}
+
+func TestAPIAdminToken_FromTheConfigFileKey(t *testing.T) {
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+
+	viper.Set(APIAdminTokenKey, "s3cr3t")
+
+	if got := APIAdminToken(); got != "s3cr3t" {
+		t.Errorf("APIAdminToken() = %q, want %q", got, "s3cr3t")
+	}
+}
+
+// The environment spelling is the half of the contract a Kubernetes manifest uses, and it is the
+// one viper would otherwise lose: a nested key reached through UnmarshalKey never consults the
+// environment. Read with nothing else configured, the way a container running only on env vars is.
+func TestAPIAdminToken_FromTheEnvironment(t *testing.T) {
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+
+	t.Setenv(APIAdminTokenEnvVar, "s3cr3t-from-env")
+
+	if got := APIAdminToken(); got != "s3cr3t-from-env" {
+		t.Errorf("APIAdminToken() = %q, want the value of %s", got, APIAdminTokenEnvVar)
+	}
+}
+
 func TestApplyDeprecatedAliases_RunVerifier(t *testing.T) {
 	viper.Reset()
 	t.Cleanup(viper.Reset)

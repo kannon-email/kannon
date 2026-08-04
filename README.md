@@ -184,6 +184,8 @@ The config file is `--config <path>`, defaulting to `$HOME/.kannon.yaml`.
 | `smtp.max_recipients` | int      | 50             | Max recipients per inbound SMTP message         |
 | `tracker.port`        | int      | 8080           | Open/click tracking HTTP server port            |
 | `stats.retention`     | duration | 8760h (1 year) | How long raw per-Delivery stats are kept        |
+| `audit.enabled`       | bool     | false          | Record every authorization decision (see below) |
+| `audit.retention`     | duration | 720h (30 days) | How long an Audit Record is kept                |
 
 **Component selection** (CLI flag, or the same name as a top-level YAML key):
 
@@ -196,9 +198,30 @@ The config file is `--config <path>`, defaulting to `$HOME/.kannon.yaml`.
 | `--run-validator` | false   | Enable validator worker  |
 | `--run-tracker`   | false   | Enable tracker worker    |
 | `--run-stats`     | false   | Enable stats worker      |
+| `--run-audit`     | false   | Enable audit writer — needs `audit.enabled` |
 
 > [!IMPORTANT]
-> **Environment variables only work for the four top-level keys in the first table.** Nested keys (`K_API_PORT`, `K_SENDER_HOSTNAME`, `K_SMTP_ADDRESS`, …) and the `run-*` flags (`K_RUN_API`, …) are **silently ignored** — set them in the YAML file, or pass the `--run-*` flags on the command line.
+> **Environment variables work for the four top-level keys in the first table, and for `K_API_ADMIN_TOKEN`.** Every other nested key (`K_API_PORT`, `K_SENDER_HOSTNAME`, `K_SMTP_ADDRESS`, …) and the `run-*` flags (`K_RUN_API`, …) are **silently ignored** — set them in the YAML file, or pass the `--run-*` flags on the command line.
+
+**Access control**:
+
+| YAML key          | Env var              | Type   | Default    | Description                                                     |
+| ----------------- | -------------------- | ------ | ---------- | --------------------------------------------------------------- |
+| `api.admin_token` | `K_API_ADMIN_TOKEN`  | string | (required) | Credential authenticating the Admin API and both Stats APIs      |
+
+> [!IMPORTANT]
+> `api.admin_token` is the one nested key that **can** be set from the environment, as `K_API_ADMIN_TOKEN` — a secret belongs in a Secret rather than in a ConfigMap. It is required whenever `--run-api` is set: a process asked to serve the API without it refuses to boot, rather than come up answering every Admin and Stats request with `unauthenticated`. Workers that do not serve the API need no token.
+
+> [!WARNING]
+> The admin token is a single shared secret that authorizes **everything on every Domain** — creating Domains, minting API Keys, rewriting Templates and reading any Domain's per-Delivery statistics. It names no operator, so an Audit Record can only say that a holder acted, and it is revoked by changing it and restarting. Give it to as few callers as possible, and keep the API listener off untrusted networks.
+
+**Audit trail** (off by default):
+
+Set `audit.enabled` and run a process with `--run-audit`, and Kannon writes an **Audit Record** for every authorization decision it reaches — permitted, refused, and the case where nothing authenticated a request that reached a guarded operation. Records land in the `audit_records` table and are deleted automatically, hourly, once older than `audit.retention`. Decisions also go on the NATS subjects `kannon.audit.allowed` and `kannon.audit.denied`, so refusals can be alerted on without querying the table.
+
+Both halves are needed. `audit.enabled` alone publishes Records that nobody writes down, and they expire off the stream after seven days — the API logs a warning when it sees that happening. `--run-audit` alone consumes nothing, and the worker says so and stops rather than idling. Leave `audit.enabled` unset and nothing is collected at all: the API process does not even connect to NATS on account of the feature.
+
+An Audit Record holds the identifier of the credential that acted, the Action, the Resource path, the outcome, the instant, the Grants the credential held, and — when the request carried an `X-Kannon-Attribution` header — the person that header named. **That claim is personal data**, which is why its retention is yours to set. The caller's IP address is deliberately **not** collected. Kannon never reads this table back, so nothing in it can influence an authorization decision. See [ADR 0010](./docs/adr/0010-every-authorization-decision-becomes-an-audit-record.md).
 
 - See [`examples/docker-compose/kannon.yaml`](examples/docker-compose/kannon.yaml) for a full example.
 
@@ -208,7 +231,7 @@ The config file is `--config <path>`, defaulting to `$HOME/.kannon.yaml`.
 
 Kannon requires a PostgreSQL database, migrated with [dbmate](https://github.com/amacneil/dbmate) via `kannon migrate main`. Main tables (physical names retained for backward compatibility; see [`CONTEXT.md`](./CONTEXT.md) for the corresponding domain entities):
 
-- **domains**: Registered sender Domains (FQDN + DKIM keypair + Tracking Policy ceiling)
+- **domains**: Registered sender Domains (domain name + DKIM keypair + Tracking Policy ceiling)
 - **api_keys**: API Keys for authentication (multiple keys per Domain; hashed at rest, expirable, revocable)
 - **messages**: One row per **Batch** — subject, Sender, template reference, attachments, custom headers, Tracking Policy (legacy table name; the entity is a Batch)
 - **sending_pool_emails**: The Pool — one row per **Delivery** (recipient, scheduled time, retry count, per-recipient fields, frozen Tracking Policy). Rows are deleted on terminal outcomes
@@ -216,6 +239,7 @@ Kannon requires a PostgreSQL database, migrated with [dbmate](https://github.com
 - **stats**: Per-Delivery outcome events (Validated / Rejected / Delivered / Bounced / Opened / Clicked), pruned by `stats.retention`
 - **aggregated_stats**: Per-Domain hourly event counters, never pruned — the only record of events collected in anonymous tracking mode
 - **stats_keys**: Signing keys for tracking tokens
+- **audit_records**: One row per authorization decision — written only when `audit.enabled`, never read by Kannon, pruned by `audit.retention`
 
 See [`db/migrations/`](./db/migrations/) for full schema and migrations.
 
@@ -243,10 +267,32 @@ Kannon exposes a single HTTP server (default port `50051`) built with [Connect](
 
 ### Authentication
 
-> [!WARNING]
-> **Only the Mailer API authenticates.** The Admin API, the Stats APIs and the health service currently accept unauthenticated calls, so anyone who can reach the port can create Domains, mint API Keys and read another tenant's statistics. Do not expose the API port publicly: keep it on an internal network, or put your own authenticating proxy in front of it.
+Every API but health authenticates, and each with the credential that fits what it does.
 
-The Mailer API uses Basic Auth with a Domain and one of its API Keys:
+**Admin API and both Stats APIs** — the operator's admin token, in a header of its own:
+
+```
+X-Kannon-Admin-Token: <api.admin_token>
+```
+
+It authorizes everything on every Domain, so a caller holding it can create Domains, mint API Keys and read any Domain's statistics. A request without it, or with the wrong one, is refused with `unauthenticated`.
+
+> [!NOTE]
+> The health service (`pkg.kannon.admin.apiv1.HZService`) stays open: it discloses no tenant data and is polled by probes that carry no credential.
+
+#### Naming who asked
+
+A front-end holding the admin token serves its own people, and Kannon cannot see them. It may name one per request, on the same three surfaces:
+
+```
+X-Kannon-Attribution: alice@corp.com
+```
+
+The name is **recorded and never consulted**: Kannon has nothing to check it against, so it can no more widen what the request may do than it can be verified. Every operation carrying one is logged as `attributed operation`, with the authenticated credential beside the claim — one was checked and the other was asserted, and the record keeps them apart. The header is optional; sending nothing records the credential alone.
+
+A claim must be at most 256 bytes of UTF-8 with no control characters. A malformed one is refused with `invalid_argument` rather than dropped, so a front-end never believes a name was recorded when it was not. An API Key cannot make a claim at all: the Mailer API does not read the header, and a key resolves to `sender`, which may not name anybody.
+
+**Mailer API** — Basic Auth with a Domain and one of its API Keys:
 
 ```
 token = base64(<your domain>:<your api key>)
@@ -265,14 +311,19 @@ An API Key is shown in full **only** in the `CreateAPIKey` response — it is st
 ### Bootstrapping a Domain and an API Key
 
 ```sh
+# Both calls are on the Admin API, so both carry the admin token.
+ADMIN_TOKEN='<api.admin_token>'
+
 # 1. Register the sender Domain. The response carries the DKIM public key to publish.
 curl -sX POST http://localhost:50051/pkg.kannon.admin.apiv1.Api/CreateDomain \
   -H 'Content-Type: application/json' \
+  -H "X-Kannon-Admin-Token: $ADMIN_TOKEN" \
   -d '{"domain":"mail.yourdomain.com"}'
 
 # 2. Mint an API Key for it. `key` is returned once and never again.
 curl -sX POST http://localhost:50051/pkg.kannon.admin.apiv1.Api/CreateAPIKey \
   -H 'Content-Type: application/json' \
+  -H "X-Kannon-Admin-Token: $ADMIN_TOKEN" \
   -d '{"domain":"mail.yourdomain.com","name":"backend"}'
 ```
 
@@ -387,14 +438,18 @@ See the [proto files](./.proto/kannon/) for all fields and options.
 ### Reading statistics
 
 ```sh
+ADMIN_TOKEN='<api.admin_token>'
+
 # Raw per-Delivery events (v1)
 curl -sX POST http://localhost:50051/kannon.StatsApiV1/GetStats \
   -H 'Content-Type: application/json' \
+  -H "X-Kannon-Admin-Token: $ADMIN_TOKEN" \
   -d '{"domain":"mail.yourdomain.com","take":50}'
 
 # Hourly aggregates (v2)
 curl -sX POST http://localhost:50051/kannon.stats.apiv2.StatsApiV2/GetAggregatedStats \
   -H 'Content-Type: application/json' \
+  -H "X-Kannon-Admin-Token: $ADMIN_TOKEN" \
   -d '{"domain":"mail.yourdomain.com"}'
 ```
 

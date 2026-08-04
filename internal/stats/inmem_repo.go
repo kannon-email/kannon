@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/kannon-email/kannon/internal/values"
 	"github.com/kannon-email/kannon/proto/kannon/stats/types"
 	"google.golang.org/protobuf/proto"
 )
@@ -17,7 +18,6 @@ type InMemRepository struct {
 	nextID int32
 }
 
-// NewInMemRepository creates a new in-memory stats repository.
 func NewInMemRepository() *InMemRepository {
 	return &InMemRepository{nextID: 1}
 }
@@ -58,13 +58,12 @@ func sameEvent(a, b *Stat) bool {
 		a.Timestamp.Equal(b.Timestamp)
 }
 
-func (r *InMemRepository) Query(_ context.Context, domain string, tr TimeRange, page Pagination) ([]*Stat, error) {
+func (r *InMemRepository) Query(_ context.Context, domain values.DomainName, tr TimeRange, page Pagination) ([]*Stat, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	filtered := r.filter(domain, tr)
 
-	// Apply pagination.
 	start := page.Offset
 	if start > len(filtered) {
 		return nil, nil
@@ -73,14 +72,14 @@ func (r *InMemRepository) Query(_ context.Context, domain string, tr TimeRange, 
 	return filtered[start:end], nil
 }
 
-func (r *InMemRepository) Count(_ context.Context, domain string, tr TimeRange) (int64, error) {
+func (r *InMemRepository) Count(_ context.Context, domain values.DomainName, tr TimeRange) (int64, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	return int64(len(r.filter(domain, tr))), nil
 }
 
-func (r *InMemRepository) QueryTimeline(_ context.Context, domain string, tr TimeRange) ([]*AggregatedStat, error) {
+func (r *InMemRepository) QueryTimeline(_ context.Context, domain values.DomainName, tr TimeRange) ([]*AggregatedStat, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -136,7 +135,7 @@ func (r *InMemRepository) DeleteOlderThan(_ context.Context, before time.Time) (
 }
 
 // filter returns stats matching the domain and time range. Must be called with mu held.
-func (r *InMemRepository) filter(domain string, tr TimeRange) []*Stat {
+func (r *InMemRepository) filter(domain values.DomainName, tr TimeRange) []*Stat {
 	var result []*Stat
 	for _, s := range r.stats {
 		if s.Domain != domain {

@@ -23,6 +23,7 @@ import (
 	"github.com/kannon-email/kannon/internal/delivery"
 	"github.com/kannon-email/kannon/internal/tests"
 	"github.com/kannon-email/kannon/pkg/api"
+	kannonaudit "github.com/kannon-email/kannon/pkg/audit"
 	"github.com/kannon-email/kannon/pkg/dispatcher"
 	kannonsmtp "github.com/kannon-email/kannon/pkg/smtp"
 	"github.com/kannon-email/kannon/pkg/smtpsender"
@@ -55,7 +56,6 @@ func TestE2EEmailSending(t *testing.T) {
 
 	runKannon(t, infra, senderMock)
 
-	// Wait for API server to be ready before creating clients
 	waitForAPIServer(t, infra)
 
 	factory := makeFactory(infra)
@@ -161,6 +161,26 @@ func TestE2EEmailSending(t *testing.T) {
 		t.Parallel()
 		testEveryRecipientRejected(t, factory, senderMock, infra)
 	})
+
+	t.Run("PermittedAdminOperationIsRecorded", func(t *testing.T) {
+		t.Parallel()
+		testPermittedAdminOperationIsRecorded(t, factory, infra)
+	})
+
+	t.Run("RefusedOperationIsRecordedAsDenied", func(t *testing.T) {
+		t.Parallel()
+		testRefusedOperationIsRecordedAsDenied(t, factory, infra)
+	})
+
+	t.Run("AttributionIsRecordedBesideTheCredential", func(t *testing.T) {
+		t.Parallel()
+		testAttributionIsRecordedBesideTheCredential(t, factory, infra)
+	})
+
+	t.Run("MailerSendIsRecordedOncePerBatch", func(t *testing.T) {
+		t.Parallel()
+		testMailerSendIsRecordedOncePerBatch(t, factory, infra)
+	})
 }
 
 func runKannon(t *testing.T, infra *TestInfrastructure, senderMock *senderMock) {
@@ -169,8 +189,18 @@ func runKannon(t *testing.T, infra *TestInfrastructure, senderMock *senderMock) 
 
 	viper.Reset()
 	viper.Set("api.port", infra.apiPort)
+	// Without this the API runnable refuses to start, which is the point of it: the suite
+	// configures the credential the way an operator does and then presents it on every Admin
+	// and Stats call, so the whole authenticated path is what these tests exercise.
+	viper.Set("api.admin_token", adminToken)
 	viper.Set("tracker.port", infra.trackerPort)
 	viper.Set("stats.retention", "8760h")
+	// The audit trail is off by default and stays off unless an operator asks for it (ADR 0010). The
+	// suite turns it on because it is the only seam that can prove the whole chain — a real call
+	// carrying a real credential, through the interceptor and Guard, over NATS, into a row — and in
+	// particular the only one that proves the Recorder is wired into the API runnable at all.
+	viper.Set("audit.enabled", true)
+	viper.Set("audit.retention", "720h")
 	viper.Set("smtp.address", fmt.Sprintf(":%d", infra.smtpPort))
 
 	cnt := container.NewForTest(ctx,
@@ -182,16 +212,9 @@ func runKannon(t *testing.T, infra *TestInfrastructure, senderMock *senderMock) 
 			Base: 50 * time.Millisecond,
 			Min:  50 * time.Millisecond,
 		}),
-		// The Retry Budget has to be scaled by the same factor as the backoff
-		// base, or a collapsed curve races through the whole budget and
-		// terminates every Delivery in the suite. Production is 24h against
-		// 2m·2ⁿ; this curve is 50ms·2ⁿ, i.e. 2400× faster, and 24h/2400 = 36s.
-		//
-		// That derivation keeps the boundary exactly where production has it:
-		// 50ms·2⁹ = 25.6s is inside the window and 50ms·2¹⁰ = 51.2s is outside
-		// it, so ten retries are admitted and the eleventh refused — identical
-		// to the maxRetry = 10 constant this replaced. No subtest that relies on
-		// being retried, DispatchFailureRecovery included, changes behaviour.
+		// The Retry Budget has to be scaled by the same factor as the backoff base, or a collapsed
+		// curve races through the whole budget. Production is 24h against 2m·2ⁿ; this curve is
+		// 50ms·2ⁿ, 2400× faster, and 24h/2400 = 36s — which keeps the ten-retry boundary exactly.
 		container.WithRetryWindow(36*time.Second),
 	)
 	t.Cleanup(func() {
@@ -205,18 +228,19 @@ func runKannon(t *testing.T, infra *TestInfrastructure, senderMock *senderMock) 
 	reg.Register(dispatcher.New(cnt))
 	reg.Register(validator.New(cnt))
 	reg.Register(stats.New(cnt))
+	// The worker that turns published decisions into rows. Registered here rather than left out
+	// because a producer with nobody consuming it is precisely the half-configured deployment
+	// ADR 0010 warns about, and the assertions in audit_test.go are on the rows.
+	reg.Register(kannonaudit.New(cnt))
 	reg.Register(tracker.New(cnt))
 	// The inbound SMTP server: the leg that receives asynchronous DSNs. Unlike
 	// the outbound SMTPSender it needs no test double — a subtest plays the
 	// remote MTA by connecting to it and delivering a real DSN.
 	reg.Register(kannonsmtp.New(cnt))
 
-	// Custom SMTPSender wired against the test sender mock; the package's
-	// New(c) builds a real SMTP sender from the container, which the e2e
-	// suite can't use because it asserts on the captured payloads.
-	// MaxJobs sized for the parallel subtest burst: the suite ships ~120+
-	// messages concurrently (mostly from MassiveSend), and a too-small
-	// worker pool blows the per-subtest EventuallyWithT windows.
+	// Custom SMTPSender wired against the test sender mock, since the package's New(c) builds a
+	// real SMTP sender the suite cannot assert payloads on. MaxJobs is sized for the parallel
+	// subtest burst: ~120+ concurrent messages, and a small pool blows the EventuallyWithT windows.
 	sender := smtpsender.NewSMTPSender(cnt.NatsPublisher(), cnt.NatsJetStream(), senderMock, smtpsender.Config{MaxJobs: 50})
 	reg.Register(container.Runnable{Name: "smtpsender", Run: sender.Run})
 
@@ -269,11 +293,9 @@ func testSingleRecipientEmail(t *testing.T, clientFactory *clientFactory, sender
 	}, 30*time.Second, 1*time.Second, "Stats should be available within 60 seconds")
 }
 
-// testMultipleRecipientsEmail tests sending to multiple recipients
 func testMultipleRecipientsEmail(t *testing.T, clientFactory *clientFactory, smtpServer *senderMock, infra *TestInfrastructure) {
 	client := clientFactory.NewClient(t, infra)
 
-	// Send an email to multiple recipients
 	testEmails := []string{
 		tests.FakeEmail(t),
 		tests.FakeEmail(t),
@@ -349,11 +371,9 @@ func testMassiveSend(t *testing.T, clientFactory *clientFactory, infra *TestInfr
 	}, 30*time.Second, 1*time.Second, "Stats should be available within 60 seconds")
 }
 
-// testEmailWithAttachments tests sending emails with attachments
 func testEmailWithAttachments(t *testing.T, clientFactory *clientFactory, smtpServer *senderMock, infra *TestInfrastructure) {
 	client := clientFactory.NewClient(t, infra)
 
-	// Create test attachment data
 	attachmentData := []byte("This is a test attachment content")
 	email := tests.FakeEmail(t)
 
@@ -522,10 +542,9 @@ func testAggregatedStats(t *testing.T, clientFactory *clientFactory, _ *senderMo
 	}, 30*time.Second, 1*time.Second, "Aggregated stats should be available")
 }
 
-// requireStat polls the Stats API until at least `count` events of
-// `statType` exist for `email`, then returns the matching stats so the
-// caller can introspect typed Data. Mirrors the EventuallyWithT shape
-// the existing happy-path assertions use, scoped to a (Type, Email) pair.
+// requireStat polls the Stats API until at least `count` events of `statType` exist for `email`,
+// then returns the matching stats so the caller can introspect typed Data. Same EventuallyWithT
+// shape as the happy-path assertions, scoped to a (Type, Email) pair.
 func requireStat(t *testing.T, client *clientTest, email, statType string, count int) []*statstypes.Stats {
 	t.Helper()
 	var matched []*statstypes.Stats
@@ -632,15 +651,9 @@ func deliverDSN(t *testing.T, infra *TestInfrastructure, returnPath, recipient s
 	require.NoError(t, c.Quit())
 }
 
-// watchBounceSubject subscribes to kannon.stats.bounced and returns a function
-// that waits for the bounce belonging to the given Recipient.
-//
-// Asserting through the stats API is not enough to pin the subject. The Stats
-// worker consumes the kannon.stats.* wildcard and types each row off the
-// payload, never the subject, so it records an asynchronous bounce even when it
-// is published somewhere no consumer subscribes — which is precisely how #376
-// went unnoticed. Watching the subject on the wire is the only assertion that
-// fails when the two bounce paths drift apart again.
+// watchBounceSubject subscribes to kannon.stats.bounced and returns a function that waits for the
+// bounce belonging to the given Recipient. The Stats worker types rows off the payload and not the
+// subject, so watching the wire is the only assertion that fails when the two paths drift (#376).
 func watchBounceSubject(t *testing.T, infra *TestInfrastructure, email string) func(*testing.T) *statstypes.Stats {
 	t.Helper()
 
@@ -678,21 +691,9 @@ func watchBounceSubject(t *testing.T, infra *TestInfrastructure, email string) f
 	}
 }
 
-// testAsyncSoftBounce closes the loop #376 left open: a Delivery is accepted by
-// the relay and reported Delivered, and only later does a DSN come back saying
-// it could not be completed.
-//
-// It is the asynchronous leg end to end — inbound SMTP server, NATS, Stats
-// worker, stats API — and it pins down two things the fix decided. The event
-// must land on kannon.stats.bounced, the same subject as a synchronous bounce
-// (it used to go to kannon.stats.soft-bounce, which nothing consumed). And
-// `permanent` must follow the SMTP reply class, not be asserted unconditionally:
-// a 4xx DSN means the remote MTA gave up after its own retries, which is
-// terminal for us but no evidence the address is dead.
-//
-// Note what does NOT happen: the Delivery is long gone from the Pool by now,
-// dropped when Delivered arrived, so the Dispatcher terms the stat and nothing
-// is rescheduled. The bounce is a record, not a state transition.
+// testAsyncSoftBounce closes the loop #376 left open: a Delivery reported Delivered, then a DSN
+// saying it could not be completed. It pins the subject (kannon.stats.bounced, as for a
+// synchronous bounce) and that `permanent` follows the SMTP reply class. Nothing is rescheduled.
 func testAsyncSoftBounce(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
 	client := clientFactory.NewClient(t, infra)
 
@@ -786,16 +787,9 @@ func testTransientThenDeliver(t *testing.T, clientFactory *clientFactory, sender
 		"senderMock should have observed %d transient attempts plus one success", transientFailures)
 }
 
-// testDispatchFailureRecovery reproduces the failure mode of #400 through
-// the whole stack: a Delivery whose Envelope build fails after the claim
-// must be handed back to the pool (NOT stranded in Pool status 'sending')
-// and must be delivered once the failure clears.
-//
-// The build failure is injected with reversible SQL surgery: renaming the
-// Batch's template makes GetSendingData's messages×templates join come up
-// empty, so the real Dispatcher's Build genuinely errors; renaming it back
-// heals the path. Before the fix this test stalls at the anti-stranding
-// assertion: the Delivery sits in 'sending' with zero attempts forever.
+// testDispatchFailureRecovery reproduces #400 through the whole stack: a Delivery whose Envelope
+// build fails after the claim must be handed back to the pool rather than stranded in 'sending',
+// and must go out once the failure clears. The failure is injected by renaming the Template.
 func testDispatchFailureRecovery(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
 	client := clientFactory.NewClient(t, infra)
 
@@ -858,37 +852,9 @@ func testDispatchFailureRecovery(t *testing.T, clientFactory *clientFactory, sen
 	}, 30*time.Second, 500*time.Millisecond, "pool must drain for the batch")
 }
 
-// testRetryBudgetExhausted closes the loop testDispatchFailureRecovery opens.
-// That test heals the Batch's Template and the Delivery goes out; this one never
-// heals it, which before #378 meant the Delivery was rescheduled with a doubling
-// backoff until its next attempt was years away — the sender's last stat being
-// `accepted`, permanently. Now the Retry Budget ends it: a Failed stat the sender
-// can read, and the Pool row gone (ADR 0007).
-//
-// The Template is broken with the same reversible SQL surgery the neighbouring
-// test uses, and the Delivery is then jumped past its budget with a second piece
-// of surgery: send_attempts_cnt is set to 10, which under this container's 36s
-// window is the very first retry the budget refuses (50ms·2¹⁰ = 51.2s). Reaching
-// that boundary honestly costs 50ms·2⁹ ≈ 26s of wall clock, too slow and
-// too flaky for a subtest running alongside seventeen others; the surgery moves
-// the Delivery to the boundary and leaves the real Dispatcher to decide what
-// happens there, which is the part under test. Where the boundary itself sits is
-// pinned away from here and for free: TestCanRetry/EquivalentToTheRetryCapItReplaced
-// in internal/delivery pins that the tenth retry is admitted and the eleventh
-// refused, and pkg/dispatcher/retry_budget_test.go walks a Delivery across it one
-// dispatch cycle at a time.
-//
-// ADR 0001 rejected "test-only DB mutation of sending_pool_emails.scheduled_time"
-// on two grounds, and only one of them reaches this test. Its load-bearing
-// objection was that such a mutation bypasses the production path *under test* —
-// there, the reschedule loop itself — and nothing under test here is bypassed:
-// the real Dispatcher still claims this Delivery, still tries to build its
-// Envelope, and still makes the termination decision, which is the behaviour #378
-// added. The reschedule loop this jump skips is covered where it is cheap to
-// cover honestly, in pkg/dispatcher/retry_budget_test.go: rescheduled at 0 and 1
-// attempts, terminated at 2, no surgery. The other objection does apply and is
-// accepted — writing send_attempts_cnt couples this test to a column name that is
-// internal to the Pool.
+// testRetryBudgetExhausted never heals the Template testDispatchFailureRecovery repairs, which
+// before #378 meant retrying with a doubling backoff forever. Now the Retry Budget ends it (ADR
+// 0007). send_attempts_cnt is set to 10 by surgery, since reaching that boundary honestly costs 26s.
 func testRetryBudgetExhausted(t *testing.T, clientFactory *clientFactory, infra *TestInfrastructure) {
 	client := clientFactory.NewClient(t, infra)
 
@@ -898,10 +864,9 @@ func testRetryBudgetExhausted(t *testing.T, clientFactory *clientFactory, infra 
 
 	to := fmt.Sprintf("spent.%s@%s", tests.FakeUsername(t), client.domain)
 
-	// Scheduled slightly in the future, as in testDispatchFailureRecovery: the
-	// gap is the window for both operations below, before the Dispatcher can
-	// claim the Delivery. The Validator ignores scheduled_time, so validation
-	// still happens now.
+	// Scheduled slightly in the future, as in testDispatchFailureRecovery: the gap is the window
+	// for both operations below, before the Dispatcher can claim the Delivery. The Validator
+	// ignores scheduled_time, so validation still happens now.
 	msgID := client.SendEmail(t, &mailerapiv1.SendHTMLReq{
 		Sender:        client.Sender(),
 		Recipients:    []*mailertypes.Recipient{{Email: to}},
@@ -941,10 +906,9 @@ func testRetryBudgetExhausted(t *testing.T, clientFactory *clientFactory, infra 
 	}, 30*time.Second, 500*time.Millisecond, "pool must drain for the batch")
 }
 
-// openTokenRe extracts the JWT-style token from a `/o/<token>` tracking
-// pixel URL produced by the Envelope builder. JWT tokens are
-// base64url-encoded (`[A-Za-z0-9_-]`) with `.` separating the three
-// segments — no `=` padding, no other punctuation.
+// openTokenRe extracts the JWT-style token from a `/o/<token>` tracking pixel URL. JWT tokens are
+// base64url-encoded (`[A-Za-z0-9_-]`) with `.` separating the three segments — no `=` padding and
+// no other punctuation.
 var openTokenRe = regexp.MustCompile(`/o/([A-Za-z0-9._-]+)`)
 
 func extractOpenToken(t *testing.T, body string) string {
@@ -956,7 +920,7 @@ func extractOpenToken(t *testing.T, body string) string {
 
 // clickTokenRe extracts the JWT-style token from a `/c/<token>` tracked
 // link URL produced by the Envelope builder. The Envelope builder
-// rewrites every `<a href="...">` to `https://stats.<fqdn>/c/<token>`.
+// rewrites every `<a href="...">` to `https://stats.<domain>/c/<token>`.
 var clickTokenRe = regexp.MustCompile(`/c/([A-Za-z0-9._-]+)`)
 
 func extractClickToken(t *testing.T, body string) string {
@@ -973,11 +937,9 @@ const (
 	engagementUserAgent = "kannon-e2e-agent/1.0"
 )
 
-// requireTrackerHit issues one tracking request the way a recipient's client
-// would — with an IP address and a user agent for the Tracker to retain or drop —
-// and returns the Location header, so the click path can assert the redirect.
-// Redirect-following is disabled: the tests assert the 307 + Location directly,
-// not that example.com is reachable from CI.
+// requireTrackerHit issues one tracking request the way a recipient's client would — with an IP and
+// a user agent for the Tracker to retain or drop — and returns the Location header. Redirects are
+// not followed: the tests assert the 307 directly, not that example.com is reachable from CI.
 func requireTrackerHit(t *testing.T, url string, wantStatus int) string {
 	t.Helper()
 
@@ -1005,10 +967,9 @@ func requireTrackerHit(t *testing.T, url string, wantStatus int) string {
 	return location
 }
 
-// trackEngagement sends one tracked message, retrieves its pixel and follows its
-// tracked link, and returns the resulting Opened and Clicked stats — so a test can
-// assert on both axes of the Policy from a single send. The Domain's Tracking
-// Policy must already be set: it is resolved at intake and frozen on the Delivery.
+// trackEngagement sends one tracked message, retrieves its pixel and follows its tracked link,
+// returning the resulting Opened and Clicked stats so a test can assert both axes from one send.
+// The Domain's Policy must already be set: it is resolved at intake and frozen on the Delivery.
 func trackEngagement(t *testing.T, client *clientTest, senderMock *senderMock, infra *TestInfrastructure, subject string) (opened, clicked *statstypes.Stats) {
 	t.Helper()
 
@@ -1066,15 +1027,9 @@ func testTrackingIdentified(t *testing.T, clientFactory *clientFactory, senderMo
 	assert.Empty(t, clickedData.UserAgent, "an Identified click must retain no user agent")
 }
 
-// testTrackingAnonymous is the aggregate-statistics carve-out end to end: a Domain
-// on Anonymous keeps its open and click rates while retaining nothing that could
-// isolate one Recipient from another.
-//
-// One Batch is sent to two Recipients, because both halves of the claim are about
-// the pair. The tokens they receive must be the *same* token — two independently
-// minted ones would carry different iat/exp and so tell the two apart even while
-// naming neither — and after both are exercised the Domain's aggregate counters
-// must have moved with no per-recipient engagement row anywhere.
+// testTrackingAnonymous is the aggregate-statistics carve-out end to end: a Domain on Anonymous
+// keeps its rates while retaining nothing that isolates one Recipient. Two Recipients of one Batch
+// must receive the *same* token — two minted ones would differ by iat/exp and tell them apart.
 func testTrackingAnonymous(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
 	client := clientFactory.NewClient(t, infra)
 
@@ -1122,16 +1077,9 @@ func testTrackingAnonymous(t *testing.T, clientFactory *clientFactory, senderMoc
 		require.Positive(tt, counts["clicked"], "an anonymous click must still be counted in aggregate")
 	}, 30*time.Second, 500*time.Millisecond, "aggregated engagement counters must move under Anonymous")
 
-	// The per-recipient half. Two things make the absence meaningful rather than
-	// merely early: the aggregate counter above proves the engagement events were
-	// consumed on the sibling subscription, and both Deliveries already have their
-	// own delivered row, so the per-recipient consumer is alive and current. The
-	// absence is then re-checked over a window, because a row arriving late would
-	// be just as much of a leak as one arriving at once.
-	//
-	// Polled by hand rather than with require.Never, which runs its condition in a
-	// goroutine it does not wait for: when GetStats outlives the subtest that turns
-	// into a "Fail in goroutine after the test has completed" panic.
+	// The per-recipient half. The absence is meaningful rather than early: the aggregate counter
+	// proves the events were consumed, and both Deliveries already have a delivered row. Polled
+	// by hand rather than with require.Never, whose goroutine outlives the subtest.
 	requireStat(t, client, first, "delivered", 1)
 	requireStat(t, client, second, "delivered", 1)
 
@@ -1238,10 +1186,9 @@ func testClicked(t *testing.T, clientFactory *clientFactory, senderMock *senderM
 	assert.Empty(t, clicked.UserAgent, "an Identified click must retain no user agent")
 }
 
-// testTrackingOff is the counterpart of Opened and Clicked: a Domain whose
-// Tracking Policy is Off on both axes must send mail with no tracking in it at
-// all. The Policy is set through the Admin API before the send, because it is
-// resolved at intake and frozen on each Delivery (ADR 0003).
+// testTrackingOff is the counterpart of Opened and Clicked: a Domain whose Tracking Policy is Off
+// on both axes must send mail with no tracking in it at all. The Policy is set through the Admin
+// API before the send, because it is resolved at intake and frozen on each Delivery (ADR 0003).
 func testTrackingOff(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
 	client := clientFactory.NewClient(t, infra)
 
@@ -1271,12 +1218,9 @@ func testTrackingOff(t *testing.T, clientFactory *clientFactory, senderMock *sen
 		"an untracked message must carry no tracking hostname")
 }
 
-// testBatchAboveDomainTrackingCeiling is the ceiling counterpart of
-// testTrackingOff: a Batch stating a Tracking Mode above its Domain's ceiling
-// must fail the send call outright rather than being silently clamped to the
-// ceiling (ADR 0003 — "exceeding the ceiling is an error, not a silent
-// clamp"). The Domain is set to Off on both axes; the Batch asks for Full on
-// opens, which is strictly above it.
+// testBatchAboveDomainTrackingCeiling is the ceiling counterpart of testTrackingOff: a Batch above
+// its Domain's ceiling must fail the send call outright rather than be silently clamped (ADR 0003).
+// The Domain is Off on both axes; the Batch asks for Full on opens.
 func testBatchAboveDomainTrackingCeiling(t *testing.T, clientFactory *clientFactory, _ *senderMock, infra *TestInfrastructure) {
 	client := clientFactory.NewClient(t, infra)
 
@@ -1302,16 +1246,9 @@ func testBatchAboveDomainTrackingCeiling(t *testing.T, clientFactory *clientFact
 	assert.Contains(t, err.Error(), "opens", "the error must name the violating axis")
 }
 
-// testMixedRecipientTrackingPolicies is the Recipient level of the cascade seen
-// from outside (#419): one Batch, three Recipients stating three different
-// things, three different observable outcomes.
-//
-// The Domain allows Identified. The first Recipient states nothing and is
-// tracked at the Domain's level. The second states Off — consent may always
-// narrow — and receives a message with no tracking in it at all. The third asks
-// for Full, above the Domain's ceiling; consent cannot widen (ADR 0003), so that
-// one Recipient is Rejected with a reason in the send response while the other
-// two are delivered normally.
+// testMixedRecipientTrackingPolicies is the Recipient level of the cascade seen from outside (#419):
+// one Batch, three Recipients stating three different things. Stating nothing is tracked at the
+// Domain's level, Off narrows, and Full — above the ceiling — Rejects that one Recipient alone.
 func testMixedRecipientTrackingPolicies(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
 	client := clientFactory.NewClient(t, infra)
 
@@ -1386,10 +1323,9 @@ func requireGetEmail(t *testing.T, s *senderMock, email string) ParsedEmail {
 	return msg
 }
 
-// testEveryRecipientRejected is the other half of #364: before it, a caller
-// submitting a batch in which nothing was accepted got a Batch id and a 200, with
-// no way to discover that the Pool was empty. The response must now account for
-// every submitted Recipient.
+// testEveryRecipientRejected is the other half of #364: before it, a caller submitting a batch in
+// which nothing was accepted got a Batch id and a 200, with no way to discover the Pool was empty.
+// The response must now account for every submitted Recipient.
 func testEveryRecipientRejected(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
 	client := clientFactory.NewClient(t, infra)
 

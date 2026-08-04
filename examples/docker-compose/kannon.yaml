@@ -1,14 +1,26 @@
+debug: true
 nats_url: nats://nats:4222
-# debug: true
 database_url: postgresql://postgres:example@db:5432/postgres?sslmode=disable
 
 api:
   port: 50051
+  # Authenticates the Admin API and both Stats APIs, and authorizes everything on every
+  # Domain. Required whenever run-api is set: without it Kannon refuses to boot. Outside a
+  # local example, supply it as K_API_ADMIN_TOKEN from a secret rather than in this file.
+  admin_token: change-me
 
 sender:
   hostname: kannon.ludusrusso.dev
   max_jobs: 100
   demo_sender: true
+
+# The audit trail is off, as it is everywhere by default: an Audit Record can hold the person
+# an X-Kannon-Attribution header named, and nothing should start retaining that because an
+# example was copied. Uncomment both this section and run-audit below to turn it on, and pick
+# a retention you are willing to defend — 720h is a month.
+# audit:
+#   enabled: true
+#   retention: 720h
 
 run-smtp: true
 run-tracker: true
@@ -17,3 +29,4 @@ run-validator: true
 run-sender: true
 run-api: true
 run-stats: true
+# run-audit: true

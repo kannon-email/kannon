@@ -67,12 +67,12 @@ func TestMain(m *testing.M) {
 }
 
 func TestPrepareMail(t *testing.T) {
-	d, err := adminAPI.CreateDomain(t.Context(), connect.NewRequest(&adminapiv1.CreateDomainRequest{
+	d, err := adminAPI.CreateDomain(tests.AdminContext(t.Context()), connect.NewRequest(&adminapiv1.CreateDomainRequest{
 		Domain: "test.com",
 	}))
 	assert.Nil(t, err)
 
-	keyRes, err := adminAPI.CreateAPIKey(t.Context(), connect.NewRequest(&adminapiv1.CreateAPIKeyRequest{
+	keyRes, err := adminAPI.CreateAPIKey(tests.AdminContext(t.Context()), connect.NewRequest(&adminapiv1.CreateAPIKeyRequest{
 		Domain: d.Msg.Domain,
 		Name:   "test-key",
 	}))
@@ -125,12 +125,12 @@ func TestPrepareMailNoAccess(t *testing.T) {
 }
 
 func TestPrepareMailWithAttachments(t *testing.T) {
-	d, err := adminAPI.CreateDomain(t.Context(), connect.NewRequest(&adminapiv1.CreateDomainRequest{
+	d, err := adminAPI.CreateDomain(tests.AdminContext(t.Context()), connect.NewRequest(&adminapiv1.CreateDomainRequest{
 		Domain: "test2.com",
 	}))
 	assert.Nil(t, err)
 
-	keyRes, err := adminAPI.CreateAPIKey(t.Context(), connect.NewRequest(&adminapiv1.CreateAPIKeyRequest{
+	keyRes, err := adminAPI.CreateAPIKey(tests.AdminContext(t.Context()), connect.NewRequest(&adminapiv1.CreateAPIKeyRequest{
 		Domain: d.Msg.Domain,
 		Name:   "test-key",
 	}))
@@ -167,12 +167,12 @@ func TestPrepareMailWithAttachments(t *testing.T) {
 }
 
 func TestPrepareMailWithHeaders(t *testing.T) {
-	d, err := adminAPI.CreateDomain(t.Context(), connect.NewRequest(&adminapiv1.CreateDomainRequest{
+	d, err := adminAPI.CreateDomain(tests.AdminContext(t.Context()), connect.NewRequest(&adminapiv1.CreateDomainRequest{
 		Domain: "test-ch.com",
 	}))
 	assert.Nil(t, err)
 
-	keyRes, err := adminAPI.CreateAPIKey(t.Context(), connect.NewRequest(&adminapiv1.CreateAPIKeyRequest{
+	keyRes, err := adminAPI.CreateAPIKey(tests.AdminContext(t.Context()), connect.NewRequest(&adminapiv1.CreateAPIKeyRequest{
 		Domain: d.Msg.Domain,
 		Name:   "test-key-ch",
 	}))

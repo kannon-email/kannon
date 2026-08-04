@@ -6,15 +6,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kannon-email/kannon/internal/values"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// RunAggregatedRepoSpec runs the repository specification tests against any AggregatedStatsRepository implementation.
-//
-// Buckets are the hourly ones the service writes: the repository stores the
-// timestamp it is handed, so the spec keeps every fixture on an hour boundary and
-// checks that adjacent hours stay distinct rows.
+// RunAggregatedRepoSpec runs the repository specification against any AggregatedStatsRepository.
+// Buckets are the hourly ones the service writes: the repository stores the timestamp it is handed,
+// so the spec keeps every fixture on an hour boundary and checks adjacent hours stay distinct rows.
 func RunAggregatedRepoSpec(t *testing.T, repo AggregatedStatsRepository) {
 	t.Run("Increment+Query", func(t *testing.T) {
 		testIncrementAndQuery(t, repo)
@@ -35,7 +34,7 @@ func RunAggregatedRepoSpec(t *testing.T, repo AggregatedStatsRepository) {
 
 func testIncrementAndQuery(t *testing.T, repo AggregatedStatsRepository) {
 	ctx := t.Context()
-	domain := fmt.Sprintf("incr-query-%d.test", time.Now().UnixNano())
+	domain := values.MustParse(fmt.Sprintf("incr-query-%d.test", time.Now().UnixNano()))
 	hour := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 
 	err := repo.Increment(ctx, domain, hour, TypeDelivered)
@@ -54,7 +53,7 @@ func testIncrementAndQuery(t *testing.T, repo AggregatedStatsRepository) {
 
 func testIncrementAccumulates(t *testing.T, repo AggregatedStatsRepository) {
 	ctx := t.Context()
-	domain := fmt.Sprintf("incr-accum-%d.test", time.Now().UnixNano())
+	domain := values.MustParse(fmt.Sprintf("incr-accum-%d.test", time.Now().UnixNano()))
 	hour := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 
 	for range 5 {
@@ -73,7 +72,7 @@ func testIncrementAccumulates(t *testing.T, repo AggregatedStatsRepository) {
 
 func testIncrementSeparateEntries(t *testing.T, repo AggregatedStatsRepository) {
 	ctx := t.Context()
-	domain := fmt.Sprintf("incr-sep-%d.test", time.Now().UnixNano())
+	domain := values.MustParse(fmt.Sprintf("incr-sep-%d.test", time.Now().UnixNano()))
 	hour1 := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	hour2 := time.Date(2026, 1, 15, 11, 0, 0, 0, time.UTC)
 
@@ -98,8 +97,8 @@ func testIncrementSeparateEntries(t *testing.T, repo AggregatedStatsRepository) 
 func testAggregatedQueryFiltersByDomain(t *testing.T, repo AggregatedStatsRepository) {
 	ctx := t.Context()
 	suffix := strconv.FormatInt(time.Now().UnixNano(), 10)
-	domainA := fmt.Sprintf("agg-a-%s.test", suffix)
-	domainB := fmt.Sprintf("agg-b-%s.test", suffix)
+	domainA := values.MustParse(fmt.Sprintf("agg-a-%s.test", suffix))
+	domainB := values.MustParse(fmt.Sprintf("agg-b-%s.test", suffix))
 	hour := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 
 	for range 3 {
@@ -126,7 +125,7 @@ func testAggregatedQueryFiltersByDomain(t *testing.T, repo AggregatedStatsReposi
 
 func testAggregatedQueryFiltersByTimeRange(t *testing.T, repo AggregatedStatsRepository) {
 	ctx := t.Context()
-	domain := fmt.Sprintf("agg-tr-%d.test", time.Now().UnixNano())
+	domain := values.MustParse(fmt.Sprintf("agg-tr-%d.test", time.Now().UnixNano()))
 	hour1 := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	hour2 := time.Date(2026, 1, 15, 11, 0, 0, 0, time.UTC)
 	hour3 := time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)

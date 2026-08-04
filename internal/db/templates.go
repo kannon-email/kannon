@@ -3,11 +3,13 @@ package sqlc
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/kannon-email/kannon/internal/templates"
+	"github.com/kannon-email/kannon/internal/values"
 )
 
 type templatesRepository struct {
@@ -25,13 +27,17 @@ func (r *templatesRepository) Create(ctx context.Context, t *templates.Template)
 		TemplateID: t.TemplateID(),
 		Html:       t.Html(),
 		Title:      t.Title(),
-		Domain:     t.Domain(),
+		Domain:     t.DomainName().String(),
 		Type:       toSQLCTemplateType(t.Type()),
 	})
 	if err != nil {
 		return err
 	}
-	*t = *rowToTemplate(row)
+	loaded, err := rowToTemplate(row)
+	if err != nil {
+		return err
+	}
+	*t = *loaded
 	return nil
 }
 
@@ -55,7 +61,7 @@ func (r *templatesRepository) Update(ctx context.Context, templateID string, fn 
 		}
 		return nil, err
 	}
-	return rowToTemplate(row), nil
+	return rowToTemplate(row)
 }
 
 func (r *templatesRepository) Delete(ctx context.Context, templateID string) (*templates.Template, error) {
@@ -67,7 +73,7 @@ func (r *templatesRepository) Delete(ctx context.Context, templateID string) (*t
 		}
 		return nil, err
 	}
-	return rowToTemplate(row), nil
+	return rowToTemplate(row)
 }
 
 func (r *templatesRepository) GetByID(ctx context.Context, templateID string) (*templates.Template, error) {
@@ -79,14 +85,14 @@ func (r *templatesRepository) GetByID(ctx context.Context, templateID string) (*
 		}
 		return nil, err
 	}
-	return rowToTemplate(row), nil
+	return rowToTemplate(row)
 }
 
-func (r *templatesRepository) FindByDomain(ctx context.Context, domain, templateID string) (*templates.Template, error) {
+func (r *templatesRepository) FindByDomain(ctx context.Context, domain values.DomainName, templateID string) (*templates.Template, error) {
 	q := New(r.db)
 	row, err := q.FindTemplate(ctx, FindTemplateParams{
 		TemplateID: templateID,
-		Domain:     domain,
+		Domain:     domain.String(),
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -94,13 +100,13 @@ func (r *templatesRepository) FindByDomain(ctx context.Context, domain, template
 		}
 		return nil, err
 	}
-	return rowToTemplate(row), nil
+	return rowToTemplate(row)
 }
 
-func (r *templatesRepository) List(ctx context.Context, domain string, page templates.Pagination) ([]*templates.Template, error) {
+func (r *templatesRepository) List(ctx context.Context, domain values.DomainName, page templates.Pagination) ([]*templates.Template, error) {
 	q := New(r.db)
 	rows, err := q.GetTemplates(ctx, GetTemplatesParams{
-		Domain: domain,
+		Domain: domain.String(),
 		Skip:   int32(page.Skip),
 		Take:   int32(page.Take),
 	})
@@ -109,30 +115,41 @@ func (r *templatesRepository) List(ctx context.Context, domain string, page temp
 	}
 	out := make([]*templates.Template, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, rowToTemplate(row))
+		tpl, err := rowToTemplate(row)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, tpl)
 	}
 	return out, nil
 }
 
-func (r *templatesRepository) Count(ctx context.Context, domain string) (int, error) {
+func (r *templatesRepository) Count(ctx context.Context, domain values.DomainName) (int, error) {
 	q := New(r.db)
-	n, err := q.CountTemplates(ctx, domain)
+	n, err := q.CountTemplates(ctx, domain.String())
 	if err != nil {
 		return 0, err
 	}
 	return int(n), nil
 }
 
-func rowToTemplate(row Template) *templates.Template {
+// rowToTemplate rebuilds the entity from its row, canonicalising the stored domain name for the same
+// reason rowToDomain does: a Template whose Domain cannot be parsed is one no domain-scoped lookup
+// could return, and saying so beats handing back an entity addressed to nothing.
+func rowToTemplate(row Template) (*templates.Template, error) {
+	domain, err := values.Parse(row.Domain)
+	if err != nil {
+		return nil, fmt.Errorf("template row %q holds a non-canonical domain %q: %w", row.TemplateID, row.Domain, err)
+	}
 	return templates.Load(templates.LoadParams{
 		TemplateID: row.TemplateID,
 		Html:       row.Html,
 		Title:      row.Title,
-		Domain:     row.Domain,
+		Domain:     domain,
 		Type:       fromSQLCTemplateType(row.Type),
 		CreatedAt:  row.CreatedAt.Time,
 		UpdatedAt:  row.UpdatedAt.Time,
-	})
+	}), nil
 }
 
 func toSQLCTemplateType(t templates.Type) TemplateType {

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kannon-email/kannon/internal/values"
 	pbtypes "github.com/kannon-email/kannon/proto/kannon/stats/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -46,7 +47,7 @@ func RunRepoSpec(t *testing.T, repo Repository) {
 
 func testInsertAndQuery(t *testing.T, repo Repository) {
 	ctx := t.Context()
-	domain := fmt.Sprintf("insert-query-%d.test", time.Now().UnixNano())
+	domain := values.MustParse(fmt.Sprintf("insert-query-%d.test", time.Now().UnixNano()))
 	now := time.Date(2026, 1, 15, 10, 30, 0, 0, time.UTC)
 
 	stat := &Stat{
@@ -74,14 +75,12 @@ func testInsertAndQuery(t *testing.T, repo Repository) {
 	assert.Equal(t, domain, results[0].Domain)
 }
 
-// A stat event carries the timestamp its publisher stamped on it, so a message
-// redelivered by JetStream — because the ack deadline elapsed while this very
-// insert was in flight — arrives identical to the one already stored. Storing it
-// again would inflate the recipient's history with an event that never happened
-// twice, so the second insert must succeed and change nothing.
+// A stat event carries the timestamp its publisher stamped on it, so a message redelivered by
+// JetStream arrives identical to the one already stored. Storing it again would inflate the
+// recipient's history with an event that never happened twice, so the second insert must change nothing.
 func testInsertIsIdempotent(t *testing.T, repo Repository) {
 	ctx := t.Context()
-	domain := fmt.Sprintf("insert-idempotent-%d.test", time.Now().UnixNano())
+	domain := values.MustParse(fmt.Sprintf("insert-idempotent-%d.test", time.Now().UnixNano()))
 	now := time.Date(2026, 1, 15, 10, 30, 0, 0, time.UTC)
 
 	stat := func() *Stat {
@@ -121,7 +120,7 @@ func testInsertIsIdempotent(t *testing.T, repo Repository) {
 
 func testQueryPagination(t *testing.T, repo Repository) {
 	ctx := t.Context()
-	domain := fmt.Sprintf("pagination-%d.test", time.Now().UnixNano())
+	domain := values.MustParse(fmt.Sprintf("pagination-%d.test", time.Now().UnixNano()))
 	base := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 
 	for i := range 5 {
@@ -154,8 +153,8 @@ func testQueryPagination(t *testing.T, repo Repository) {
 func testQueryFiltersByDomain(t *testing.T, repo Repository) {
 	ctx := t.Context()
 	suffix := strconv.FormatInt(time.Now().UnixNano(), 10)
-	domainA := fmt.Sprintf("domain-a-%s.test", suffix)
-	domainB := fmt.Sprintf("domain-b-%s.test", suffix)
+	domainA := values.MustParse(fmt.Sprintf("domain-a-%s.test", suffix))
+	domainB := values.MustParse(fmt.Sprintf("domain-b-%s.test", suffix))
 	now := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 
 	for i := range 3 {
@@ -188,10 +187,9 @@ func testQueryFiltersByDomain(t *testing.T, repo Repository) {
 
 func testQueryFiltersByTimeRange(t *testing.T, repo Repository) {
 	ctx := t.Context()
-	domain := fmt.Sprintf("timerange-%d.test", time.Now().UnixNano())
+	domain := values.MustParse(fmt.Sprintf("timerange-%d.test", time.Now().UnixNano()))
 	base := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 
-	// Insert stats at base+0m, base+30m, base+60m
 	for i, offset := range []time.Duration{0, 30 * time.Minute, 60 * time.Minute} {
 		err := repo.Insert(ctx, &Stat{
 			Type: TypeDelivered, Email: fmt.Sprintf("u%d@example.com", i),
@@ -220,7 +218,7 @@ func testQueryFiltersByTimeRange(t *testing.T, repo Repository) {
 
 func testCount(t *testing.T, repo Repository) {
 	ctx := t.Context()
-	domain := fmt.Sprintf("count-%d.test", time.Now().UnixNano())
+	domain := values.MustParse(fmt.Sprintf("count-%d.test", time.Now().UnixNano()))
 	now := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 
 	for i := range 4 {
@@ -240,7 +238,7 @@ func testCount(t *testing.T, repo Repository) {
 
 func testQueryTimeline(t *testing.T, repo Repository) {
 	ctx := t.Context()
-	domain := fmt.Sprintf("timeline-%d.test", time.Now().UnixNano())
+	domain := values.MustParse(fmt.Sprintf("timeline-%d.test", time.Now().UnixNano()))
 	hour1 := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	hour2 := time.Date(2026, 1, 15, 11, 0, 0, 0, time.UTC)
 
@@ -279,7 +277,7 @@ func testQueryTimeline(t *testing.T, repo Repository) {
 
 func testDeleteOlderThan(t *testing.T, repo Repository) {
 	ctx := t.Context()
-	domain := fmt.Sprintf("delete-%d.test", time.Now().UnixNano())
+	domain := values.MustParse(fmt.Sprintf("delete-%d.test", time.Now().UnixNano()))
 	old := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	recent := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 

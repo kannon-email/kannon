@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/kannon-email/kannon/pkg/api"
+	kaudit "github.com/kannon-email/kannon/pkg/audit"
 	"github.com/kannon-email/kannon/pkg/dispatcher"
 	"github.com/kannon-email/kannon/pkg/smtp"
 	"github.com/kannon-email/kannon/pkg/smtpsender"
@@ -31,7 +32,6 @@ var (
 
 const shutdownTimeout = 30 * time.Second
 
-// Execute executes the root command.
 func Execute() error {
 	return rootCmd.Execute()
 }
@@ -52,6 +52,14 @@ func run(cmd *cobra.Command, _ []string) {
 // starts them under a shared errgroup-derived context.
 func bootstrap(cmd *cobra.Command, flags RunFlags) error {
 	ctx := cmd.Context()
+
+	// Before anything starts, since this is a deployment mistake rather than a request-time
+	// refusal: a process serving the Admin and Stats APIs without their credential would come
+	// up healthy and answer every request with unauthenticated. It stops the whole boot — the
+	// workers included — because a Kannon half up hides the reason the API is unusable.
+	if err := requireAdminToken(flags); err != nil {
+		return err
+	}
 
 	cnt := container.New(ctx)
 	defer func() {
@@ -83,10 +91,25 @@ func bootstrap(cmd *cobra.Command, flags RunFlags) error {
 	if flags.SMTP {
 		reg.Register(smtp.New(cnt))
 	}
+	if flags.Audit {
+		reg.Register(kaudit.New(cnt))
+	}
 
 	slog.Info(fmt.Sprintf("Starting Kannon runnables: %v", reg.Names()))
 
 	return reg.Run(ctx)
+}
+
+// requireAdminToken refuses a boot that would serve the Admin and Stats APIs with no credential to
+// authenticate them. Gated on the API runnable rather than demanded of every process: a deployment
+// running only the dispatcher serves none of those endpoints, and making it carry an admin secret
+// would put the credential on hosts that have no use for it.
+func requireAdminToken(flags RunFlags) error {
+	if !flags.API {
+		return nil
+	}
+	_, err := api.AdminToken()
+	return err
 }
 
 func init() {
@@ -103,6 +126,7 @@ func init() {
 	createBoolFlagAndBindToViper("run-stats", false, "run stats")
 	createBoolFlagAndBindToViper("run-api", false, "run api")
 	createBoolFlagAndBindToViper("run-smtp", false, "run smtp server")
+	createBoolFlagAndBindToViper("run-audit", false, "run audit")
 }
 
 //nolint:unparam

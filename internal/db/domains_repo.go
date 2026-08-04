@@ -3,12 +3,14 @@ package sqlc
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/kannon-email/kannon/internal/domains"
 	"github.com/kannon-email/kannon/internal/tracking"
+	"github.com/kannon-email/kannon/internal/values"
 )
 
 type domainsRepository struct {
@@ -23,21 +25,25 @@ func NewDomainsRepository(db *pgxpool.Pool) domains.Repository {
 func (r *domainsRepository) Create(ctx context.Context, d *domains.Domain) error {
 	q := New(r.db)
 	row, err := q.CreateDomain(ctx, CreateDomainParams{
-		Domain:         d.Domain(),
+		Domain:         d.Name().String(),
 		DkimPrivateKey: d.DkimPrivateKey(),
 		DkimPublicKey:  d.DkimPublicKey(),
 	})
 	if err != nil {
 		return err
 	}
-	*d = *rowToDomain(row)
+	loaded, err := rowToDomain(row)
+	if err != nil {
+		return err
+	}
+	*d = *loaded
 	return nil
 }
 
-func (r *domainsRepository) SetTrackingPolicy(ctx context.Context, fqdn string, p tracking.Policy) (*domains.Domain, error) {
+func (r *domainsRepository) SetTrackingPolicy(ctx context.Context, domain values.DomainName, p tracking.Policy) (*domains.Domain, error) {
 	q := New(r.db)
 	row, err := q.SetDomainTracking(ctx, SetDomainTrackingParams{
-		Domain:   fqdn,
+		Domain:   domain.String(),
 		Tracking: p.Normalized(),
 	})
 	if err != nil {
@@ -46,19 +52,19 @@ func (r *domainsRepository) SetTrackingPolicy(ctx context.Context, fqdn string, 
 		}
 		return nil, err
 	}
-	return rowToDomain(row), nil
+	return rowToDomain(row)
 }
 
-func (r *domainsRepository) FindByName(ctx context.Context, fqdn string) (*domains.Domain, error) {
+func (r *domainsRepository) FindByName(ctx context.Context, domain values.DomainName) (*domains.Domain, error) {
 	q := New(r.db)
-	row, err := q.FindDomain(ctx, fqdn)
+	row, err := q.FindDomain(ctx, domain.String())
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, domains.ErrDomainNotFound
 		}
 		return nil, err
 	}
-	return rowToDomain(row), nil
+	return rowToDomain(row)
 }
 
 func (r *domainsRepository) List(ctx context.Context) ([]*domains.Domain, error) {
@@ -69,25 +75,32 @@ func (r *domainsRepository) List(ctx context.Context) ([]*domains.Domain, error)
 	}
 	out := make([]*domains.Domain, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, rowToDomain(row))
+		d, err := rowToDomain(row)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, d)
 	}
 	return out, nil
 }
 
-func rowToDomain(row Domain) *domains.Domain {
+// rowToDomain rebuilds the entity from its row. The stored name goes back through
+// values.Parse rather than being trusted: a row predating the canonical form must not become
+// a Domain whose name no Grant and no query can match, so the data fault is named instead.
+func rowToDomain(row Domain) (*domains.Domain, error) {
+	name, err := values.Parse(row.Domain)
+	if err != nil {
+		return nil, fmt.Errorf("domain row %q holds a non-canonical name: %w", row.Domain, err)
+	}
 	return domains.Load(domains.LoadParams{
 		ID:             row.ID,
-		Domain:         row.Domain,
+		Domain:         name,
 		DkimPrivateKey: row.DkimPrivateKey,
 		DkimPublicKey:  row.DkimPublicKey,
 		CreatedAt:      row.CreatedAt.Time,
-		// Normalised on the way out, so a Domain always states a ceiling on both
-		// axes. Writes through this repository already normalise, and the column
-		// default states both, but a ceiling that states nothing enforces nothing
-		// (ADR 0003) — and that invariant should rest on one enforcement point
-		// rather than on the column default, the write path and the migration all
-		// holding at once. A row edited by hand now enforces the floor instead of
-		// dissolving the ceiling.
+		// Normalised on the way out, so a Domain always states a ceiling on both axes. A ceiling
+		// that states nothing enforces nothing (ADR 0003), and that invariant should rest on one
+		// enforcement point rather than on the column default and the write path both holding.
 		Tracking: row.Tracking.Normalized(),
-	})
+	}), nil
 }

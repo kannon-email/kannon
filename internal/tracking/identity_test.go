@@ -16,10 +16,9 @@ func TestReservedNamespace(t *testing.T) {
 	assert.Equal(t, "track.kannon.dev", tracking.ReservedNamespace("kannon.dev"))
 }
 
-// TestAnonymousIdentity pins the one sentinel that is constant per Domain. It has
-// to be: the whole Batch shares a single Anonymous token, so an identity that
-// varied per Delivery would cost one RSA-4096 signature per Delivery to say
-// nothing.
+// TestAnonymousIdentity pins the one sentinel that is constant per Domain. It has to be: the whole
+// Batch shares a single Anonymous token, so an identity that varied per Delivery would cost one
+// RSA-4096 signature per Delivery to say nothing.
 func TestAnonymousIdentity(t *testing.T) {
 	first := tracking.AnonymousIdentity("kannon.dev")
 	second := tracking.AnonymousIdentity("kannon.dev")
@@ -29,10 +28,9 @@ func TestAnonymousIdentity(t *testing.T) {
 	assert.True(t, tracking.InReservedNamespace(first, "kannon.dev"))
 }
 
-// TestNewPseudonym pins the two properties the Pseudonymous rung rests on: the
-// pseudonym lives in the reserved namespace, and it is drawn fresh every time.
-// Nothing derives it from the address, so no one — Kannon included — can link two
-// of them or walk one back to a Recipient.
+// TestNewPseudonym pins the two properties the Pseudonymous rung rests on: the pseudonym lives in
+// the reserved namespace, and it is drawn fresh every time. Nothing derives it from the address, so
+// no one — Kannon included — can link two of them or walk one back to a Recipient.
 func TestNewPseudonym(t *testing.T) {
 	first, err := tracking.NewPseudonym("kannon.dev")
 	require.NoError(t, err)
@@ -70,7 +68,7 @@ func TestInReservedNamespace(t *testing.T) {
 		{name: "empty", identity: "", want: false},
 		{name: "no local part", identity: "@track.kannon.dev", want: false},
 		{name: "no at sign", identity: "track.kannon.dev", want: false},
-		// A deeper subdomain is not the reserved namespace: only track.<fqdn> is
+		// A deeper subdomain is not the reserved namespace: only track.<domain> is
 		// reserved, so anything below it may hold real mailboxes.
 		{name: "a deeper subdomain", identity: "x@a.track.kannon.dev", want: false},
 		// Another Domain's namespace is another Domain's, and a token minted for
@@ -88,13 +86,11 @@ func TestInReservedNamespace(t *testing.T) {
 	}
 }
 
-// TestIsPseudonymAndNamesNobodyPartitionTheNamespace covers the one address the
-// two chokepoints could have disagreed about. The mint asks "may this be minted
-// as a pseudonym?" and the Stats worker asks "does this name anybody?"; if the
-// Anonymous sentinel answered yes to both, a Pseudonymous token could be minted
-// naming it and then be dropped downstream as an upstream bug.
+// TestIsPseudonymAndNamesNobodyPartitionTheNamespace covers the one address the two chokepoints
+// could have disagreed about: were the Anonymous sentinel both mintable as a pseudonym and naming
+// nobody, such a token could be minted and then dropped downstream as an upstream bug.
 func TestIsPseudonymAndNamesNobodyPartitionTheNamespace(t *testing.T) {
-	const fqdn = "kannon.dev"
+	const domain = "kannon.dev"
 
 	cases := []struct {
 		name        string
@@ -103,7 +99,7 @@ func TestIsPseudonymAndNamesNobodyPartitionTheNamespace(t *testing.T) {
 		namesNobody bool
 	}{
 		{name: "a pseudonym", identity: "0123456789abcdef0123456789abcdef@track.kannon.dev", isPseudonym: true, namesNobody: false},
-		{name: "the anonymous sentinel", identity: tracking.AnonymousIdentity(fqdn), isPseudonym: false, namesNobody: true},
+		{name: "the anonymous sentinel", identity: tracking.AnonymousIdentity(domain), isPseudonym: false, namesNobody: true},
 		// A token minted before the identity claim was always an address. Those
 		// stay in circulation for one token lifetime and must keep reading as
 		// naming nobody.
@@ -116,8 +112,8 @@ func TestIsPseudonymAndNamesNobodyPartitionTheNamespace(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.isPseudonym, tracking.IsPseudonym(tc.identity, fqdn))
-			assert.Equal(t, tc.namesNobody, tracking.NamesNobody(tc.identity, fqdn))
+			assert.Equal(t, tc.isPseudonym, tracking.IsPseudonym(tc.identity, domain))
+			assert.Equal(t, tc.namesNobody, tracking.NamesNobody(tc.identity, domain))
 			assert.False(t, tc.isPseudonym && tc.namesNobody,
 				"no identity may be both mintable as a pseudonym and unrecordable")
 		})

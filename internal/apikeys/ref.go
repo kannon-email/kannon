@@ -1,40 +1,45 @@
 package apikeys
 
-// KeyRef is an interface for referencing an API key (domain + ID combination)
+import (
+	"github.com/kannon-email/kannon/internal/values"
+)
+
+// KeyRef references an API key by Domain and ID. The Domain is a canonical name rather than a
+// string: every lookup through a KeyRef is domain-scoped, and a spelling that never went through
+// values.Parse would answer "not found" for a key that does exist.
 type KeyRef interface {
-	Domain() string
+	DomainName() values.DomainName
 	KeyID() ID
 }
 
-// keyRef is the concrete implementation of KeyRef
 type keyRef struct {
-	domain string
+	domain values.DomainName
 	id     ID
 }
 
-// Domain returns the domain name
-func (r keyRef) Domain() string {
+func (r keyRef) DomainName() values.DomainName {
 	return r.domain
 }
 
-// KeyID returns the key ID as a string
 func (r keyRef) KeyID() ID {
 	return r.id
 }
 
-// NewKeyRef creates a new KeyRef
-func NewKeyRef(domain string, id ID) KeyRef {
+func NewKeyRef(domain values.DomainName, id ID) KeyRef {
 	return keyRef{domain: domain, id: id}
 }
 
-// ParseKeyRef validates and creates a KeyRef from strings
+// ParseKeyRef validates and creates a KeyRef from the two strings a request carries. It is the
+// boundary at which a wire-supplied domain becomes a canonical name, so nothing downstream has to
+// wonder whether the value was canonicalised.
 func ParseKeyRef(domain, id string) (KeyRef, error) {
-	if err := validateDomain(domain); err != nil {
+	parsedDomain, err := values.Parse(domain)
+	if err != nil {
 		return nil, err
 	}
 	parsedID, err := ParseID(id)
 	if err != nil {
 		return nil, err
 	}
-	return keyRef{domain: domain, id: parsedID}, nil
+	return keyRef{domain: parsedDomain, id: parsedID}, nil
 }

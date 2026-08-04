@@ -1,11 +1,9 @@
-package dispatcher
+package utils
 
-// retryConfigureSendingStream replaced an os.Exit(1) on the first JetStream
-// error (#365): in Kubernetes a NATS instance that is briefly slow to come up
-// made the dispatcher crash-loop, amplifying load on NATS. These tests
-// exercise the retry/backoff loop directly against a fake streamCreator, so
-// they run in milliseconds instead of the real multi-second backoff and need
-// no NATS connection at all.
+// The retry loop replaced an os.Exit(1) on the first JetStream error (#365): in Kubernetes a NATS
+// instance that is briefly slow to come up made the dispatcher crash-loop, amplifying load on NATS.
+// These tests exercise it directly against a fake StreamCreator, so they run in milliseconds instead
+// of the real multi-second backoff and need no NATS connection at all.
 
 import (
 	"context"
@@ -19,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// fakeStreamCreator is a minimal streamCreator whose CreateOrUpdateStream
+// fakeStreamCreator is a minimal StreamCreator whose CreateOrUpdateStream
 // behaviour is driven by a test-supplied function, so tests can force a
 // given number of failures before success (or permanent failure) without a
 // real JetStream connection.
@@ -36,7 +34,11 @@ func (f *fakeStreamCreator) CreateOrUpdateStream(_ context.Context, _ jetstream.
 	return nil, nil
 }
 
-func TestRetryConfigureSendingStreamSucceedsOnLaterAttempt(t *testing.T) {
+// testStreamConfig stands in for whatever stream a caller owns: the loop is indifferent to it, and
+// naming one here keeps the tests about how hard it tries rather than about what it creates.
+var testStreamConfig = jetstream.StreamConfig{Name: "test-stream", Subjects: []string{"test.subject"}}
+
+func TestConfigureStreamWithRetrySucceedsOnLaterAttempt(t *testing.T) {
 	ctx := t.Context()
 
 	failUntil := int32(3) // first 2 calls fail, the 3rd succeeds
@@ -49,14 +51,14 @@ func TestRetryConfigureSendingStreamSucceedsOnLaterAttempt(t *testing.T) {
 		},
 	}
 
-	err := retryConfigureSendingStream(ctx, sc, 5, time.Millisecond)
+	err := configureStreamWithRetry(ctx, sc, testStreamConfig, 5, time.Millisecond)
 
 	require.NoError(t, err)
 	assert.Equal(t, failUntil, atomic.LoadInt32(&sc.calls),
 		"should stop retrying as soon as CreateOrUpdateStream succeeds")
 }
 
-func TestRetryConfigureSendingStreamFailsAfterExhaustingAttempts(t *testing.T) {
+func TestConfigureStreamWithRetryFailsAfterExhaustingAttempts(t *testing.T) {
 	ctx := t.Context()
 
 	wantErr := errors.New("nats: no responders available for request")
@@ -67,7 +69,7 @@ func TestRetryConfigureSendingStreamFailsAfterExhaustingAttempts(t *testing.T) {
 	}
 
 	const attempts = 3
-	err := retryConfigureSendingStream(ctx, sc, attempts, time.Millisecond)
+	err := configureStreamWithRetry(ctx, sc, testStreamConfig, attempts, time.Millisecond)
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, wantErr)
@@ -75,7 +77,7 @@ func TestRetryConfigureSendingStreamFailsAfterExhaustingAttempts(t *testing.T) {
 		"should attempt exactly `attempts` times, no more and no less")
 }
 
-func TestRetryConfigureSendingStreamHonoursContextCancellation(t *testing.T) {
+func TestConfigureStreamWithRetryHonoursContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 
 	sc := &fakeStreamCreator{
@@ -96,7 +98,7 @@ func TestRetryConfigureSendingStreamHonoursContextCancellation(t *testing.T) {
 	baseDelay := 10 * time.Second
 
 	start := time.Now()
-	err := retryConfigureSendingStream(ctx, sc, attempts, baseDelay)
+	err := configureStreamWithRetry(ctx, sc, testStreamConfig, attempts, baseDelay)
 	elapsed := time.Since(start)
 
 	require.Error(t, err)

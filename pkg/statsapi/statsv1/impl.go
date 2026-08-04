@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/kannon-email/kannon/internal/stats"
+	"github.com/kannon-email/kannon/internal/values"
 	"github.com/kannon-email/kannon/proto/kannon/stats/apiv1"
 	"github.com/kannon-email/kannon/proto/kannon/stats/types"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -13,7 +14,15 @@ type statsV1Impl struct {
 	service *stats.Service
 }
 
+// The requested domain arrives as a bare string, so it is canonicalised here rather than
+// passed on: a query on a spelling that was never canonicalised would return no rows, which a
+// caller cannot tell from "this Domain sent nothing".
 func (a *statsV1Impl) GetStats(ctx context.Context, req *apiv1.GetStatsReq) (*apiv1.GetStatsRes, error) {
+	domain, err := values.Parse(req.Domain)
+	if err != nil {
+		return nil, err
+	}
+
 	timeRange := stats.TimeRange{
 		Start: req.FromDate.AsTime(),
 		Stop:  req.ToDate.AsTime(),
@@ -23,7 +32,7 @@ func (a *statsV1Impl) GetStats(ctx context.Context, req *apiv1.GetStatsReq) (*ap
 		Offset: int(req.Skip),
 	}
 
-	results, total, err := a.service.QueryStats(ctx, req.Domain, timeRange, page)
+	results, total, err := a.service.QueryStats(ctx, domain, timeRange, page)
 	if err != nil {
 		return nil, err
 	}
@@ -40,12 +49,17 @@ func (a *statsV1Impl) GetStats(ctx context.Context, req *apiv1.GetStatsReq) (*ap
 }
 
 func (a *statsV1Impl) GetStatsAggregated(ctx context.Context, req *apiv1.GetStatsAggregatedReq) (*apiv1.GetStatsAggregatedRes, error) {
+	domain, err := values.Parse(req.Domain)
+	if err != nil {
+		return nil, err
+	}
+
 	timeRange := stats.TimeRange{
 		Start: req.FromDate.AsTime(),
 		Stop:  req.ToDate.AsTime(),
 	}
 
-	results, err := a.service.QueryTimeline(ctx, req.Domain, timeRange)
+	results, err := a.service.QueryTimeline(ctx, domain, timeRange)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +81,7 @@ func (a *statsV1Impl) GetStatsAggregated(ctx context.Context, req *apiv1.GetStat
 func statToPb(s *stats.Stat) *types.Stats {
 	return &types.Stats{
 		MessageId: s.MessageID,
-		Domain:    s.Domain,
+		Domain:    s.Domain.String(),
 		Email:     s.Email,
 		Timestamp: timestamppb.New(s.Timestamp),
 		Type:      string(s.Type),

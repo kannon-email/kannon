@@ -4,6 +4,8 @@ import (
 	"context"
 	"sync"
 	"time"
+
+	"github.com/kannon-email/kannon/internal/values"
 )
 
 // InMemAggregatedStatsRepository is an in-memory implementation of AggregatedStatsRepository for testing.
@@ -13,19 +15,18 @@ type InMemAggregatedStatsRepository struct {
 }
 
 type aggregatedKey struct {
-	Domain    string
+	Domain    values.DomainName
 	Timestamp time.Time
 	Type      Type
 }
 
-// NewInMemAggregatedStatsRepository creates a new in-memory aggregated stats repository.
 func NewInMemAggregatedStatsRepository() *InMemAggregatedStatsRepository {
 	return &InMemAggregatedStatsRepository{
 		stats: make(map[aggregatedKey]*AggregatedStat),
 	}
 }
 
-func (r *InMemAggregatedStatsRepository) Increment(_ context.Context, domain string, timestamp time.Time, statType Type) error {
+func (r *InMemAggregatedStatsRepository) Increment(_ context.Context, domain values.DomainName, timestamp time.Time, statType Type) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -42,7 +43,7 @@ func (r *InMemAggregatedStatsRepository) Increment(_ context.Context, domain str
 	return nil
 }
 
-func (r *InMemAggregatedStatsRepository) Query(_ context.Context, domain string, timeRange TimeRange) ([]*AggregatedStat, error) {
+func (r *InMemAggregatedStatsRepository) Query(_ context.Context, domain values.DomainName, timeRange TimeRange) ([]*AggregatedStat, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 

@@ -13,6 +13,8 @@ import (
 	"connectrpc.com/connect"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/kannon-email/kannon/internal/apikeys"
+	"github.com/kannon-email/kannon/internal/authz"
+	"github.com/kannon-email/kannon/internal/authzconnect"
 	"github.com/kannon-email/kannon/internal/batch"
 	sqlc "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/delivery"
@@ -22,6 +24,7 @@ import (
 	"github.com/kannon-email/kannon/internal/tracking"
 	"github.com/kannon-email/kannon/internal/trackingpb"
 	"github.com/kannon-email/kannon/internal/utils"
+	"github.com/kannon-email/kannon/internal/values"
 	pb "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1"
 	mailerv1connect "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1/apiv1connect"
 	mailertypes "github.com/kannon-email/kannon/proto/kannon/mailer/types"
@@ -43,14 +46,14 @@ type mailAPIService struct {
 }
 
 func (s mailAPIService) SendHTML(ctx context.Context, req *connect.Request[pb.SendHTMLReq]) (*connect.Response[pb.SendRes], error) {
-	domain, err := s.getCallDomainFromHeaders(ctx, req.Header())
+	ctx, domain, err := s.authenticate(ctx, req.Header())
 	if err != nil {
 		return nil, errors.New("invalid or wrong auth")
 	}
 
 	req.Msg.Html = utils.ReplaceCustomFields(req.Msg.Html, req.Msg.GlobalFields)
 
-	template, err := s.createTransientTemplate(ctx, domain.Domain(), req.Msg.Html)
+	template, err := s.createTransientTemplate(ctx, domain.Name(), req.Msg.Html)
 	if err != nil {
 		slog.Error("cannot create template", "err", err)
 		return nil, fmt.Errorf("cannot create template %w", err)
@@ -73,7 +76,7 @@ func (s mailAPIService) SendHTML(ctx context.Context, req *connect.Request[pb.Se
 }
 
 func (s mailAPIService) SendTemplate(ctx context.Context, req *connect.Request[pb.SendTemplateReq]) (*connect.Response[pb.SendRes], error) {
-	domain, err := s.getCallDomainFromHeaders(ctx, req.Header())
+	ctx, domain, err := s.authenticate(ctx, req.Header())
 	if err != nil {
 		return nil, errors.New("invalid or wrong auth")
 	}
@@ -86,7 +89,7 @@ func (s mailAPIService) sendTemplate(ctx context.Context, domain *domains.Domain
 		return nil, err
 	}
 
-	template, err := s.templates.FindByDomain(ctx, domain.Domain(), req.Msg.TemplateId)
+	template, err := s.templates.FindByDomain(ctx, domain.Name(), req.Msg.TemplateId)
 	if err != nil {
 		slog.Error("cannot find template", "err", err)
 		return nil, fmt.Errorf("cannot find template with id: %v", req.Msg.TemplateId)
@@ -98,10 +101,28 @@ func (s mailAPIService) sendTemplate(ctx context.Context, domain *domains.Domain
 		return nil, fmt.Errorf("cannot create template %w", err)
 	}
 
-	if err := validateSender(req.Msg.Sender, domain.Domain()); err != nil {
+	from, err := senderAddressOf(req.Msg.Sender)
+	if err != nil {
 		return nil, err
 	}
 
+	// Sending is create on a Domain's Batches (ADR 0008): the guard asks for that
+	// authority here, once, in place of the explicit From-domain/tenant comparison that
+	// used to stand on this line and could disagree with it.
+	res, err := authz.Guard(ctx, authz.Create, senderBatches(from.canonical, domain.Name()),
+		func() (*connect.Response[pb.SendRes], error) {
+			return s.createBatch(ctx, domain, template, req)
+		})
+	if err != nil {
+		return nil, sendError(err, from.host, domain.Domain())
+	}
+	return res, nil
+}
+
+// createBatch is the send itself, performed only once the caller has been authorized.
+// Its own function so the guard wraps the whole of it: a refused send cannot have
+// created a Batch row or scheduled a Delivery on its way to being refused.
+func (s mailAPIService) createBatch(ctx context.Context, domain *domains.Domain, template *templates.Template, req *connect.Request[pb.SendTemplateReq]) (*connect.Response[pb.SendRes], error) {
 	sender := batch.Sender{
 		Email: req.Msg.Sender.Email,
 		Alias: req.Msg.Sender.Alias,
@@ -160,10 +181,9 @@ func (s mailAPIService) sendTemplate(ctx context.Context, domain *domains.Domain
 		MessageId:     b.ID().String(),
 		TemplateId:    template.TemplateID(),
 		ScheduledTime: timestamppb.New(scheduled),
-		// Reported even when nothing was refused, so a caller can always
-		// reconcile what it submitted against what was queued (#364). A send in
-		// which every Recipient was refused reports that here rather than
-		// looking like a success with an empty Pool.
+		// Reported even when nothing was refused, so a caller can always reconcile
+		// what it submitted against what was queued (#364) — a send in which every
+		// Recipient was refused says so instead of looking like an empty success.
 		AcceptedCount:      int32(len(taken.deliveries)),
 		RejectedCount:      int32(len(taken.rejected)),
 		RejectedRecipients: taken.rejected,
@@ -174,14 +194,9 @@ func (s mailAPIService) Close() error {
 	return nil
 }
 
-// rejectionReason is why one Recipient was refused at intake, in the stable
-// machine-readable form a caller branches on. It has its own type so it cannot be
-// swapped with the operator-facing detail beside it, which is free-form and never
-// returned.
-//
-// The values are part of the API contract, documented on
-// SendRes.rejected_recipients in .proto/kannon/mailer/apiv1/mailerapiv1.proto;
-// they must not be reworded here without changing that.
+// rejectionReason is why one Recipient was refused at intake, in the stable form a
+// caller branches on. Its own type so it cannot be swapped with the free-form detail
+// beside it. The values are API contract: see SendRes.rejected_recipients in .proto.
 type rejectionReason string
 
 const (
@@ -191,42 +206,28 @@ const (
 	// reasonTrackingAboveCeiling is a Recipient whose Tracking Policy asks for
 	// more than its Domain allows (ADR 0003).
 	reasonTrackingAboveCeiling rejectionReason = "tracking_above_ceiling"
-	// reasonUnsupportedTrackingMode is a Recipient stating a Tracking Mode this
-	// build will not act on — in practice a wire value from a newer schema, since
-	// every Mode this build knows is one it honours. The work it leaves the
-	// caller is to restate the Policy in terms this build understands.
+	// reasonUnsupportedTrackingMode is a Recipient stating a Tracking Mode this build
+	// will not act on — in practice a wire value from a newer schema. The caller's work
+	// is to restate the Policy in terms this build understands.
 	reasonUnsupportedTrackingMode rejectionReason = "unsupported_tracking_mode"
-	// reasonUnsubscribeURLUnresolved is a Recipient whose fields leave a
-	// placeholder in the Batch's one-click unsubscribe URL unresolved. Refusing
-	// it beats sending it: the alternative is a DKIM-signed header advertising an
-	// authenticated one-click endpoint that is in fact a URL with braces in it,
-	// and a recipient who presses the button and stays subscribed (ADR 0005).
+	// reasonUnsubscribeURLUnresolved is a Recipient whose fields leave a placeholder in
+	// the Batch's one-click unsubscribe URL. Refusing beats sending a DKIM-signed header
+	// advertising an authenticated endpoint that is a URL with braces in it (ADR 0005).
 	reasonUnsubscribeURLUnresolved rejectionReason = "unsubscribe_url_unresolved"
 )
 
-// intake is what became of a Batch's Recipients as they were taken in: those
-// accepted onto the Pool, and those Rejected with the reason the caller is told.
-//
-// It exists so that a refusal has somewhere to go other than a log line. Before
-// #364 every rejection was dropped with a slog.Warn and the call reported
-// success regardless, so a caller submitting a thousand bad rows got a Batch id
-// and no way to discover that nothing had been queued.
+// intake is what became of a Batch's Recipients: those accepted onto the Pool, and
+// those Rejected with the reason the caller is told. It exists so that a refusal has
+// somewhere to go other than the slog.Warn that dropped it before #364.
 type intake struct {
 	batchID    string
 	deliveries []*delivery.Delivery
 	rejected   []*pb.RejectedRecipient
 }
 
-// reject records one Rejected Recipient (CONTEXT.md): no Delivery is created for
-// it and none will be attempted. reason is the stable token returned to the
-// caller; detail is logged for an operator and deliberately not returned, since
-// it may name internals.
-//
-// The address is obfuscated in the log, as everywhere else in the codebase, but
-// returned to the caller in full: a caller may reconcile against its own input,
-// while a log a caller can drive the volume of — one line per submitted Recipient
-// — must not become a route for recipient addresses into log aggregators. That
-// would be a poor trade in a feature whose purpose is to retain less.
+// reject records one Rejected Recipient (CONTEXT.md): no Delivery is created for it.
+// reason is the stable token returned; detail is logged for an operator only, as it may
+// name internals. The logged address is obfuscated: a caller drives this log's volume.
 func (in *intake) reject(email string, reason rejectionReason, detail string) {
 	slog.Warn("rejecting recipient at intake",
 		"batch", in.batchID, "email", utils.ObfuscateEmail(email), "reason", reason, "detail", detail)
@@ -289,14 +290,9 @@ func unsubscribeFromRequest(u *mailertypes.OneClickUnsubscribe) batch.OneClickUn
 	return batch.OneClickUnsubscribe{URLTemplate: u.UrlTemplate}
 }
 
-// unresolvedUnsubscribeURL reports whether one Recipient's fields can resolve
-// the Batch's unsubscribe URL, returning an operator-facing detail when they
-// cannot.
-//
-// The check runs against utils.EffectiveFields, the same map the Builder will
-// render with, so that a Recipient accepted here is one the Builder can resolve.
-// Anything else would either queue a Delivery that silently loses its
-// unsubscribe header, or refuse a Recipient that would have been fine.
+// unresolvedUnsubscribeURL reports whether one Recipient's fields can resolve the
+// Batch's unsubscribe URL, with an operator-facing detail when they cannot. It reads
+// utils.EffectiveFields, the same map the Builder renders with, so the two agree.
 func unresolvedUnsubscribeURL(u batch.OneClickUnsubscribe, email string, fields map[string]string) (string, bool) {
 	if u.IsZero() {
 		return "", true
@@ -315,20 +311,9 @@ type recipientRejection struct {
 	detail string
 }
 
-// resolveRecipientTracking collapses the Tracking Policy cascade for one
-// Recipient into the concrete Policy that will be frozen on its Delivery
-// (ADR 0003), or reports why that Recipient is Rejected instead.
-//
-// The Recipient is the most specific of the three levels, so its statement can
-// narrow whatever the Domain and the Batch allow — a Recipient-level `off` wins
-// over a Domain-level `full`, because consent must always be honourable.
-//
-// A Recipient's ceiling is the *Domain's* Policy, not the Batch's: a Recipient
-// below its Batch is ordinary resolution, while a Recipient above its Domain
-// asks to collect more than the operator authorised, which consent cannot buy.
-// That is refused — but only that Recipient, so one bad row does not fail a send
-// of thousands (#419). This is the same comparison the Batch level makes in
-// sendTemplate; only the consequence differs.
+// resolveRecipientTracking collapses the Tracking Policy cascade for one Recipient into
+// the Policy frozen on its Delivery (ADR 0003). A Recipient may narrow what the Domain
+// and Batch allow; above the Domain's ceiling only that Recipient is Rejected (#419).
 func resolveRecipientTracking(domainPolicy, batchPolicy tracking.Policy, stated *trackingtypes.TrackingPolicy) (tracking.Policy, *recipientRejection) {
 	recipientPolicy, err := trackingpb.ToPolicy(stated)
 	if err != nil {
@@ -356,10 +341,10 @@ func (s mailAPIService) createTemplateWithGlobalFields(ctx context.Context, temp
 		return template, nil
 	}
 
-	return s.createTransientTemplate(ctx, template.Domain(), newHTML)
+	return s.createTransientTemplate(ctx, template.DomainName(), newHTML)
 }
 
-func (s mailAPIService) createTransientTemplate(ctx context.Context, domain, html string) (*templates.Template, error) {
+func (s mailAPIService) createTransientTemplate(ctx context.Context, domain values.DomainName, html string) (*templates.Template, error) {
 	tpl, err := templates.NewTransient(domain, html)
 	if err != nil {
 		return nil, err
@@ -370,75 +355,130 @@ func (s mailAPIService) createTransientTemplate(ctx context.Context, domain, htm
 	return tpl, nil
 }
 
-func (s mailAPIService) getCallDomainFromHeaders(ctx context.Context, headers http.Header) (*domains.Domain, error) {
+// authenticate resolves the HTTP Basic credential (<domain>:<key>) into its Domain and a
+// context carrying that key's Principal — the context, so that dropping it fails closed.
+// Every refusal is the same error, so nothing about which Domains or keys exist leaks.
+func (s mailAPIService) authenticate(ctx context.Context, headers http.Header) (context.Context, *domains.Domain, error) {
 	auth := headers.Get("Authorization")
 
 	if !strings.HasPrefix(auth, "Basic ") {
-		return nil, errors.New("invalid auth")
+		return nil, nil, errors.New("invalid auth")
 	}
 
 	token := strings.Replace(auth, "Basic ", "", 1)
 	data, err := base64.StdEncoding.DecodeString(token)
 	if err != nil {
-		return nil, errors.New("invalid auth")
+		return nil, nil, errors.New("invalid auth")
 	}
 
 	authData := string(data)
 
 	parts := strings.Split(authData, ":")
 	if len(parts) != 2 {
-		return nil, errors.New("invalid auth")
+		return nil, nil, errors.New("invalid auth")
 	}
 	domainName, key := parts[0], parts[1]
 
-	// Use API key repository for authentication
-	apiKey, err := s.apiKeys.ValidateForAuth(ctx, domainName, key)
+	// The credential is the other place a domain name enters from the wire, so it is
+	// canonicalised here. A username that is not a domain name gets the same generic
+	// error as a bad key, so nothing about which domains exist leaks.
+	callDomain, err := values.Parse(domainName)
+	if err != nil {
+		return nil, nil, errors.New("invalid auth")
+	}
+
+	apiKey, err := s.apiKeys.ValidateForAuth(ctx, callDomain, key)
 	if err != nil {
 		// Always return generic error (security requirement)
-		return nil, errors.New("invalid auth")
+		return nil, nil, errors.New("invalid auth")
 	}
 
-	// Fetch full domain info
-	domain, err := s.domains.FindByName(ctx, apiKey.Domain())
+	// The key authenticated, so it now says what it may do: sender on its own Domain.
+	// A failure here is a corrupt row rather than a bad request, so the request is refused
+	// rather than continued with a Principal holding less than the send needs.
+	principal, err := apiKey.Principal()
 	if err != nil {
-		return nil, errors.New("invalid auth")
+		slog.Error("cannot resolve api key to a principal", "err", err)
+		return nil, nil, errors.New("invalid auth")
 	}
 
-	return domain, nil
+	domain, err := s.domains.FindByName(ctx, apiKey.DomainName())
+	if err != nil {
+		return nil, nil, errors.New("invalid auth")
+	}
+
+	return authz.NewContext(ctx, principal), domain, nil
 }
 
-func validateSender(s *mailertypes.Sender, tenantDomain string) error {
+// senderAddress is a Batch's From address as intake resolved it: canonical is what the
+// authority model compares (ADR 0008), host is the text a refusal quotes back. A host
+// that cannot be canonicalised leaves canonical zero, which no Anchor covers.
+type senderAddress struct {
+	host      string
+	canonical values.DomainName
+}
+
+// senderAddressOf validates a Batch's From address and resolves its host. Everything
+// checked here is a property of the request — absent Sender, header-injecting Alias, no
+// host at all — never of the caller's authority, which is the guard's question.
+func senderAddressOf(s *mailertypes.Sender) (senderAddress, error) {
 	if s == nil {
-		return connect.NewError(connect.CodeInvalidArgument, errors.New("sender is required"))
+		return senderAddress{}, connect.NewError(connect.CodeInvalidArgument, errors.New("sender is required"))
 	}
 	if err := assertHeaderSafe("sender alias", s.Alias); err != nil {
-		return err
+		return senderAddress{}, err
 	}
-	fromDomain, err := smtputils.GetEmailDomain(s.Email)
+	host, err := smtputils.GetEmailDomain(s.Email)
 	if err != nil {
-		return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid sender email %q: %w", s.Email, err))
+		return senderAddress{}, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid sender email %q: %w", s.Email, err))
 	}
-	if !senderDomainAllowed(fromDomain, tenantDomain) {
-		return connect.NewError(connect.CodePermissionDenied,
-			fmt.Errorf("sender domain %q is not authorized for tenant %q", fromDomain, tenantDomain))
-	}
-	return nil
+	return senderAddress{host: host, canonical: canonicalSenderHost(host)}, nil
 }
 
-// senderDomainAllowed reports whether a Sender.Email whose host is fromDomain
-// is permitted for a tenant authenticated as tenantDomain. The sender domain
-// is allowed when it equals the tenant domain or is a parent of it — e.g.
-// tenant "k.example.com" may legitimately send from "@example.com".
-func senderDomainAllowed(fromDomain, tenantDomain string) bool {
-	from := strings.ToLower(strings.TrimSuffix(fromDomain, "."))
-	tenant := strings.ToLower(strings.TrimSuffix(tenantDomain, "."))
-	if from == "" || tenant == "" {
+// canonicalSenderHost canonicalises a From host, or returns the zero Name when it is not
+// canonical. The trailing dot is trimmed here at the edge, never in the authorization
+// layer, which must not normalise (ADR 0008); sender_domain_test.go holds the old rule.
+func canonicalSenderHost(host string) values.DomainName {
+	f, err := values.Parse(strings.TrimSuffix(strings.TrimSpace(host), "."))
+	if err != nil {
+		return values.DomainName{}
+	}
+	return f
+}
+
+// senderBatches names the Resource a send needs Create on: the From host's own Batches,
+// reachable by a key's sender Grant only when the host is its own Domain. The parent-domain
+// allowance, inexpressible by prefix domination, is authorized against the caller's own (ADR 0008).
+func senderBatches(from, tenant values.DomainName) authz.Resource {
+	if isParentDomain(from, tenant) {
+		return authz.Batches(tenant)
+	}
+	return authz.Batches(from)
+}
+
+// isParentDomain reports whether from is a proper parent of tenant, in the sense DNS gives
+// the word. Proper, so equality is left to the guard and the two clauses cannot overlap.
+// Both arguments are canonical, so this compares and never normalises.
+func isParentDomain(from, tenant values.DomainName) bool {
+	if from.IsZero() || tenant.IsZero() {
 		return false
 	}
-	if from == tenant {
-		return true
+	return strings.HasSuffix(tenant.String(), "."+from.String())
+}
+
+// sendError renders whatever the guarded send returned. A refusal keeps the code and the
+// wording the old tenant comparison produced, to the letter, so no client can tell the
+// mechanism changed (#438); ErrNoPrincipal stays apart, being a different problem.
+func sendError(err error, host, tenant string) error {
+	switch {
+	case errors.Is(err, authz.ErrForbidden):
+		return connect.NewError(connect.CodePermissionDenied,
+			fmt.Errorf("sender domain %q is not authorized for tenant %q", host, tenant))
+	case errors.Is(err, authz.ErrNoPrincipal):
+		return authzconnect.Error(err, connect.CodePermissionDenied)
+	default:
+		return err
 	}
-	return strings.HasSuffix(tenant, "."+from)
 }
 
 // assertHeaderSafe rejects strings containing CR or LF, which would let an
@@ -452,16 +492,9 @@ func assertHeaderSafe(field, v string) error {
 	return nil
 }
 
-// sendTrackingPolicyError maps a failure to translate a Batch's wire Tracking
-// Policy onto a Connect code: a Mode this build does not know is a bad
-// argument.
-//
-// It answers that `trackingpb` sentinel exactly as
-// pkg/api/adminapi.trackingPolicyError does, deliberately, so that one bad Mode
-// does not mean two different things depending on which API was asked; the two
-// are a pair and should change together. It is named apart from that one
-// because the rest of its mapping differs — anything else a send can fail on is
-// the caller's argument, never a missing Domain.
+// sendTrackingPolicyError maps an untranslatable wire Tracking Policy onto a Connect code:
+// a Mode this build does not know is a bad argument. It answers that sentinel exactly as
+// adminapi.trackingPolicyError does, and the pair must change together.
 func sendTrackingPolicyError(err error) error {
 	switch {
 	case errors.Is(err, trackingpb.ErrUnknownMode):
@@ -473,21 +506,18 @@ func sendTrackingPolicyError(err error) error {
 	}
 }
 
-// batchTrackingCeilingError builds the error for a Batch stating a Tracking
-// Mode above its Domain's ceiling (ADR 0003). Unlike a Recipient, which is
-// Rejected on its own, a Batch above the ceiling fails the whole call: it is
-// one instruction about the whole send, and there is no part of it to honour.
+// batchTrackingCeilingError builds the error for a Batch above its Domain's ceiling
+// (ADR 0003). Unlike a Recipient, which is Rejected alone, a Batch fails the whole call:
+// it is one instruction about the whole send, with no part of it left to honour.
 func batchTrackingCeilingError(violations []tracking.CeilingViolation) error {
 	return connect.NewError(connect.CodeInvalidArgument,
 		fmt.Errorf("batch tracking policy exceeds domain ceiling: %s",
 			ceilingViolationDetail("batch", violations)))
 }
 
-// ceilingViolationDetail renders ceiling violations as one sentence naming every
-// offending axis, what the ceiling allows, and what was asked for. Silent
-// clamping would leave the ceiling indistinguishable from a bug (ADR 0003), so
-// both levels say exactly what happened — the Batch in the error that fails the
-// call, the Recipient in the log accompanying its rejection.
+// ceilingViolationDetail names every offending axis, what the ceiling allows and what was
+// asked for. Silent clamping would leave the ceiling indistinguishable from a bug
+// (ADR 0003), so both levels say exactly what happened.
 func ceilingViolationDetail(level string, violations []tracking.CeilingViolation) string {
 	reasons := make([]string, 0, len(violations))
 	for _, v := range violations {

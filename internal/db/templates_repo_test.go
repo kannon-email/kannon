@@ -7,12 +7,13 @@ import (
 	"time"
 
 	"github.com/kannon-email/kannon/internal/templates"
+	"github.com/kannon-email/kannon/internal/values"
 	"github.com/stretchr/testify/require"
 )
 
 type templatesTestHelper struct{}
 
-func (h templatesTestHelper) CreateDomain(t *testing.T) string {
+func (h templatesTestHelper) CreateDomain(t *testing.T) values.DomainName {
 	ctx := t.Context()
 	domainName := fmt.Sprintf("test-tpl-%d.com", time.Now().UnixNano())
 	_, err := q.CreateDomain(ctx, CreateDomainParams{
@@ -28,7 +29,7 @@ func (h templatesTestHelper) CreateDomain(t *testing.T) string {
 		//nolint:errcheck // best-effort test cleanup
 		db.Exec(cleanupCtx, "DELETE FROM domains WHERE domain = $1", domainName)
 	})
-	return domainName
+	return values.MustParse(domainName)
 }
 
 func TestTemplatesRepository(t *testing.T) {
