@@ -2,7 +2,7 @@ package authz
 
 import (
 	"context"
-	"log/slog"
+	"time"
 )
 
 // principalKey is the context key under which a Principal travels. Unexported,
@@ -26,42 +26,52 @@ func FromContext(ctx context.Context) (Principal, bool) {
 
 // Guard wraps a domain service operation with the authorization it requires, leaving the operation
 // unaware of it. A decorator rather than a bare Require call, since a forgotten return after a check
-// authorizes everything. An Attribution on the Principal also requires Attribute on the Resource,
-// and is recorded here once entitled — this being the one place that sees claim, Action and Resource.
+// authorizes everything. An Attribution on the Principal also requires Attribute on the Resource.
+//
+// Every decision it reaches — permitted, refused, and the request nothing authenticated — is handed
+// to the Recorder the context carries, this being the one place that sees Principal, Action,
+// Resource and outcome together (ADR 0010). The signature is unchanged by that: the Recorder travels
+// in the context and Can stays pure, so a deployment can switch the whole of it off.
 func Guard[T any](ctx context.Context, action Action, resource Resource, fn func() (T, error)) (T, error) {
 	var zero T
 
+	rec := recorderFrom(ctx)
+
 	p, ok := FromContext(ctx)
 	if !ok {
+		rec.Record(decision(Principal{}, action, resource, NoPrincipal, "nothing authenticated this request"))
 		return zero, ErrNoPrincipal
 	}
 
-	slog.Debug("RBAC check", "principal", p, "action", action, "resource", resource)
-
 	if err := Require(p, action, resource); err != nil {
+		rec.Record(decision(p, action, resource, Denied, "the Action is not permitted on this Resource"))
 		return zero, err
 	}
 
 	if p.Attribution() != "" {
 		if err := Require(p, Attribute, resource); err != nil {
+			rec.Record(decision(p, action, resource, Denied, "the Attribution is not permitted on this Resource"))
 			return zero, err
 		}
-		record(p, action, resource)
 	}
+
+	// Recorded before the operation runs, so the decision is written down even if the operation
+	// then fails or the process dies: what is being recorded is what was permitted, which is
+	// settled by now, and not what came of it.
+	rec.Record(decision(p, action, resource, Allowed, ""))
 
 	return fn()
 }
 
-// record writes down an operation a Principal asked for in someone's name. A log line and not a
-// row: where an Attribution is persisted is still open, and the choice needs a retention policy
-// for personal data (ADR 0009). Written once the claim is entitled and before the operation runs,
-// so the claim is recorded even if the operation then fails or the process dies — what is being
-// recorded is who asked, which is settled by then, and not what came of it.
-//
-// The authenticated Principal's identifier is logged beside the claim, never instead of it: one
-// was checked and the other cannot be, and a record that blurred them would read as though
-// Kannon knew the person it names.
-func record(p Principal, action Action, resource Resource) {
-	slog.Info("attributed operation",
-		"principal", p.ID(), "attribution", p.Attribution(), "action", action, "resource", resource)
+// decision assembles what the Recorder is told, stamping the instant here — the moment the decision
+// was reached — rather than leaving it to whatever eventually writes the record down.
+func decision(p Principal, action Action, resource Resource, outcome Outcome, reason string) Decision {
+	return Decision{
+		Principal: p,
+		Action:    action,
+		Resource:  resource,
+		Outcome:   outcome,
+		Reason:    reason,
+		At:        time.Now().UTC(),
+	}
 }

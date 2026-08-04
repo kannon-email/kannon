@@ -39,6 +39,11 @@ sql:
               type: "StatsData"
               package: pbtypes
               pointer: true
+          - column: "audit_records.action"
+            go_type:
+              import: "github.com/kannon-email/kannon/internal/authz"
+              type: "Action"
+              package: authz
           - column: "domains.tracking"
             go_type: &tracking_policy
               import: "github.com/kannon-email/kannon/internal/tracking"

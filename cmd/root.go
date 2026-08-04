@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/kannon-email/kannon/pkg/api"
+	kaudit "github.com/kannon-email/kannon/pkg/audit"
 	"github.com/kannon-email/kannon/pkg/dispatcher"
 	"github.com/kannon-email/kannon/pkg/smtp"
 	"github.com/kannon-email/kannon/pkg/smtpsender"
@@ -90,6 +91,9 @@ func bootstrap(cmd *cobra.Command, flags RunFlags) error {
 	if flags.SMTP {
 		reg.Register(smtp.New(cnt))
 	}
+	if flags.Audit {
+		reg.Register(kaudit.New(cnt))
+	}
 
 	slog.Info(fmt.Sprintf("Starting Kannon runnables: %v", reg.Names()))
 
@@ -122,6 +126,7 @@ func init() {
 	createBoolFlagAndBindToViper("run-stats", false, "run stats")
 	createBoolFlagAndBindToViper("run-api", false, "run api")
 	createBoolFlagAndBindToViper("run-smtp", false, "run smtp server")
+	createBoolFlagAndBindToViper("run-audit", false, "run audit")
 }
 
 //nolint:unparam

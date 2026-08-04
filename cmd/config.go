@@ -20,9 +20,9 @@ func init() {
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: logLevel})))
 }
 
-// RunFlags collects the seven boolean flags that select which runnables
-// kannon starts. It is driven by cobra flags, never viper-loaded — config
-// belongs to each runnable's package, not the cmd layer.
+// RunFlags collects the boolean flags that select which runnables kannon
+// starts. It is driven by cobra flags, never viper-loaded — config belongs to
+// each runnable's package, not the cmd layer.
 type RunFlags struct {
 	Sender     bool
 	Dispatcher bool
@@ -31,6 +31,7 @@ type RunFlags struct {
 	Tracker    bool
 	API        bool
 	SMTP       bool
+	Audit      bool
 }
 
 const envPrefix = "K"
@@ -85,5 +86,6 @@ func runFlagsFromViper() RunFlags {
 		Tracker:    viper.GetBool("run-tracker"),
 		API:        viper.GetBool("run-api"),
 		SMTP:       viper.GetBool("run-smtp"),
+		Audit:      viper.GetBool("run-audit"),
 	}
 }

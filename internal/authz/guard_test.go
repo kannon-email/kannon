@@ -143,12 +143,15 @@ func TestGuardRecordsNothingWithoutAnAttribution(t *testing.T) {
 	assert.NotContains(t, logged.String(), "attributed operation")
 }
 
-// captureSlog redirects the default logger for the duration of one test.
+// captureSlog redirects the default logger for the duration of one test. At debug, so that a test
+// can assert on the level a line was written at: the difference between the RBAC line of every check
+// and the record of an operation performed in somebody's name is that one of them is at info, and a
+// capture that dropped debug could not tell a missing line from a filtered one.
 func captureSlog(t *testing.T) *bytes.Buffer {
 	t.Helper()
 	var buf bytes.Buffer
 	prev := slog.Default()
-	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
 	t.Cleanup(func() { slog.SetDefault(prev) })
 	return &buf
 }

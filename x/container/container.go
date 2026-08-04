@@ -162,102 +162,122 @@ func (c *Container) Queries() *sqlc.Queries {
 
 // EmbeddedNatsServer returns a singleton embedded NATS server instance.
 func (c *Container) EmbeddedNatsServer() *server.Server {
-	return c.embeddedNatsServer.MustGet(c.ctx, func(ctx context.Context) (*server.Server, error) {
-		slog.Info("Starting embedded NATS server...")
+	return c.embeddedNatsServer.MustGet(c.ctx, c.startEmbeddedNatsServer)
+}
 
-		opts := &server.Options{
-			Host:      "127.0.0.1",
-			Port:      -1, // Random available port
-			JetStream: true,
-			StoreDir:  "", // Use temp directory for storage
-		}
+func (c *Container) startEmbeddedNatsServer(context.Context) (*server.Server, error) {
+	slog.Info("Starting embedded NATS server...")
 
-		ns, err := server.NewServer(opts)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create NATS server: %w", err)
-		}
+	opts := &server.Options{
+		Host:      "127.0.0.1",
+		Port:      -1, // Random available port
+		JetStream: true,
+		StoreDir:  "", // Use temp directory for storage
+	}
 
-		go ns.Start()
+	ns, err := server.NewServer(opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create NATS server: %w", err)
+	}
 
-		if !ns.ReadyForConnections(10 * time.Second) {
-			ns.Shutdown()
-			return nil, errors.New("NATS server not ready after 10 seconds")
-		}
+	go ns.Start()
 
-		slog.Info("Embedded NATS server started at " + ns.ClientURL())
+	if !ns.ReadyForConnections(10 * time.Second) {
+		ns.Shutdown()
+		return nil, errors.New("NATS server not ready after 10 seconds")
+	}
 
-		c.addClosers(func(ctx context.Context) error {
-			slog.Info("Shutting down embedded NATS server...")
-			ns.Shutdown()
-			ns.WaitForShutdown()
-			return nil
-		})
+	slog.Info("Embedded NATS server started at " + ns.ClientURL())
 
-		c.addHZ("embedded-nats", func(ctx context.Context) error {
-			if !ns.ReadyForConnections(100 * time.Millisecond) {
-				return errors.New("embedded NATS server not ready")
-			}
-			return nil
-		})
-
-		return ns, nil
+	c.addClosers(func(ctx context.Context) error {
+		slog.Info("Shutting down embedded NATS server...")
+		ns.Shutdown()
+		ns.WaitForShutdown()
+		return nil
 	})
+
+	c.addHZ("embedded-nats", func(ctx context.Context) error {
+		if !ns.ReadyForConnections(100 * time.Millisecond) {
+			return errors.New("embedded NATS server not ready")
+		}
+		return nil
+	})
+
+	return ns, nil
 }
 
 func (c *Container) Nats() *nats.Conn {
-	return c.nats.MustGet(c.ctx, func(ctx context.Context) (*nats.Conn, error) {
-		natsURL := c.natsURL
-		if c.useEmbeddedNats {
-			ns := c.EmbeddedNatsServer()
-			natsURL = ns.ClientURL()
-		}
+	return c.nats.MustGet(c.ctx, c.connectNats)
+}
 
-		slog.Debug("connecting to NATS: " + natsURL)
-		nc, err := nats.Connect(natsURL)
+// TryNats returns the NATS connection, or the error that prevented one, where Nats exits the
+// process. For a caller whose use of NATS is optional — the audit trail is the first, and it is
+// opt-in — because an operator who turned such a feature on must not discover that an unreachable
+// NATS stops the API from opening its listener at all (#443, and the crash-loop of #365).
+//
+// Nats itself keeps exiting, deliberately: for every worker in Kannon a NATS it cannot reach really
+// is fatal, and there is nothing for those callers to do with an error.
+func (c *Container) TryNats() (*nats.Conn, error) {
+	return c.nats.Get(c.ctx, c.connectNats)
+}
+
+func (c *Container) connectNats(context.Context) (*nats.Conn, error) {
+	natsURL := c.natsURL
+	if c.useEmbeddedNats {
+		// The embedded server's failure is reported rather than exited on, so that TryNats
+		// can answer for it too. Nats still exits, one frame up.
+		ns, err := c.embeddedNatsServer.Get(c.ctx, c.startEmbeddedNatsServer)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to start embedded NATS server: %w", err)
 		}
+		natsURL = ns.ClientURL()
+	}
 
-		c.addClosers(func(ctx context.Context) error {
-			done := make(chan error, 1)
-			go func() {
-				done <- nc.Drain()
-			}()
-			defer nc.Close()
-			select {
-			case err := <-done:
-				return err
-			case <-ctx.Done():
-				return ctx.Err()
-			}
-		})
+	slog.Debug("connecting to NATS: " + natsURL)
+	nc, err := nats.Connect(natsURL)
+	if err != nil {
+		return nil, err
+	}
 
-		c.addHZ("nats", func(ctx context.Context) error {
-			s := nc.Status()
-			if s != nats.CONNECTED {
-				return fmt.Errorf("nats status is %s", s)
-			}
-
-			rtt, err := nc.RTT()
-			if err != nil {
-				return fmt.Errorf("nats RTT check failed: %w", err)
-			}
-
-			if rtt > 5*time.Second {
-				return fmt.Errorf("nats RTT too high: %v (threshold: 5s)", rtt)
-			}
-
-			return nil
-		})
-
-		if c.useEmbeddedNats {
-			if err := provisionEmbeddedJetStreams(nc); err != nil {
-				return nil, fmt.Errorf("failed to provision JetStream streams: %w", err)
-			}
+	c.addClosers(func(ctx context.Context) error {
+		done := make(chan error, 1)
+		go func() {
+			done <- nc.Drain()
+		}()
+		defer nc.Close()
+		select {
+		case err := <-done:
+			return err
+		case <-ctx.Done():
+			return ctx.Err()
 		}
-
-		return nc, nil
 	})
+
+	c.addHZ("nats", func(ctx context.Context) error {
+		s := nc.Status()
+		if s != nats.CONNECTED {
+			return fmt.Errorf("nats status is %s", s)
+		}
+
+		rtt, err := nc.RTT()
+		if err != nil {
+			return fmt.Errorf("nats RTT check failed: %w", err)
+		}
+
+		if rtt > 5*time.Second {
+			return fmt.Errorf("nats RTT too high: %v (threshold: 5s)", rtt)
+		}
+
+		return nil
+	})
+
+	if c.useEmbeddedNats {
+		if err := provisionEmbeddedJetStreams(nc); err != nil {
+			return nil, fmt.Errorf("failed to provision JetStream streams: %w", err)
+		}
+	}
+
+	return nc, nil
 }
 
 func (c *Container) NatsPublisher() publisher.Publisher {
@@ -268,11 +288,28 @@ func (c *Container) NatsPublisher() publisher.Publisher {
 }
 
 func (c *Container) NatsJetStream() jetstream.JetStream {
-	nc := c.Nats()
-	js, err := jetstream.New(nc)
+	js, err := c.jetStream(c.Nats())
 	if err != nil {
 		slog.Error("Failed to create NATS JetStream", "err", err)
 		os.Exit(1)
+	}
+	return js
+}
+
+// TryNatsJetStream is NatsJetStream without the exit, for the caller whose use of NATS is optional.
+// See TryNats for why one exists: an opt-in feature must not be able to stop the API from serving.
+func (c *Container) TryNatsJetStream() (jetstream.JetStream, error) {
+	nc, err := c.TryNats()
+	if err != nil {
+		return nil, err
+	}
+	return c.jetStream(nc)
+}
+
+func (c *Container) jetStream(nc *nats.Conn) (jetstream.JetStream, error) {
+	js, err := jetstream.New(nc)
+	if err != nil {
+		return nil, err
 	}
 
 	c.addHZ("jetstream", func(ctx context.Context) error {
@@ -300,7 +337,7 @@ func (c *Container) NatsJetStream() jetstream.JetStream {
 		return nil
 	})
 
-	return js
+	return js, nil
 }
 
 // BackoffPolicy returns the canonical retry backoff policy for this Container.

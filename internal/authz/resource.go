@@ -102,6 +102,14 @@ func (r Resource) String() string {
 	return strings.Join(r.segments, separator)
 }
 
+// Segments returns the path as what it is made of, which is the representation comparison and
+// matching work on. The accessor a caller that has to store or transmit a Resource needs, since
+// String is display only and would render a segment holding a separator ambiguously. The slice is
+// cloned, so nothing can reach into a Resource and change what a Grant was matched against.
+func (r Resource) Segments() []string {
+	return slices.Clone(r.segments)
+}
+
 // Equal reports whether two Resources name the same thing.
 func (r Resource) Equal(other Resource) bool {
 	return slices.Equal(r.segments, other.segments)

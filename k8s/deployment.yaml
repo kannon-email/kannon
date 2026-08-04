@@ -17,6 +17,13 @@ spec:
         - name: kannon-cp
           image: ghcr.io/kannon-email/kannon/kannon
           imagePullPolicy: Always
+          # --run-audit starts the writer of the authorization register, and on
+          # its own it collects nothing: the decisions are published only when
+          # `audit.enabled` is set in the ConfigMap, so the flag and that key
+          # are two halves of one switch. The key stays off by default because
+          # an Audit Record holds personal data, and its retention
+          # (`audit.retention`, one month unless stated) is the operator's
+          # obligation rather than Kannon's preference.
           args:
             [
               '--run-api',
@@ -26,6 +33,7 @@ spec:
               '--run-sender',
               '--run-smtp',
               '--run-stats',
+              '--run-audit',
               '--config',
               '/etc/kannon/config.yaml',
             ]
@@ -62,8 +70,8 @@ spec:
       volumes:
         # Supply your own ConfigMap with a `config.yaml` key. Kannon exits at
         # boot when --config points at a file that is not there, and most
-        # settings (api.port, sender.hostname, smtp.*, tracker.port, stats.*)
-        # can only be set in that file — not from the environment.
+        # settings (api.port, sender.hostname, smtp.*, tracker.port, stats.*,
+        # audit.*) can only be set in that file — not from the environment.
         - name: config
           configMap:
             name: kannon-config

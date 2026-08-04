@@ -23,6 +23,7 @@ import (
 	"github.com/kannon-email/kannon/internal/delivery"
 	"github.com/kannon-email/kannon/internal/tests"
 	"github.com/kannon-email/kannon/pkg/api"
+	kannonaudit "github.com/kannon-email/kannon/pkg/audit"
 	"github.com/kannon-email/kannon/pkg/dispatcher"
 	kannonsmtp "github.com/kannon-email/kannon/pkg/smtp"
 	"github.com/kannon-email/kannon/pkg/smtpsender"
@@ -160,6 +161,26 @@ func TestE2EEmailSending(t *testing.T) {
 		t.Parallel()
 		testEveryRecipientRejected(t, factory, senderMock, infra)
 	})
+
+	t.Run("PermittedAdminOperationIsRecorded", func(t *testing.T) {
+		t.Parallel()
+		testPermittedAdminOperationIsRecorded(t, factory, infra)
+	})
+
+	t.Run("RefusedOperationIsRecordedAsDenied", func(t *testing.T) {
+		t.Parallel()
+		testRefusedOperationIsRecordedAsDenied(t, factory, infra)
+	})
+
+	t.Run("AttributionIsRecordedBesideTheCredential", func(t *testing.T) {
+		t.Parallel()
+		testAttributionIsRecordedBesideTheCredential(t, factory, infra)
+	})
+
+	t.Run("MailerSendIsRecordedOncePerBatch", func(t *testing.T) {
+		t.Parallel()
+		testMailerSendIsRecordedOncePerBatch(t, factory, infra)
+	})
 }
 
 func runKannon(t *testing.T, infra *TestInfrastructure, senderMock *senderMock) {
@@ -174,6 +195,12 @@ func runKannon(t *testing.T, infra *TestInfrastructure, senderMock *senderMock) 
 	viper.Set("api.admin_token", adminToken)
 	viper.Set("tracker.port", infra.trackerPort)
 	viper.Set("stats.retention", "8760h")
+	// The audit trail is off by default and stays off unless an operator asks for it (ADR 0010). The
+	// suite turns it on because it is the only seam that can prove the whole chain — a real call
+	// carrying a real credential, through the interceptor and Guard, over NATS, into a row — and in
+	// particular the only one that proves the Recorder is wired into the API runnable at all.
+	viper.Set("audit.enabled", true)
+	viper.Set("audit.retention", "720h")
 	viper.Set("smtp.address", fmt.Sprintf(":%d", infra.smtpPort))
 
 	cnt := container.NewForTest(ctx,
@@ -201,6 +228,10 @@ func runKannon(t *testing.T, infra *TestInfrastructure, senderMock *senderMock) 
 	reg.Register(dispatcher.New(cnt))
 	reg.Register(validator.New(cnt))
 	reg.Register(stats.New(cnt))
+	// The worker that turns published decisions into rows. Registered here rather than left out
+	// because a producer with nobody consuming it is precisely the half-configured deployment
+	// ADR 0010 warns about, and the assertions in audit_test.go are on the rows.
+	reg.Register(kannonaudit.New(cnt))
 	reg.Register(tracker.New(cnt))
 	// The inbound SMTP server: the leg that receives asynchronous DSNs. Unlike
 	// the outbound SMTPSender it needs no test double — a subtest plays the
