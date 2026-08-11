@@ -54,9 +54,13 @@ func Prepare(cfgFile string) {
 		if home, err := os.UserHomeDir(); err == nil {
 			viper.AddConfigPath(home)
 		} else {
-			// Not fatal: it only means there is no default file to find, and
-			// a deployment passing --config never wanted one.
-			slog.Debug("cannot locate the home directory, so no default config file will be read", "err", err)
+			// Not fatal — every setting can come from the environment — but not
+			// quiet either: this branch is only reached when no --config was
+			// given, so the process was meant to read a file and will now run on
+			// whatever the environment happens to hold. Warn and not Debug
+			// because Prepare runs before the file that could ask for debug
+			// logging has been read, so a Debug line here could never be seen.
+			slog.Warn("cannot locate the home directory and no --config was given, so no configuration file will be read", "err", err)
 		}
 	}
 
@@ -79,9 +83,11 @@ func Read() (RootConfig, error) {
 		}
 	}
 
-	// Before anything reads a key: a deprecated spelling has to have been
-	// promoted onto its canonical name by the time the first unmarshal runs.
+	// Before anything reads a key, and after the file has been read: a deprecated
+	// spelling has to have been promoted onto its canonical name by the time the
+	// first unmarshal runs, and promotion is what the file is allowed to override.
 	ApplyDeprecatedAliases()
+	promoteLegacyEnv()
 	warnLegacyEnvPrefix()
 
 	var cfg RootConfig
@@ -97,16 +103,36 @@ func Read() (RootConfig, error) {
 // key. This is how runnables read configuration, and a malformed value means the
 // operator's file is wrong, which must surface at boot rather than as zero
 // values.
+//
+// Only ever call this while the boot path is still running — from a runnable's
+// constructor, not from its Run — or the panic lands in a goroutine nobody
+// recovers and takes the whole process with it. TryLoadSection is for a reader
+// that has somewhere better to go.
 func LoadSection(key string, out any) {
-	if err := viper.UnmarshalKey(key, out, envref.Decoder()); err != nil {
-		panic(fmt.Errorf("config: failed to load config %q: %w", key, err))
+	if err := TryLoadSection(key, out); err != nil {
+		panic(err)
 	}
 }
+
+// TryLoadSection is LoadSection for a caller that must not fail on the operator's
+// mistake: a section belonging to a feature whose absence is not an outage, or one
+// read after the boot path is over. It stands to LoadSection as the container's
+// TryNats stands to Nats.
+func TryLoadSection(key string, out any) error {
+	if err := viper.UnmarshalKey(key, out, envref.Decoder()); err != nil {
+		return fmt.Errorf("config: failed to load config %q: %w", key, err)
+	}
+	return nil
+}
+
+// apiKey is the API runnable's section, named here because the admin token below
+// is read out of it and the two spellings must not drift.
+const apiKey = "api"
 
 // APIAdminTokenKey holds the credential that authenticates the Admin API and both Stats API
 // versions (ADR 0009). Exported because the operator has to be told which key to set when it is
 // missing, and a message naming a key the code does not read is worse than no message.
-const APIAdminTokenKey = "api.admin_token"
+const APIAdminTokenKey = apiKey + ".admin_token"
 
 // APIAdminTokenEnvVar is the deprecated K_ spelling of the same key, kept because it is what the
 // Kubernetes manifests of every existing deployment carry. The replacement is to name a variable
@@ -116,19 +142,19 @@ const APIAdminTokenEnvVar = legacyEnvPrefix + "_API_ADMIN_TOKEN"
 // APIAdminToken returns the configured admin credential, empty when none is set — the caller
 // decides what that means, which for the API runnable is a refusal to boot.
 //
-// Read key by key rather than through the "api" section's struct, which is the one place left doing
-// so. Two reasons, and they pull the same way: viper's Get consults the environment for a nested key
-// where UnmarshalKey does not, which is what keeps K_API_ADMIN_TOKEN working; and setting a nested
-// key through viper.Set would hide the rest of the section from UnmarshalKey, so a token promoted
-// that way would cost the operator their api.port. The reference in the file is resolved here by
-// hand for the same reason — the decode hook only runs while something is being decoded.
+// Read through the section, like every other key: the deprecated K_API_ADMIN_TOKEN is promoted onto
+// this key by Read, below the file rather than above it, so this key needs no binding of its own and
+// the reference an operator writes here is resolved by the same decode hook as everything else. It
+// used to be the one value read with viper.GetString and resolved by hand, which meant the one
+// credential in the system was also the one value the mechanism did not validate.
 func APIAdminToken() (string, error) {
-	// Bound here rather than in prepareLegacyEnv, and with the variable named rather than derived,
-	// so that this key answers the same in a process that only ever set an environment variable —
-	// which every deployment of Kannon written before the file could name its own variables is.
-	//nolint:errcheck
-	viper.BindEnv(APIAdminTokenKey, APIAdminTokenEnvVar)
-	return envref.Resolve(viper.GetString(APIAdminTokenKey))
+	var api struct {
+		AdminToken string `mapstructure:"admin_token"`
+	}
+	if err := TryLoadSection(apiKey, &api); err != nil {
+		return "", err
+	}
+	return api.AdminToken, nil
 }
 
 // errorOnUnknownKeys refuses a section carrying a key Kannon does not know. Off by default in

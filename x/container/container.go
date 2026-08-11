@@ -29,8 +29,6 @@ type Container struct {
 	dbURL           string
 	natsURL         string
 	useEmbeddedNats bool
-	senderHostname  string
-	demoSender      bool
 	backoff         delivery.BackoffPolicy
 	retryWindow     time.Duration
 
@@ -53,23 +51,19 @@ type senderCfg struct {
 }
 
 // New creates a Container from the root configuration the boot path has already
-// read, plus the sender section it reads itself.
+// read.
 //
 // The root configuration arrives as an argument rather than being read here so
 // that a reference to a variable nobody set — `database_url: env://…` — is
 // reported by the boot path as a message, before a container exists to fail
-// halfway through building.
+// halfway through building. Nothing else is read here for the same reason turned
+// around: a section this process may have no use for must not be able to stop it.
 func New(ctx context.Context, cfg config.RootConfig) *Container {
-	var sc senderCfg
-	config.LoadSection("sender", &sc)
-
 	return &Container{
 		ctx:                ctx,
 		dbURL:              cfg.DatabaseURL,
 		natsURL:            cfg.NatsURL,
 		useEmbeddedNats:    cfg.UseEmbeddedNats,
-		senderHostname:     sc.Hostname,
-		demoSender:         sc.DemoSender,
 		backoff:            delivery.DefaultBackoff,
 		retryWindow:        delivery.DefaultRetryWindow,
 		db:                 &singleton[*pgxpool.Pool]{},
@@ -359,13 +353,25 @@ func (c *Container) RetryWindow() time.Duration {
 	return c.retryWindow
 }
 
+// Sender returns a singleton SMTP sender, reading the `sender` section the first
+// time one is asked for.
+//
+// Read here rather than in New: one config file describes a whole installation, so
+// `sender.hostname` may well be a reference to a variable only the sender pods
+// set, and a dispatcher that never sends mail must not be stopped by it. The
+// sender runnable asks for this while it is being constructed — on the boot path —
+// so for the process that does send, an unresolvable reference is still a boot
+// failure and not a surprise mid-delivery.
 func (c *Container) Sender() smtp.Sender {
 	return c.sender.MustGet(c.ctx, func(ctx context.Context) (smtp.Sender, error) {
-		sender := smtp.NewSender(c.senderHostname)
-		if c.demoSender {
-			sender = smtp.NewDemoSender(c.senderHostname)
+		var sc senderCfg
+		if err := config.TryLoadSection("sender", &sc); err != nil {
+			return nil, err
 		}
-		return sender, nil
+		if sc.DemoSender {
+			return smtp.NewDemoSender(sc.Hostname), nil
+		}
+		return smtp.NewSender(sc.Hostname), nil
 	})
 }
 

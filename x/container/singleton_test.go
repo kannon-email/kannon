@@ -190,6 +190,27 @@ func TestSingleton_InterfaceType(t *testing.T) {
 	}
 }
 
+// getTypeName runs on the failure path, and an interface is the one shape it used
+// to be unable to name: MustGet would have died naming the type instead of
+// reporting the error it was called with, which for the sender singleton is the
+// operator's own `sender` section.
+func TestGetTypeName(t *testing.T) {
+	tests := []struct {
+		got  string
+		want string
+	}{
+		{got: getTypeName[testInterface](), want: "container.testInterface"},
+		{got: getTypeName[*testImpl](), want: "container.testImpl"},
+		{got: getTypeName[string](), want: "string"},
+	}
+
+	for _, tc := range tests {
+		if tc.got != tc.want {
+			t.Errorf("getTypeName = %q, want %q", tc.got, tc.want)
+		}
+	}
+}
+
 type contextKey string
 
 const testKey contextKey = "key"

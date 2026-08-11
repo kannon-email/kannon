@@ -10,8 +10,10 @@ data:
   # when unset, `env://NAME:-default` falls back.
   #
   # That is what lets a Deployment per component share this ConfigMap and differ
-  # only in the KANNON_ENABLE_* variables it sets. This example runs every
-  # component in one pod, so it enables them all with a default of true.
+  # only in the KANNON_ENABLE_* variables it sets. Every one of them defaults to
+  # false, which is what makes that possible: a pod that names its own component
+  # gets that component and nothing else. The Deployment below runs the whole of
+  # Kannon in one pod, and says so by enabling each of them explicitly.
   config.yaml: |
     database_url: env://KANNON_DATABASE_URL
     nats_url: env://KANNON_NATS_URL:-nats://nats:4222
@@ -19,19 +21,19 @@ data:
 
     services:
       api:
-        enabled: env://KANNON_ENABLE_API:-true
+        enabled: env://KANNON_ENABLE_API:-false
       smtp:
-        enabled: env://KANNON_ENABLE_SMTP:-true
+        enabled: env://KANNON_ENABLE_SMTP:-false
       sender:
-        enabled: env://KANNON_ENABLE_SENDER:-true
+        enabled: env://KANNON_ENABLE_SENDER:-false
       dispatcher:
-        enabled: env://KANNON_ENABLE_DISPATCHER:-true
+        enabled: env://KANNON_ENABLE_DISPATCHER:-false
       validator:
-        enabled: env://KANNON_ENABLE_VALIDATOR:-true
+        enabled: env://KANNON_ENABLE_VALIDATOR:-false
       tracker:
-        enabled: env://KANNON_ENABLE_TRACKER:-true
+        enabled: env://KANNON_ENABLE_TRACKER:-false
       stats:
-        enabled: env://KANNON_ENABLE_STATS:-true
+        enabled: env://KANNON_ENABLE_STATS:-false
       # The writer of the authorization register. On its own it collects nothing:
       # the decisions are published only when `audit.enabled` is set, so this and
       # that key are two halves of one switch. Both are off by default because an
@@ -77,13 +79,34 @@ spec:
           imagePullPolicy: Always
           args: ['--config', '/etc/kannon/config.yaml']
           env:
+            # What this pod is. Split the components across Deployments by copying
+            # this list into each of them and keeping only the components that pod
+            # runs — the ConfigMap above is mounted unchanged by all of them.
+            - name: KANNON_ENABLE_API
+              value: 'true'
+            - name: KANNON_ENABLE_SMTP
+              value: 'true'
+            - name: KANNON_ENABLE_SENDER
+              value: 'true'
+            - name: KANNON_ENABLE_DISPATCHER
+              value: 'true'
+            - name: KANNON_ENABLE_VALIDATOR
+              value: 'true'
+            - name: KANNON_ENABLE_TRACKER
+              value: 'true'
+            - name: KANNON_ENABLE_STATS
+              value: 'true'
             - name: KANNON_DATABASE_URL
               valueFrom:
                 secretKeyRef:
                   name: kannon-database
                   key: url
+            # Read only by a pod that sends, so a Deployment without
+            # KANNON_ENABLE_SENDER does not need to carry it.
             - name: KANNON_SENDER_HOSTNAME
               value: kannon.example.com
+            # Required by a pod serving the API, and by no other: give it to those
+            # Deployments alone (ADR 0009).
             - name: KANNON_ADMIN_TOKEN
               valueFrom:
                 secretKeyRef:

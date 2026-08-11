@@ -80,10 +80,7 @@ func TestStringLeafResolution(t *testing.T) {
 		{"default may contain :-", "env://NOPE:-a:-b", "a:-b"},
 		{"plain value is untouched", "postgres://localhost/kannon", "postgres://localhost/kannon"},
 		{"reference must span the whole value", "https://env://HOST/v1", "https://env://HOST/v1"},
-		{"invalid env var name is not a reference", "env://my-var", "env://my-var"},
-		{"scheme is case sensitive", "ENV://KANNON_DATABASE_URL", "ENV://KANNON_DATABASE_URL"},
-		{"single slash is not a reference", "env:/KANNON_DATABASE_URL", "env:/KANNON_DATABASE_URL"},
-		{"empty name is not a reference", "env://", "env://"},
+		{"a value opening with env: and no slash is a literal", "env:KANNON_DATABASE_URL", "env:KANNON_DATABASE_URL"},
 		{"backslash escapes a literal", `\env://KANNON_DATABASE_URL`, "env://KANNON_DATABASE_URL"},
 	}
 
@@ -93,6 +90,68 @@ func TestStringLeafResolution(t *testing.T) {
 			mustLoad(t, "database_url: '"+tc.value+"'\n", Options{Lookup: lookupFrom(env)}, &cfg)
 			if cfg.DatabaseURL != tc.want {
 				t.Errorf("DatabaseURL = %q, want %q", cfg.DatabaseURL, tc.want)
+			}
+		})
+	}
+}
+
+// A reference an operator misspelled is refused rather than handed to the code as
+// a literal. Every case here used to resolve to itself, which on api.admin_token
+// meant a process authenticating callers against the text of its own ConfigMap.
+func TestMalformedReferenceIsRefused(t *testing.T) {
+	tests := []struct {
+		name  string
+		value string
+	}{
+		{"a name an env var cannot have", "env://kannon-admin-token"},
+		{"a single slash", "env:/KANNON_DATABASE_URL"},
+		{"the scheme in upper case", "ENV://KANNON_DATABASE_URL"},
+		{"a default introduced with : instead of :-", "env://KANNON_DATABASE_URL:fallback"},
+		{"no name at all", "env://"},
+		{"a path after the name", "env://KANNON_DATABASE_URL/v1"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// A lookup that would answer, so the refusal is about the spelling
+			// and not about a variable being unset.
+			resolvable := map[string]string{"KANNON_DATABASE_URL": "postgres://kannon@db/kannon"}
+			err := load(t, "database_url: '"+tc.value+"'\n", Options{Lookup: lookupFrom(resolvable)}, &testConfig{})
+
+			var malformed *MalformedRefError
+			if !errors.As(err, &malformed) {
+				t.Fatalf("expected *MalformedRefError for %q, got %v", tc.value, err)
+			}
+			if malformed.Ref != tc.value {
+				t.Errorf("Ref = %q, want %q", malformed.Ref, tc.value)
+			}
+			// The message has to be enough to fix the file from, since it is all
+			// the operator gets.
+			if !strings.Contains(err.Error(), "env://NAME:-default") {
+				t.Errorf("the message does not show the spelling: %v", err)
+			}
+		})
+	}
+}
+
+func TestName(t *testing.T) {
+	tests := []struct {
+		raw    string
+		want   string
+		wantOK bool
+	}{
+		{raw: "env://KANNON_DATABASE_URL", want: "KANNON_DATABASE_URL", wantOK: true},
+		{raw: "env://K_DATABASE_URL:-postgres://localhost/kannon", want: "K_DATABASE_URL", wantOK: true},
+		{raw: "postgres://localhost/kannon"},
+		{raw: `\env://KANNON_DATABASE_URL`},
+		{raw: "env://not-a-name"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.raw, func(t *testing.T) {
+			got, ok := Name(tc.raw)
+			if ok != tc.wantOK || got != tc.want {
+				t.Errorf("Name(%q) = %q, %v; want %q, %v", tc.raw, got, ok, tc.want, tc.wantOK)
 			}
 		})
 	}
@@ -316,48 +375,6 @@ func TestMapKeysAlsoGoThroughTheHook(t *testing.T) {
 	err := load(t, "labels:\n  env://TEAM: platform\n", Options{Lookup: lookupFrom(nil)}, &cfg)
 	if err == nil {
 		t.Fatalf("expected the key to be treated as a reference, got %#v", cfg.Labels)
-	}
-}
-
-// Resolve is the scalar half of the same syntax, and carries the same policy as
-// Decoder: an empty variable is unset, and a reference with no default fails.
-func TestResolve(t *testing.T) {
-	t.Setenv("KANNON_ADMIN_TOKEN", "s3cr3t")
-	t.Setenv("KANNON_EMPTY", "")
-
-	tests := []struct {
-		name    string
-		raw     string
-		want    string
-		wantErr bool
-	}{
-		{name: "reference to a set variable", raw: "env://KANNON_ADMIN_TOKEN", want: "s3cr3t"},
-		{name: "inline default", raw: "env://KANNON_NOPE:-fallback", want: "fallback"},
-		{name: "empty variable falls back", raw: "env://KANNON_EMPTY:-fallback", want: "fallback"},
-		{name: "plain value is returned unchanged", raw: "s3cr3t", want: "s3cr3t"},
-		{name: "empty value is returned unchanged", raw: "", want: ""},
-		{name: "escaped literal", raw: `\env://KANNON_ADMIN_TOKEN`, want: "env://KANNON_ADMIN_TOKEN"},
-		{name: "reference to an unset variable", raw: "env://KANNON_NOPE", wantErr: true},
-		{name: "reference to an empty variable", raw: "env://KANNON_EMPTY", wantErr: true},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			got, err := Resolve(tc.raw)
-			if tc.wantErr {
-				var missing *MissingEnvError
-				if !errors.As(err, &missing) {
-					t.Fatalf("expected *MissingEnvError, got %v", err)
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("Resolve: %v", err)
-			}
-			if got != tc.want {
-				t.Errorf("Resolve(%q) = %q, want %q", tc.raw, got, tc.want)
-			}
-		})
 	}
 }
 

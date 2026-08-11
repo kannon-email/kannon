@@ -33,9 +33,15 @@ func (s *singleton[T]) MustGet(ctx context.Context, f makeFn[T]) T {
 	return value
 }
 
+// getTypeName names T for the failure MustGet reports.
+//
+// reflect.TypeFor and not reflect.TypeOf of a zero value: for an interface — which
+// smtp.Sender is, and it is the singleton whose factory can now fail on the
+// operator's configuration — the zero value is a nil interface, TypeOf returns nil,
+// and naming the type panicked with a nil dereference on top of the error it was
+// trying to report.
 func getTypeName[T any]() string {
-	var zero T
-	tf := reflect.TypeOf(zero)
+	tf := reflect.TypeFor[T]()
 	if tf.Kind() == reflect.Pointer {
 		tf = tf.Elem()
 	}

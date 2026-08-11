@@ -42,17 +42,20 @@ func (c *Config) setDefaults() {
 // than let it come up and answer every request with unauthenticated (ADR 0009).
 func AdminToken() (admintoken.Token, error) {
 	raw, err := config.APIAdminToken()
-	if err == nil {
-		var t admintoken.Token
-		t, err = admintoken.Parse(raw)
-		if err == nil {
-			return t, nil
-		}
+	if err != nil {
+		return admintoken.Token{}, adminTokenError(err)
 	}
-	// One message for both halves — a token that could not be resolved and a
-	// token that is not one — because the operator's next move is the same, and
-	// it is to look at this key.
-	return admintoken.Token{}, fmt.Errorf(
+	token, err := admintoken.Parse(raw)
+	if err != nil {
+		return admintoken.Token{}, adminTokenError(err)
+	}
+	return token, nil
+}
+
+// adminTokenError is one message for both halves — a token that could not be resolved and a token
+// that is not one — because the operator's next move is the same, and it is to look at this key.
+func adminTokenError(err error) error {
+	return fmt.Errorf(
 		"the API needs an admin token to authenticate the Admin and Stats APIs: set %q in the config file, "+
 			"taking it from the environment as `admin_token: env://%s` if you would rather not write it there (%w)",
 		config.APIAdminTokenKey, config.APIAdminTokenEnvVar, err)
@@ -119,7 +122,15 @@ func run(ctx context.Context, config Config, cnt *container.Container) error {
 // Nothing here can fail the boot. An audit trail Kannon cannot write must not be an outage for
 // somebody's customers, so every failure below is reported and stepped over.
 func startAuditRecording(ctx context.Context, cnt *container.Container) authz.Recorder {
-	cfg := audit.LoadConfig()
+	// TryLoadConfig and not LoadConfig: this runs inside the API runnable's goroutine, where the
+	// panic a section read normally raises would be recovered by nobody and would end the process —
+	// an `audit.retention` naming a variable this pod does not set would stop the API from serving.
+	cfg, err := audit.TryLoadConfig()
+	if err != nil {
+		slog.Error("cannot read the audit configuration, so authorization decisions stay in the log "+
+			"rather than reaching the audit table; the API is serving regardless", "err", err)
+		return nil
+	}
 
 	if !cfg.Enabled {
 		return nil
