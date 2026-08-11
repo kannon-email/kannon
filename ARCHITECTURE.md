@@ -10,7 +10,11 @@ Kannon is a cloud-native, scalable SMTP mail sender designed for Kubernetes and 
 
 #### `cmd/`
 
-- Application entrypoint and CLI. Handles configuration, service startup, and orchestrates which components (API, SMTP, smtpsender, dispatcher, etc.) are run.
+- Application entrypoint and CLI. Starts the components (API, SMTP, smtpsender, dispatcher, etc.) the `services` section of the config file enables.
+
+#### `x/config/`
+
+- Reads the configuration file, resolves the `env://NAME` references in it (`x/config/envref`), and hands each runnable its own section. Also holds the deprecated `K_` prefix and `--run-*` flags. See [ADR 0011](./docs/adr/0011-the-config-file-is-the-contract-and-the-environment-is-referenced-from-it.md).
 
 #### `x/container/`
 

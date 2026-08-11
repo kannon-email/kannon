@@ -23,6 +23,7 @@ import (
 	mailerv1connect "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1/apiv1connect"
 	statsv1connect "github.com/kannon-email/kannon/proto/kannon/stats/apiv1/apiv1connect"
 	statsv2connect "github.com/kannon-email/kannon/proto/kannon/stats/apiv2/apiv2connect"
+	"github.com/kannon-email/kannon/x/config"
 	"github.com/kannon-email/kannon/x/container"
 )
 
@@ -40,20 +41,28 @@ func (c *Config) setDefaults() {
 // Exported so the boot path can refuse to start a process asked to serve them without one, rather
 // than let it come up and answer every request with unauthenticated (ADR 0009).
 func AdminToken() (admintoken.Token, error) {
-	t, err := admintoken.Parse(container.APIAdminToken())
-	if err != nil {
-		return admintoken.Token{}, fmt.Errorf(
-			"the API needs an admin token to authenticate the Admin and Stats APIs: set %q in the config file, or %s in the environment (%w)",
-			container.APIAdminTokenKey, container.APIAdminTokenEnvVar, err)
+	raw, err := config.APIAdminToken()
+	if err == nil {
+		var t admintoken.Token
+		t, err = admintoken.Parse(raw)
+		if err == nil {
+			return t, nil
+		}
 	}
-	return t, nil
+	// One message for both halves — a token that could not be resolved and a
+	// token that is not one — because the operator's next move is the same, and
+	// it is to look at this key.
+	return admintoken.Token{}, fmt.Errorf(
+		"the API needs an admin token to authenticate the Admin and Stats APIs: set %q in the config file, "+
+			"taking it from the environment as `admin_token: env://%s` if you would rather not write it there (%w)",
+		config.APIAdminTokenKey, config.APIAdminTokenEnvVar, err)
 }
 
 // New constructs the API runnable, loading its slice of configuration from
 // viper under the "api" key.
 func New(cnt *container.Container) container.Runnable {
 	var cfg Config
-	container.LoadConfig("api", &cfg)
+	config.LoadSection("api", &cfg)
 	cfg.setDefaults()
 	return container.Runnable{
 		Name: "api",

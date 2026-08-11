@@ -9,7 +9,6 @@ import (
 
 	dbschema "github.com/kannon-email/kannon/db"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 // mainCmd represents the main command
@@ -17,12 +16,13 @@ var migrateMainCmd = &cobra.Command{
 	Use:   "main",
 	Short: "Migrate Main Database to last version",
 	Run: func(_ *cobra.Command, _ []string) {
-		if err := readViperConfig(); err != nil {
+		cfg, err := readConfig()
+		if err != nil {
 			slog.Error("error in reading config", "err", err)
 			os.Exit(1)
 		}
 
-		if err := dbschema.Migrate(viper.GetString("database_url")); err != nil {
+		if err := dbschema.Migrate(cfg.DatabaseURL); err != nil {
 			slog.Error("error in migration", "err", err)
 			os.Exit(1)
 		}

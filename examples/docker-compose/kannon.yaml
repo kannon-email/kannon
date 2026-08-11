@@ -1,13 +1,37 @@
 debug: true
-nats_url: nats://nats:4222
-database_url: postgresql://postgres:example@db:5432/postgres?sslmode=disable
+nats_url: env://KANNON_NATS_URL:-nats://nats:4222
+database_url: env://KANNON_DATABASE_URL:-postgresql://postgres:example@db:5432/postgres?sslmode=disable
+
+# Which components this process runs. Every one of them is off unless enabled, and
+# `enabled` takes a reference like any other value — which is how one file can serve
+# a whole installation, each deployment turning on its own component. Here they are
+# all on, because this example is a single container.
+services:
+  api:
+    enabled: true
+  smtp:
+    enabled: true
+  sender:
+    enabled: true
+  dispatcher:
+    enabled: true
+  validator:
+    enabled: true
+  tracker:
+    enabled: true
+  stats:
+    enabled: true
+  # The writer of the audit trail. Off, together with audit.enabled below.
+  audit:
+    enabled: env://KANNON_ENABLE_AUDIT:-false
 
 api:
   port: 50051
   # Authenticates the Admin API and both Stats APIs, and authorizes everything on every
-  # Domain. Required whenever run-api is set: without it Kannon refuses to boot. Outside a
-  # local example, supply it as K_API_ADMIN_TOKEN from a secret rather than in this file.
-  admin_token: change-me
+  # Domain. Required whenever services.api.enabled is set: without it Kannon refuses to boot.
+  # Outside a local example, write `admin_token: env://KANNON_ADMIN_TOKEN` and keep the value
+  # in a secret rather than in this file.
+  admin_token: env://KANNON_ADMIN_TOKEN:-change-me
 
 sender:
   hostname: kannon.ludusrusso.dev
@@ -16,17 +40,9 @@ sender:
 
 # The audit trail is off, as it is everywhere by default: an Audit Record can hold the person
 # an X-Kannon-Attribution header named, and nothing should start retaining that because an
-# example was copied. Uncomment both this section and run-audit below to turn it on, and pick
-# a retention you are willing to defend — 720h is a month.
-# audit:
-#   enabled: true
-#   retention: 720h
-
-run-smtp: true
-run-tracker: true
-run-dispatcher: true
-run-validator: true
-run-sender: true
-run-api: true
-run-stats: true
-# run-audit: true
+# example was copied. This is the feature — whether decisions are published at all — and
+# services.audit above is the writer that turns them into rows; both are needed. Pick a
+# retention you are willing to defend: 720h is a month.
+audit:
+  enabled: env://KANNON_ENABLE_AUDIT:-false
+  retention: 720h

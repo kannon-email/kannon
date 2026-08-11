@@ -1,10 +1,9 @@
 package audit
 
 import (
-	"fmt"
 	"time"
 
-	"github.com/spf13/viper"
+	"github.com/kannon-email/kannon/x/config"
 )
 
 // configKey is the section an operator writes this under. Named once, because two processes read it:
@@ -38,16 +37,11 @@ type Config struct {
 // LoadConfig reads the audit section, defaults filled in. Read here rather than by each runnable that
 // needs it — the producer and the consumer both do — so that the section name and the default cannot
 // come to be spelled two ways, for the same reason ConfigureStream holds the stream's configuration
-// once. Panics like container.LoadConfig does, since an unreadable section is a malformed config file
-// and not a runtime condition.
-//
-// It goes to viper directly rather than through container.LoadConfig, which is the same two lines:
-// x/container reaches this package through internal/db, so importing it here would be a cycle.
+// once. It panics on a malformed section, as every other section read does, since that is the
+// operator's file being wrong and not a runtime condition.
 func LoadConfig() Config {
 	var cfg Config
-	if err := viper.UnmarshalKey(configKey, &cfg); err != nil {
-		panic(fmt.Errorf("audit: failed to load config %q: %w", configKey, err))
-	}
+	config.LoadSection(configKey, &cfg)
 	cfg.setDefaults()
 	return cfg
 }

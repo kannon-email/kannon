@@ -19,7 +19,7 @@ import (
 )
 
 // New constructs the dispatcher runnable. The dispatcher has no
-// configurable knobs today, so it does not call container.LoadConfig.
+// configurable knobs today, so it does not call config.LoadSection.
 func New(cnt *container.Container) container.Runnable {
 	return container.Runnable{
 		Name: "dispatcher",

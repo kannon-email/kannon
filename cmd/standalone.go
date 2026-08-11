@@ -4,8 +4,8 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/kannon-email/kannon/x/config"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 var standaloneCmd = &cobra.Command{
@@ -24,21 +24,17 @@ func init() {
 }
 
 func runStandalone(cmd *cobra.Command, _ []string) {
-	if err := readViperConfig(); err != nil {
+	cfg, err := readConfig()
+	if err != nil {
 		slog.Error("error in reading config", "err", err)
 		os.Exit(1)
 	}
-	viper.Set("use_embedded_nats", true)
-	if err := bootstrap(cmd, RunFlags{
-		Sender:     true,
-		Dispatcher: true,
-		Validator:  true,
-		Stats:      true,
-		Tracker:    true,
-		API:        true,
-		SMTP:       true,
-		Audit:      true,
-	}); err != nil {
+
+	// Overridden on the loaded configuration rather than pushed back into viper:
+	// this is what the subcommand means, not something an operator configured.
+	cfg.UseEmbeddedNats = true
+
+	if err := bootstrap(cmd, cfg, config.AllServices()); err != nil {
 		slog.Error("service error", "err", err)
 		os.Exit(1)
 	}

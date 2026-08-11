@@ -14,10 +14,10 @@ import (
 	"github.com/kannon-email/kannon/internal/delivery"
 	"github.com/kannon-email/kannon/internal/publisher"
 	"github.com/kannon-email/kannon/internal/smtp"
+	"github.com/kannon-email/kannon/x/config"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
-	"github.com/spf13/viper"
 )
 
 // Container implements the Dependency Injection (DI) pattern for Go.
@@ -52,21 +52,22 @@ type senderCfg struct {
 	DemoSender bool   `mapstructure:"demo_sender"`
 }
 
-// New creates a Container that draws its cross-cutting configuration
-// (database_url, nats_url, use_embedded_nats, sender.hostname, sender.demo_sender)
-// from viper. ApplyDeprecatedAliases is invoked first so legacy keys promote
-// onto their canonical names before any LoadConfig call observes them.
-func New(ctx context.Context) *Container {
-	ApplyDeprecatedAliases()
-
+// New creates a Container from the root configuration the boot path has already
+// read, plus the sender section it reads itself.
+//
+// The root configuration arrives as an argument rather than being read here so
+// that a reference to a variable nobody set — `database_url: env://…` — is
+// reported by the boot path as a message, before a container exists to fail
+// halfway through building.
+func New(ctx context.Context, cfg config.RootConfig) *Container {
 	var sc senderCfg
-	LoadConfig("sender", &sc)
+	config.LoadSection("sender", &sc)
 
 	return &Container{
 		ctx:                ctx,
-		dbURL:              viper.GetString("database_url"),
-		natsURL:            viper.GetString("nats_url"),
-		useEmbeddedNats:    viper.GetBool("use_embedded_nats"),
+		dbURL:              cfg.DatabaseURL,
+		natsURL:            cfg.NatsURL,
+		useEmbeddedNats:    cfg.UseEmbeddedNats,
 		senderHostname:     sc.Hostname,
 		demoSender:         sc.DemoSender,
 		backoff:            delivery.DefaultBackoff,

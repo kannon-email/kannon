@@ -13,6 +13,7 @@ import (
 	"github.com/kannon-email/kannon/internal/publisher"
 	"github.com/kannon-email/kannon/internal/smtp"
 	"github.com/kannon-email/kannon/internal/utils"
+	"github.com/kannon-email/kannon/x/config"
 	"github.com/kannon-email/kannon/x/container"
 	"github.com/nats-io/nats.go/jetstream"
 	"google.golang.org/protobuf/proto"
@@ -60,7 +61,7 @@ var sendAckPolicy = utils.AckPolicy{
 // from viper under the "sender" key.
 func New(cnt *container.Container) container.Runnable {
 	var cfg Config
-	container.LoadConfig("sender", &cfg)
+	config.LoadSection("sender", &cfg)
 	cfg.setDefaults()
 	s := NewSMTPSender(cnt.NatsPublisher(), cnt.NatsJetStream(), cnt.Sender(), cfg)
 	return container.Runnable{
