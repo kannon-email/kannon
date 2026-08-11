@@ -54,13 +54,7 @@ func Execute() error {
 }
 
 func run(cmd *cobra.Command, _ []string) {
-	cfg, err := readConfig()
-	if err != nil {
-		slog.Error("error in reading config", "err", err)
-		os.Exit(1)
-	}
-
-	services, err := config.LoadServices()
+	cfg, services, err := readConfigAndServices()
 	if err != nil {
 		slog.Error("error in reading config", "err", err)
 		os.Exit(1)
@@ -78,10 +72,24 @@ func run(cmd *cobra.Command, _ []string) {
 func bootstrap(cmd *cobra.Command, cfg config.RootConfig, services config.Services) error {
 	ctx := cmd.Context()
 
-	// Before anything starts, since this is a deployment mistake rather than a request-time
-	// refusal: a process serving the Admin and Stats APIs without their credential would come
-	// up healthy and answer every request with unauthenticated. It stops the whole boot — the
-	// workers included — because a Kannon half up hides the reason the API is unusable.
+	// Both refusals below are read off the `services` section and answered before anything is
+	// built. The container and every runnable read sections of their own, any of which may name a
+	// variable only some other pod sets, so a mistake in what this process was asked to be has to
+	// be reported before a section belonging to a component it does not even run can panic first.
+	//
+	// A process with nothing to run used to log "Starting Kannon runnables: []" and exit 0, which
+	// reads as a clean shutdown in every dashboard there is. The ways to arrive here are all
+	// mistakes: a `services` section nobody filled in, an enabling variable spelled one way in the
+	// file and another in the manifest.
+	if len(services.Enabled()) == 0 {
+		return errors.New("this process was asked to run nothing: enable at least one component " +
+			"under `services` in the config file, e.g. `services: {api: {enabled: true}}`")
+	}
+
+	// A deployment mistake rather than a request-time refusal: a process serving the Admin and
+	// Stats APIs without their credential would come up healthy and answer every request with
+	// unauthenticated. It stops the whole boot — the workers included — because a Kannon half up
+	// hides the reason the API is unusable.
 	if err := requireAdminToken(services); err != nil {
 		return err
 	}
@@ -118,15 +126,6 @@ func bootstrap(cmd *cobra.Command, cfg config.RootConfig, services config.Servic
 	}
 	if services.Audit.Enabled {
 		reg.Register(kaudit.New(cnt))
-	}
-
-	// A process with nothing to run used to log "Starting Kannon runnables: []" and exit 0,
-	// which reads as a clean shutdown in every dashboard there is. Refused instead, because
-	// the ways to arrive here are all mistakes: a `services` section nobody filled in, an
-	// enabling variable spelled one way in the file and another in the manifest.
-	if len(reg.Names()) == 0 {
-		return errors.New("this process was asked to run nothing: enable at least one component " +
-			"under `services` in the config file, e.g. `services: {api: {enabled: true}}`")
 	}
 
 	slog.Info(fmt.Sprintf("Starting Kannon runnables: %v", reg.Names()))
@@ -188,4 +187,10 @@ func createDeprecatedRunFlag(name, service string) {
 		slog.Error("cannot deprecate flag", "name", name, "err", err)
 		os.Exit(1)
 	}
+	// MarkDeprecated also hides the flag, and a deprecated flag has to stay
+	// discoverable for as long as it works: the whole migration story is moving one
+	// Deployment at a time, and an operator still on the old path must be able to
+	// read the spellings out of --help rather than out of a manifest they may no
+	// longer have.
+	flags.Lookup(name).Hidden = false
 }

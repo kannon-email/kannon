@@ -182,6 +182,7 @@ services:
 - `env://NAME` is required: a process whose variable is not set refuses to boot, naming both the key and the variable.
 - `env://NAME:-default` falls back, and treats a variable set to the empty string as unset — POSIX `${NAME:-default}`.
 - The reference must be the whole value: `https://env://HOST/v1` is left alone, and a literal is escaped as `\env://NAME`.
+- A misspelled reference is refused rather than taken literally: `env:/NAME`, `ENV://NAME`, `env://my-name` and `env://NAME:default` (the default is introduced by `:-`) all stop the boot with a message, instead of handing the code the text you wrote.
 
 That is what makes a single file describe a whole installation: every Deployment mounts the same ConfigMap and differs only in the variables it sets. See [`k8s/deployment.yaml`](k8s/deployment.yaml) and [`examples/docker-compose/kannon.yaml`](examples/docker-compose/kannon.yaml).
 
@@ -262,7 +263,9 @@ Both still work, both are deprecated, and neither has to be dropped in one go �
 | `K_DATABASE_URL=…` in the environment   | `database_url: env://K_DATABASE_URL` in the file           |
 | `K_API_ADMIN_TOKEN=…`                   | `api.admin_token: env://K_API_ADMIN_TOKEN`                 |
 
-The variable does not have to be renamed: the file can go on referring to whatever the deployment already sets. What changes is that the reference is written down, so which settings come from the environment is visible in one place — and it works for **every** key, where the `K_` prefix only ever reached the four top-level ones plus `K_API_ADMIN_TOKEN`. `K_API_PORT`, `K_SENDER_HOSTNAME` and `K_TRACKER_PORT` were silently ignored; Kannon now warns at startup about every `K_` variable it finds.
+The variable does not have to be renamed: the file can go on referring to whatever the deployment already sets. What changes is that the reference is written down, so which settings come from the environment is visible in one place — and it works for **every** key, where the `K_` prefix only ever reached the four top-level ones plus `K_API_ADMIN_TOKEN`. `K_API_PORT`, `K_SENDER_HOSTNAME` and `K_TRACKER_PORT` were silently ignored; Kannon warns at startup about every `K_` variable it finds and does not read.
+
+The file wins. A `K_` variable is a fallback for a key the file says nothing about, so once a key is written down — as a value or as a reference — a variable left behind in a manifest cannot override it, and the startup warning stops naming it.
 
 > **Deprecated aliases:** `run-verifier` continues to work as an alias for `run-validator`, `run-bounce` for `run-tracker`, and the `bump:` YAML section (plus the `K_BUMP_PORT` env var) for `tracker:`. They will be removed in a future major version.
 

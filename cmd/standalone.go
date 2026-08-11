@@ -24,6 +24,9 @@ func init() {
 }
 
 func runStandalone(cmd *cobra.Command, _ []string) {
+	// readConfig and not readConfigAndServices: this subcommand *is* every component,
+	// which is the whole of what it means, so nothing in the file or on the command
+	// line selects anything here.
 	cfg, err := readConfig()
 	if err != nil {
 		slog.Error("error in reading config", "err", err)

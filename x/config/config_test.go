@@ -30,6 +30,17 @@ func writeConfig(t *testing.T, yaml string) {
 	Prepare(path)
 }
 
+// prepareWithoutAConfigFile is Prepare("") — a process started with no --config —
+// with the home directory pointed at an empty one. Without that, viper searches
+// the developer's own $HOME and a ~/.kannon.yaml sitting there decides the result:
+// the same leakage from the machine running the tests that the environ hook exists
+// to keep out of the deprecation warning.
+func prepareWithoutAConfigFile(t *testing.T) {
+	t.Helper()
+	t.Setenv("HOME", t.TempDir())
+	Prepare("")
+}
+
 func TestLoadSection_HappyPath(t *testing.T) {
 	viper.Reset()
 	t.Cleanup(viper.Reset)
@@ -152,7 +163,7 @@ func TestRead_ToleratesAMissingFile(t *testing.T) {
 	viper.Reset()
 	t.Cleanup(viper.Reset)
 
-	Prepare("")
+	prepareWithoutAConfigFile(t)
 
 	if _, err := Read(); err != nil {
 		t.Fatalf("Read: %v", err)
@@ -183,7 +194,7 @@ func TestRead_HonoursTheDeprecatedEnvPrefix(t *testing.T) {
 	t.Setenv("K_DATABASE_URL", "postgres://legacy@db/kannon")
 	t.Setenv("K_USE_EMBEDDED_NATS", "true")
 
-	Prepare("")
+	prepareWithoutAConfigFile(t)
 
 	cfg, err := Read()
 	if err != nil {
@@ -195,6 +206,75 @@ func TestRead_HonoursTheDeprecatedEnvPrefix(t *testing.T) {
 	}
 	if !cfg.UseEmbeddedNats {
 		t.Error("UseEmbeddedNats = false, want the value of K_USE_EMBEDDED_NATS")
+	}
+}
+
+// And the file outranks it, which is the half viper's own precedence gets backwards:
+// the environment sits above the config file there, so a K_ variable left behind in
+// a manifest beat the reference the file had just been migrated to name. An operator
+// who moved the key into the file and rotated the Secret it names would have gone on
+// authenticating with the credential they had just replaced.
+func TestRead_TheFileOutranksTheDeprecatedEnvPrefix(t *testing.T) {
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+
+	t.Setenv("K_DATABASE_URL", "postgres://stale@db/kannon")
+	t.Setenv(APIAdminTokenEnvVar, "stale-token")
+	t.Setenv("KANNON_ADMIN_TOKEN", "rotated-token")
+
+	writeConfig(t, `
+database_url: postgres://from-the-file/kannon
+api:
+  port: 50052
+  admin_token: env://KANNON_ADMIN_TOKEN
+`)
+
+	cfg, err := Read()
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+	if cfg.DatabaseURL != "postgres://from-the-file/kannon" {
+		t.Errorf("DatabaseURL = %q, want the value in the file", cfg.DatabaseURL)
+	}
+
+	token, err := APIAdminToken()
+	if err != nil {
+		t.Fatalf("APIAdminToken: %v", err)
+	}
+	if token != "rotated-token" {
+		t.Errorf("APIAdminToken() = %q, want the variable the file names", token)
+	}
+}
+
+// A promoted variable must not cost the operator the keys beside it. This is the
+// nested-Set trap: api.admin_token arriving through viper.Set would have replaced
+// the whole `api` map as far as the section read is concerned, and api.port with it.
+func TestRead_PromotingTheLegacyAdminTokenKeepsTheRestOfTheSection(t *testing.T) {
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+
+	t.Setenv(APIAdminTokenEnvVar, "s3cr3t-from-env")
+
+	writeConfig(t, "api:\n  port: 50052\n")
+
+	if _, err := Read(); err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+
+	token, err := APIAdminToken()
+	if err != nil {
+		t.Fatalf("APIAdminToken: %v", err)
+	}
+	if token != "s3cr3t-from-env" {
+		t.Errorf("APIAdminToken() = %q, want the value of %s", token, APIAdminTokenEnvVar)
+	}
+
+	var api struct {
+		Port uint `mapstructure:"port"`
+	}
+	LoadSection("api", &api)
+	if api.Port != 50052 {
+		t.Errorf("api.port = %d, want the value in the file to survive the promotion", api.Port)
 	}
 }
 
@@ -260,13 +340,18 @@ func TestAPIAdminToken_ReportsAnUnresolvableReference(t *testing.T) {
 
 // The deprecated environment spelling is what the Kubernetes manifests of every existing deployment
 // carry, and it is the one viper would otherwise lose: a nested key reached through UnmarshalKey
-// never consults the environment. Read with nothing else configured, the way a container running
-// only on env vars is.
+// never consults the environment. Read is what promotes it onto the key, so this goes through the
+// boot path with no file at all — the way a container running only on env vars is.
 func TestAPIAdminToken_FromTheDeprecatedEnvVar(t *testing.T) {
 	viper.Reset()
 	t.Cleanup(viper.Reset)
 
 	t.Setenv(APIAdminTokenEnvVar, "s3cr3t-from-env")
+
+	prepareWithoutAConfigFile(t)
+	if _, err := Read(); err != nil {
+		t.Fatalf("Read: %v", err)
+	}
 
 	got, err := APIAdminToken()
 	if err != nil {

@@ -37,13 +37,27 @@ type Config struct {
 // LoadConfig reads the audit section, defaults filled in. Read here rather than by each runnable that
 // needs it — the producer and the consumer both do — so that the section name and the default cannot
 // come to be spelled two ways, for the same reason ConfigureStream holds the stream's configuration
-// once. It panics on a malformed section, as every other section read does, since that is the
-// operator's file being wrong and not a runtime condition.
+// once. It panics on a malformed section, as every other section read on the boot path does, since
+// that is the operator's file being wrong and not a runtime condition.
 func LoadConfig() Config {
-	var cfg Config
-	config.LoadSection(configKey, &cfg)
-	cfg.setDefaults()
+	cfg, err := TryLoadConfig()
+	if err != nil {
+		panic(err)
+	}
 	return cfg
+}
+
+// TryLoadConfig is LoadConfig for the reader that must not fail on it: the API resolves this section
+// from inside its own runnable, where the panic would land in a goroutine nobody recovers and take
+// the whole process down — over a feature whose entire promise is that an audit trail Kannon cannot
+// write is not an outage for somebody's customers.
+func TryLoadConfig() (Config, error) {
+	var cfg Config
+	if err := config.TryLoadSection(configKey, &cfg); err != nil {
+		return Config{}, err
+	}
+	cfg.setDefaults()
+	return cfg, nil
 }
 
 // setDefaults fills in what an operator left unset.

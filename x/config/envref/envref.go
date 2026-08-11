@@ -15,8 +15,11 @@
 // variable can be called whatever the deployment already calls it.
 //
 // The reference must span the whole leaf value: `env://NAME` is resolved,
-// `https://env://NAME/v1` is not. A literal value starting with `env://` can be
-// escaped as `\env://...`.
+// `https://env://NAME/v1` is not. A value that opens with the scheme and is not
+// a well-formed reference — `env:/NAME`, `ENV://NAME`, `env://my-var`,
+// `env://NAME:default` — is refused rather than passed through as a literal,
+// because it is a typo in a reference and never a value Kannon has a use for. A
+// literal that really does start with `env://` can be escaped as `\env://...`.
 package envref
 
 import (
@@ -37,6 +40,15 @@ import (
 // newlines, which is why it is matched with (?s:.*).
 var envRefPattern = regexp.MustCompile(`^env://([A-Za-z_][A-Za-z0-9_]*)(?::-((?s:.*)))?$`)
 
+// envSchemePattern matches a value that was meant to be a reference, whether or
+// not it is a well-formed one. Anything it matches and envRefPattern does not is
+// a mistake in the spelling, and treating it as a literal is how the text of a
+// ConfigMap came to be usable as an admin token: `admin_token:
+// env://kannon-admin-token` resolved to itself, and a non-blank string is all
+// the boot check asks for. Deliberately narrower than the scheme alone — a value
+// opening with `env:` and no slash is left as a literal.
+var envSchemePattern = regexp.MustCompile(`(?i)^env:/`)
+
 // MissingEnvError is returned when a reference without an inline default points
 // at an env var that is not set. mapstructure wraps it with the config key, so
 // errors.As still finds it after the unmarshal.
@@ -49,6 +61,22 @@ type MissingEnvError struct {
 
 func (e *MissingEnvError) Error() string {
 	return fmt.Sprintf("required env var %q is not set (referenced by %q)", e.Name, e.Ref)
+}
+
+// MalformedRefError is returned for a value that opens with the reference scheme
+// and is not a reference. It is an error rather than a literal because the whole
+// promise of the syntax is that a variable nobody set stops the boot, and a
+// reference nobody can parse would fail that promise open — silently, on the one
+// key where silence costs the most.
+type MalformedRefError struct {
+	// Ref is the raw config value.
+	Ref string
+}
+
+func (e *MalformedRefError) Error() string {
+	return fmt.Sprintf("malformed reference %q: write env://NAME or env://NAME:-default, where NAME "+
+		"matches [A-Za-z_][A-Za-z0-9_]* and an inline default is introduced by `:-` "+
+		`(a literal value starting with the scheme is escaped as \env://...)`, e.Ref)
 }
 
 // Options tunes resolution.
@@ -79,13 +107,16 @@ func Decoder() viper.DecoderConfigOption {
 	return DecoderOption(kannonOptions)
 }
 
-// Resolve applies the reference syntax to a single value, returning it unchanged
-// when it holds no reference. For the settings read through viper's accessors
-// rather than through a struct — api.admin_token is the one — since the hook can
-// only run while something is being decoded.
-func Resolve(raw string) (string, error) {
-	value, _, err := resolve(raw, kannonOptions)
-	return value, err
+// Name reports the environment variable a value refers to, and whether it refers
+// to one at all — without looking that variable up, so an unset one is not an
+// error here. For the deprecation warning, which has to tell a K_ variable the
+// file has migrated to naming from one that is still setting nothing.
+func Name(raw string) (string, bool) {
+	m := envRefPattern.FindStringSubmatch(raw)
+	if m == nil {
+		return "", false
+	}
+	return m[1], true
 }
 
 // Hook returns a decode hook that rewrites every string leaf holding a
@@ -129,6 +160,9 @@ func resolve(raw string, opts Options) (value string, isRef bool, err error) {
 	// absent default group (-1) from an empty one.
 	idx := envRefPattern.FindStringSubmatchIndex(raw)
 	if idx == nil {
+		if envSchemePattern.MatchString(raw) {
+			return "", true, &MalformedRefError{Ref: raw}
+		}
 		return raw, false, nil
 	}
 	name := raw[idx[2]:idx[3]]
@@ -158,6 +192,30 @@ func DecoderOption(opts Options) viper.DecoderConfigOption {
 	return viper.DecodeHook(mapstructure.ComposeDecodeHookFunc(
 		Hook(opts),
 		mapstructure.StringToTimeDurationHookFunc(),
-		mapstructure.StringToSliceHookFunc(","),
+		stringToWeakSliceHookFunc(","),
 	))
+}
+
+// stringToWeakSliceHookFunc is viper's own string-to-slice hook, reproduced here
+// because it is unexported there.
+//
+// mapstructure.StringToSliceHookFunc is deliberately not used, and viper does not
+// use it either: since mapstructure v2 it splits only when the destination is
+// exactly []string, so a comma-separated value decoded into []time.Duration or a
+// named slice type would stop being split here while the same YAML kept working
+// everywhere viper's default chain is used. Nothing in Kannon's config is such a
+// field today, which is precisely why the divergence would be found late.
+func stringToWeakSliceHookFunc(sep string) mapstructure.DecodeHookFunc {
+	return func(f reflect.Type, t reflect.Type, data any) (any, error) {
+		if f.Kind() != reflect.String || t.Kind() != reflect.Slice {
+			return data, nil
+		}
+		// Not data.(string), for the reason Hook says: a named string type
+		// reaches the chain when a value arrives through viper.Set.
+		raw := reflect.ValueOf(data).String()
+		if raw == "" {
+			return []string{}, nil
+		}
+		return strings.Split(raw, sep), nil
+	}
 }

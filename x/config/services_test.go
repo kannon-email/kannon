@@ -7,21 +7,9 @@ import (
 	"github.com/spf13/viper"
 )
 
-// enabled lists the services a Services says to run, for assertions that read
-// like the config file does.
-func enabled(s Services) []string {
-	var names []string
-	for _, svc := range s.each() {
-		if *svc.enabled {
-			names = append(names, svc.name)
-		}
-	}
-	return names
-}
-
 func assertEnabled(t *testing.T, got Services, want ...string) {
 	t.Helper()
-	if g := strings.Join(enabled(got), ","); g != strings.Join(want, ",") {
+	if g := strings.Join(got.Enabled(), ","); g != strings.Join(want, ",") {
 		t.Errorf("enabled services = [%s], want [%s]", g, strings.Join(want, ","))
 	}
 }

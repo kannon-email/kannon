@@ -74,6 +74,22 @@ func LoadServices() (Services, error) {
 	return s, nil
 }
 
+// Enabled names the runnables this Services says to start, in registration order.
+//
+// It exists so that the boot path can refuse a process asked to run nothing before
+// it builds anything: the container and the runnables read sections of their own,
+// and a stack trace about one of those is a worse answer than the mistake that
+// actually stopped the pod.
+func (s Services) Enabled() []string {
+	var names []string
+	for _, svc := range s.each() {
+		if *svc.enabled {
+			names = append(names, svc.name)
+		}
+	}
+	return names
+}
+
 // AllServices enables every runnable, which is what `kannon standalone` is.
 func AllServices() Services {
 	var s Services

@@ -30,3 +30,25 @@ func readConfig() (config.RootConfig, error) {
 
 	return cfg, nil
 }
+
+// readConfigAndServices is readConfig plus the section saying which components this
+// process is, for the commands that start components.
+//
+// The two live in one function because their order matters and is the cmd layer's
+// to get wrong: config.Read is what promotes the deprecated spellings, and two of
+// them — --run-bounce and --run-verifier — are keys config.LoadServices then reads.
+// Read the services first and those aliases are promoted too late, the registry
+// comes up empty, and the process exits as if it had been asked to run nothing.
+func readConfigAndServices() (config.RootConfig, config.Services, error) {
+	cfg, err := readConfig()
+	if err != nil {
+		return config.RootConfig{}, config.Services{}, err
+	}
+
+	services, err := config.LoadServices()
+	if err != nil {
+		return config.RootConfig{}, config.Services{}, err
+	}
+
+	return cfg, services, nil
+}
