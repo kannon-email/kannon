@@ -124,11 +124,25 @@ This mode:
 
 ### Local Run (Manual Component Selection)
 
+Name the components you want in the config file:
+
+```yaml
+services:
+  api:
+    enabled: true
+  smtp:
+    enabled: true
+  sender:
+    enabled: true
+  dispatcher:
+    enabled: true
+```
+
 ```sh
 git clone https://github.com/kannon-email/kannon.git
 cd kannon
 go build -o kannon .
-./kannon --run-api --run-smtp --run-sender --run-dispatcher --config ./config.yaml
+./kannon --config ./config.yaml
 ```
 
 > **Note:** This mode requires an external NATS server configured in your config file (or `use_embedded_nats: true`).
@@ -155,20 +169,49 @@ docker compose -f examples/docker-compose/docker-compose.yaml up
 
 ## Configuration
 
-Kannon reads configuration from a YAML file and, for a handful of top-level keys, from the environment. CLI flags select which components run. Precedence: CLI flag > env > YAML.
+Kannon reads one YAML file. Every setting lives there — including which components the process runs — and any value can be taken from the environment by naming the variable it should come from:
 
-The config file is `--config <path>`, defaulting to `$HOME/.kannon.yaml`.
+```yaml
+database_url: env://KANNON_DATABASE_URL             # required: refuses to boot when unset
+nats_url: env://KANNON_NATS_URL:-nats://nats:4222   # with a fallback
+services:
+  stats:
+    enabled: env://KANNON_ENABLE_STATS:-false
+```
 
-**Top-level options** (these are the only keys that can be set from the environment):
+- `env://NAME` is required: a process whose variable is not set refuses to boot, naming both the key and the variable.
+- `env://NAME:-default` falls back, and treats a variable set to the empty string as unset — POSIX `${NAME:-default}`.
+- The reference must be the whole value: `https://env://HOST/v1` is left alone, and a literal is escaped as `\env://NAME`.
 
-| YAML key            | Env var                | Type   | Default    | Description                                                        |
-| ------------------- | ---------------------- | ------ | ---------- | ------------------------------------------------------------------ |
-| `database_url`      | `K_DATABASE_URL`       | string | (required) | PostgreSQL connection string                                       |
-| `nats_url`          | `K_NATS_URL`           | string | (required) | NATS server URL — not needed when NATS is embedded                 |
-| `use_embedded_nats` | `K_USE_EMBEDDED_NATS`  | bool   | false      | Run an in-process NATS server. `kannon standalone` forces this on  |
-| `debug`             | `K_DEBUG`              | bool   | false      | Enable debug logging                                               |
+That is what makes a single file describe a whole installation: every Deployment mounts the same ConfigMap and differs only in the variables it sets. See [`k8s/deployment.yaml`](k8s/deployment.yaml) and [`examples/docker-compose/kannon.yaml`](examples/docker-compose/kannon.yaml).
 
-**Per-component options** (YAML only, under their own section):
+The file is `--config <path>`, defaulting to `$HOME/.kannon.yaml`.
+
+**Which components run** — under `services`, all of them off unless enabled:
+
+| YAML key                      | Description                                                        |
+| ----------------------------- | ------------------------------------------------------------------ |
+| `services.api.enabled`        | API server (Mailer, Admin, Stats) — requires `api.admin_token`      |
+| `services.smtp.enabled`       | Inbound SMTP server                                                |
+| `services.sender.enabled`     | Sender worker                                                      |
+| `services.dispatcher.enabled` | Dispatcher worker                                                  |
+| `services.validator.enabled`  | Validator worker                                                   |
+| `services.tracker.enabled`    | Tracker worker (opens, clicks, bounces)                            |
+| `services.stats.enabled`      | Stats worker                                                       |
+| `services.audit.enabled`      | Audit writer — needs `audit.enabled` as well, see below             |
+
+A process with nothing enabled refuses to boot rather than exit as if it had done its job, and a misspelled name under `services` is refused rather than ignored.
+
+**Top-level options**:
+
+| YAML key            | Type   | Default    | Description                                                        |
+| ------------------- | ------ | ---------- | ------------------------------------------------------------------ |
+| `database_url`      | string | (required) | PostgreSQL connection string                                       |
+| `nats_url`          | string | (required) | NATS server URL — not needed when NATS is embedded                 |
+| `use_embedded_nats` | bool   | false      | Run an in-process NATS server. `kannon standalone` forces this on  |
+| `debug`             | bool   | false      | Enable debug logging                                               |
+
+**Per-component options**, under their own section:
 
 | YAML key              | Type     | Default        | Description                                     |
 | --------------------- | -------- | -------------- | ----------------------------------------------- |
@@ -187,43 +230,39 @@ The config file is `--config <path>`, defaulting to `$HOME/.kannon.yaml`.
 | `audit.enabled`       | bool     | false          | Record every authorization decision (see below) |
 | `audit.retention`     | duration | 720h (30 days) | How long an Audit Record is kept                |
 
-**Component selection** (CLI flag, or the same name as a top-level YAML key):
-
-| Flag / YAML key   | Default | Description              |
-| ----------------- | ------- | ------------------------ |
-| `--run-api`       | false   | Enable API server        |
-| `--run-smtp`      | false   | Enable inbound SMTP server |
-| `--run-sender`    | false   | Enable sender worker     |
-| `--run-dispatcher`| false   | Enable dispatcher worker |
-| `--run-validator` | false   | Enable validator worker  |
-| `--run-tracker`   | false   | Enable tracker worker    |
-| `--run-stats`     | false   | Enable stats worker      |
-| `--run-audit`     | false   | Enable audit writer — needs `audit.enabled` |
-
-> [!IMPORTANT]
-> **Environment variables work for the four top-level keys in the first table, and for `K_API_ADMIN_TOKEN`.** Every other nested key (`K_API_PORT`, `K_SENDER_HOSTNAME`, `K_SMTP_ADDRESS`, …) and the `run-*` flags (`K_RUN_API`, …) are **silently ignored** — set them in the YAML file, or pass the `--run-*` flags on the command line.
-
 **Access control**:
 
-| YAML key          | Env var              | Type   | Default    | Description                                                     |
-| ----------------- | -------------------- | ------ | ---------- | --------------------------------------------------------------- |
-| `api.admin_token` | `K_API_ADMIN_TOKEN`  | string | (required) | Credential authenticating the Admin API and both Stats APIs      |
+| YAML key          | Type   | Default    | Description                                                     |
+| ----------------- | ------ | ---------- | --------------------------------------------------------------- |
+| `api.admin_token` | string | (required) | Credential authenticating the Admin API and both Stats APIs      |
 
 > [!IMPORTANT]
-> `api.admin_token` is the one nested key that **can** be set from the environment, as `K_API_ADMIN_TOKEN` — a secret belongs in a Secret rather than in a ConfigMap. It is required whenever `--run-api` is set: a process asked to serve the API without it refuses to boot, rather than come up answering every Admin and Stats request with `unauthenticated`. Workers that do not serve the API need no token.
+> Write `admin_token: env://KANNON_ADMIN_TOKEN` and keep the value in a Secret rather than in the ConfigMap holding the rest of the file. It is required whenever `services.api.enabled` is set: a process asked to serve the API without it refuses to boot, rather than come up answering every Admin and Stats request with `unauthenticated`. Workers that do not serve the API need no token.
 
 > [!WARNING]
 > The admin token is a single shared secret that authorizes **everything on every Domain** — creating Domains, minting API Keys, rewriting Templates and reading any Domain's per-Delivery statistics. It names no operator, so an Audit Record can only say that a holder acted, and it is revoked by changing it and restarting. Give it to as few callers as possible, and keep the API listener off untrusted networks.
 
 **Audit trail** (off by default):
 
-Set `audit.enabled` and run a process with `--run-audit`, and Kannon writes an **Audit Record** for every authorization decision it reaches — permitted, refused, and the case where nothing authenticated a request that reached a guarded operation. Records land in the `audit_records` table and are deleted automatically, hourly, once older than `audit.retention`. Decisions also go on the NATS subjects `kannon.audit.allowed` and `kannon.audit.denied`, so refusals can be alerted on without querying the table.
+Set `audit.enabled` and run a process with `services.audit.enabled`, and Kannon writes an **Audit Record** for every authorization decision it reaches — permitted, refused, and the case where nothing authenticated a request that reached a guarded operation. Records land in the `audit_records` table and are deleted automatically, hourly, once older than `audit.retention`. Decisions also go on the NATS subjects `kannon.audit.allowed` and `kannon.audit.denied`, so refusals can be alerted on without querying the table.
 
-Both halves are needed. `audit.enabled` alone publishes Records that nobody writes down, and they expire off the stream after seven days — the API logs a warning when it sees that happening. `--run-audit` alone consumes nothing, and the worker says so and stops rather than idling. Leave `audit.enabled` unset and nothing is collected at all: the API process does not even connect to NATS on account of the feature.
+Both halves are needed, and they are not the same key: `audit.enabled` is the feature — whether decisions are published at all — while `services.audit.enabled` is the writer that turns them into rows. `audit.enabled` alone publishes Records that nobody writes down, and they expire off the stream after seven days — the API logs a warning when it sees that happening. The writer alone consumes nothing, and says so and stops rather than idling. Leave `audit.enabled` unset and nothing is collected at all: the API process does not even connect to NATS on account of the feature.
 
 An Audit Record holds the identifier of the credential that acted, the Action, the Resource path, the outcome, the instant, the Grants the credential held, and — when the request carried an `X-Kannon-Attribution` header — the person that header named. **That claim is personal data**, which is why its retention is yours to set. The caller's IP address is deliberately **not** collected. Kannon never reads this table back, so nothing in it can influence an authorization decision. See [ADR 0010](./docs/adr/0010-every-authorization-decision-becomes-an-audit-record.md).
 
 - See [`examples/docker-compose/kannon.yaml`](examples/docker-compose/kannon.yaml) for a full example.
+
+### Migrating from `K_` variables and `--run-*` flags
+
+Both still work, both are deprecated, and neither has to be dropped in one go — the `services` section is OR-ed with the flags, so a deployment can move one component at a time.
+
+| Was                                     | Now                                                       |
+| --------------------------------------- | --------------------------------------------------------- |
+| `--run-stats`                           | `services.stats.enabled: true`                            |
+| `K_DATABASE_URL=…` in the environment   | `database_url: env://K_DATABASE_URL` in the file           |
+| `K_API_ADMIN_TOKEN=…`                   | `api.admin_token: env://K_API_ADMIN_TOKEN`                 |
+
+The variable does not have to be renamed: the file can go on referring to whatever the deployment already sets. What changes is that the reference is written down, so which settings come from the environment is visible in one place — and it works for **every** key, where the `K_` prefix only ever reached the four top-level ones plus `K_API_ADMIN_TOKEN`. `K_API_PORT`, `K_SENDER_HOSTNAME` and `K_TRACKER_PORT` were silently ignored; Kannon now warns at startup about every `K_` variable it finds.
 
 > **Deprecated aliases:** `run-verifier` continues to work as an alias for `run-validator`, `run-bounce` for `run-tracker`, and the `bump:` YAML section (plus the `K_BUMP_PORT` env var) for `tracker:`. They will be removed in a future major version.
 
@@ -457,8 +496,9 @@ curl -sX POST http://localhost:50051/kannon.stats.apiv2.StatsApiV2/GetAggregated
 
 ### Kubernetes
 
-- See [`k8s/deployment.yaml`](k8s/deployment.yaml) for a starting manifest: it runs every component in one pod and exposes the API (50051), the Tracker (8080) and the inbound SMTP listener (25).
-- Supply a ConfigMap named `kannon-config` with a `config.yaml` key. The manifest mounts it at `/etc/kannon`, and Kannon exits at boot if it is missing — most settings cannot be set from the environment.
+- See [`k8s/deployment.yaml`](k8s/deployment.yaml) for a starting manifest: a ConfigMap holding the whole configuration, and one pod running every component, exposing the API (50051), the Tracker (8080) and the inbound SMTP listener (25).
+- To split the components across Deployments, mount that same ConfigMap in each of them and set only the `KANNON_ENABLE_*` variables that pod needs — one file describes the installation, and each Deployment says which part of it it is.
+- Kannon exits at boot if `--config` points at a file that is not there, and refuses to start if the file enables no component.
 - Terminate TLS in front of the Tracker: tracking URLs are always `https://stats.<your-domain>/…` while the Tracker itself serves plain HTTP.
 
 ### Docker Compose
@@ -490,7 +530,7 @@ Kannon includes a **demo sender mode** for testing and development without actua
 
 ### Enabling Demo Mode
 
-Set `sender.demo_sender: true` in your config file — there is no CLI flag or env var for it:
+Set `sender.demo_sender: true` in your config file:
 
 ```yaml
 sender:
@@ -499,10 +539,10 @@ sender:
   demo_sender: true # Enable demo sender mode
 ```
 
-Then start Kannon as usual:
+Then start Kannon as usual, with `services.api`, `services.sender`, `services.dispatcher`, `services.validator` and `services.stats` enabled:
 
 ```sh
-./kannon --run-api --run-sender --run-dispatcher --run-validator --run-stats --config ./config.yaml
+./kannon --config ./config.yaml
 ```
 
 ### Demo Sender Behavior

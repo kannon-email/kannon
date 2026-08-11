@@ -142,7 +142,7 @@ func (r failingRepository) DeleteOlderThan(context.Context, time.Time) (int64, e
 }
 
 // TestTheWriterRefusesToStartWhenCollectionIsOff is the flag and the key being two halves of one
-// switch: --run-audit alone consumes nothing, because audit.enabled governs the producer. The worker
+// switch: the writer alone consumes nothing, because audit.enabled governs the producer. The worker
 // stops rather than sitting against an empty stream, and it names the key so the operator can tell
 // which half they are missing.
 //

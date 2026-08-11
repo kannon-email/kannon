@@ -35,7 +35,7 @@ docker-compose -f examples/docker-compose/docker-compose.yaml up
 Then, in another terminal:
 
 ```sh
-./kannon --run-api --run-smtp --run-sender --run-dispatcher --config ./examples/docker-compose/kannon.yaml
+./kannon --config ./examples/docker-compose/kannon.yaml
 ```
 
 ### 4. Run Tests

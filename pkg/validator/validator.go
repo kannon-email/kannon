@@ -37,7 +37,7 @@ func (v *Validator) log() *slog.Logger {
 }
 
 // New constructs the validator runnable. The validator has no configurable
-// knobs today, so it does not call container.LoadConfig.
+// knobs today, so it does not call config.LoadSection.
 func New(cnt *container.Container) container.Runnable {
 	return container.Runnable{
 		Name: "validator",

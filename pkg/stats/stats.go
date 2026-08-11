@@ -16,6 +16,7 @@ import (
 	"github.com/kannon-email/kannon/internal/utils"
 	"github.com/kannon-email/kannon/internal/values"
 	"github.com/kannon-email/kannon/proto/kannon/stats/types"
+	"github.com/kannon-email/kannon/x/config"
 	"github.com/kannon-email/kannon/x/container"
 	"google.golang.org/protobuf/proto"
 
@@ -43,7 +44,7 @@ type statsHandler struct {
 // viper under the "stats" key.
 func New(cnt *container.Container) container.Runnable {
 	var cfg Config
-	container.LoadConfig("stats", &cfg)
+	config.LoadSection("stats", &cfg)
 	cfg.setDefaults()
 	return container.Runnable{
 		Name: "stats",

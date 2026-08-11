@@ -1,6 +1,7 @@
 package tracker
 
 import (
+	"github.com/kannon-email/kannon/x/config"
 	"github.com/kannon-email/kannon/x/container"
 )
 
@@ -18,7 +19,7 @@ func (c *Config) setDefaults() {
 // viper under the "tracker" key.
 func New(cnt *container.Container) container.Runnable {
 	var cfg Config
-	container.LoadConfig("tracker", &cfg)
+	config.LoadSection("tracker", &cfg)
 	cfg.setDefaults()
 	srv := NewServer(cnt, cfg)
 	return container.Runnable{

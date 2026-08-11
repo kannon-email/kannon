@@ -214,6 +214,10 @@ Notes:
 
 ### Internal mechanics (not domain)
 
+**Component**:
+One of the eight things a Kannon process can run — API, SMTPServer, SMTPSender, Dispatcher, Validator, Tracker, Stats, Audit writer. The binary is all of them and a deployment decides which each process starts, under `services` in the config file (ADR 0011). Called a **Runnable** in the code (`container.Runnable`), which is the mechanism; *Component* is the word for the thing an operator turns on.
+_Avoid_: microservice (there is one binary), module, plugin
+
 **Pool**:
 The internal work-in-progress board for in-flight Deliveries (PostgreSQL table `sending_pool_emails`). Rows are **deleted** on terminal outcomes — successful or failed — rather than flagged. Pool state values are implementation detail and intentionally NOT part of the shared language; see `docs/REFACTORING.md` §1 and `internal/db/pool.go`.
 _Avoid_: Queue, SendingPool (when discussed as a domain concept — it isn't one)
@@ -251,4 +255,5 @@ _Avoid_: Reaper / Reaping, Sweep / Sweeper, Requeue, Janitor, Unstick. *Stranded
 - "Batch" connotes a processing job and reads oddly at cardinality 1 ("a batch of one"). Accepted as a deliberate trade-off — chosen for its accuracy about the multi-recipient shape and to keep "Message" free for the SMTP/RFC sense.
 - "Envelope" puns on the SMTP envelope (`MAIL FROM`/`RCPT TO`). Accepted: the **Envelope** here *is* the SMTP envelope plus its payload, so the pun is informative rather than misleading.
 - The proto type `Sender{email, alias}` is misaligned with RFC 5322, where `Sender` ≠ `From` (Sender = submitter, From = author). The proto is closer to `From`. Renaming is wire-breaking and deferred; flagged for a future major version.
-- `ARCHITECTURE.md` previously used both "Validator" and "Verifier" for the same module. Resolved under PRD #322: **Validator** is canonical and "Verifier" has been removed from the docs and Go code; `run-verifier` / `K_RUN_VERIFIER` remain as deprecated CLI/env aliases that log a warning at startup, until removed in a future major version.
+- `ARCHITECTURE.md` previously used both "Validator" and "Verifier" for the same module. Resolved under PRD #322: **Validator** is canonical and "Verifier" has been removed from the docs and Go code; `--run-verifier` remains a deprecated CLI alias that logs a warning at startup, until removed in a future major version. (It was documented as also being settable as `K_RUN_VERIFIER`; that never worked — no `run-*` key was ever reachable from the environment, which is part of what ADR 0011 set out to fix.)
+- `audit.enabled` and `services.audit.enabled` are one word apart and mean different things: the first is whether authorization decisions are published at all (ADR 0010), the second whether *this process* runs the writer that turns them into rows. Both are needed to collect an audit trail. Accepted as a naming cost in ADR 0011, on the grounds that moving `audit.enabled` would break a documented setting that already carries a retention obligation.

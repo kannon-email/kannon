@@ -1,6 +1,6 @@
 // Package audit runs the writer of the authorization register: one JetStream consumer turning the
 // decisions a Guard published into rows, and beside it the sweep that enforces the retention the
-// operator asked for (ADR 0010). Selected by --run-audit, like every other Kannon process.
+// operator asked for (ADR 0010). Selected by `services.audit.enabled`, like every other Kannon component.
 //
 // It is a runnable of its own rather than two more goroutines inside stats, which already consumes
 // events and persists them and which every deployment runs. Folding it in would have needed no

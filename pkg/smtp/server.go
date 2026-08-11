@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/emersion/go-smtp"
+	"github.com/kannon-email/kannon/x/config"
 	"github.com/kannon-email/kannon/x/container"
 	"github.com/nats-io/nats.go"
 )
@@ -15,7 +16,7 @@ import (
 // from viper under the "smtp" key.
 func New(cnt *container.Container) container.Runnable {
 	var cfg Config
-	container.LoadConfig("smtp", &cfg)
+	config.LoadSection("smtp", &cfg)
 	cfg.setDefaults()
 	return container.Runnable{
 		Name: "smtp",

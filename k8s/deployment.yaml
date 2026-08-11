@@ -1,3 +1,61 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kannon-config
+data:
+  # One file for the whole installation. Every setting lives here, and anything
+  # that differs between deployments — which components a pod runs, the database
+  # it connects to, the admin credential — is a reference to an environment
+  # variable rather than a value: `env://NAME` is required and refuses the boot
+  # when unset, `env://NAME:-default` falls back.
+  #
+  # That is what lets a Deployment per component share this ConfigMap and differ
+  # only in the KANNON_ENABLE_* variables it sets. This example runs every
+  # component in one pod, so it enables them all with a default of true.
+  config.yaml: |
+    database_url: env://KANNON_DATABASE_URL
+    nats_url: env://KANNON_NATS_URL:-nats://nats:4222
+    debug: env://KANNON_DEBUG:-false
+
+    services:
+      api:
+        enabled: env://KANNON_ENABLE_API:-true
+      smtp:
+        enabled: env://KANNON_ENABLE_SMTP:-true
+      sender:
+        enabled: env://KANNON_ENABLE_SENDER:-true
+      dispatcher:
+        enabled: env://KANNON_ENABLE_DISPATCHER:-true
+      validator:
+        enabled: env://KANNON_ENABLE_VALIDATOR:-true
+      tracker:
+        enabled: env://KANNON_ENABLE_TRACKER:-true
+      stats:
+        enabled: env://KANNON_ENABLE_STATS:-true
+      # The writer of the authorization register. On its own it collects nothing:
+      # the decisions are published only when `audit.enabled` is set, so this and
+      # that key are two halves of one switch. Both are off by default because an
+      # Audit Record holds personal data, and its retention (`audit.retention`,
+      # one month unless stated) is the operator's obligation rather than
+      # Kannon's preference.
+      audit:
+        enabled: env://KANNON_ENABLE_AUDIT:-false
+
+    api:
+      port: 50051
+      # Authenticates the Admin API and both Stats APIs, and authorizes
+      # everything on every Domain. Referenced rather than written here so the
+      # value stays in a Secret; the pod refuses to boot without it whenever it
+      # serves the API.
+      admin_token: env://KANNON_ADMIN_TOKEN
+
+    sender:
+      hostname: env://KANNON_SENDER_HOSTNAME
+
+    audit:
+      enabled: env://KANNON_ENABLE_AUDIT:-false
+      retention: env://KANNON_AUDIT_RETENTION:-720h
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -17,32 +75,16 @@ spec:
         - name: kannon-cp
           image: ghcr.io/kannon-email/kannon/kannon
           imagePullPolicy: Always
-          # --run-audit starts the writer of the authorization register, and on
-          # its own it collects nothing: the decisions are published only when
-          # `audit.enabled` is set in the ConfigMap, so the flag and that key
-          # are two halves of one switch. The key stays off by default because
-          # an Audit Record holds personal data, and its retention
-          # (`audit.retention`, one month unless stated) is the operator's
-          # obligation rather than Kannon's preference.
-          args:
-            [
-              '--run-api',
-              '--run-tracker',
-              '--run-dispatcher',
-              '--run-validator',
-              '--run-sender',
-              '--run-smtp',
-              '--run-stats',
-              '--run-audit',
-              '--config',
-              '/etc/kannon/config.yaml',
-            ]
+          args: ['--config', '/etc/kannon/config.yaml']
           env:
-            # Authenticates the Admin API and both Stats APIs, and authorizes
-            # everything on every Domain. This pod runs --run-api, so without it
-            # Kannon refuses to boot. It is the one nested setting that can come
-            # from the environment, which is what keeps it out of the ConfigMap.
-            - name: K_API_ADMIN_TOKEN
+            - name: KANNON_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: kannon-database
+                  key: url
+            - name: KANNON_SENDER_HOSTNAME
+              value: kannon.example.com
+            - name: KANNON_ADMIN_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: kannon-admin-token
@@ -68,10 +110,9 @@ spec:
               mountPath: /etc/kannon
               readOnly: true
       volumes:
-        # Supply your own ConfigMap with a `config.yaml` key. Kannon exits at
-        # boot when --config points at a file that is not there, and most
-        # settings (api.port, sender.hostname, smtp.*, tracker.port, stats.*,
-        # audit.*) can only be set in that file — not from the environment.
+        # Kannon exits at boot when --config points at a file that is not there,
+        # and a process with no component enabled is refused rather than left to
+        # exit as if it had done its job.
         - name: config
           configMap:
             name: kannon-config
