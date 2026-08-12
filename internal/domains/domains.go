@@ -9,9 +9,7 @@ import (
 
 	"github.com/kannon-email/kannon/internal/dkim"
 	"github.com/kannon-email/kannon/internal/tracking"
-	"github.com/kannon-email/kannon/internal/trackingpb"
 	"github.com/kannon-email/kannon/internal/values"
-	pb "github.com/kannon-email/kannon/proto/kannon/admin/apiv1"
 )
 
 // Domain errors.
@@ -85,14 +83,3 @@ func (d *Domain) Domain() string { return d.domain.String() }
 // TrackingPolicy is the Domain's Tracking Policy: the ceiling every Batch and
 // Recipient of this Domain is resolved against.
 func (d *Domain) TrackingPolicy() tracking.Policy { return d.tracking }
-
-// Pb translates to the proto wire type. Only the domain name, the public DKIM
-// key and the Tracking Policy are exposed on the wire — the private key never
-// leaves the server.
-func (d *Domain) Pb() *pb.Domain {
-	return &pb.Domain{
-		Domain:     d.domain.String(),
-		DkimPubKey: d.dkimPublicKey,
-		Tracking:   trackingpb.FromPolicy(d.tracking),
-	}
-}

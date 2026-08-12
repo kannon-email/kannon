@@ -7,7 +7,6 @@ import (
 
 	"github.com/kannon-email/kannon/internal/authz"
 	"github.com/kannon-email/kannon/internal/stats"
-	"github.com/kannon-email/kannon/proto/kannon/stats/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -133,9 +132,7 @@ func TestWritesNeedNoPrincipal(t *testing.T) {
 		stats.WithAggregatedStatsRepository(stats.NewInMemAggregatedStatsRepository()))
 	ts := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 
-	stat := stats.NewStat("u@example.com", "msg-worker", exampleCom, ts, &types.StatsData{
-		Data: &types.StatsData_Delivered{},
-	})
+	stat := stats.NewStat("u@example.com", "msg-worker", exampleCom, ts, stats.Delivered())
 	require.NoError(t, service.InsertStat(context.Background(), stat))
 	require.NoError(t, service.IncrementAggregatedStat(context.Background(), exampleCom, ts, stats.TypeDelivered))
 
@@ -153,9 +150,7 @@ func seededService(t *testing.T) *stats.Service {
 		stats.WithAggregatedStatsRepository(stats.NewInMemAggregatedStatsRepository()))
 	ts := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 
-	stat := stats.NewStat("u@example.com", "msg-seeded", exampleCom, ts, &types.StatsData{
-		Data: &types.StatsData_Delivered{},
-	})
+	stat := stats.NewStat("u@example.com", "msg-seeded", exampleCom, ts, stats.Delivered())
 	require.NoError(t, service.InsertStat(t.Context(), stat))
 	require.NoError(t, service.IncrementAggregatedStat(t.Context(), exampleCom, ts, stats.TypeDelivered))
 

@@ -28,7 +28,7 @@ func (r *StatsRepository) Insert(ctx context.Context, stat *stats.Stat) error {
 		Type:      StatsType(stat.Type),
 		Timestamp: toPgTimestamp(stat.Timestamp),
 		Domain:    stat.Domain.String(),
-		Data:      stat.Data,
+		Data:      StatsDataFromOutcome(stat.Outcome),
 	})
 }
 
@@ -114,6 +114,6 @@ func toDomainStat(row Stat) (*stats.Stat, error) {
 		row.MessageID,
 		domain,
 		row.Timestamp.Time,
-		row.Data,
+		row.Data.Outcome(),
 	), nil
 }

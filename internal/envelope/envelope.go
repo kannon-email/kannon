@@ -1,12 +1,9 @@
 // Package envelope defines the Envelope domain entity per CONTEXT.md: the
 // fully-built per-recipient outgoing email — body, headers, identifiers —
-// that the SMTPSender transmits. It translates to the proto EmailToSend
-// type at the NATS publish boundary.
+// that the SMTPSender transmits. The translation to the proto EmailToSend
+// type lives in internal/envelopepb, so this package stays free of any
+// protobuf dependency.
 package envelope
-
-import (
-	pb "github.com/kannon-email/kannon/proto/kannon/mailer/types"
-)
 
 // Envelope is the per-recipient outgoing email: the signed RFC 2822 body
 // plus the addressing metadata needed by the SMTPSender.
@@ -49,17 +46,3 @@ func (e *Envelope) To() string         { return e.to }
 func (e *Envelope) ReturnPath() string { return e.returnPath }
 func (e *Envelope) Body() []byte       { return e.body }
 func (e *Envelope) ShouldRetry() bool  { return e.shouldRetry }
-
-// ToProto translates the Envelope to its on-the-wire EmailToSend proto.
-// This translation happens at the NATS publish boundary; downstream
-// consumers (SMTPSender) read the proto directly.
-func (e *Envelope) ToProto() *pb.EmailToSend {
-	return &pb.EmailToSend{
-		EmailId:     e.emailID,
-		From:        e.from,
-		To:          e.to,
-		ReturnPath:  e.returnPath,
-		Body:        e.body,
-		ShouldRetry: e.shouldRetry,
-	}
-}

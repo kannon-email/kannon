@@ -561,24 +561,6 @@ func TestBuilderShouldRetryFollowsTheRetryBudget(t *testing.T) {
 	assert.False(t, build(t, 10).ShouldRetry(), "the eleventh retry falls outside the budget")
 }
 
-func TestEnvelopeToProto(t *testing.T) {
-	env := envelope.New(envelope.Params{
-		EmailID:     "id",
-		From:        "f@x",
-		To:          "t@x",
-		ReturnPath:  "rp",
-		Body:        []byte("body"),
-		ShouldRetry: true,
-	})
-	pb := env.ToProto()
-	assert.Equal(t, "id", pb.EmailId)
-	assert.Equal(t, "f@x", pb.From)
-	assert.Equal(t, "t@x", pb.To)
-	assert.Equal(t, "rp", pb.ReturnPath)
-	assert.Equal(t, []byte("body"), pb.Body)
-	assert.True(t, pb.ShouldRetry)
-}
-
 // TestBuilderCarriesTheUnsubscribeEndpoint checks the whole path: the Batch's
 // template is personalised for this Delivery, percent-encoded, and emitted as
 // the RFC 8058 pair.

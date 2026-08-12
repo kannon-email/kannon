@@ -5,22 +5,22 @@ import (
 	"log/slog"
 
 	"github.com/kannon-email/kannon/internal/envelope"
+	"github.com/kannon-email/kannon/internal/envelopepb"
 	"github.com/kannon-email/kannon/internal/stats"
-	"github.com/kannon-email/kannon/proto/kannon/stats/types"
-	"google.golang.org/protobuf/proto"
+	"github.com/kannon-email/kannon/internal/statspb"
 )
 
 type Publisher interface {
 	Publish(subj string, data []byte) error
 }
 
-// SendEmail translates a domain Envelope to its on-the-wire EmailToSend
-// proto and publishes it on the kannon.sending subject. The proto type
-// boundary lives here so the rest of the dispatcher / builder pipeline
-// stays in domain types.
+// SendEmail publishes a domain Envelope on the kannon.sending subject. Naming
+// the subject the SMTPSender's consumer filters on is what this package keeps;
+// the wire form lives in internal/envelopepb, next to the read side the
+// SMTPSender uses, so the two ends of this topic cannot drift apart (ADR 0012).
 func SendEmail(p Publisher, env *envelope.Envelope) error {
 	slog.Debug("[nats] publishing message", "subj", "kannon.sending")
-	msg, err := proto.Marshal(env.ToProto())
+	msg, err := envelopepb.MarshalEnvelope(env)
 	if err != nil {
 		return err
 	}
@@ -31,11 +31,14 @@ func SendEmail(p Publisher, env *envelope.Envelope) error {
 	return nil
 }
 
-func PublishStat(p Publisher, s *types.Stats) error {
-	stype := stats.DetermineTypeFromStats(s)
-	subj := fmt.Sprintf("kannon.stats.%s", stype)
+// PublishStat publishes a domain stat Event on the topic named after the
+// Outcome it carries. The subject and the payload are derived from the same
+// value here and nowhere else, which is what stops a producer naming a topic no
+// consumer subscribes to (#376).
+func PublishStat(p Publisher, e stats.Event) error {
+	subj := fmt.Sprintf("kannon.stats.%s", e.Outcome.Type())
 
-	data, err := proto.Marshal(s)
+	data, err := statspb.MarshalEvent(e)
 	if err != nil {
 		return fmt.Errorf("cannot marshal protoc: %w", err)
 	}

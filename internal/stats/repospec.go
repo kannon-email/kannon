@@ -7,14 +7,14 @@ import (
 	"time"
 
 	"github.com/kannon-email/kannon/internal/values"
-	pbtypes "github.com/kannon-email/kannon/proto/kannon/stats/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 var (
-	deliveredData = &pbtypes.StatsData{Data: &pbtypes.StatsData_Delivered{Delivered: &pbtypes.StatsDataDelivered{}}}
-	openedData    = &pbtypes.StatsData{Data: &pbtypes.StatsData_Opened{Opened: &pbtypes.StatsDataOpened{}}}
+	deliveredOutcome = Delivered()
+	// Nothing was retained about the request, as under any Mode below Full.
+	openedOutcome = Opened("", "")
 )
 
 // RunRepoSpec runs the repository specification tests against any Repository implementation.
@@ -56,7 +56,7 @@ func testInsertAndQuery(t *testing.T, repo Repository) {
 		MessageID: "msg-001",
 		Domain:    domain,
 		Timestamp: now,
-		Data:      deliveredData,
+		Outcome:   deliveredOutcome,
 	}
 
 	err := repo.Insert(ctx, stat)
@@ -90,7 +90,7 @@ func testInsertIsIdempotent(t *testing.T, repo Repository) {
 			MessageID: "msg-001",
 			Domain:    domain,
 			Timestamp: now,
-			Data:      deliveredData,
+			Outcome:   deliveredOutcome,
 		}
 	}
 
@@ -130,7 +130,7 @@ func testQueryPagination(t *testing.T, repo Repository) {
 			MessageID: fmt.Sprintf("msg-%d", i),
 			Domain:    domain,
 			Timestamp: base.Add(time.Duration(i) * time.Minute),
-			Data:      deliveredData,
+			Outcome:   deliveredOutcome,
 		})
 		require.NoError(t, err)
 	}
@@ -161,7 +161,7 @@ func testQueryFiltersByDomain(t *testing.T, repo Repository) {
 		err := repo.Insert(ctx, &Stat{
 			Type: TypeDelivered, Email: fmt.Sprintf("a%d@example.com", i),
 			MessageID: fmt.Sprintf("a-msg-%d", i), Domain: domainA, Timestamp: now,
-			Data: deliveredData,
+			Outcome: deliveredOutcome,
 		})
 		require.NoError(t, err)
 	}
@@ -169,7 +169,7 @@ func testQueryFiltersByDomain(t *testing.T, repo Repository) {
 		err := repo.Insert(ctx, &Stat{
 			Type: TypeOpened, Email: fmt.Sprintf("b%d@example.com", i),
 			MessageID: fmt.Sprintf("b-msg-%d", i), Domain: domainB, Timestamp: now,
-			Data: openedData,
+			Outcome: openedOutcome,
 		})
 		require.NoError(t, err)
 	}
@@ -194,7 +194,7 @@ func testQueryFiltersByTimeRange(t *testing.T, repo Repository) {
 		err := repo.Insert(ctx, &Stat{
 			Type: TypeDelivered, Email: fmt.Sprintf("u%d@example.com", i),
 			MessageID: fmt.Sprintf("msg-%d", i), Domain: domain, Timestamp: base.Add(offset),
-			Data: deliveredData,
+			Outcome: deliveredOutcome,
 		})
 		require.NoError(t, err)
 	}
@@ -225,7 +225,7 @@ func testCount(t *testing.T, repo Repository) {
 		err := repo.Insert(ctx, &Stat{
 			Type: TypeDelivered, Email: fmt.Sprintf("u%d@example.com", i),
 			MessageID: fmt.Sprintf("msg-%d", i), Domain: domain, Timestamp: now,
-			Data: deliveredData,
+			Outcome: deliveredOutcome,
 		})
 		require.NoError(t, err)
 	}
@@ -244,10 +244,10 @@ func testQueryTimeline(t *testing.T, repo Repository) {
 
 	// 2 delivered in hour1, 1 opened in hour1, 1 delivered in hour2
 	for _, s := range []*Stat{
-		{Type: TypeDelivered, Email: "a@e.com", MessageID: "m1", Domain: domain, Timestamp: hour1.Add(5 * time.Minute), Data: deliveredData},
-		{Type: TypeDelivered, Email: "b@e.com", MessageID: "m2", Domain: domain, Timestamp: hour1.Add(15 * time.Minute), Data: deliveredData},
-		{Type: TypeOpened, Email: "c@e.com", MessageID: "m3", Domain: domain, Timestamp: hour1.Add(20 * time.Minute), Data: openedData},
-		{Type: TypeDelivered, Email: "d@e.com", MessageID: "m4", Domain: domain, Timestamp: hour2.Add(10 * time.Minute), Data: deliveredData},
+		{Type: TypeDelivered, Email: "a@e.com", MessageID: "m1", Domain: domain, Timestamp: hour1.Add(5 * time.Minute), Outcome: deliveredOutcome},
+		{Type: TypeDelivered, Email: "b@e.com", MessageID: "m2", Domain: domain, Timestamp: hour1.Add(15 * time.Minute), Outcome: deliveredOutcome},
+		{Type: TypeOpened, Email: "c@e.com", MessageID: "m3", Domain: domain, Timestamp: hour1.Add(20 * time.Minute), Outcome: openedOutcome},
+		{Type: TypeDelivered, Email: "d@e.com", MessageID: "m4", Domain: domain, Timestamp: hour2.Add(10 * time.Minute), Outcome: deliveredOutcome},
 	} {
 		err := repo.Insert(ctx, s)
 		require.NoError(t, err)
@@ -283,13 +283,13 @@ func testDeleteOlderThan(t *testing.T, repo Repository) {
 
 	err := repo.Insert(ctx, &Stat{
 		Type: TypeDelivered, Email: "old@e.com", MessageID: "old-1",
-		Domain: domain, Timestamp: old, Data: deliveredData,
+		Domain: domain, Timestamp: old, Outcome: deliveredOutcome,
 	})
 	require.NoError(t, err)
 
 	err = repo.Insert(ctx, &Stat{
 		Type: TypeDelivered, Email: "recent@e.com", MessageID: "recent-1",
-		Domain: domain, Timestamp: recent, Data: deliveredData,
+		Domain: domain, Timestamp: recent, Outcome: deliveredOutcome,
 	})
 	require.NoError(t, err)
 

@@ -14,10 +14,9 @@ import (
 	"github.com/kannon-email/kannon/internal/pool"
 	"github.com/kannon-email/kannon/internal/publisher"
 	"github.com/kannon-email/kannon/internal/runner"
-	"github.com/kannon-email/kannon/proto/kannon/stats/types"
+	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/x/container"
 	"golang.org/x/sync/errgroup"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func NewValidator(c pool.Claimer, pub publisher.Publisher) *Validator {
@@ -85,44 +84,26 @@ func (d *Validator) Cycle(pctx context.Context) error {
 }
 
 func (d *Validator) handleDelivery(ctx context.Context, dlv *delivery.Delivery) error {
-	statData := &types.Stats{
-		MessageId: dlv.BatchID().String(),
+	event := stats.Event{
+		MessageID: dlv.BatchID().String(),
 		Domain:    dlv.Domain(),
 		Email:     dlv.Email(),
-		Timestamp: timestamppb.Now(),
+		Timestamp: time.Now(),
 	}
 
 	if err := validateDelivery(dlv); err != nil {
-		statData.Data = newRejectedStatData(err)
+		event.Outcome = stats.Rejected(err.Error())
 		if err := d.claimer.Drop(ctx, dlv); err != nil {
 			return err
 		}
-		return publisher.PublishStat(d.pub, statData)
+		return publisher.PublishStat(d.pub, event)
 	}
 
 	if err := d.claimer.MarkValidated(ctx, dlv); err != nil {
 		return err
 	}
-	statData.Data = newAcceptedStatData()
-	return publisher.PublishStat(d.pub, statData)
-}
-
-func newRejectedStatData(err error) *types.StatsData {
-	return &types.StatsData{
-		Data: &types.StatsData_Rejected{
-			Rejected: &types.StatsDataRejected{
-				Reason: err.Error(),
-			},
-		},
-	}
-}
-
-func newAcceptedStatData() *types.StatsData {
-	return &types.StatsData{
-		Data: &types.StatsData_Accepted{
-			Accepted: &types.StatsDataAccepted{},
-		},
-	}
+	event.Outcome = stats.Accepted()
+	return publisher.PublishStat(d.pub, event)
 }
 
 func validateDelivery(d *delivery.Delivery) error {

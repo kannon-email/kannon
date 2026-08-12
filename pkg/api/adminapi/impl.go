@@ -29,7 +29,7 @@ func (s *adminAPIService) GetDomains(ctx context.Context, in *pb.GetDomainsReq) 
 
 	res := pb.GetDomainsResponse{}
 	for _, d := range all {
-		res.Domains = append(res.Domains, d.Pb())
+		res.Domains = append(res.Domains, domainToPb(d))
 	}
 	return &res, nil
 }
@@ -49,7 +49,7 @@ func (s *adminAPIService) GetDomain(ctx context.Context, in *pb.GetDomainReq) (*
 	}
 
 	return &pb.GetDomainRes{
-		Domain: d.Pb(),
+		Domain: domainToPb(d),
 	}, nil
 }
 
@@ -63,7 +63,7 @@ func (s *adminAPIService) CreateDomain(ctx context.Context, in *pb.CreateDomainR
 	if err != nil {
 		return nil, err
 	}
-	return d.Pb(), nil
+	return domainToPb(d), nil
 }
 
 func (s *adminAPIService) SetTrackingPolicy(ctx context.Context, in *pb.SetTrackingPolicyReq) (*pb.SetTrackingPolicyRes, error) {
@@ -82,5 +82,15 @@ func (s *adminAPIService) SetTrackingPolicy(ctx context.Context, in *pb.SetTrack
 		return nil, err
 	}
 
-	return &pb.SetTrackingPolicyRes{Domain: d.Pb()}, nil
+	return &pb.SetTrackingPolicyRes{Domain: domainToPb(d)}, nil
+}
+
+// domainToPb renders a Domain onto the wire type. Only the domain name, the public DKIM key and
+// the Tracking Policy are exposed on the wire — the private key never leaves the server.
+func domainToPb(d *domains.Domain) *pb.Domain {
+	return &pb.Domain{
+		Domain:     d.Domain(),
+		DkimPubKey: d.DkimPublicKey(),
+		Tracking:   trackingpb.FromPolicy(d.TrackingPolicy()),
+	}
 }

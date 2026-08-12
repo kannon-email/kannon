@@ -9,7 +9,6 @@ import (
 	"github.com/kannon-email/kannon/internal/authz"
 	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/internal/values"
-	"github.com/kannon-email/kannon/proto/kannon/stats/types"
 )
 
 // Fixture Domains. MustParse is right for package-level values in a test: a bad
@@ -46,9 +45,7 @@ func TestInsertAndQueryStats(t *testing.T) {
 	now := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	tr := stats.TimeRange{Start: now.Add(-time.Hour), Stop: now.Add(time.Hour)}
 
-	stat := stats.NewStat("user@example.com", "msg-1", exampleCom, now, &types.StatsData{
-		Data: &types.StatsData_Delivered{},
-	})
+	stat := stats.NewStat("user@example.com", "msg-1", exampleCom, now, stats.Delivered())
 
 	if err := svc.InsertStat(ctx, stat); err != nil {
 		t.Fatalf("InsertStat: %v", err)
@@ -81,9 +78,7 @@ func TestQueryStats_Pagination(t *testing.T) {
 	tr := stats.TimeRange{Start: base.Add(-time.Hour), Stop: base.Add(time.Hour)}
 
 	for i := range 5 {
-		s := stats.NewStat("user@example.com", "msg-1", exampleCom, base.Add(time.Duration(i)*time.Minute), &types.StatsData{
-			Data: &types.StatsData_Delivered{},
-		})
+		s := stats.NewStat("user@example.com", "msg-1", exampleCom, base.Add(time.Duration(i)*time.Minute), stats.Delivered())
 		if err := svc.InsertStat(ctx, s); err != nil {
 			t.Fatalf("InsertStat: %v", err)
 		}
@@ -119,9 +114,7 @@ func TestQueryStats_FiltersByDomain(t *testing.T) {
 	// Distinct message ids: two events of the same type, for the same recipient,
 	// at the same instant are the same event as far as the store is concerned.
 	for i, domain := range []values.DomainName{aCom, bCom, aCom} {
-		s := stats.NewStat("u@"+domain.String(), fmt.Sprintf("msg-%d", i), domain, now, &types.StatsData{
-			Data: &types.StatsData_Accepted{},
-		})
+		s := stats.NewStat("u@"+domain.String(), fmt.Sprintf("msg-%d", i), domain, now, stats.Accepted())
 		if err := svc.InsertStat(ctx, s); err != nil {
 			t.Fatalf("InsertStat: %v", err)
 		}
@@ -154,9 +147,7 @@ func TestQueryStats_FiltersByTimeRange(t *testing.T) {
 	}
 
 	for _, ts := range times {
-		s := stats.NewStat("u@d.com", "msg", dCom, ts, &types.StatsData{
-			Data: &types.StatsData_Opened{},
-		})
+		s := stats.NewStat("u@d.com", "msg", dCom, ts, stats.Opened("", ""))
 		if err := svc.InsertStat(ctx, s); err != nil {
 			t.Fatalf("InsertStat: %v", err)
 		}
@@ -180,17 +171,17 @@ func TestQueryTimeline(t *testing.T) {
 
 	// 2 delivered in hour 10, 1 delivered + 1 opened in hour 11.
 	inserts := []struct {
-		ts   time.Time
-		data *types.StatsData
+		ts      time.Time
+		outcome stats.Outcome
 	}{
-		{base.Add(5 * time.Minute), &types.StatsData{Data: &types.StatsData_Delivered{}}},
-		{base.Add(30 * time.Minute), &types.StatsData{Data: &types.StatsData_Delivered{}}},
-		{base.Add(65 * time.Minute), &types.StatsData{Data: &types.StatsData_Delivered{}}},
-		{base.Add(90 * time.Minute), &types.StatsData{Data: &types.StatsData_Opened{}}},
+		{base.Add(5 * time.Minute), stats.Delivered()},
+		{base.Add(30 * time.Minute), stats.Delivered()},
+		{base.Add(65 * time.Minute), stats.Delivered()},
+		{base.Add(90 * time.Minute), stats.Opened("", "")},
 	}
 
 	for _, ins := range inserts {
-		s := stats.NewStat("u@d.com", "msg", dCom, ins.ts, ins.data)
+		s := stats.NewStat("u@d.com", "msg", dCom, ins.ts, ins.outcome)
 		if err := svc.InsertStat(ctx, s); err != nil {
 			t.Fatalf("InsertStat: %v", err)
 		}
@@ -220,9 +211,7 @@ func TestCleanup(t *testing.T) {
 	recent := now.Add(-time.Hour)
 
 	for i, ts := range []time.Time{old, old, recent} {
-		s := stats.NewStat("u@d.com", fmt.Sprintf("msg-%d", i), dCom, ts, &types.StatsData{
-			Data: &types.StatsData_Delivered{},
-		})
+		s := stats.NewStat("u@d.com", fmt.Sprintf("msg-%d", i), dCom, ts, stats.Delivered())
 		if err := svc.InsertStat(ctx, s); err != nil {
 			t.Fatalf("InsertStat: %v", err)
 		}
@@ -246,31 +235,35 @@ func TestCleanup(t *testing.T) {
 	}
 }
 
-func TestDetermineType(t *testing.T) {
+// TestOutcomeType pins which Type each constructor reports, since that is what
+// names the NATS subject an event is published on and the stats.type column a
+// row is stored under — the two places a mistyped outcome becomes invisible.
+func TestOutcomeType(t *testing.T) {
 	tests := []struct {
-		name string
-		data *types.StatsData
-		want stats.Type
+		name    string
+		outcome stats.Outcome
+		want    stats.Type
 	}{
-		{"nil", nil, stats.TypeUnknown},
-		{"accepted", &types.StatsData{Data: &types.StatsData_Accepted{}}, stats.TypeAccepted},
-		{"rejected", &types.StatsData{Data: &types.StatsData_Rejected{}}, stats.TypeRejected},
-		{"delivered", &types.StatsData{Data: &types.StatsData_Delivered{}}, stats.TypeDelivered},
-		{"opened", &types.StatsData{Data: &types.StatsData_Opened{}}, stats.TypeOpened},
-		{"clicked", &types.StatsData{Data: &types.StatsData_Clicked{}}, stats.TypeClicked},
-		{"bounced", &types.StatsData{Data: &types.StatsData_Bounced{}}, stats.TypeBounce},
-		{"error", &types.StatsData{Data: &types.StatsData_Error{}}, stats.TypeError},
+		// The zero Outcome is an event that states no outcome, which is what the
+		// protobuf-inspecting predicate this replaced reported for a nil payload.
+		{"zero value", stats.Outcome{}, stats.TypeUnknown},
+		{"accepted", stats.Accepted(), stats.TypeAccepted},
+		{"rejected", stats.Rejected("bad address"), stats.TypeRejected},
+		{"delivered", stats.Delivered(), stats.TypeDelivered},
+		{"opened", stats.Opened("", ""), stats.TypeOpened},
+		{"clicked", stats.Clicked("", "", "https://example.com"), stats.TypeClicked},
+		{"bounced", stats.Bounced(true, 550, "no such user"), stats.TypeBounce},
+		{"error", stats.Errored(421, "try again"), stats.TypeError},
 		// Failed is the absence of any reply at all — a Delivery whose retry budget ran out
 		// without a single attempt ever being answered (CONTEXT.md, Failed / ADR 0007).
-		// Before this case existed it fell through to TypeUnknown like any unmapped variant.
-		{"failed", &types.StatsData{Data: &types.StatsData_Failed{}}, stats.TypeFailed},
+		{"failed", stats.Failed("retry budget exhausted"), stats.TypeFailed},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := stats.DetermineType(tt.data)
+			got := tt.outcome.Type()
 			if got != tt.want {
-				t.Errorf("DetermineType() = %s, want %s", got, tt.want)
+				t.Errorf("Outcome.Type() = %s, want %s", got, tt.want)
 			}
 		})
 	}

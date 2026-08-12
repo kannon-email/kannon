@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
-	types "github.com/kannon-email/kannon/proto/kannon/stats/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,11 +15,7 @@ func TestReadAndWriteStats(t *testing.T) {
 		Type:      StatsTypeAccepted,
 		Timestamp: pgtype.Timestamp{Time: time.Now(), Valid: true},
 		Domain:    "test.com",
-		Data: &types.StatsData{
-			Data: &types.StatsData_Accepted{
-				Accepted: &types.StatsDataAccepted{},
-			},
-		},
+		Data:      StatsData{Accepted: &StatsDataAccepted{}},
 	})
 
 	require.Nil(t, err)

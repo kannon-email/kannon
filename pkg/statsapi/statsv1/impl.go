@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/kannon-email/kannon/internal/stats"
+	"github.com/kannon-email/kannon/internal/statspb"
 	"github.com/kannon-email/kannon/internal/values"
 	"github.com/kannon-email/kannon/proto/kannon/stats/apiv1"
 	"github.com/kannon-email/kannon/proto/kannon/stats/types"
@@ -85,6 +86,6 @@ func statToPb(s *stats.Stat) *types.Stats {
 		Email:     s.Email,
 		Timestamp: timestamppb.New(s.Timestamp),
 		Type:      string(s.Type),
-		Data:      s.Data,
+		Data:      statspb.FromOutcome(s.Outcome),
 	}
 }

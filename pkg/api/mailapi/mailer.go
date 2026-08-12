@@ -28,7 +28,6 @@ import (
 	pb "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1"
 	mailerv1connect "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1/apiv1connect"
 	mailertypes "github.com/kannon-email/kannon/proto/kannon/mailer/types"
-	trackingtypes "github.com/kannon-email/kannon/proto/kannon/tracking/types"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -171,7 +170,7 @@ func (s mailAPIService) createBatch(ctx context.Context, domain *domains.Domain,
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 
-	taken, err := s.scheduleBatch(ctx, domain, b, req.Msg.Recipients, scheduled)
+	taken, err := s.scheduleBatch(ctx, domain, b, recipientsFromRequest(req.Msg.Recipients), scheduled)
 	if err != nil {
 		slog.Error("cannot create pool", "err", err)
 		return nil, err
@@ -234,7 +233,46 @@ func (in *intake) reject(email string, reason rejectionReason, detail string) {
 	in.rejected = append(in.rejected, &pb.RejectedRecipient{Email: email, Reason: string(reason)})
 }
 
-func (s mailAPIService) scheduleBatch(ctx context.Context, domain *domains.Domain, b *batch.Batch, recipients []*mailertypes.Recipient, scheduled time.Time) (*intake, error) {
+// statedRecipient is one Recipient as a request stated it: the domain value intake
+// works in, and what came of translating the Tracking Policy that arrived with it.
+//
+// The pairing is the whole point. Translating a Recipient can fail — a Mode from a
+// newer schema — and that failure Rejects that Recipient alone while the rest of the
+// Batch proceeds (#419). Were the translation of the list allowed to return an error,
+// one unreadable row would fail the call for thousands of good ones, so the error is
+// carried on the row that earned it instead of raised over all of them.
+type statedRecipient struct {
+	batch.Recipient
+	// trackingErr is what trackingpb.ToPolicy made of the wire Policy, nil when it
+	// translated. It is answered where the cascade is resolved and nowhere earlier, so
+	// that the reasons keep the precedence the checks give them: a row with no address
+	// and an unreadable Mode is refused for the address, as it always has been.
+	trackingErr error
+}
+
+// recipientsFromRequest maps the Recipients of a send onto the domain type, one for
+// one and in the order stated, so that everything after this line asks its questions
+// of a Recipient rather than of the message that carried one (ADR 0012). The order is
+// the order refusals are reported back in.
+func recipientsFromRequest(rs []*mailertypes.Recipient) []statedRecipient {
+	out := make([]statedRecipient, 0, len(rs))
+	for _, r := range rs {
+		// Read through the getters: a nil row is an empty row of the caller's list, and
+		// is refused for having no address like any other rather than failing the send.
+		policy, err := trackingpb.ToPolicy(r.GetTracking())
+		out = append(out, statedRecipient{
+			Recipient: batch.Recipient{
+				Email:    r.GetEmail(),
+				Fields:   r.GetFields(),
+				Tracking: policy,
+			},
+			trackingErr: err,
+		})
+	}
+	return out
+}
+
+func (s mailAPIService) scheduleBatch(ctx context.Context, domain *domains.Domain, b *batch.Batch, recipients []statedRecipient, scheduled time.Time) (*intake, error) {
 	if err := s.batches.Create(ctx, b); err != nil {
 		return nil, err
 	}
@@ -243,16 +281,16 @@ func (s mailAPIService) scheduleBatch(ctx context.Context, domain *domains.Domai
 		deliveries: make([]*delivery.Delivery, 0, len(recipients)),
 	}
 	for _, r := range recipients {
-		if strings.TrimSpace(r.Email) == "" {
+		if !r.HasAddress() {
 			taken.reject(r.Email, reasonInvalidEmail, "email is empty")
 			continue
 		}
-		policy, rejection := resolveRecipientTracking(domain.TrackingPolicy(), b.TrackingPolicy(), r.Tracking)
+		policy, rejection := resolveRecipientTracking(domain.TrackingPolicy(), b.TrackingPolicy(), r)
 		if rejection != nil {
 			taken.reject(r.Email, rejection.reason, rejection.detail)
 			continue
 		}
-		if detail, ok := unresolvedUnsubscribeURL(b.OneClickUnsubscribe(), r.Email, r.Fields); !ok {
+		if detail, ok := unresolvedUnsubscribeURL(b.OneClickUnsubscribe(), r.Recipient); !ok {
 			taken.reject(r.Email, reasonUnsubscribeURLUnresolved, detail)
 			continue
 		}
@@ -293,11 +331,11 @@ func unsubscribeFromRequest(u *mailertypes.OneClickUnsubscribe) batch.OneClickUn
 // unresolvedUnsubscribeURL reports whether one Recipient's fields can resolve the
 // Batch's unsubscribe URL, with an operator-facing detail when they cannot. It reads
 // utils.EffectiveFields, the same map the Builder renders with, so the two agree.
-func unresolvedUnsubscribeURL(u batch.OneClickUnsubscribe, email string, fields map[string]string) (string, bool) {
+func unresolvedUnsubscribeURL(u batch.OneClickUnsubscribe, r batch.Recipient) (string, bool) {
 	if u.IsZero() {
 		return "", true
 	}
-	resolved := utils.ReplaceCustomFieldsInURL(u.URLTemplate, utils.EffectiveFields(email, fields))
+	resolved := utils.ReplaceCustomFieldsInURL(u.URLTemplate, utils.EffectiveFields(r.Email, r.Fields))
 	if utils.HasUnresolvedPlaceholders(resolved) {
 		return fmt.Sprintf("unsubscribe URL still holds a placeholder after substitution: %q", resolved), false
 	}
@@ -314,21 +352,24 @@ type recipientRejection struct {
 // resolveRecipientTracking collapses the Tracking Policy cascade for one Recipient into
 // the Policy frozen on its Delivery (ADR 0003). A Recipient may narrow what the Domain
 // and Batch allow; above the Domain's ceiling only that Recipient is Rejected (#419).
-func resolveRecipientTracking(domainPolicy, batchPolicy tracking.Policy, stated *trackingtypes.TrackingPolicy) (tracking.Policy, *recipientRejection) {
-	recipientPolicy, err := trackingpb.ToPolicy(stated)
-	if err != nil {
+//
+// A Policy this build could not read is Rejected here rather than at translation, which
+// is what keeps the two grounds in one place: whether a Recipient's Policy is admissible
+// is one question, whether the Mode is legible only the first way of failing it.
+func resolveRecipientTracking(domainPolicy, batchPolicy tracking.Policy, r statedRecipient) (tracking.Policy, *recipientRejection) {
+	if r.trackingErr != nil {
 		return tracking.Policy{}, &recipientRejection{
 			reason: reasonUnsupportedTrackingMode,
-			detail: err.Error(),
+			detail: r.trackingErr.Error(),
 		}
 	}
-	if violations := tracking.CeilingViolations(domainPolicy, recipientPolicy); len(violations) > 0 {
+	if violations := tracking.CeilingViolations(domainPolicy, r.Tracking); len(violations) > 0 {
 		return tracking.Policy{}, &recipientRejection{
 			reason: reasonTrackingAboveCeiling,
 			detail: ceilingViolationDetail("recipient", violations),
 		}
 	}
-	return tracking.Resolve(domainPolicy, batchPolicy, recipientPolicy), nil
+	return tracking.Resolve(domainPolicy, batchPolicy, r.Tracking), nil
 }
 
 func (s mailAPIService) createTemplateWithGlobalFields(ctx context.Context, template *templates.Template, globalFields map[string]string) (*templates.Template, error) {

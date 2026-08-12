@@ -7,10 +7,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kannon-email/kannon/internal/envelope"
+	"github.com/kannon-email/kannon/internal/envelopepb"
 	"github.com/kannon-email/kannon/internal/smtp"
 	"github.com/kannon-email/kannon/internal/tests"
 	"github.com/kannon-email/kannon/internal/utils"
-	msgtypes "github.com/kannon-email/kannon/proto/kannon/mailer/types"
 	statstypes "github.com/kannon-email/kannon/proto/kannon/stats/types"
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/stretchr/testify/assert"
@@ -100,9 +101,7 @@ func TestShortAckDeadlineRedeliversButDoesNotResend(t *testing.T) {
 	consumer := utils.MustGetPullSubscriber(ctx, js, "kannon-sending", "kannon.sending", "kannon-sending-pool",
 		utils.WithAckPolicy(utils.AckPolicy{200 * time.Millisecond}))
 
-	data, err := proto.Marshal(envelope("slow@example.com"))
-	require.NoError(t, err)
-	_, err = js.Publish(ctx, "kannon.sending", data)
+	_, err := js.Publish(ctx, "kannon.sending", envelopeBytes(t, "slow@example.com"))
 	require.NoError(t, err)
 
 	stopped := make(chan error, 1)
@@ -168,10 +167,7 @@ func TestHandleSendErrorClassifiesByReplyClassNotByRetryDecision(t *testing.T) {
 			pub := &recordingPublisher{}
 			s := &smtpSender{publisher: pub}
 
-			data := envelope("bounce@example.com")
-			data.ShouldRetry = tt.shouldRetry
-
-			require.NoError(t, s.handleSendError(tt.sendErr, data))
+			require.NoError(t, s.handleSendError(tt.sendErr, envelopeTo("bounce@example.com", tt.shouldRetry)))
 
 			require.Equal(t, []string{tt.wantSubject}, pub.subjects())
 			published := pub.stats(t)
@@ -195,10 +191,8 @@ func TestHandleSendErrorWithRetriesRemainingPublishesError(t *testing.T) {
 	s := &smtpSender{publisher: pub}
 
 	sendErr := &fakeSenderError{msg: "451 try again later", permanent: false, code: 451}
-	data := envelope("retry@example.com")
-	data.ShouldRetry = true
 
-	require.NoError(t, s.handleSendError(sendErr, data))
+	require.NoError(t, s.handleSendError(sendErr, envelopeTo("retry@example.com", true)))
 
 	require.Equal(t, []string{"kannon.stats.error"}, pub.subjects())
 	published := pub.stats(t)
@@ -233,15 +227,27 @@ func mustSendingStream(ctx context.Context, t *testing.T, js jetstream.JetStream
 	require.NoError(t, err)
 }
 
-func envelope(to string) *msgtypes.EmailToSend {
+// envelopeTo is one built Envelope, as the Dispatcher hands it over.
+func envelopeTo(to string, shouldRetry bool) *envelope.Envelope {
 	emailID := "<" + base64.URLEncoding.EncodeToString([]byte(to)) + "/msg_test@example.com>"
-	return &msgtypes.EmailToSend{
-		From:       "sender@example.com",
-		To:         to,
-		Body:       []byte("body"),
-		EmailId:    emailID,
-		ReturnPath: "bump_" + base64.URLEncoding.EncodeToString([]byte(to)) + "+msg_test@example.com",
-	}
+	return envelope.New(envelope.Params{
+		From:        "sender@example.com",
+		To:          to,
+		Body:        []byte("body"),
+		EmailID:     emailID,
+		ReturnPath:  "bump_" + base64.URLEncoding.EncodeToString([]byte(to)) + "+msg_test@example.com",
+		ShouldRetry: shouldRetry,
+	})
+}
+
+// envelopeBytes is an Envelope as it sits on the sending stream: published
+// through the same translation the Dispatcher uses, so a test drives the
+// handler over the real payload rather than one assembled by hand.
+func envelopeBytes(t *testing.T, to string) []byte {
+	t.Helper()
+	data, err := proto.Marshal(envelopepb.FromEnvelope(envelopeTo(to, false)))
+	require.NoError(t, err)
+	return data
 }
 
 // envelopeMsg is one Envelope as it arrives from the stream, stored at the
@@ -249,9 +255,7 @@ func envelope(to string) *msgtypes.EmailToSend {
 // same stored message; different sequences are different messages.
 func envelopeMsg(t *testing.T, to string, seq uint64) jetstream.Msg {
 	t.Helper()
-	data, err := proto.Marshal(envelope(to))
-	require.NoError(t, err)
-	return &fakeMsg{data: data, seq: seq}
+	return &fakeMsg{data: envelopeBytes(t, to), seq: seq}
 }
 
 // fakeMsg stands in for a JetStream message. jetstream.Msg is embedded to pick

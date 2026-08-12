@@ -8,13 +8,10 @@ import (
 	"strings"
 	"time"
 
-	sqlc "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/publisher"
+	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/internal/statssec"
-	"github.com/kannon-email/kannon/internal/trackingpb"
 	"github.com/kannon-email/kannon/internal/utils"
-	pb "github.com/kannon-email/kannon/proto/kannon/stats/types"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func (s *srv) handleClick(w http.ResponseWriter, r *http.Request) {
@@ -42,9 +39,9 @@ func (s *srv) handleClick(w http.ResponseWriter, r *http.Request) {
 	// As for opens: the Mode is whatever the signed claims say. Anonymous names
 	// nobody, and only Full retains anything about the request itself.
 	kept := retained(r, claims.Email, claims.Mode)
-	data := buildClickStat(claims, kept, domain)
+	event := buildClickEvent(claims, kept, domain)
 
-	if err := publisher.PublishStat(s.pub, data); err != nil {
+	if err := publisher.PublishStat(s.pub, event); err != nil {
 		slog.Error("cannot send message on nats", "err", err)
 		return
 	}
@@ -56,25 +53,15 @@ func writeRedirect(w http.ResponseWriter, r *http.Request, claims *statssec.Link
 	http.Redirect(w, r, claims.URL, http.StatusTemporaryRedirect)
 }
 
-func buildClickStat(claims *statssec.LinkClaims, kept engagement, domain string) *pb.Stats {
-	data := &pb.Stats{
-		MessageId: claims.MessageID,
+func buildClickEvent(claims *statssec.LinkClaims, kept engagement, domain string) stats.Event {
+	return stats.Event{
+		MessageID: claims.MessageID,
 		Email:     kept.email,
 		Domain:    domain,
-		Data: &pb.StatsData{
-			Data: &pb.StatsData_Clicked{
-				Clicked: &pb.StatsDataClicked{
-					UserAgent: kept.userAgent,
-					Ip:        kept.ip,
-					Url:       claims.URL,
-				},
-			},
-		},
-		Type: string(sqlc.StatsTypeClicked),
+		Outcome:   stats.Clicked(kept.userAgent, kept.ip, claims.URL),
 		// The links Mode of the Delivery, for the same reason it travels on an
 		// Opened: absent fields alone do not say why they are absent.
-		TrackingMode: trackingpb.FromMode(claims.Mode),
-		Timestamp:    timestamppb.Now(),
+		TrackingMode: claims.Mode,
+		Timestamp:    time.Now(),
 	}
-	return data
 }
