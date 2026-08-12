@@ -10,7 +10,6 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 	tracking "github.com/kannon-email/kannon/internal/tracking"
-	pbtypes "github.com/kannon-email/kannon/proto/kannon/stats/types"
 )
 
 type TemplateType string
@@ -117,7 +116,7 @@ type Stat struct {
 	MessageID string
 	Domain    string
 	Timestamp pgtype.Timestamp
-	Data      *pbtypes.StatsData
+	Data      StatsData
 }
 
 type StatsKey struct {

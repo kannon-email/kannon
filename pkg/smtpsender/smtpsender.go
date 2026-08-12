@@ -7,17 +7,15 @@ import (
 	"os"
 	"time"
 
-	msgtypes "github.com/kannon-email/kannon/proto/kannon/mailer/types"
-	statstypes "github.com/kannon-email/kannon/proto/kannon/stats/types"
-
+	"github.com/kannon-email/kannon/internal/envelope"
+	"github.com/kannon-email/kannon/internal/envelopepb"
 	"github.com/kannon-email/kannon/internal/publisher"
 	"github.com/kannon-email/kannon/internal/smtp"
+	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/internal/utils"
 	"github.com/kannon-email/kannon/x/config"
 	"github.com/kannon-email/kannon/x/container"
 	"github.com/nats-io/nats.go/jetstream"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type Config struct {
@@ -135,23 +133,26 @@ func (s *smtpSender) handleMsgAck(msg jetstream.Msg, err error) {
 }
 
 func (s *smtpSender) handleMessage(ctx context.Context, msg jetstream.Msg) error {
-	data := &msgtypes.EmailToSend{}
-	err := proto.Unmarshal(msg.Data(), data)
+	// The wire form goes no further than this line (ADR 0012). What the worker
+	// guards, transmits and reports on is the Envelope itself, so how the
+	// Dispatcher encoded it is the sending topic's business and not this
+	// worker's.
+	env, err := envelopepb.UnmarshalEnvelope(msg.Data())
 	if err != nil {
 		return err
 	}
 
-	if !s.claimSend(ctx, msg, data) {
+	if !s.claimSend(ctx, msg, env) {
 		return nil
 	}
 
-	sendErr := s.sender.Send(data.ReturnPath, data.To, data.Body)
+	sendErr := s.sender.Send(env.ReturnPath(), env.To(), env.Body())
 	if sendErr != nil {
-		slog.Info(fmt.Sprintf("Cannot send email %v - %v: %v", utils.ObfuscateEmail(data.To), data.EmailId, sendErr.Error()))
-		return s.handleSendError(sendErr, data)
+		slog.Info(fmt.Sprintf("Cannot send email %v - %v: %v", utils.ObfuscateEmail(env.To()), env.EmailID(), sendErr.Error()))
+		return s.handleSendError(sendErr, env)
 	}
-	slog.Info(fmt.Sprintf("Email delivered: %v - %v", utils.ObfuscateEmail(data.To), data.EmailId))
-	return s.handleSendSuccess(data)
+	slog.Info(fmt.Sprintf("Email delivered: %v - %v", utils.ObfuscateEmail(env.To()), env.EmailID()))
+	return s.handleSendSuccess(env)
 }
 
 // claimSend reports whether this delivery of the Envelope is the one allowed
@@ -163,102 +164,78 @@ func (s *smtpSender) handleMessage(ctx context.Context, msg jetstream.Msg) error
 // it): it exists to make a rare redelivery harmless, and a bucket that cannot
 // be reached is not a reason to stop sending mail — a duplicate is a far
 // smaller failure than a batch that never leaves.
-func (s *smtpSender) claimSend(ctx context.Context, msg jetstream.Msg, data *msgtypes.EmailToSend) bool {
+func (s *smtpSender) claimSend(ctx context.Context, msg jetstream.Msg, env *envelope.Envelope) bool {
 	if s.guard == nil {
 		return true
 	}
 
-	key, err := sendKey(msg, data.EmailId)
+	key, err := sendKey(msg, env.EmailID())
 	if err != nil {
-		slog.Error("cannot derive send guard key, sending anyway", "email_id", data.EmailId, "err", err)
+		slog.Error("cannot derive send guard key, sending anyway", "email_id", env.EmailID(), "err", err)
 		return true
 	}
 
 	claimed, err := s.guard.Claim(ctx, key)
 	if err != nil {
-		slog.Error("send guard unavailable, sending anyway", "email_id", data.EmailId, "err", err)
+		slog.Error("send guard unavailable, sending anyway", "email_id", env.EmailID(), "err", err)
 		return true
 	}
 
 	if !claimed {
 		slog.Warn("skipping redelivered envelope: already handed to SMTP",
-			"email_id", data.EmailId, "to", utils.ObfuscateEmail(data.To))
+			"email_id", env.EmailID(), "to", utils.ObfuscateEmail(env.To()))
 	}
 	return claimed
 }
 
-func (s *smtpSender) handleSendSuccess(data *msgtypes.EmailToSend) error {
-	msgID, domain, err := utils.ExtractMsgIDAndDomainFromEmailID(data.EmailId)
+func (s *smtpSender) handleSendSuccess(env *envelope.Envelope) error {
+	msgID, domain, err := utils.ExtractMsgIDAndDomainFromEmailID(env.EmailID())
 	if err != nil {
 		return nil
 	}
 
-	msg := &statstypes.Stats{
-		MessageId: msgID,
+	// PublishStat derives kannon.stats.delivered from the Outcome, which is the
+	// same subject this used to name by hand. Hand-naming it is what put the
+	// asynchronous bounce on a topic no consumer subscribed to (#376), and there
+	// is no reason for the one happy path to keep its own copy of the rule.
+	return publisher.PublishStat(s.publisher, stats.Event{
+		MessageID: msgID,
 		Domain:    domain,
-		Email:     data.To,
-		Timestamp: timestamppb.Now(),
-		Data: &statstypes.StatsData{
-			Data: &statstypes.StatsData_Delivered{
-				Delivered: &statstypes.StatsDataDelivered{},
-			},
-		},
-	}
-	rm, err := proto.Marshal(msg)
-	if err != nil {
-		return err
-	}
-	err = s.publisher.Publish("kannon.stats.delivered", rm)
-	if err != nil {
-		return err
-	}
-	return nil
+		Email:     env.To(),
+		Timestamp: time.Now(),
+		Outcome:   stats.Delivered(),
+	})
 }
 
-func (s *smtpSender) handleSendError(sendErr smtp.SenderError, data *msgtypes.EmailToSend) error {
-	msgID, domain, err := utils.ExtractMsgIDAndDomainFromEmailID(data.EmailId)
+func (s *smtpSender) handleSendError(sendErr smtp.SenderError, env *envelope.Envelope) error {
+	msgID, domain, err := utils.ExtractMsgIDAndDomainFromEmailID(env.EmailID())
 	if err != nil {
 		return nil
 	}
 
-	msg := &statstypes.Stats{
-		MessageId: msgID,
+	event := stats.Event{
+		MessageID: msgID,
 		Domain:    domain,
-		Email:     data.To,
-		Timestamp: timestamppb.Now(),
+		Email:     env.To(),
+		Timestamp: time.Now(),
 	}
-	if !data.ShouldRetry || sendErr.IsPermanent() {
-		// Permanent below still reads sendErr.IsPermanent(), not the reason
-		// this branch was taken: a 4xx that lands here because ShouldRetry
-		// is already false is terminal for us, but it is not evidence the
-		// address is dead, and Bounced.Permanent tracks the SMTP reply
-		// class, never the retry decision. #378 read this as the wrong flag
-		// at retry exhaustion; #433 re-specified `permanent` to follow the
+	if !env.ShouldRetry() || sendErr.IsPermanent() {
+		// The permanent argument below still reads sendErr.IsPermanent(), not
+		// the reason this branch was taken: a 4xx that lands here because
+		// ShouldRetry is already false is terminal for us, but it is not
+		// evidence the address is dead, and Bounced.Permanent tracks the SMTP
+		// reply class, never the retry decision. #378 read this as the wrong
+		// flag at retry exhaustion; #433 re-specified `permanent` to follow the
 		// reply class on both the synchronous and asynchronous path
 		// (CONTEXT.md, Bounced), which is exactly what this line already
 		// did. "Fixing" it would regress the async 4xx assertions in
 		// e2e/e2e_test.go.
-		msg.Data = &statstypes.StatsData{
-			Data: &statstypes.StatsData_Bounced{
-				Bounced: &statstypes.StatsDataBounced{
-					Permanent: sendErr.IsPermanent(),
-					Code:      sendErr.Code(),
-					Msg:       sendErr.Error(),
-				},
-			},
-		}
+		event.Outcome = stats.Bounced(sendErr.IsPermanent(), sendErr.Code(), sendErr.Error())
 	} else {
-		msg.Data = &statstypes.StatsData{
-			Data: &statstypes.StatsData_Error{
-				Error: &statstypes.StatsDataError{
-					Code: sendErr.Code(),
-					Msg:  sendErr.Error(),
-				},
-			},
-		}
+		event.Outcome = stats.Errored(sendErr.Code(), sendErr.Error())
 	}
 
-	return publisher.PublishStat(s.publisher, msg)
+	return publisher.PublishStat(s.publisher, event)
 }
 
 func mustConfigureStatsJS(ctx context.Context, js jetstream.JetStream) {

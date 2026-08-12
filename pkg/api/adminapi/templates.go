@@ -18,7 +18,7 @@ func (s *adminAPIService) CreateTemplate(ctx context.Context, req *pb.CreateTemp
 	if err != nil {
 		return nil, err
 	}
-	return &pb.CreateTemplateRes{Template: tpl.Pb()}, nil
+	return &pb.CreateTemplateRes{Template: templateToPb(tpl)}, nil
 }
 
 // UpdateTemplate is a legacy adapter: UpdateTemplateReq carries only a template_id, so the Domain
@@ -34,7 +34,7 @@ func (s *adminAPIService) UpdateTemplate(ctx context.Context, req *pb.UpdateTemp
 	if err != nil {
 		return nil, err
 	}
-	return &pb.UpdateTemplateRes{Template: updated.Pb()}, nil
+	return &pb.UpdateTemplateRes{Template: templateToPb(updated)}, nil
 }
 
 // DeleteTemplate is a legacy adapter, for the reason given on UpdateTemplate:
@@ -50,7 +50,7 @@ func (s *adminAPIService) DeleteTemplate(ctx context.Context, req *pb.DeleteTemp
 	if err != nil {
 		return nil, err
 	}
-	return &pb.DeleteTemplateRes{Template: deleted.Pb()}, nil
+	return &pb.DeleteTemplateRes{Template: templateToPb(deleted)}, nil
 }
 
 // GetTemplate is a legacy adapter, for the reason given on UpdateTemplate:
@@ -66,7 +66,7 @@ func (s *adminAPIService) GetTemplate(ctx context.Context, req *pb.GetTemplateRe
 	if err != nil {
 		return nil, err
 	}
-	return &pb.GetTemplateRes{Template: tpl.Pb()}, nil
+	return &pb.GetTemplateRes{Template: templateToPb(tpl)}, nil
 }
 
 func (s *adminAPIService) GetTemplates(ctx context.Context, req *pb.GetTemplatesReq) (*pb.GetTemplatesRes, error) {
@@ -82,11 +82,22 @@ func (s *adminAPIService) GetTemplates(ctx context.Context, req *pb.GetTemplates
 
 	pbTemplates := make([]*pb.Template, 0, len(tpls))
 	for _, t := range tpls {
-		pbTemplates = append(pbTemplates, t.Pb())
+		pbTemplates = append(pbTemplates, templateToPb(t))
 	}
 
 	return &pb.GetTemplatesRes{
 		Templates: pbTemplates,
 		Total:     uint32(total),
 	}, nil
+}
+
+// templateToPb renders a Template onto the wire type. The Domain is left off: it is only ever used
+// to scope a lookup, and the caller already knows it.
+func templateToPb(t *templates.Template) *pb.Template {
+	return &pb.Template{
+		TemplateId: t.TemplateID(),
+		Html:       t.Html(),
+		Title:      t.Title(),
+		Type:       string(t.Type()),
+	}
 }

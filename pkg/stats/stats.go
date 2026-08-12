@@ -11,14 +11,12 @@ import (
 	sq "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/runner"
 	"github.com/kannon-email/kannon/internal/stats"
+	"github.com/kannon-email/kannon/internal/statspb"
 	"github.com/kannon-email/kannon/internal/tracking"
-	"github.com/kannon-email/kannon/internal/trackingpb"
 	"github.com/kannon-email/kannon/internal/utils"
 	"github.com/kannon-email/kannon/internal/values"
-	"github.com/kannon-email/kannon/proto/kannon/stats/types"
 	"github.com/kannon-email/kannon/x/config"
 	"github.com/kannon-email/kannon/x/container"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -149,18 +147,18 @@ func (h *statsHandler) handleAggregatedStats(ctx context.Context) error {
 // the Domain, timestamp and type — so every Mode alike, Anonymous included. Splitting the subject
 // to stop the two consumers overlapping was rejected: kannon.stats.* matches no longer subject.
 func (h *statsHandler) handleAggregatedStatsMsg(ctx context.Context, msg jetstream.Msg) error {
-	data := &types.Stats{}
-	if err := proto.Unmarshal(msg.Data(), data); err != nil {
-		return msg.Term()
-	}
-
-	domain, ok := eventDomain(data)
+	event, ok := decodeEvent(msg)
 	if !ok {
 		return msg.Term()
 	}
 
-	statType := stats.DetermineTypeFromStats(data)
-	if err := h.service.IncrementAggregatedStat(ctx, domain, data.Timestamp.AsTime(), statType); err != nil {
+	domain, ok := eventDomain(event)
+	if !ok {
+		return msg.Term()
+	}
+
+	statType := event.Outcome.Type()
+	if err := h.service.IncrementAggregatedStat(ctx, domain, event.Timestamp, statType); err != nil {
 		slog.Error("cannot increment aggregated stat", "err", err)
 		return msg.Nak()
 	}
@@ -168,14 +166,24 @@ func (h *statsHandler) handleAggregatedStatsMsg(ctx context.Context, msg jetstre
 	return msg.Ack()
 }
 
+// decodeEvent reads a published stat message into the domain Event both handlers work in. This is
+// the only place in the worker that knows the events arrive as protobuf.
+func decodeEvent(msg jetstream.Msg) (stats.Event, bool) {
+	event, err := statspb.UnmarshalEvent(msg.Data())
+	if err != nil {
+		return stats.Event{}, false
+	}
+	return event, true
+}
+
 // eventDomain canonicalises the Domain an event was published under, reporting false when the
 // value is not a domain name at all. The published value comes from a Domain row, so a failure is
 // a fault in the message: both handlers Term it, since Nak'ing would reproduce the #396 hot loop.
-func eventDomain(data *types.Stats) (values.DomainName, bool) {
-	domain, err := values.Parse(data.Domain)
+func eventDomain(event stats.Event) (values.DomainName, bool) {
+	domain, err := values.Parse(event.Domain)
 	if err != nil {
 		slog.Error("stat event carries a non-canonical domain",
-			"domain", data.Domain, "batch", data.MessageId, "err", err)
+			"domain", event.Domain, "batch", event.MessageID, "err", err)
 		return values.DomainName{}, false
 	}
 	return domain, true
@@ -185,32 +193,32 @@ func eventDomain(data *types.Stats) (values.DomainName, bool) {
 // counted in aggregate only (CONTEXT.md), and one under Pseudonymous, whose pseudonym takes this
 // same email-shaped path (ADR 0006). An event naming nobody under any other Mode is Termed.
 func (h *statsHandler) handleStatsMsg(ctx context.Context, msg jetstream.Msg) error {
-	data := &types.Stats{}
-	if err := proto.Unmarshal(msg.Data(), data); err != nil {
-		return msg.Term()
-	}
-
-	domain, ok := eventDomain(data)
+	event, ok := decodeEvent(msg)
 	if !ok {
 		return msg.Term()
 	}
 
-	stat := stats.NewStat(data.Email, data.MessageId, domain, data.Timestamp.AsTime(), data.Data)
-	mode := trackingpb.ToMode(data.TrackingMode)
-
-	if mode == tracking.ModeAnonymous {
-		slog.Debug("anonymous event: counted in aggregate, no per-recipient row",
-			"type", stat.Type, "batch", data.MessageId, "domain", data.Domain)
-		return msg.Ack()
-	}
-
-	if tracking.NamesNobody(data.Email, data.Domain) {
-		slog.Error("stat event carries no recipient identity and is not anonymous",
-			"type", stat.Type, "batch", data.MessageId, "domain", data.Domain, "tracking_mode", mode)
+	domain, ok := eventDomain(event)
+	if !ok {
 		return msg.Term()
 	}
 
-	slog.Info(fmt.Sprintf("[%s] %s %s", stats.DisplayName[stat.Type], utils.ObfuscateEmail(data.Email), data.MessageId))
+	stat := stats.NewStat(event.Email, event.MessageID, domain, event.Timestamp, event.Outcome)
+	mode := event.TrackingMode
+
+	if mode == tracking.ModeAnonymous {
+		slog.Debug("anonymous event: counted in aggregate, no per-recipient row",
+			"type", stat.Type, "batch", event.MessageID, "domain", event.Domain)
+		return msg.Ack()
+	}
+
+	if tracking.NamesNobody(event.Email, event.Domain) {
+		slog.Error("stat event carries no recipient identity and is not anonymous",
+			"type", stat.Type, "batch", event.MessageID, "domain", event.Domain, "tracking_mode", mode)
+		return msg.Term()
+	}
+
+	slog.Info(fmt.Sprintf("[%s] %s %s", stats.DisplayName[stat.Type], utils.ObfuscateEmail(event.Email), event.MessageID))
 	if err := h.service.InsertStat(ctx, stat); err != nil {
 		slog.Error("cannot insert stat", "type", stat.Type, "err", err)
 		return msg.Nak()

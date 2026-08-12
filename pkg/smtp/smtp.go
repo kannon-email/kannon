@@ -8,12 +8,12 @@ import (
 	"net/mail"
 	"regexp"
 	"strconv"
+	"time"
 
 	"github.com/emersion/go-smtp"
 	"github.com/kannon-email/kannon/internal/publisher"
+	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/internal/utils"
-	st "github.com/kannon-email/kannon/proto/kannon/stats/types"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // The Backend implements SMTP server methods.
@@ -71,29 +71,21 @@ func (s *Session) Data(r io.Reader) error {
 
 	code, errMsg := parseCode(emailmsg.Body)
 
-	m := &st.Stats{
-		MessageId: messageID,
+	event := stats.Event{
+		MessageID: messageID,
 		Email:     email,
-		Timestamp: timestamppb.Now(),
+		Timestamp: time.Now(),
 		Domain:    domain,
-		Data: &st.StatsData{
-			Data: &st.StatsData_Bounced{
-				Bounced: &st.StatsDataBounced{
-					Permanent: isPermanentCode(code),
-					Code:      uint32(code),
-					Msg:       errMsg,
-				},
-			},
-		},
+		Outcome:   stats.Bounced(isPermanentCode(code), uint32(code), errMsg),
 	}
 
 	slog.Info(fmt.Sprintf("[🤷 got bounce] %vs - %d - %s", utils.ObfuscateEmail(email), code, errMsg))
 
-	// PublishStat derives the subject from the payload, so an asynchronous
+	// PublishStat derives the subject from the Outcome, so an asynchronous
 	// bounce lands on the same kannon.stats.bounced as a synchronous one.
 	// Naming the subject by hand here is what put these events on a topic no
 	// consumer subscribed to (#376).
-	if err := publisher.PublishStat(s.nc, m); err != nil {
+	if err := publisher.PublishStat(s.nc, event); err != nil {
 		slog.Error("Cannot publish data", "err", err)
 		return nil
 	}

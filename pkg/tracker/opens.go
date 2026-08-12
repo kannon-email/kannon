@@ -9,13 +9,10 @@ import (
 	"strings"
 	"time"
 
-	sqlc "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/publisher"
+	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/internal/statssec"
-	"github.com/kannon-email/kannon/internal/trackingpb"
 	"github.com/kannon-email/kannon/internal/utils"
-	pb "github.com/kannon-email/kannon/proto/kannon/stats/types"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func (s *srv) handleOpen(w http.ResponseWriter, r *http.Request) {
@@ -44,9 +41,9 @@ func (s *srv) handleOpen(w http.ResponseWriter, r *http.Request) {
 	// may be long gone, and reading it from the request would let a recipient
 	// choose how much is retained about them.
 	kept := retained(r, claims.Email, claims.Mode)
-	data := buildOpenStat(claims, kept, domain)
+	event := buildOpenEvent(claims, kept, domain)
 
-	if err := publisher.PublishStat(s.pub, data); err != nil {
+	if err := publisher.PublishStat(s.pub, event); err != nil {
 		slog.Error("cannot send message on nats", "err", err)
 		return
 	}
@@ -63,26 +60,17 @@ func writeTrackingPixel(w http.ResponseWriter) {
 	}
 }
 
-func buildOpenStat(claims *statssec.OpenClaims, kept engagement, domain string) *pb.Stats {
-	data := &pb.Stats{
-		MessageId: claims.MessageID,
+func buildOpenEvent(claims *statssec.OpenClaims, kept engagement, domain string) stats.Event {
+	return stats.Event{
+		MessageID: claims.MessageID,
 		Email:     kept.email,
-		Data: &pb.StatsData{
-			Data: &pb.StatsData_Opened{
-				Opened: &pb.StatsDataOpened{
-					UserAgent: kept.userAgent,
-					Ip:        kept.ip,
-				},
-			},
-		},
-		Domain: domain,
-		Type:   string(sqlc.StatsTypeOpened),
+		Domain:    domain,
+		Outcome:   stats.Opened(kept.userAgent, kept.ip),
 		// The Mode travels on the event so a consumer can tell an Opened with no
 		// ip / user_agent because Identified forbade retaining them from one that
 		// merely lacks them — and, under Anonymous, an event with no email from a
 		// bug that lost one.
-		TrackingMode: trackingpb.FromMode(claims.Mode),
-		Timestamp:    timestamppb.Now(),
+		TrackingMode: claims.Mode,
+		Timestamp:    time.Now(),
 	}
-	return data
 }

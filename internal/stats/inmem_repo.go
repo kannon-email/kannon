@@ -7,8 +7,6 @@ import (
 	"time"
 
 	"github.com/kannon-email/kannon/internal/values"
-	"github.com/kannon-email/kannon/proto/kannon/stats/types"
-	"google.golang.org/protobuf/proto"
 )
 
 // InMemRepository is an in-memory implementation of Repository for testing.
@@ -37,12 +35,10 @@ func (r *InMemRepository) Insert(_ context.Context, stat *Stat) error {
 	stat.ID = r.nextID
 	r.nextID++
 
-	// Store a deep copy to avoid external mutation.
+	// Store a copy to avoid external mutation. A plain one is deep enough: an
+	// Outcome is a value object of scalars, so copying the Stat copies it whole
+	// — which is what the proto.Clone this replaced was for.
 	cp := *stat
-	if stat.Data != nil {
-		// proto.Clone preserves the concrete type of its input.
-		cp.Data = proto.Clone(stat.Data).(*types.StatsData) //nolint:errcheck // assertion cannot fail
-	}
 	r.stats = append(r.stats, &cp)
 	return nil
 }

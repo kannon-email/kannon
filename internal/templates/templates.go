@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/kannon-email/kannon/internal/values"
-	pb "github.com/kannon-email/kannon/proto/kannon/admin/apiv1"
 	"github.com/nrednav/cuid2"
 )
 
@@ -99,7 +98,7 @@ func (t *Template) UpdatedAt() time.Time { return t.updatedAt }
 
 // DomainName is the Domain this Template belongs to, in the form a Repository is addressed with.
 // No string-rendering counterpart as on domains.Domain: a Template's Domain is never displayed —
-// Pb omits it — and is only ever used to scope a lookup.
+// it is left off the wire payload — and is only ever used to scope a lookup.
 func (t *Template) DomainName() values.DomainName { return t.domain }
 
 // SetHTML overwrites the rendered body. Used by Repository.Update.
@@ -107,16 +106,6 @@ func (t *Template) SetHTML(html string) { t.html = html }
 
 // SetTitle overwrites the title. Used by Repository.Update.
 func (t *Template) SetTitle(title string) { t.title = title }
-
-// Pb translates to the proto wire type.
-func (t *Template) Pb() *pb.Template {
-	return &pb.Template{
-		TemplateId: t.templateID,
-		Html:       t.html,
-		Title:      t.title,
-		Type:       string(t.typ),
-	}
-}
 
 // newTemplateID composes the id from the canonical domain name. The "@" is the
 // separator DomainFromID parses back out, and it is sound only because

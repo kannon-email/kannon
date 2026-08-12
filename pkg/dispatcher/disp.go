@@ -12,12 +12,11 @@ import (
 	"github.com/kannon-email/kannon/internal/envelope"
 	"github.com/kannon-email/kannon/internal/pool"
 	"github.com/kannon-email/kannon/internal/publisher"
+	"github.com/kannon-email/kannon/internal/stats"
+	"github.com/kannon-email/kannon/internal/statspb"
 	"github.com/kannon-email/kannon/internal/statssec"
 	"github.com/kannon-email/kannon/internal/utils"
-	statstypes "github.com/kannon-email/kannon/proto/kannon/stats/types"
 	"github.com/nats-io/nats.go/jetstream"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type disp struct {
@@ -164,20 +163,16 @@ func (d *disp) retryOrFail(ctx context.Context, dlv *delivery.Delivery, reason s
 // that for the bug being fixed here: a Delivery that vanishes with `accepted` as
 // its last word.
 func (d *disp) fail(ctx context.Context, dlv *delivery.Delivery, reason string) error {
-	stat := &statstypes.Stats{
-		MessageId: dlv.BatchID().String(),
+	event := stats.Event{
+		MessageID: dlv.BatchID().String(),
 		Domain:    dlv.Domain(),
 		Email:     dlv.Email(),
-		Timestamp: timestamppb.Now(),
-		Data: &statstypes.StatsData{
-			Data: &statstypes.StatsData_Failed{
-				Failed: &statstypes.StatsDataFailed{Reason: reason},
-			},
-		},
+		Timestamp: time.Now(),
+		Outcome:   stats.Failed(reason),
 	}
-	// PublishStat derives kannon.stats.failed from the payload, so the subject
+	// PublishStat derives kannon.stats.failed from the Outcome, so the subject
 	// cannot disagree with the outcome it carries.
-	if err := publisher.PublishStat(d.pub, stat); err != nil {
+	if err := publisher.PublishStat(d.pub, event); err != nil {
 		return fmt.Errorf("cannot publish failed stat: %w", err)
 	}
 
@@ -199,13 +194,12 @@ func (d *disp) handleErrors(ctx context.Context) error {
 	return d.handleMsg(ctx, sbj, subName, d.parseErrorsFunc)
 }
 
-func (d *disp) parseErrorsFunc(ctx context.Context, m *statstypes.Stats) error {
-	bounceErr := m.Data.GetError()
-	if bounceErr == nil {
+func (d *disp) parseErrorsFunc(ctx context.Context, e stats.Event) error {
+	if e.Outcome.Type() != stats.TypeError {
 		return errors.New("stats is not of type error")
 	}
 
-	dlv, err := d.claimer.Lookup(ctx, batch.ID(m.MessageId), m.Email)
+	dlv, err := d.claimer.Lookup(ctx, batch.ID(e.MessageID), e.Email)
 	if err != nil {
 		return fmt.Errorf("cannot lookup delivery: %w", err)
 	}
@@ -221,8 +215,8 @@ func (d *disp) handleDelivers(ctx context.Context) error {
 	return d.handleMsg(ctx, sbj, subName, d.parsDeliveredFunc)
 }
 
-func (d *disp) parsDeliveredFunc(ctx context.Context, m *statstypes.Stats) error {
-	dlv, err := d.claimer.Lookup(ctx, batch.ID(m.MessageId), m.Email)
+func (d *disp) parsDeliveredFunc(ctx context.Context, e stats.Event) error {
+	dlv, err := d.claimer.Lookup(ctx, batch.ID(e.MessageID), e.Email)
 	if err != nil {
 		return fmt.Errorf("cannot lookup delivery: %w", err)
 	}
@@ -238,8 +232,8 @@ func (d *disp) handleBounced(ctx context.Context) error {
 	return d.handleMsg(ctx, sbj, subName, d.parsBouncedFunc)
 }
 
-func (d *disp) parsBouncedFunc(ctx context.Context, m *statstypes.Stats) error {
-	dlv, err := d.claimer.Lookup(ctx, batch.ID(m.MessageId), m.Email)
+func (d *disp) parsBouncedFunc(ctx context.Context, e stats.Event) error {
+	dlv, err := d.claimer.Lookup(ctx, batch.ID(e.MessageID), e.Email)
 	if err != nil {
 		return fmt.Errorf("cannot lookup delivery: %w", err)
 	}
@@ -250,17 +244,19 @@ func (d *disp) parsBouncedFunc(ctx context.Context, m *statstypes.Stats) error {
 	return nil
 }
 
-type parseFunc func(ctx context.Context, msg *statstypes.Stats) error
+type parseFunc func(ctx context.Context, e stats.Event) error
 
+// handleMsg is the one place the Dispatcher decodes a stat message, so the
+// handlers above work in domain types and the proto stays at this edge.
 func (d *disp) handleMsg(ctx context.Context, sbj, subName string, parse parseFunc) error {
 	con := utils.MustGetPullSubscriber(ctx, d.js, "kannon-stats", sbj, subName)
 	c, err := con.Consume(func(msg jetstream.Msg) {
 		d.handleWithAck(ctx, msg, func(ctx context.Context, msg jetstream.Msg) error {
-			m := &statstypes.Stats{}
-			if err := proto.Unmarshal(msg.Data(), m); err != nil {
+			event, err := statspb.UnmarshalEvent(msg.Data())
+			if err != nil {
 				return err
 			}
-			return parse(ctx, m)
+			return parse(ctx, event)
 		})
 	})
 	if err != nil {

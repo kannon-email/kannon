@@ -13,7 +13,6 @@ import (
 	"github.com/kannon-email/kannon/internal/runner"
 	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/internal/tests"
-	"github.com/kannon-email/kannon/proto/kannon/stats/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -69,7 +68,7 @@ func TestCleanupCycle_DeletesOldStats(t *testing.T) {
 		Timestamp: pgtype.Timestamp{Time: oldTime, Valid: true},
 		Domain:    "test.com",
 		Type:      sq.StatsTypeDelivered,
-		Data:      &types.StatsData{Data: &types.StatsData_Accepted{Accepted: &types.StatsDataAccepted{}}},
+		Data:      sq.StatsDataFromOutcome(stats.Accepted()),
 	})
 	require.NoError(t, err)
 
@@ -81,7 +80,7 @@ func TestCleanupCycle_DeletesOldStats(t *testing.T) {
 		Timestamp: pgtype.Timestamp{Time: recentTime, Valid: true},
 		Domain:    "test.com",
 		Type:      sq.StatsTypeDelivered,
-		Data:      &types.StatsData{Data: &types.StatsData_Accepted{Accepted: &types.StatsDataAccepted{}}},
+		Data:      sq.StatsDataFromOutcome(stats.Accepted()),
 	})
 	require.NoError(t, err)
 
@@ -113,7 +112,7 @@ func TestCleanupCycle_KeepsRecentStats(t *testing.T) {
 			Timestamp: pgtype.Timestamp{Time: time.Now().Add(-1 * time.Hour), Valid: true},
 			Domain:    "test.com",
 			Type:      sq.StatsTypeDelivered,
-			Data:      &types.StatsData{Data: &types.StatsData_Accepted{Accepted: &types.StatsDataAccepted{}}},
+			Data:      sq.StatsDataFromOutcome(stats.Accepted()),
 		})
 		require.NoError(t, err)
 	}

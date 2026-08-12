@@ -31,6 +31,7 @@ import (
 	"github.com/kannon-email/kannon/internal/delivery"
 	"github.com/kannon-email/kannon/internal/envelope"
 	"github.com/kannon-email/kannon/internal/pool"
+	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/internal/statssec"
 	statstypes "github.com/kannon-email/kannon/proto/kannon/stats/types"
 )
@@ -160,15 +161,11 @@ func TestParseErrors_RetryBudgetSpent_FailsTheDelivery(t *testing.T) {
 
 	claimForDispatch(t, repo, claimer, batchID, domain, email)
 
-	require.NoError(t, d.parseErrorsFunc(ctx, &statstypes.Stats{
-		MessageId: batchID.String(),
+	require.NoError(t, d.parseErrorsFunc(ctx, stats.Event{
+		MessageID: batchID.String(),
 		Domain:    domain,
 		Email:     email,
-		Data: &statstypes.StatsData{
-			Data: &statstypes.StatsData_Error{
-				Error: &statstypes.StatsDataError{Code: 421, Msg: "connection reset"},
-			},
-		},
+		Outcome:   stats.Errored(421, "connection reset"),
 	}))
 
 	assert.False(t, poolRowExists(t, batchID, email),

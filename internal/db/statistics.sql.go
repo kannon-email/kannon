@@ -9,7 +9,6 @@ import (
 	"context"
 
 	"github.com/jackc/pgx/v5/pgtype"
-	pbtypes "github.com/kannon-email/kannon/proto/kannon/stats/types"
 )
 
 const countQueryStats = `-- name: CountQueryStats :one
@@ -54,7 +53,7 @@ type InsertStatParams struct {
 	Type      StatsType
 	Timestamp pgtype.Timestamp
 	Domain    string
-	Data      *pbtypes.StatsData
+	Data      StatsData
 }
 
 // The unique index on (email, message_id, domain, type, timestamp) is what makes

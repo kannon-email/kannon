@@ -887,16 +887,20 @@ func TestSendMailRecipientTrackingPolicy(t *testing.T) {
 	t.Run("AModeFromANewerSchemaRejectsOnlyThatRecipient", func(t *testing.T) {
 		defer cleanDB(t)
 
-		d := createTestDomain(t)
-
-		res := requireSend(t, d, nil,
-			&types.Recipient{Email: "fine@email.com"},
+		requireOnlyBadRowRejected(t, createTestDomain(t),
 			&types.Recipient{Email: "unreadable@email.com", Tracking: wirePolicy(trackingtypes.TrackingMode(9999), wireUnspecified)},
-		)
+			"unsupported_tracking_mode")
+	})
 
-		assert.Equal(t, map[string]string{"unreadable@email.com": "unsupported_tracking_mode"}, rejections(t, res))
-		assert.EqualValues(t, 1, res.AcceptedCount)
-		assert.Equal(t, []string{"fine@email.com"}, poolEmails(t, res.MessageId))
+	// A row can fail two ways at once, and the caller is told the first one the intake
+	// asks about. Pinned because the reason is a token callers branch on, and because
+	// translating the Policy earlier than the address is checked would silently change it.
+	t.Run("ARowWithNoAddressIsRefusedForTheAddressBeforeItsMode", func(t *testing.T) {
+		defer cleanDB(t)
+
+		requireOnlyBadRowRejected(t, createTestDomain(t),
+			&types.Recipient{Email: "  ", Tracking: wirePolicy(trackingtypes.TrackingMode(9999), wireUnspecified)},
+			"invalid_email")
 	})
 
 	t.Run("OmittingTheFieldBehavesExactlyAsBefore", func(t *testing.T) {
@@ -1015,6 +1019,20 @@ func setDomainTracking(t *testing.T, d *tests.DomainWithKey, p *trackingtypes.Tr
 		Tracking: p,
 	}))
 	require.NoError(t, err)
+}
+
+// requireOnlyBadRowRejected sends bad alongside one unremarkable Recipient and asserts that exactly
+// bad was refused, for wantReason, while the other was accepted and reached the Pool. That second
+// half is the point: what distinguishes a per-Recipient rejection from a failed call is the rest of
+// the Batch going out, so a test that only checked the reason would pass on a Batch of one.
+func requireOnlyBadRowRejected(t *testing.T, d *tests.DomainWithKey, bad *types.Recipient, wantReason string) {
+	t.Helper()
+
+	res := requireSend(t, d, nil, &types.Recipient{Email: "fine@email.com"}, bad)
+
+	assert.Equal(t, map[string]string{bad.Email: wantReason}, rejections(t, res))
+	assert.EqualValues(t, 1, res.AcceptedCount)
+	assert.Equal(t, []string{"fine@email.com"}, poolEmails(t, res.MessageId))
 }
 
 // requireSend performs one send for d with an optional Batch-level Policy and the given Recipients,
