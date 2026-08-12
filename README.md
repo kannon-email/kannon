@@ -501,6 +501,7 @@ curl -sX POST http://localhost:50051/kannon.stats.apiv2.StatsApiV2/GetAggregated
 
 - See [`k8s/deployment.yaml`](k8s/deployment.yaml) for a starting manifest: a ConfigMap holding the whole configuration, and one pod running every component, exposing the API (50051), the Tracker (8080) and the inbound SMTP listener (25).
 - To split the components across Deployments, mount that same ConfigMap in each of them and set only the `KANNON_ENABLE_*` variables that pod needs — one file describes the installation, and each Deployment says which part of it it is.
+- The sender is the component to split out first: it needs no database at all. It is NATS in, SMTP out, NATS out by design ([ADR 0013](docs/adr/0013-the-sender-never-talks-to-the-database.md)), so it scales with outbound volume rather than with database capacity, carries no database credential, and keeps delivering mail Kannon has already accepted while PostgreSQL is unavailable. For a sender pod to run without a `database_url`, write the reference with an empty fallback — `database_url: env://KANNON_DATABASE_URL:-` — since a bare `env://NAME` is required of every process that reads the file, whether or not it ever connects.
 - Kannon exits at boot if `--config` points at a file that is not there, and refuses to start if the file enables no component.
 - Terminate TLS in front of the Tracker: tracking URLs are always `https://stats.<your-domain>/…` while the Tracker itself serves plain HTTP.
 
