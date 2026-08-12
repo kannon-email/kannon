@@ -12,10 +12,10 @@
 //	  stats:
 //	    enabled: env://KANNON_ENABLE_STATS:-false
 //
-// That replaces the K_ prefix, which viper could only apply to the handful of
+// That replaced the K_ prefix, which viper could only apply to the handful of
 // top-level keys bound by hand and silently ignored everywhere else — see
-// x/config/envref. The prefix keeps working, deprecated, so an existing
-// deployment can migrate one variable at a time.
+// x/config/envref. The prefix is gone (ADR 0012); Kannon warns at boot about any
+// K_ variable it finds, since it no longer reads one.
 package config
 
 import (
@@ -42,9 +42,9 @@ type RootConfig struct {
 	Debug           bool   `mapstructure:"debug"`
 }
 
-// Prepare points viper at the configuration file and installs the deprecated
-// environment prefix. Called before any command runs, and separate from Read
-// because the --config flag it depends on is only parsed by then.
+// Prepare points viper at the configuration file. Called before any command runs,
+// and separate from Read because the --config flag it depends on is only parsed by
+// then.
 func Prepare(cfgFile string) {
 	if cfgFile != "" {
 		viper.SetConfigFile(cfgFile)
@@ -63,8 +63,6 @@ func Prepare(cfgFile string) {
 			slog.Warn("cannot locate the home directory and no --config was given, so no configuration file will be read", "err", err)
 		}
 	}
-
-	prepareLegacyEnv()
 }
 
 // Read loads the configuration file and returns the settings that belong to no
@@ -83,11 +81,10 @@ func Read() (RootConfig, error) {
 		}
 	}
 
-	// Before anything reads a key, and after the file has been read: a deprecated
-	// spelling has to have been promoted onto its canonical name by the time the
-	// first unmarshal runs, and promotion is what the file is allowed to override.
-	ApplyDeprecatedAliases()
-	promoteLegacyEnv()
+	// After the file has been read, so that a variable the file names can be told
+	// from one left behind in a manifest, and before anything reads a key: the
+	// settings this warning is about are the ones the unmarshal below is about to
+	// find missing.
 	warnLegacyEnvPrefix()
 
 	var cfg RootConfig
@@ -134,19 +131,14 @@ const apiKey = "api"
 // missing, and a message naming a key the code does not read is worse than no message.
 const APIAdminTokenKey = apiKey + ".admin_token"
 
-// APIAdminTokenEnvVar is the deprecated K_ spelling of the same key, kept because it is what the
-// Kubernetes manifests of every existing deployment carry. The replacement is to name a variable
-// in the file — `admin_token: env://ANYTHING` — which is no longer a special case for this key.
-const APIAdminTokenEnvVar = legacyEnvPrefix + "_API_ADMIN_TOKEN"
-
 // APIAdminToken returns the configured admin credential, empty when none is set — the caller
 // decides what that means, which for the API runnable is a refusal to boot.
 //
-// Read through the section, like every other key: the deprecated K_API_ADMIN_TOKEN is promoted onto
-// this key by Read, below the file rather than above it, so this key needs no binding of its own and
-// the reference an operator writes here is resolved by the same decode hook as everything else. It
-// used to be the one value read with viper.GetString and resolved by hand, which meant the one
-// credential in the system was also the one value the mechanism did not validate.
+// Read through the section, like every other key, so the reference an operator writes here is
+// resolved by the same decode hook as everything else. It used to be the one value read with
+// viper.GetString and resolved by hand — which meant the one credential in the system was also the
+// one value the mechanism did not validate — and then the one key the removed K_ prefix reached
+// below the top level.
 func APIAdminToken() (string, error) {
 	var api struct {
 		AdminToken string `mapstructure:"admin_token"`

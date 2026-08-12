@@ -18,7 +18,6 @@ import (
 	"github.com/kannon-email/kannon/x/config"
 	"github.com/kannon-email/kannon/x/container"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 var (
@@ -40,9 +39,7 @@ describe a whole installation and each deployment enable only its own:
 
 The components are sender, dispatcher, validator, stats, tracker, api, smtp and
 audit; none of them runs unless it is enabled. Any value in the file can be taken
-from the environment as env://NAME, or env://NAME:-default to supply a fallback.
-
-The --run-<component> flags still select components and are deprecated.`,
+from the environment as env://NAME, or env://NAME:-default to supply a fallback.`,
 		Run: run,
 	}
 )
@@ -148,49 +145,9 @@ func requireAdminToken(services config.Services) error {
 func init() {
 	cobra.OnInitialize(func() { config.Prepare(cfgFile) })
 
+	// The only flag left: which components a process runs is written in the config file
+	// (ADR 0012), and everything else in it is a key rather than an argument. A --run-*
+	// flag left in a manifest is now refused by cobra as an unknown flag, which is the
+	// loudest way an installation that has not migrated can be told.
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.kannon.yaml)")
-	rootCmd.PersistentFlags().Bool("viper", true, "use Viper for configuration")
-
-	// Every one of these is deprecated in favour of the `services` section, which one config
-	// file can hold for a whole installation and which can take its answer from the
-	// environment. They keep working, OR-ed with the section, until a future major version.
-	for _, f := range []struct {
-		flag    string
-		service string
-	}{
-		{flag: "run-sender", service: "sender"},
-		{flag: "run-dispatcher", service: "dispatcher"},
-		{flag: "run-validator", service: "validator"},
-		{flag: "run-verifier", service: "validator"},
-		{flag: "run-tracker", service: "tracker"},
-		{flag: "run-bounce", service: "tracker"},
-		{flag: "run-stats", service: "stats"},
-		{flag: "run-api", service: "api"},
-		{flag: "run-smtp", service: "smtp"},
-		{flag: "run-audit", service: "audit"},
-	} {
-		createDeprecatedRunFlag(f.flag, f.service)
-	}
-}
-
-// createDeprecatedRunFlag registers one --run-* flag, binds it to viper so
-// config.LoadServices can see it, and marks it deprecated so pflag names the
-// replacement the first time somebody passes it.
-func createDeprecatedRunFlag(name, service string) {
-	flags := rootCmd.PersistentFlags()
-	flags.Bool(name, false, "run the "+service)
-	if err := viper.BindPFlag(name, flags.Lookup(name)); err != nil {
-		slog.Error("cannot bind flag", "name", name, "err", err)
-		os.Exit(1)
-	}
-	if err := flags.MarkDeprecated(name, config.DeprecatedRunFlagMessage(service)); err != nil {
-		slog.Error("cannot deprecate flag", "name", name, "err", err)
-		os.Exit(1)
-	}
-	// MarkDeprecated also hides the flag, and a deprecated flag has to stay
-	// discoverable for as long as it works: the whole migration story is moving one
-	// Deployment at a time, and an operator still on the old path must be able to
-	// read the spellings out of --help rather than out of a manifest they may no
-	// longer have.
-	flags.Lookup(name).Hidden = false
 }

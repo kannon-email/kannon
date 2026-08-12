@@ -1,44 +1,37 @@
 package cmd
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/kannon-email/kannon/x/config"
 	"github.com/spf13/viper"
 )
 
-// Regression: --run-bounce / --run-verifier are promoted onto their canonical names
-// by config.Read, and config.LoadServices is what reads those names. Asserted
-// through the cmd layer's own entry point, because the order of those two reads is
-// the cmd layer's to get wrong — and when it is wrong the alias fires too late,
-// nothing is registered, and the process exits immediately after logging
+// The order of the two reads is the cmd layer's to get wrong: `services` is a section of
+// the file, so reading it before config.Read has loaded that file unmarshals an empty
+// viper, nothing is registered, and the process exits immediately after logging
 // "Starting Kannon runnables: []".
-func TestReadConfigAndServices_PromotesDeprecatedAliasesFirst(t *testing.T) {
-	tests := []struct {
-		alias string
-		want  string
-	}{
-		{alias: "run-bounce", want: "tracker"},
-		{alias: "run-verifier", want: "validator"},
+func TestReadConfigAndServices_ReadsTheFileBeforeTheServicesSection(t *testing.T) {
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+	// The developer's own ~/.kannon.yaml is not part of this: readConfig reads
+	// whatever viper has been pointed at, and here that is the file below.
+	t.Setenv("HOME", t.TempDir())
+
+	path := filepath.Join(t.TempDir(), "kannon.yaml")
+	if err := os.WriteFile(path, []byte("services:\n  api:\n    enabled: true\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	config.Prepare(path)
+
+	_, services, err := readConfigAndServices()
+	if err != nil {
+		t.Fatalf("readConfigAndServices: %v", err)
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.alias, func(t *testing.T) {
-			viper.Reset()
-			t.Cleanup(viper.Reset)
-			// The developer's own ~/.kannon.yaml is not part of this: readConfig
-			// reads whatever viper has been pointed at, and here that is nothing.
-			t.Setenv("HOME", t.TempDir())
-
-			viper.Set(tc.alias, true)
-
-			_, services, err := readConfigAndServices()
-			if err != nil {
-				t.Fatalf("readConfigAndServices: %v", err)
-			}
-
-			if got := services.Enabled(); len(got) != 1 || got[0] != tc.want {
-				t.Errorf("enabled services = %v, want [%s] after promoting %q", got, tc.want, tc.alias)
-			}
-		})
+	if got := services.Enabled(); len(got) != 1 || got[0] != "api" {
+		t.Errorf("enabled services = %v, want [api] from the config file", got)
 	}
 }

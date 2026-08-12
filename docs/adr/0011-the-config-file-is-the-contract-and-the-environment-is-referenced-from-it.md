@@ -7,6 +7,11 @@ Accepted (2026-08-11). Supersedes the `K_` environment prefix and the
 deprecated. ADR 0009 specified `api.admin_token` and its `K_API_ADMIN_TOKEN`
 spelling, which this ADR generalises rather than replaces.
 
+Amended by [ADR 0012](./0012-the-deprecated-configuration-surfaces-are-removed.md)
+(2026-08-12): the deprecations this ADR kept — the `K_` prefix, the `--run-*`
+flags and the `bump:` alias — are removed. The decision below stands; the two
+sections describing what stays deprecated no longer describe the code.
+
 ## Context
 
 Kannon's configuration had two halves that did not meet.

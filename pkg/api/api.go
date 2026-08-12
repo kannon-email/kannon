@@ -57,8 +57,9 @@ func AdminToken() (admintoken.Token, error) {
 func adminTokenError(err error) error {
 	return fmt.Errorf(
 		"the API needs an admin token to authenticate the Admin and Stats APIs: set %q in the config file, "+
-			"taking it from the environment as `admin_token: env://%s` if you would rather not write it there (%w)",
-		config.APIAdminTokenKey, config.APIAdminTokenEnvVar, err)
+			"taking it from the environment as `admin_token: env://KANNON_ADMIN_TOKEN` if you would rather "+
+			"not write it there (%w)",
+		config.APIAdminTokenKey, err)
 }
 
 // New constructs the API runnable, loading its slice of configuration from

@@ -128,7 +128,7 @@ Worker that consumes all `kannon.stats.*` events and persists them.
 
 **Tracker**:
 HTTP server that handles open and click tracking. Verifies signed tokens, redirects clicks to the original URL, serves the tracking pixel, and emits Opened / Clicked events to NATS.
-_Avoid_: Bump (legacy package name, removed under PRD #322; the `bump:` config key remains as a deprecated alias and will be removed in a future major version)
+_Avoid_: Bump (legacy package name, removed under PRD #322; the `bump:` config alias followed it under ADR 0012, leaving `tracker:` as the only spelling)
 
 ### Outcomes (per Delivery)
 
@@ -255,5 +255,5 @@ _Avoid_: Reaper / Reaping, Sweep / Sweeper, Requeue, Janitor, Unstick. *Stranded
 - "Batch" connotes a processing job and reads oddly at cardinality 1 ("a batch of one"). Accepted as a deliberate trade-off — chosen for its accuracy about the multi-recipient shape and to keep "Message" free for the SMTP/RFC sense.
 - "Envelope" puns on the SMTP envelope (`MAIL FROM`/`RCPT TO`). Accepted: the **Envelope** here *is* the SMTP envelope plus its payload, so the pun is informative rather than misleading.
 - The proto type `Sender{email, alias}` is misaligned with RFC 5322, where `Sender` ≠ `From` (Sender = submitter, From = author). The proto is closer to `From`. Renaming is wire-breaking and deferred; flagged for a future major version.
-- `ARCHITECTURE.md` previously used both "Validator" and "Verifier" for the same module. Resolved under PRD #322: **Validator** is canonical and "Verifier" has been removed from the docs and Go code; `--run-verifier` remains a deprecated CLI alias that logs a warning at startup, until removed in a future major version. (It was documented as also being settable as `K_RUN_VERIFIER`; that never worked — no `run-*` key was ever reachable from the environment, which is part of what ADR 0011 set out to fix.)
+- `ARCHITECTURE.md` previously used both "Validator" and "Verifier" for the same module. Resolved under PRD #322: **Validator** is canonical and "Verifier" has been removed from the docs and Go code; the `--run-verifier` CLI alias outlived it as a deprecation and was removed under ADR 0012, so "Verifier" now names nothing in Kannon. (It was documented as also being settable as `K_RUN_VERIFIER`; that never worked — no `run-*` key was ever reachable from the environment, which is part of what ADR 0011 set out to fix.)
 - `audit.enabled` and `services.audit.enabled` are one word apart and mean different things: the first is whether authorization decisions are published at all (ADR 0010), the second whether *this process* runs the writer that turns them into rows. Both are needed to collect an audit trail. Accepted as a naming cost in ADR 0011, on the grounds that moving `audit.enabled` would break a documented setting that already carries a retention obligation.

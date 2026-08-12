@@ -65,7 +65,7 @@ func TestRequireAdminToken(t *testing.T) {
 			if err == nil {
 				t.Fatal("expected the boot to be refused")
 			}
-			for _, want := range []string{config.APIAdminTokenKey, config.APIAdminTokenEnvVar} {
+			for _, want := range []string{config.APIAdminTokenKey, "env://"} {
 				if !strings.Contains(err.Error(), want) {
 					t.Errorf("expected the refusal to name %q, got %q", want, err)
 				}
@@ -74,26 +74,18 @@ func TestRequireAdminToken(t *testing.T) {
 	}
 }
 
-// Every --run-* flag is deprecated and every one of them still works, so every one of them has to
-// stay in --help: pflag hides a flag when it is marked deprecated, and an operator migrating one
-// Deployment at a time needs to be able to read the spellings out of the binary.
-func TestDeprecatedRunFlagsStayVisible(t *testing.T) {
+// The --run-* flags are gone, and gone means unregistered rather than hidden: a manifest still
+// passing one has to be refused at startup, since a flag that parses and selects nothing would
+// give a pod that comes up running nothing it was asked for.
+func TestTheRunFlagsAreGone(t *testing.T) {
 	flags := rootCmd.PersistentFlags()
 
 	for _, name := range []string{
 		"run-sender", "run-dispatcher", "run-validator", "run-verifier",
 		"run-tracker", "run-bounce", "run-stats", "run-api", "run-smtp", "run-audit",
 	} {
-		flag := flags.Lookup(name)
-		if flag == nil {
-			t.Errorf("--%s is gone; it is deprecated, not removed", name)
-			continue
-		}
-		if flag.Deprecated == "" {
-			t.Errorf("--%s is not marked deprecated", name)
-		}
-		if flag.Hidden {
-			t.Errorf("--%s is hidden, so --help no longer names a flag that still works", name)
+		if flags.Lookup(name) != nil {
+			t.Errorf("--%s is still registered; `services.<component>.enabled` is the only way to select a component", name)
 		}
 	}
 }

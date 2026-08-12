@@ -378,8 +378,9 @@ func TestMapKeysAlsoGoThroughTheHook(t *testing.T) {
 	}
 }
 
-// A named string type reaches the hook when a value arrives through viper.Set,
-// which is how the deprecated aliases are promoted.
+// A named string type reaches the hook when a value arrives through viper.Set
+// rather than out of the file, which is how a test — or any caller writing into
+// viper's override layer — supplies one.
 func TestHookHandlesNamedStringInput(t *testing.T) {
 	type level string
 
