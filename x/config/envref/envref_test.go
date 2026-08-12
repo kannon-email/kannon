@@ -134,29 +134,6 @@ func TestMalformedReferenceIsRefused(t *testing.T) {
 	}
 }
 
-func TestName(t *testing.T) {
-	tests := []struct {
-		raw    string
-		want   string
-		wantOK bool
-	}{
-		{raw: "env://KANNON_DATABASE_URL", want: "KANNON_DATABASE_URL", wantOK: true},
-		{raw: "env://K_DATABASE_URL:-postgres://localhost/kannon", want: "K_DATABASE_URL", wantOK: true},
-		{raw: "postgres://localhost/kannon"},
-		{raw: `\env://KANNON_DATABASE_URL`},
-		{raw: "env://not-a-name"},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.raw, func(t *testing.T) {
-			got, ok := Name(tc.raw)
-			if ok != tc.wantOK || got != tc.want {
-				t.Errorf("Name(%q) = %q, %v; want %q, %v", tc.raw, got, ok, tc.want, tc.wantOK)
-			}
-		})
-	}
-}
-
 // TestUnquotedReferenceIsValidYAML makes sure the scheme-like syntax survives
 // YAML parsing without quotes, since nothing forces an operator to quote it and
 // the examples Kannon ships do not.
@@ -318,9 +295,9 @@ func TestEmptyIsUnsetIsOptional(t *testing.T) {
 	}
 }
 
-// The legacy K_ variables are promoted onto their keys with viper.Set, and
-// standalone forces use_embedded_nats the same way, so the override layer has to
-// go through the hook as well.
+// A default and an override are configuration too: viper.SetDefault is one way a
+// value reaches a key, and viper.Set another, so both layers have to go through
+// the hook as well.
 func TestDefaultsAndOverridesAreResolvedToo(t *testing.T) {
 	v := newViper(t, "port: 8080\n")
 	v.SetDefault("sender.hostname", "env://KANNON_SENDER_HOSTNAME:-localhost")

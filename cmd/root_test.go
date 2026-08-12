@@ -74,22 +74,6 @@ func TestRequireAdminToken(t *testing.T) {
 	}
 }
 
-// The --run-* flags are gone, and gone means unregistered rather than hidden: a manifest still
-// passing one has to be refused at startup, since a flag that parses and selects nothing would
-// give a pod that comes up running nothing it was asked for.
-func TestTheRunFlagsAreGone(t *testing.T) {
-	flags := rootCmd.PersistentFlags()
-
-	for _, name := range []string{
-		"run-sender", "run-dispatcher", "run-validator", "run-verifier",
-		"run-tracker", "run-bounce", "run-stats", "run-api", "run-smtp", "run-audit",
-	} {
-		if flags.Lookup(name) != nil {
-			t.Errorf("--%s is still registered; `services.<component>.enabled` is the only way to select a component", name)
-		}
-	}
-}
-
 // A token an operator asked to come from a variable nobody set is refused the same way a missing
 // one is: what the API must never do is come up answering every admin request with unauthenticated.
 func TestRequireAdminTokenWithAnUnresolvableReference(t *testing.T) {

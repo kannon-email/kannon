@@ -12,10 +12,10 @@
 //	  stats:
 //	    enabled: env://KANNON_ENABLE_STATS:-false
 //
-// That replaced the K_ prefix, which viper could only apply to the handful of
-// top-level keys bound by hand and silently ignored everywhere else — see
-// x/config/envref. The prefix is gone (ADR 0012); Kannon warns at boot about any
-// K_ variable it finds, since it no longer reads one.
+// Naming the variable is the only way a setting comes from the environment: viper
+// can answer a top-level key from it and a nested one not at all, so nothing here
+// reads the environment except through a reference the file wrote down — see
+// x/config/envref.
 package config
 
 import (
@@ -81,12 +81,6 @@ func Read() (RootConfig, error) {
 		}
 	}
 
-	// After the file has been read, so that a variable the file names can be told
-	// from one left behind in a manifest, and before anything reads a key: the
-	// settings this warning is about are the ones the unmarshal below is about to
-	// find missing.
-	warnLegacyEnvPrefix()
-
 	var cfg RootConfig
 	if err := viper.Unmarshal(&cfg, envref.Decoder()); err != nil {
 		return RootConfig{}, fmt.Errorf("cannot resolve the configuration: %w", err)
@@ -136,9 +130,8 @@ const APIAdminTokenKey = apiKey + ".admin_token"
 //
 // Read through the section, like every other key, so the reference an operator writes here is
 // resolved by the same decode hook as everything else. It used to be the one value read with
-// viper.GetString and resolved by hand — which meant the one credential in the system was also the
-// one value the mechanism did not validate — and then the one key the removed K_ prefix reached
-// below the top level.
+// viper.GetString and resolved by hand, which meant the one credential in the system was also the
+// one value the mechanism did not validate.
 func APIAdminToken() (string, error) {
 	var api struct {
 		AdminToken string `mapstructure:"admin_token"`

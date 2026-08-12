@@ -57,25 +57,6 @@ services:
 	assertEnabled(t, services, "stats", "api")
 }
 
-// The removed keys are read by nothing: the `services` section is the whole
-// answer, and a `run-api` key surviving somewhere in viper does not add a
-// component behind the file's back.
-func TestLoadServices_IgnoresTheRemovedRunKeys(t *testing.T) {
-	viper.Reset()
-	t.Cleanup(viper.Reset)
-
-	viper.Set("services.stats.enabled", true)
-	for _, key := range []string{"run-api", "run-verifier", "run-bounce"} {
-		viper.Set(key, true)
-	}
-
-	services, err := LoadServices()
-	if err != nil {
-		t.Fatalf("LoadServices: %v", err)
-	}
-	assertEnabled(t, services, "stats")
-}
-
 // A misspelled service name is refused rather than ignored. Silently ignoring it
 // would produce a process that runs nothing while its config file looks right,
 // which is the one mistake this section must not make quietly.

@@ -47,8 +47,7 @@ type Services struct {
 }
 
 // LoadServices resolves which runnables this process starts, from the `services`
-// section — the only place that says so since the --run-* flags were removed
-// (ADR 0012).
+// section — the only place that says so.
 //
 // An error, not a panic like LoadSection: this section decides whether the
 // process does anything at all, so getting it wrong deserves a message.

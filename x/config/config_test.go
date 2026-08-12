@@ -1,8 +1,6 @@
 package config
 
 import (
-	"bytes"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,15 +8,6 @@ import (
 
 	"github.com/spf13/viper"
 )
-
-func captureSlog(t *testing.T) *bytes.Buffer {
-	t.Helper()
-	var buf bytes.Buffer
-	prev := slog.Default()
-	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
-	t.Cleanup(func() { slog.SetDefault(prev) })
-	return &buf
-}
 
 // writeConfig points viper at a config file holding yaml, the way --config does.
 func writeConfig(t *testing.T, yaml string) {
@@ -32,9 +21,7 @@ func writeConfig(t *testing.T, yaml string) {
 
 // prepareWithoutAConfigFile is Prepare("") — a process started with no --config —
 // with the home directory pointed at an empty one. Without that, viper searches
-// the developer's own $HOME and a ~/.kannon.yaml sitting there decides the result:
-// the same leakage from the machine running the tests that the environ hook exists
-// to keep out of the deprecation warning.
+// the developer's own $HOME and a ~/.kannon.yaml sitting there decides the result.
 func prepareWithoutAConfigFile(t *testing.T) {
 	t.Helper()
 	t.Setenv("HOME", t.TempDir())

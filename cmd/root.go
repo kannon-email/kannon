@@ -145,9 +145,8 @@ func requireAdminToken(services config.Services) error {
 func init() {
 	cobra.OnInitialize(func() { config.Prepare(cfgFile) })
 
-	// The only flag left: which components a process runs is written in the config file
-	// (ADR 0012), and everything else in it is a key rather than an argument. A --run-*
-	// flag left in a manifest is now refused by cobra as an unknown flag, which is the
-	// loudest way an installation that has not migrated can be told.
+	// The only flag there is: which components a process runs, and every setting they
+	// read, is written in the config file, so the command line has nothing left to say
+	// beyond where that file is.
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.kannon.yaml)")
 }

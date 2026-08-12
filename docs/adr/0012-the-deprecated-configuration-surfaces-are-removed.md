@@ -48,29 +48,35 @@ and the process exits non-zero, which is the loudest available answer: a flag th
 still parsed and selected nothing would give a pod that comes up healthy running
 none of what its manifest asked for.
 
-The startup warning naming every `K_` variable in the environment stays, with its
-message changed from "deprecated" to "no longer read". It is the one thing that
-turns a silent loss into a diagnosis: the failure mode of the removal is a
-`database_url` that is simply absent, which surfaces as whatever fails next rather
-than as the variable that used to supply it. As before, a variable the file itself
-refers to is left out of the warning — `database_url: env://K_DATABASE_URL` is a
-migrated deployment, not a stale one, and the name a deployment already uses is
-still a name the file may refer to.
+The startup warning that named every `K_` variable in the environment goes too.
+Keeping it would have left the prefix alive in `x/config` as a second deprecation
+in place of the first — one more thing to explain, and one more thing to decide
+when to remove. The removal is announced by the release: a breaking version, a
+migration table in the README, and a CHANGELOG entry, which is where a deployment
+about to be upgraded is read from.
+
+Nothing about the removal is quiet at run time either, for the half that matters
+most: a flag stops the boot outright, and a variable that used to supply
+`database_url` leaves the key unset, which the container reports as the
+connection it cannot make. What is genuinely lost is the diagnosis for the
+variables the prefix never reached — `K_TRACKER_PORT` and its kind, which have
+been setting nothing all along and go on doing so.
 
 ## Consequences
 
 This is a breaking change for any installation that has not migrated. A pod
 passing `--run-api` stops at startup with an unknown-flag error. A pod relying on
-`K_DATABASE_URL` starts, logs the warning naming it, and then fails on the setting
-that variable used to carry — or, worse, comes up on a config file that happens to
-supply a default for it, which is the case the warning exists for.
+`K_DATABASE_URL` starts and then fails on the setting that variable used to carry
+— and an operator reading that failure has to know to look at their manifest,
+which is what the README's migration table is for.
 
 `x/config` no longer reads a configuration value through any viper accessor, so
-ADR 0011's boundary holds without an exception list. Two pieces of machinery go
-with the deprecations: the promotion of a `K_` variable onto its key, and the
+ADR 0011's boundary holds without an exception list. Three pieces of machinery go
+with the deprecations: the promotion of a `K_` variable onto its key, the
 nested-key merge that promotion needed in order not to hide the keys beside the one
-it wrote.
+it wrote, and `envref.Name`, which existed so the warning could tell a variable the
+file refers to from one that was setting nothing.
 
-The warning itself is now the only trace of the prefix, and it has an end: once
-the installations Kannon knows about have upgraded past this version, it can be
-deleted, and `x/config` stops knowing that `K_` ever meant anything.
+Nothing in the code knows that `K_` ever meant anything. The prefix survives only
+where it belongs — in the migration table and in these ADRs — so a reader of
+`x/config` sees one way to configure Kannon rather than one way plus its history.

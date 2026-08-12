@@ -255,7 +255,7 @@ An Audit Record holds the identifier of the credential that acted, the Action, t
 
 ### Migrating from `K_` variables and `--run-*` flags
 
-Both are **removed** — see [ADR 0012](./docs/adr/0012-the-deprecated-configuration-surfaces-are-removed.md). A `--run-*` flag left on a command line is now refused as an unknown flag, and a `K_` variable sets nothing; Kannon names every `K_` variable it finds at startup, so the removal is not silent.
+Both are **removed** — see [ADR 0012](./docs/adr/0012-the-deprecated-configuration-surfaces-are-removed.md). A `--run-*` flag left on a command line is now refused as an unknown flag; a `K_` variable sets nothing, with no warning, so check for them before upgrading.
 
 | Was                                                 | Now                                                         |
 | --------------------------------------------------- | ----------------------------------------------------------- |
