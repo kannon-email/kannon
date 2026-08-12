@@ -61,7 +61,7 @@ Kannon is composed of several microservices and workers:
 - **Tracker**: HTTP server for open and click tracking. Verifies signed tokens, redirects clicks, serves the tracking pixel, and emits Opened / Clicked events.
 - **Stats**: Consumes all `kannon.stats.*` events, persists them, and prunes them once past the retention window.
 
-All components can be enabled/disabled via CLI flags or config.
+Which components a process runs is written in the config file, so one file can describe a whole installation and each deployment enable only its own.
 
 > **See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for a full breakdown of modules, NATS streams, topics, consumers, and message flows.**
 
@@ -253,9 +253,9 @@ An Audit Record holds the identifier of the credential that acted, the Action, t
 
 - See [`examples/docker-compose/kannon.yaml`](examples/docker-compose/kannon.yaml) for a full example.
 
-### Migrating from `K_` variables and `--run-*` flags
+### Upgrading from 0.5.x
 
-Both are **removed** — see [ADR 0012](./docs/adr/0012-the-deprecated-configuration-surfaces-are-removed.md). A `--run-*` flag left on a command line is now refused as an unknown flag; a `K_` variable sets nothing, with no warning, so check for them before upgrading.
+**[Migrating to v1](./docs/MIGRATING-TO-V1.md)** is the full guide: the `--run-*` flags and the `K_` environment prefix are removed, the Admin and Stats APIs now authenticate, and five schema migrations apply — one of which refuses data that 0.5.x allowed you to create, so check for it *before* upgrading.
 
 | Was                                                 | Now                                                         |
 | --------------------------------------------------- | ----------------------------------------------------------- |
