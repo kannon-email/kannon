@@ -216,6 +216,7 @@ Kannon is a cloud-native, scalable SMTP mail sender designed for Kubernetes and 
 
 - Worker that consumes emails to send from NATS, performs SMTP delivery, and publishes delivery/bounce/error stats back to NATS.
 - Acknowledges a message only once the SMTP transaction has returned, so its consumer is given an ack deadline that outlasts one (`sendAckPolicy`), and every send is claimed in the `kannon-sent-envelopes` key/value bucket first, so a redelivery cannot put the same email in a mailbox twice. See [ADR 0004](docs/adr/0004-send-idempotency-guard.md).
+- **Never talks to the database.** NATS in, SMTP out, NATS out: the Envelope it consumes, the claim it takes, and the outcome it publishes all live in NATS, and nothing it needs is in PostgreSQL. That is what lets it be deployed on its own, scaled with outbound volume rather than with database capacity, and keep sending while the database is unavailable — so it is a constraint on what may be added here, not a description of what happens to be here. See [ADR 0013](docs/adr/0013-the-sender-never-talks-to-the-database.md), enforced by `TestSenderNeverTalksToTheDatabase`.
 
 #### `pkg/smtp/`
 
@@ -366,9 +367,9 @@ flowchart TD
     NATS[(NATS)]
     API <--> DB
     Dispatcher <--> DB
-    SMTPSender <--> DB
     Validator <--> DB
     Stats <--> DB
+    Tracker <--> DB
     API <--> NATS
     SMTPSender <--> NATS
     Dispatcher <--> NATS
@@ -398,6 +399,7 @@ flowchart TD
 ### 4. Sending (SMTPSender)
 
 - The SMTPSender worker consumes emails from NATS (`kannon.sending`), performs SMTP delivery, and publishes delivery/bounce/error stats to NATS (`kannon.stats.*`).
+- It reads and writes nothing in PostgreSQL. Everything the send needs is in the Envelope, and every consequence of it leaves as a stat: the Dispatcher, not the sender, is what turns that stat into a Pool transition ([ADR 0013](docs/adr/0013-the-sender-never-talks-to-the-database.md)).
 
 ### 5. SMTP Server
 
