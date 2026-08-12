@@ -14,7 +14,7 @@ Kannon is a cloud-native, scalable SMTP mail sender designed for Kubernetes and 
 
 #### `x/config/`
 
-- Reads the configuration file, resolves the `env://NAME` references in it (`x/config/envref`), and hands each runnable its own section. Also holds the deprecated `K_` prefix and `--run-*` flags. See [ADR 0011](./docs/adr/0011-the-config-file-is-the-contract-and-the-environment-is-referenced-from-it.md).
+- Reads the configuration file, resolves the `env://NAME` references in it (`x/config/envref`), and hands each runnable its own section. The `K_` prefix and the `--run-*` flags it replaced are gone. See [ADR 0011](./docs/adr/0011-the-config-file-is-the-contract-and-the-environment-is-referenced-from-it.md) and [ADR 0012](./docs/adr/0012-the-deprecated-configuration-surfaces-are-removed.md).
 
 #### `x/container/`
 

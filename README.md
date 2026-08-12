@@ -255,19 +255,17 @@ An Audit Record holds the identifier of the credential that acted, the Action, t
 
 ### Migrating from `K_` variables and `--run-*` flags
 
-Both still work, both are deprecated, and neither has to be dropped in one go — the `services` section is OR-ed with the flags, so a deployment can move one component at a time.
+Both are **removed** — see [ADR 0012](./docs/adr/0012-the-deprecated-configuration-surfaces-are-removed.md). A `--run-*` flag left on a command line is now refused as an unknown flag; a `K_` variable sets nothing, with no warning, so check for them before upgrading.
 
-| Was                                     | Now                                                       |
-| --------------------------------------- | --------------------------------------------------------- |
-| `--run-stats`                           | `services.stats.enabled: true`                            |
-| `K_DATABASE_URL=…` in the environment   | `database_url: env://K_DATABASE_URL` in the file           |
-| `K_API_ADMIN_TOKEN=…`                   | `api.admin_token: env://K_API_ADMIN_TOKEN`                 |
+| Was                                                 | Now                                                         |
+| --------------------------------------------------- | ----------------------------------------------------------- |
+| `--run-stats`                                       | `services.stats.enabled: true`                              |
+| `--run-verifier`, `--run-bounce`                    | `services.validator.enabled`, `services.tracker.enabled`    |
+| `K_DATABASE_URL=…` in the environment               | `database_url: env://K_DATABASE_URL` in the file             |
+| `K_API_ADMIN_TOKEN=…`                               | `api.admin_token: env://K_API_ADMIN_TOKEN`                   |
+| the `bump:` section, `K_BUMP_PORT`                  | `tracker.port`                                              |
 
-The variable does not have to be renamed: the file can go on referring to whatever the deployment already sets. What changes is that the reference is written down, so which settings come from the environment is visible in one place — and it works for **every** key, where the `K_` prefix only ever reached the four top-level ones plus `K_API_ADMIN_TOKEN`. `K_API_PORT`, `K_SENDER_HOSTNAME` and `K_TRACKER_PORT` were silently ignored; Kannon warns at startup about every `K_` variable it finds and does not read.
-
-The file wins. A `K_` variable is a fallback for a key the file says nothing about, so once a key is written down — as a value or as a reference — a variable left behind in a manifest cannot override it, and the startup warning stops naming it.
-
-> **Deprecated aliases:** `run-verifier` continues to work as an alias for `run-validator`, `run-bounce` for `run-tracker`, and the `bump:` YAML section (plus the `K_BUMP_PORT` env var) for `tracker:`. They will be removed in a future major version.
+The variable does not have to be renamed: the file can go on referring to whatever the deployment already sets. What changes is that the reference is written down, so which settings come from the environment is visible in one place — and it works for **every** key, where the `K_` prefix only ever reached the four top-level ones plus `K_API_ADMIN_TOKEN`. `K_API_PORT`, `K_SENDER_HOSTNAME` and `K_TRACKER_PORT` were silently ignored for as long as they existed.
 
 ## Database Schema
 

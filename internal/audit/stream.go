@@ -95,7 +95,7 @@ func warnOnBacklog(ctx context.Context, js streamReader) {
 	// risk. The precise figure lives on a consumer, and the case worth warning about is the one where
 	// there is no consumer to ask — so the reported number is named for what it actually is.
 	if info.State.Msgs > 0 && info.State.Consumers == 0 {
-		slog.Warn("Audit Records are queueing with nothing consuming them: they will expire unread. Run Kannon with --run-audit.",
+		slog.Warn("Audit Records are queueing with nothing consuming them: they will expire unread. Run a Kannon process with `services.audit.enabled` set.",
 			"stream", StreamName, "records_held", info.State.Msgs, "expires_after", streamMaxAge)
 	}
 }

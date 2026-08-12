@@ -47,13 +47,7 @@ type Services struct {
 }
 
 // LoadServices resolves which runnables this process starts, from the `services`
-// section and from the deprecated --run-* flags.
-//
-// The two are OR-ed rather than ranked: a flag on the command line and a key in
-// the file are both an operator asking for that component, and nobody passes
-// --run-stats meaning "not stats". It also keeps the migration free of order —
-// a deployment can move one Deployment at a time to the file while the rest still
-// pass flags, with no combination that turns something off unexpectedly.
+// section — the only place that says so.
 //
 // An error, not a panic like LoadSection: this section decides whether the
 // process does anything at all, so getting it wrong deserves a message.
@@ -63,12 +57,6 @@ func LoadServices() (Services, error) {
 	// instead of quietly producing a process that starts nothing.
 	if err := viper.UnmarshalKey(servicesKey, &s, envref.Decoder(), errorOnUnknownKeys); err != nil {
 		return Services{}, fmt.Errorf("cannot read the %q section: %w", servicesKey, err)
-	}
-
-	for _, svc := range s.each() {
-		if viper.GetBool(deprecatedRunKey(svc.name)) {
-			*svc.enabled = true
-		}
 	}
 
 	return s, nil
@@ -100,8 +88,7 @@ func AllServices() Services {
 }
 
 // serviceRef pairs a service's name with the field holding its switch, so the
-// name in the file, the name of its deprecated flag and the name in a log line
-// cannot come to be spelled three ways.
+// name in the file and the name in a log line cannot come to be spelled two ways.
 type serviceRef struct {
 	name    string
 	enabled *bool
@@ -118,10 +105,4 @@ func (s *Services) each() []serviceRef {
 		{name: "smtp", enabled: &s.SMTP.Enabled},
 		{name: "audit", enabled: &s.Audit.Enabled},
 	}
-}
-
-// deprecatedRunKey is the viper key of the flag that used to be the only way to
-// select a runnable: --run-stats for services.stats, and so on for each.
-func deprecatedRunKey(service string) string {
-	return "run-" + service
 }

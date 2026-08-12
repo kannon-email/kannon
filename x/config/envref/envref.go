@@ -7,12 +7,12 @@
 //	  admin_token: "env://KANNON_ADMIN_TOKEN" # required, fails fast when not set
 //
 // It exists because viper's own environment support cannot reach a nested key:
-// AutomaticEnv answers Get("api.port") from K_API_PORT, but UnmarshalKey — which
-// is how every runnable reads its section — never consults the environment at
-// all, so K_API_PORT was silently ignored. Rather than bind every key by hand,
-// the config file names the variable it wants: which settings come from the
-// environment is then the operator's decision, visible in one file, and the
-// variable can be called whatever the deployment already calls it.
+// AutomaticEnv answers Get("api.port") from the environment, but UnmarshalKey —
+// which is how every runnable reads its section — never consults it at all, so a
+// nested key was silently ignored. Rather than bind every key by hand, the config
+// file names the variable it wants: which settings come from the environment is
+// then the operator's decision, visible in one file, and the variable can be
+// called whatever the deployment already calls it.
 //
 // The reference must span the whole leaf value: `env://NAME` is resolved,
 // `https://env://NAME/v1` is not. A value that opens with the scheme and is not
@@ -105,18 +105,6 @@ var kannonOptions = Options{EmptyIsUnset: true}
 // Decoder is the decoder option every unmarshal in x/config passes to viper.
 func Decoder() viper.DecoderConfigOption {
 	return DecoderOption(kannonOptions)
-}
-
-// Name reports the environment variable a value refers to, and whether it refers
-// to one at all — without looking that variable up, so an unset one is not an
-// error here. For the deprecation warning, which has to tell a K_ variable the
-// file has migrated to naming from one that is still setting nothing.
-func Name(raw string) (string, bool) {
-	m := envRefPattern.FindStringSubmatch(raw)
-	if m == nil {
-		return "", false
-	}
-	return m[1], true
 }
 
 // Hook returns a decode hook that rewrites every string leaf holding a

@@ -61,7 +61,7 @@ func TestTheBacklogWarningFiresOnlyWhenRecordsAreActuallyPilingUp(t *testing.T) 
 
 			if tc.wantWarn {
 				assert.Contains(t, logged.String(), "level=WARN")
-				assert.Contains(t, logged.String(), "--run-audit",
+				assert.Contains(t, logged.String(), "services.audit.enabled",
 					"the warning has to name what the operator is missing")
 			} else {
 				assert.NotContains(t, logged.String(), "level=WARN")
