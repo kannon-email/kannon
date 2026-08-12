@@ -4,7 +4,7 @@ go 1.26.5
 
 require (
 	connectrpc.com/connect v1.20.0
-	github.com/amacneil/dbmate/v2 v2.34.1
+	github.com/amacneil/dbmate/v2 v2.35.0
 	github.com/emersion/go-message v0.18.2
 	github.com/emersion/go-msgauth v0.7.0
 	github.com/emersion/go-smtp v0.24.0
