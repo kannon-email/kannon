@@ -94,7 +94,7 @@ func (s *sender) Send(from, to string, msg []byte) SenderError {
 
 		lastErr = err
 	}
-	err = fmt.Errorf("all MXs failed, last error: %w", lastErr)
+	err = fmt.Errorf("all MXs failed, last error: %w", *lastErr)
 	return newSMTPError(err, false, lastErr.Code())
 }
 
