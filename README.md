@@ -96,7 +96,7 @@ flowchart TD
 
 ### Prerequisites
 
-- Go 1.26.5+ (see [`mise.toml`](mise.toml))
+- Go 1.27.0+ (see [`mise.toml`](mise.toml))
 - Docker (optional, for containerized deployment)
 - PostgreSQL database
 - NATS server (optional — embedded mode available in standalone command)
