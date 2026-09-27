@@ -1,10 +1,12 @@
 package smtp
 
 import (
+	"encoding/base64"
 	"fmt"
 	"strings"
 	"testing"
 
+	"github.com/kannon-email/kannon/internal/returnpath"
 	st "github.com/kannon-email/kannon/proto/kannon/stats/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,8 +41,10 @@ Diagnostic-Code: SMTP; 550 No such recipient
 	assert.Equal(t, "SMTP; 550 No such recipient", msg)
 }
 
-// bounceReturnPath encodes test@test.com in batch msg_test01 on domain k.test.com.
-const bounceReturnPath = "bump_dGVzdEB0ZXN0LmNvbQ==+msg_test01@k.test.com"
+var testReturnPath = returnpath.MustParse(strings.Repeat("s", returnpath.MinSecretLength))
+
+// bounceReturnPath is signed for test@test.com in batch msg_test01 on domain k.test.com.
+var bounceReturnPath = testReturnPath.Build("test@test.com", "msg_test01@k.test.com")
 
 // dsn renders a delivery status notification carrying the given diagnostic
 // code, in the multipart/report shape a real MTA sends one.
@@ -83,7 +87,7 @@ func (p *capturingPublisher) lastStat(t *testing.T) *st.Stats {
 // (#376).
 func TestDataPublishesAsyncBounceOnBouncedSubject(t *testing.T) {
 	pub := &capturingPublisher{}
-	s := &Session{To: bounceReturnPath, nc: pub}
+	s := &Session{To: bounceReturnPath, nc: pub, rp: testReturnPath}
 
 	require.NoError(t, s.Data(strings.NewReader(dsn("Diagnostic-Code: SMTP; 550 No such recipient"))))
 
@@ -118,7 +122,7 @@ func TestAsyncBouncePermanentFollowsReplyClass(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pub := &capturingPublisher{}
-			s := &Session{To: bounceReturnPath, nc: pub}
+			s := &Session{To: bounceReturnPath, nc: pub, rp: testReturnPath}
 
 			require.NoError(t, s.Data(strings.NewReader(dsn(tt.diagnostic))))
 
@@ -133,11 +137,33 @@ func TestAsyncBouncePermanentFollowsReplyClass(t *testing.T) {
 // A message whose recipient is not a bounce return path is not ours to report.
 func TestDataIgnoresNonBounceRecipient(t *testing.T) {
 	pub := &capturingPublisher{}
-	s := &Session{To: "someone@example.com", nc: pub}
+	s := &Session{To: "someone@example.com", nc: pub, rp: testReturnPath}
 
 	require.NoError(t, s.Data(strings.NewReader(dsn("Diagnostic-Code: SMTP; 550 No such recipient"))))
 
 	assert.Empty(t, pub.subjects, "no stat should be published")
+}
+
+// Anyone can reach port 25, and everything an unsigned return path named — the Batch ID from a
+// message's headers, and an address in plain base64 — is known to whoever received one message of
+// the Batch. A DSN addressed to a return path Kannon did not sign must therefore publish nothing:
+// published, it would have the Dispatcher drop that Recipient's Delivery and the stats worker
+// record a bounce against them.
+func TestDataRefusesABounceOnAForgedReturnPath(t *testing.T) {
+	unsigned := "bump_" + base64.URLEncoding.EncodeToString([]byte("victim@test.com")) + "+msg_test01@k.test.com"
+	otherSecret := returnpath.MustParse(strings.Repeat("x", returnpath.MinSecretLength)).
+		Build("victim@test.com", "msg_test01@k.test.com")
+
+	for name, to := range map[string]string{"unsigned": unsigned, "signed with another secret": otherSecret} {
+		t.Run(name, func(t *testing.T) {
+			pub := &capturingPublisher{}
+			s := &Session{To: to, nc: pub, rp: testReturnPath}
+
+			require.NoError(t, s.Data(strings.NewReader(dsn("Diagnostic-Code: SMTP; 550 No such recipient"))))
+
+			assert.Empty(t, pub.subjects, "a forged bounce must not be published")
+		})
+	}
 }
 
 func TestIsPermanentCode(t *testing.T) {

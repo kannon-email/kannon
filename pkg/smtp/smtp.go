@@ -12,6 +12,7 @@ import (
 
 	"github.com/emersion/go-smtp"
 	"github.com/kannon-email/kannon/internal/publisher"
+	"github.com/kannon-email/kannon/internal/returnpath"
 	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/internal/utils"
 )
@@ -21,13 +22,20 @@ import (
 // The bounce feed is held as a publisher.Publisher rather than a *nats.Conn
 // (which satisfies it) so the subject a DSN lands on is observable in a test —
 // see #376, where it silently drifted onto one nobody consumed.
+//
+// Nothing about a connection authenticates the DSN it delivers — anyone can
+// reach port 25 — so what vouches for a bounce is the return path it is
+// addressed to, which rp verifies was signed by Kannon for that Recipient of
+// that Batch.
 type Backend struct {
 	nc publisher.Publisher
+	rp returnpath.Signer
 }
 
 func (bkd *Backend) NewSession(_ *smtp.Conn) (smtp.Session, error) {
 	return &Session{
 		nc: bkd.nc,
+		rp: bkd.rp,
 	}, nil
 }
 
@@ -36,6 +44,7 @@ type Session struct {
 	From string
 	To   string
 	nc   publisher.Publisher
+	rp   returnpath.Signer
 }
 
 func (s *Session) AuthPlain(username, password string) error {
@@ -59,9 +68,11 @@ func (s *Session) Data(r io.Reader) error {
 		return err
 	}
 
-	email, messageID, domain, found, err := utils.ParseBounceReturnPath(s.To)
+	// A return path that does not verify is refused quietly, with the same
+	// answer as a valid one: telling the sender why would only help them guess.
+	email, messageID, domain, found, err := s.rp.Parse(s.To)
 	if err != nil {
-		slog.Warn(fmt.Sprintf("Error parsing bounce return path: %s", err))
+		slog.Warn(fmt.Sprintf("Refusing bounce: %s", err))
 		return nil
 	}
 

@@ -193,6 +193,10 @@ func runKannon(t *testing.T, infra *TestInfrastructure, senderMock *senderMock) 
 	// configures the credential the way an operator does and then presents it on every Admin
 	// and Stats call, so the whole authenticated path is what these tests exercise.
 	viper.Set("api.admin_token", adminToken)
+	// Shared by the Dispatcher, which signs every return path with it, and the inbound SMTP server,
+	// which accepts a DSN only on a return path that verifies — so the bounce tests below prove the
+	// two agree.
+	viper.Set("bounce.secret", "e2e-bounce-secret-0123456789abcdef")
 	viper.Set("tracker.port", infra.trackerPort)
 	viper.Set("stats.retention", "8760h")
 	// The audit trail is off by default and stays off unless an operator asks for it (ADR 0010). The
