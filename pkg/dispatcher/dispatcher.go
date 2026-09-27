@@ -10,6 +10,7 @@ import (
 	sqlc "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/envelope"
 	"github.com/kannon-email/kannon/internal/pool"
+	"github.com/kannon-email/kannon/internal/returnpath"
 	"github.com/kannon-email/kannon/internal/runner"
 	"github.com/kannon-email/kannon/internal/statssec"
 	"github.com/kannon-email/kannon/internal/utils"
@@ -18,23 +19,24 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 )
 
-// New constructs the dispatcher runnable. The dispatcher has no
-// configurable knobs today, so it does not call config.LoadSection.
+// New constructs the dispatcher runnable. Its one setting is the bounce
+// secret it signs return paths with, which the boot path has already required.
 func New(cnt *container.Container) container.Runnable {
+	rp := returnpath.MustLoad()
 	return container.Runnable{
 		Name: "dispatcher",
 		Run: func(ctx context.Context) error {
-			return run(ctx, cnt)
+			return run(ctx, cnt, rp)
 		},
 	}
 }
 
-func run(ctx context.Context, cnt *container.Container) error {
+func run(ctx context.Context, cnt *container.Container, rp returnpath.Signer) error {
 	q := cnt.Queries()
 
 	ss := statssec.NewStatsService(q)
 	claimer := pool.NewClaimer(sqlc.NewDeliveryRepository(cnt.DB(), cnt.BackoffPolicy(), cnt.RetryWindow()))
-	eb := envelope.NewBuilder(q, ss)
+	eb := envelope.NewBuilder(q, ss, rp)
 
 	js := cnt.NatsJetStream()
 	if err := configureSendingStream(ctx, js); err != nil {

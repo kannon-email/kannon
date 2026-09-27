@@ -193,9 +193,9 @@ The file is `--config <path>`, defaulting to `$HOME/.kannon.yaml`.
 | YAML key                      | Description                                                        |
 | ----------------------------- | ------------------------------------------------------------------ |
 | `services.api.enabled`        | API server (Mailer, Admin, Stats) — requires `api.admin_token`      |
-| `services.smtp.enabled`       | Inbound SMTP server                                                |
+| `services.smtp.enabled`       | Inbound SMTP server — requires `bounce.secret`                     |
 | `services.sender.enabled`     | Sender worker                                                      |
-| `services.dispatcher.enabled` | Dispatcher worker                                                  |
+| `services.dispatcher.enabled` | Dispatcher worker — requires `bounce.secret`                       |
 | `services.validator.enabled`  | Validator worker                                                   |
 | `services.tracker.enabled`    | Tracker worker (opens, clicks, bounces)                            |
 | `services.stats.enabled`      | Stats worker                                                       |
@@ -242,6 +242,13 @@ A process with nothing enabled refuses to boot rather than exit as if it had don
 
 > [!WARNING]
 > The admin token is a single shared secret that authorizes **everything on every Domain** — creating Domains, minting API Keys, rewriting Templates and reading any Domain's per-Delivery statistics. It names no operator, so an Audit Record can only say that a holder acted, and it is revoked by changing it and restarting. Give it to as few callers as possible, and keep the API listener off untrusted networks.
+
+| YAML key        | Type   | Default    | Description                                                           |
+| --------------- | ------ | ---------- | --------------------------------------------------------------------- |
+| `bounce.secret` | string | (required) | Signs bounce return paths; at least 32 characters, see below          |
+
+> [!IMPORTANT]
+> Every Envelope's return path carries an HMAC over the Recipient and Batch it names, and the inbound SMTP server reports a DSN only when it is addressed to a return path that verifies. Without it anyone who can reach port 25, and knows a Batch ID — which every recipient of the Batch does — could drop any other Recipient's queued Delivery and record a bounce against any address. The dispatcher signs and the smtp server verifies, so both need the **same** value, and both refuse to boot without it. Write `secret: env://KANNON_BOUNCE_SECRET` and generate the value with `openssl rand -hex 32`. Changing it invalidates the return paths of messages already sent, so their late bounces are no longer reported.
 
 **Audit trail** (off by default):
 

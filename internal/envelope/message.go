@@ -32,13 +32,6 @@ func buildEmailID(to, messageID string) string {
 	return fmt.Sprintf("<%v/%v>", emailBase64, messageID)
 }
 
-// The "bump_" prefix is the wire-format token interpreted by the Tracker
-// when parsing return-path bounces; renaming it would be wire-breaking.
-func buildReturnPath(to, messageID string) string {
-	emailBase64 := base64.URLEncoding.EncodeToString([]byte(to))
-	return fmt.Sprintf("bump_%v+%v", emailBase64, messageID)
-}
-
 func buildHeaders(subject string, sender batch.Sender, to, poolMessageID, messageID string, baseHeaders headers, customHeaders batch.Headers, unsubscribeURL string) headers {
 	h := make(headers)
 	for k, v := range baseHeaders {

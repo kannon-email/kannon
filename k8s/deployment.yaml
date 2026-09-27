@@ -51,6 +51,12 @@ data:
       # serves the API.
       admin_token: env://KANNON_ADMIN_TOKEN
 
+    bounce:
+      # Signs every bounce return path, so the inbound SMTP server reports only
+      # the DSNs of messages Kannon sent. Shared by the dispatcher and the smtp
+      # server, which both refuse to boot without it.
+      secret: env://KANNON_BOUNCE_SECRET
+
     sender:
       hostname: env://KANNON_SENDER_HOSTNAME
 
@@ -112,6 +118,14 @@ spec:
                 secretKeyRef:
                   name: kannon-admin-token
                   key: token
+            # Required by a pod running the dispatcher or the smtp server, and the
+            # same value on every one of them: one signs return paths, the other
+            # verifies them. `openssl rand -hex 32`.
+            - name: KANNON_BOUNCE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: kannon-bounce-secret
+                  key: secret
           resources:
             limits:
               memory: '64Mi'

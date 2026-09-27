@@ -18,6 +18,7 @@ import (
 	"github.com/kannon-email/kannon/internal/delivery"
 	"github.com/kannon-email/kannon/internal/envelope"
 	"github.com/kannon-email/kannon/internal/pool"
+	"github.com/kannon-email/kannon/internal/returnpath"
 	"github.com/kannon-email/kannon/internal/statssec"
 	"github.com/kannon-email/kannon/internal/tests"
 	"github.com/kannon-email/kannon/pkg/api/adminapi"
@@ -51,7 +52,7 @@ func TestMain(m *testing.M) {
 
 	q = sqlc.New(db)
 
-	eb = envelope.NewBuilder(q, statssec.NewStatsService(q))
+	eb = envelope.NewBuilder(q, statssec.NewStatsService(q), returnpath.MustParse(strings.Repeat("s", returnpath.MinSecretLength)))
 	ma = mailapi.NewMailerAPIV1(db, delivery.DefaultBackoff, delivery.DefaultRetryWindow)
 	adminAPI = adminapi.CreateAdminAPIService(db)
 	claimer = pool.NewClaimer(sqlc.NewDeliveryRepository(db, delivery.DefaultBackoff, delivery.DefaultRetryWindow))

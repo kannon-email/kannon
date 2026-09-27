@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/kannon-email/kannon/internal/returnpath"
 	"github.com/kannon-email/kannon/pkg/api"
 	kaudit "github.com/kannon-email/kannon/pkg/audit"
 	"github.com/kannon-email/kannon/pkg/dispatcher"
@@ -91,6 +92,12 @@ func bootstrap(cmd *cobra.Command, cfg config.RootConfig, services config.Servic
 		return err
 	}
 
+	// The same refusal for the secret bounce return paths are signed with: a Dispatcher without it
+	// cannot build an Envelope, and an inbound SMTP server without it would refuse every bounce.
+	if err := requireBounceSecret(services); err != nil {
+		return err
+	}
+
 	cnt := container.New(ctx, cfg)
 	defer func() {
 		if err := cnt.CloseWithTimeout(shutdownTimeout); err != nil {
@@ -139,6 +146,17 @@ func requireAdminToken(services config.Services) error {
 		return nil
 	}
 	_, err := api.AdminToken()
+	return err
+}
+
+// requireBounceSecret refuses a boot that would sign or read bounce return paths with no secret to do
+// it with. Gated on the two runnables that do, for the reason requireAdminToken is gated on the API:
+// the secret belongs on no host that has no use for it.
+func requireBounceSecret(services config.Services) error {
+	if !services.Dispatcher.Enabled && !services.SMTP.Enabled {
+		return nil
+	}
+	_, err := returnpath.Load()
 	return err
 }
 

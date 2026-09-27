@@ -5,6 +5,41 @@ releases that change behaviour of an installation already in production appear
 here; everything else is in [`CHANGELOG.md`](../CHANGELOG.md), which is
 generated from commits.
 
+## Unreleased — Signed bounce return paths
+
+### What changes
+
+The return path of every message Kannon sends now carries an HMAC over the
+Recipient and the Batch it names, and the inbound SMTP server reports a bounce
+only when the DSN is addressed to a return path that verifies. Before, the
+return path was the Recipient's address in base64 next to the Batch ID, both of
+which every recipient of the Batch can read off their copy: anyone able to reach
+port 25 could forge a DSN that made the Dispatcher drop any other Recipient's
+queued or retrying Delivery, and record a bounce against any address of any
+Domain.
+
+### What you have to do
+
+**Set `bounce.secret` before upgrading** on every process running the
+dispatcher or the smtp server — the same value on all of them, at least 32
+characters. Both refuse to boot without it.
+
+```yaml
+bounce:
+  secret: env://KANNON_BOUNCE_SECRET
+```
+
+```sh
+kubectl create secret generic kannon-bounce-secret --from-literal=secret="$(openssl rand -hex 32)"
+```
+
+### What you lose
+
+Bounces of messages sent **before** the upgrade arrive on an unsigned return
+path and are no longer reported. Their Deliveries have already been handed on,
+so the only effect is that a late DSN for one of them is not recorded as a
+bounce. The same happens to messages in flight whenever the secret is changed.
+
 ## Unreleased — Pseudonymous tracking
 
 ### What changes
