@@ -149,3 +149,24 @@ func APIAdminToken() (string, error) {
 func errorOnUnknownKeys(c *mapstructure.DecoderConfig) {
 	c.ErrorUnused = true
 }
+
+// bounceKey is the section holding what the processes that write and read bounce return paths
+// share. A section of its own rather than a key of `smtp` or `dispatcher`, because it belongs to
+// both: the Dispatcher signs the return path and the inbound SMTP server verifies it.
+const bounceKey = "bounce"
+
+// BounceSecretKey holds the secret bounce return paths are signed with. Exported for the same
+// reason as APIAdminTokenKey: an operator missing it has to be told which key to set.
+const BounceSecretKey = bounceKey + ".secret"
+
+// BounceSecret returns the configured bounce secret, empty when none is set — the caller decides
+// what that means, which for the Dispatcher and the inbound SMTP server is a refusal to boot.
+func BounceSecret() (string, error) {
+	var bounce struct {
+		Secret string `mapstructure:"secret"`
+	}
+	if err := TryLoadSection(bounceKey, &bounce); err != nil {
+		return "", err
+	}
+	return bounce.Secret, nil
+}

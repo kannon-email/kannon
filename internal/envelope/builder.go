@@ -10,6 +10,7 @@ import (
 	sqlc "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/delivery"
 	"github.com/kannon-email/kannon/internal/dkim"
+	"github.com/kannon-email/kannon/internal/returnpath"
 	"github.com/kannon-email/kannon/internal/statssec"
 	"github.com/kannon-email/kannon/internal/tracking"
 	"github.com/kannon-email/kannon/internal/utils"
@@ -60,11 +61,14 @@ type Builder interface {
 
 // NewBuilder returns the default Builder backed by sqlc and the given
 // stats service. The sqlc-backed source resolves the Batch + Template +
-// Domain join in a single query (see internal/db/pool.sql).
-func NewBuilder(q *sqlc.Queries, st statssec.StatsService) Builder {
+// Domain join in a single query (see internal/db/pool.sql). rp signs the
+// return path, so the inbound SMTP server can tell a real bounce from a
+// forged one.
+func NewBuilder(q *sqlc.Queries, st statssec.StatsService, rp returnpath.Signer) Builder {
 	return &defaultBuilder{
 		source: sqlcSource{q: q},
 		tokens: st,
+		rp:     rp,
 		shared: newSharedTokens(),
 		baseHeaders: headers{
 			"X-Mailer": {"SMTP Mailer"},
@@ -74,10 +78,11 @@ func NewBuilder(q *sqlc.Queries, st statssec.StatsService) Builder {
 
 // NewBuilderWith wires a Builder against an explicit source + token issuer.
 // Useful for unit tests that want to stub both sides.
-func NewBuilderWith(source SendingDataSource, tokens TokenIssuer) Builder {
+func NewBuilderWith(source SendingDataSource, tokens TokenIssuer, rp returnpath.Signer) Builder {
 	return &defaultBuilder{
 		source: source,
 		tokens: tokens,
+		rp:     rp,
 		shared: newSharedTokens(),
 		baseHeaders: headers{
 			"X-Mailer": {"SMTP Mailer"},
@@ -88,6 +93,7 @@ func NewBuilderWith(source SendingDataSource, tokens TokenIssuer) Builder {
 type defaultBuilder struct {
 	source SendingDataSource
 	tokens TokenIssuer
+	rp     returnpath.Signer
 	// shared holds the tokens that name no Recipient, so they are issued once per
 	// Batch rather than once per Delivery. It is per-Builder, and a Builder lives
 	// as long as the Dispatcher does.
@@ -106,7 +112,7 @@ func (b *defaultBuilder) Build(ctx context.Context, d *delivery.Delivery) (*Enve
 		attachments[name] = bytes.NewReader(raw)
 	}
 
-	returnPath := buildReturnPath(d.Email(), data.MessageID)
+	returnPath := b.rp.Build(d.Email(), data.MessageID)
 	msg, err := b.prepareMessage(ctx, d, data, attachments)
 	if err != nil {
 		return nil, err

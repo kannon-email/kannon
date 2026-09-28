@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/emersion/go-smtp"
+	"github.com/kannon-email/kannon/internal/returnpath"
 	"github.com/kannon-email/kannon/x/config"
 	"github.com/kannon-email/kannon/x/container"
 	"github.com/nats-io/nats.go"
@@ -18,16 +19,17 @@ func New(cnt *container.Container) container.Runnable {
 	var cfg Config
 	config.LoadSection("smtp", &cfg)
 	cfg.setDefaults()
+	rp := returnpath.MustLoad()
 	return container.Runnable{
 		Name: "smtp",
 		Run: func(ctx context.Context) error {
-			return run(ctx, cnt.Nats(), cfg)
+			return run(ctx, cnt.Nats(), cfg, rp)
 		},
 	}
 }
 
-func run(ctx context.Context, nc *nats.Conn, config Config) error {
-	s := buildServer(config, nc)
+func run(ctx context.Context, nc *nats.Conn, config Config, rp returnpath.Signer) error {
+	s := buildServer(config, nc, rp)
 	defer s.Close()
 
 	slog.Info(fmt.Sprintf("Starting server at: %v", s.Addr))
@@ -46,9 +48,10 @@ func run(ctx context.Context, nc *nats.Conn, config Config) error {
 	return s.ListenAndServe()
 }
 
-func buildServer(config Config, nc *nats.Conn) *smtp.Server {
+func buildServer(config Config, nc *nats.Conn, rp returnpath.Signer) *smtp.Server {
 	backend := &Backend{
 		nc: nc,
+		rp: rp,
 	}
 
 	s := smtp.NewServer(backend)
