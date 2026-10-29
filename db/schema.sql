@@ -168,6 +168,18 @@ CREATE TABLE public.domain_template (
 
 
 --
+-- Name: counted_stat_events; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.counted_stat_events (
+    stream text NOT NULL,
+    stream_created text NOT NULL,
+    sequence numeric(20,0) NOT NULL,
+    CONSTRAINT counted_stat_events_sequence_check CHECK ((sequence > (0)::numeric))
+);
+
+
+--
 -- Name: domain_user; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -460,6 +472,14 @@ ALTER TABLE ONLY public.audit_records
 
 ALTER TABLE ONLY public.domain_template
     ADD CONSTRAINT domain_template_pkey PRIMARY KEY ("templateId");
+
+
+--
+-- Name: counted_stat_events counted_stat_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.counted_stat_events
+    ADD CONSTRAINT counted_stat_events_pkey PRIMARY KEY (stream, stream_created, sequence);
 
 
 --
@@ -780,4 +800,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20260727071416'),
     ('20260803094036'),
     ('20260804082406'),
-    ('20260804135145');
+    ('20260804135145'),
+    ('20261029221540');

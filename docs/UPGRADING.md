@@ -5,6 +5,28 @@ releases that change behaviour of an installation already in production appear
 here; everything else is in [`CHANGELOG.md`](../CHANGELOG.md), which is
 generated from commits.
 
+## Unreleased — aggregate event counting
+
+The aggregate consumer now counts each stored JetStream message once, including
+when an acknowledgement is lost or workers process concurrent redeliveries.
+Separate stored Opened and Clicked events still count separately, even when
+their payloads match. Anonymous remains aggregate-only.
+
+The migration adds `counted_stat_events`: one marker per counted stored message,
+containing only stream name, stream creation time and sequence. Stream creation
+time distinguishes a recreated stream whose sequence numbers start over. Keep
+this table with the aggregate counters when backing up or restoring the database.
+
+The `kannon-stats` stream has no configured age limit, so its replay window is
+unbounded. Markers consequently do not expire with `stats.retention`; storage
+grows with the number of counted events. Deleting markers allows retained
+messages to count again. Safe cleanup needs a guaranteed replay cutoff, including
+any stream backups that could be restored; none is configured automatically.
+
+Existing counters are preserved. Previously counted messages have no markers,
+so replaying pre-upgrade history can still add to those existing counters. The
+migration cannot reconstruct stored-message identities from hourly totals.
+
 ## Unreleased — Pseudonymous tracking
 
 ### What changes
