@@ -1,4 +1,4 @@
-package mailapi
+package intake
 
 import (
 	"strings"

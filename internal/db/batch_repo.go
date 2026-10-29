@@ -11,7 +11,7 @@ import (
 )
 
 type batchRepository struct {
-	db *pgxpool.Pool
+	db DBTX
 }
 
 // NewBatchRepository creates a new PostgreSQL-backed Batch repository.

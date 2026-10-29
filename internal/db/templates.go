@@ -13,7 +13,7 @@ import (
 )
 
 type templatesRepository struct {
-	db *pgxpool.Pool
+	db DBTX
 }
 
 // NewTemplatesRepository creates a new PostgreSQL-backed Template repository.
