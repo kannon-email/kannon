@@ -696,3 +696,42 @@ func TestBuildReturnPathRoundTripsThroughParseBounceReturnPath(t *testing.T) {
 		})
 	}
 }
+
+func TestRenderMsgEncodesNonASCIIHeaders(t *testing.T) {
+	h := sampleHeaders()
+	h["Subject"] = []string{"🗓️ Dentro una sede commerciale — NOVITÀ"}
+	h["From"] = []string{"Niccolò di FY <noreply@test.com>"}
+	h["Cc"] = []string{"Zoë <cc@example.com>, plain@example.com"}
+
+	out, err := renderMsg(`<html><body>hi</body></html>`, h, nil)
+	assert.Nil(t, err)
+
+	headerBlock, _, _ := bytes.Cut(out, []byte("\r\n\r\n"))
+	for _, b := range headerBlock {
+		assert.Less(t, b, byte(0x80), "header block must be 7-bit ASCII")
+	}
+
+	parsed, err := mail.ReadMessage(bytes.NewReader(out))
+	assert.Nil(t, err)
+
+	dec := new(mime.WordDecoder)
+	subject, err := dec.DecodeHeader(parsed.Header.Get("Subject"))
+	assert.Nil(t, err)
+	assert.Equal(t, "🗓️ Dentro una sede commerciale — NOVITÀ", subject)
+
+	from, err := parsed.Header.AddressList("From")
+	assert.Nil(t, err)
+	assert.Equal(t, []*mail.Address{{Name: "Niccolò di FY", Address: "noreply@test.com"}}, from)
+
+	cc, err := parsed.Header.AddressList("Cc")
+	assert.Nil(t, err)
+	assert.Equal(t, []*mail.Address{{Name: "Zoë", Address: "cc@example.com"}, {Address: "plain@example.com"}}, cc)
+}
+
+func TestRenderMsgKeepsASCIIHeadersVerbatim(t *testing.T) {
+	out, err := renderMsg(`<html><body>hi</body></html>`, sampleHeaders(), nil)
+	assert.Nil(t, err)
+
+	assert.Contains(t, string(out), "Subject: Hello World\r\n")
+	assert.Contains(t, string(out), "From: Test <noreply@test.com>\r\n")
+}

@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/emersion/go-message/mail"
 	"github.com/kannon-email/kannon/internal/batch"
@@ -69,10 +70,17 @@ func buildHeaders(subject string, sender batch.Sender, to, poolMessageID, messag
 	return h
 }
 
+// addressHeaders are the fields whose value is an address list. A display name
+// in them may be non-ASCII, and it is the one part of the field that gets
+// encoded: the addresses themselves stay as they are.
+var addressHeaders = map[string]bool{
+	"From": true, "To": true, "Cc": true, "Reply-To": true,
+}
+
 func renderMsg(html string, hdrs headers, attachments Attachments) ([]byte, error) {
 	var h mail.Header
 	for key, values := range hdrs {
-		h.Set(key, strings.Join(values, ", "))
+		setHeader(&h, key, strings.Join(values, ", "))
 	}
 	h.SetDate(time.Now())
 
@@ -82,6 +90,42 @@ func renderMsg(html string, hdrs headers, attachments Attachments) ([]byte, erro
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+// setHeader writes a header field, RFC 2047-encoding what is not ASCII.
+//
+// A header field is ASCII-only (RFC 5322), so a raw UTF-8 Subject is only shown
+// right by the clients that choose to be lenient about it: Gmail renders it,
+// iCloud replaces every non-ASCII byte with an asterisk. Encoded words are what
+// every client reads. An ASCII value is written exactly as before.
+//
+// An address list that does not parse is written as it is rather than refused:
+// it was accepted at intake, and mangling it here would be worse.
+func setHeader(h *mail.Header, key, value string) {
+	switch {
+	case isASCII(value):
+		h.Set(key, value)
+	case key == "Subject":
+		h.SetSubject(value)
+	case addressHeaders[key]:
+		addrs, err := mail.ParseAddressList(value)
+		if err != nil {
+			h.Set(key, value)
+			return
+		}
+		h.SetAddressList(key, addrs)
+	default:
+		h.Set(key, value)
+	}
+}
+
+func isASCII(s string) bool {
+	for i := range len(s) {
+		if s[i] >= utf8.RuneSelf {
+			return false
+		}
+	}
+	return true
 }
 
 func writeMessage(buf *bytes.Buffer, h mail.Header, html string, attachments Attachments) error {
