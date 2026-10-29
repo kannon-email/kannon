@@ -58,11 +58,11 @@ func (r *AggregatedStatsRepository) Count(ctx context.Context, id stats.StoredEv
 		return err
 	}
 	return New(r.db).CountAggregatedEvent(ctx, CountAggregatedEventParams{
-		Domain:        domain.String(),
-		Timestamp:     pgtype.Timestamp{Time: timestamp.UTC().Truncate(time.Hour), Valid: true},
-		Type:          StatsType(statType),
-		Stream:        id.Stream,
-		StreamCreated: id.StreamCreated.UTC().Format(time.RFC3339Nano),
-		Sequence:      pgtype.Numeric{Int: new(big.Int).SetUint64(id.Sequence), Valid: true},
+		Domain:    domain.String(),
+		Timestamp: pgtype.Timestamp{Time: timestamp.UTC().Truncate(time.Hour), Valid: true},
+		Type:      StatsType(statType),
+		Stream:    id.Stream,
+		StoredAt:  id.StoredAt.UTC().Format(time.RFC3339Nano),
+		Sequence:  pgtype.Numeric{Int: new(big.Int).SetUint64(id.Sequence), Valid: true},
 	})
 }

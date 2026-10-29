@@ -173,7 +173,7 @@ CREATE TABLE public.domain_template (
 
 CREATE TABLE public.counted_stat_events (
     stream text NOT NULL,
-    stream_created text NOT NULL,
+    stored_at text NOT NULL,
     sequence numeric(20,0) NOT NULL,
     CONSTRAINT counted_stat_events_sequence_check CHECK ((sequence > (0)::numeric))
 );
@@ -479,7 +479,7 @@ ALTER TABLE ONLY public.domain_template
 --
 
 ALTER TABLE ONLY public.counted_stat_events
-    ADD CONSTRAINT counted_stat_events_pkey PRIMARY KEY (stream, stream_created, sequence);
+    ADD CONSTRAINT counted_stat_events_pkey PRIMARY KEY (stream, stored_at, sequence);
 
 
 --

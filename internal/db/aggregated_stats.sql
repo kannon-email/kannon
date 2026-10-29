@@ -12,8 +12,8 @@ ORDER BY timestamp ASC, type;
 
 -- name: CountAggregatedEvent :exec
 WITH first_delivery AS (
-    INSERT INTO counted_stat_events (stream, stream_created, sequence)
-    VALUES (@stream, @stream_created, @sequence)
+    INSERT INTO counted_stat_events (stream, stored_at, sequence)
+    VALUES (@stream, @stored_at, @sequence)
     ON CONFLICT DO NOTHING
     RETURNING 1
 )

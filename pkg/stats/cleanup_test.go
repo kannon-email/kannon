@@ -49,11 +49,10 @@ func newTestHandler() statsHandler {
 	service := stats.NewService(repo,
 		stats.WithAggregatedStatsRepository(sq.NewAggregatedStatsRepository(db)))
 	return statsHandler{
-		service:       service,
-		q:             q,
-		retention:     testRetention,
-		counter:       sq.NewAggregatedStatsRepository(db),
-		streamCreated: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		service:   service,
+		q:         q,
+		retention: testRetention,
+		counter:   sq.NewAggregatedStatsRepository(db),
 	}
 }
 

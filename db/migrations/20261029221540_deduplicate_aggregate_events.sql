@@ -5,9 +5,9 @@
 -- after stream recreation; text preserves the server's nanosecond precision.
 CREATE TABLE counted_stat_events (
     stream text NOT NULL,
-    stream_created text NOT NULL,
+    stored_at text NOT NULL,
     sequence numeric(20, 0) NOT NULL CHECK (sequence > 0),
-    PRIMARY KEY (stream, stream_created, sequence)
+    PRIMARY KEY (stream, stored_at, sequence)
 );
 
 -- migrate:down

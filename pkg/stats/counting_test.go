@@ -49,20 +49,25 @@ func TestCountingNeedsStoredMessageMetadata(t *testing.T) {
 	require.Equal(t, int64(1), aggregatedCount(t, domain, stats.TypeOpened))
 }
 
+// A worker may receive messages across recreation after its startup snapshot.
+// Message metadata, rather than worker state, must distinguish sequence reuse.
 func TestRecreatedStreamCountsReusedSequence(t *testing.T) {
 	domain := tests.FakeDomain(t)
 	h := newTestHandler()
-	msg := engagementEvent(t, domain, "recipient@"+domain, tracking.ModeIdentified)
-	require.NoError(t, h.handleAggregatedStatsMsg(t.Context(), msg))
-	h.streamCreated = h.streamCreated.Add(time.Second)
-	require.NoError(t, h.handleAggregatedStatsMsg(t.Context(), msg))
+	old := engagementEvent(t, domain, "recipient@"+domain, tracking.ModeIdentified)
+	next := *old
+	next.storedAt = old.storedAt.Add(time.Second)
+	require.NoError(t, h.handleAggregatedStatsMsg(t.Context(), old))
+	require.NoError(t, h.handleAggregatedStatsMsg(t.Context(), &next))
+	restarted := newTestHandler()
+	require.NoError(t, restarted.handleAggregatedStatsMsg(t.Context(), &next))
+	require.NoError(t, restarted.handleAggregatedStatsMsg(t.Context(), old))
 	require.Equal(t, int64(2), aggregatedCount(t, domain, stats.TypeOpened))
 }
 
-// Exercise the actual consumer setup: it must get the incarnation from the
-// server, and a restarted worker must preserve it while a recreated stream must
-// get a new one. The payload is byte-identical in all three deliveries.
-func TestAggregatedConsumerBindsStreamIncarnation(t *testing.T) {
+// Exercise actual server metadata: a restarted worker must preserve a stored
+// message identity while a recreated stream must get a new one. The payload is byte-identical in all three deliveries.
+func TestAggregatedConsumerUsesStoredMessageIdentity(t *testing.T) {
 	js := tests.NatsJetStream(t)
 	domain := tests.FakeDomain(t)
 	event := engagementEvent(t, domain, tracking.AnonymousIdentity(domain), tracking.ModeAnonymous)

@@ -13,8 +13,9 @@ Separate stored Opened and Clicked events still count separately, even when
 their payloads match. Anonymous remains aggregate-only.
 
 The migration adds `counted_stat_events`: one marker per counted stored message,
-containing only stream name, stream creation time and sequence. Stream creation
-time distinguishes a recreated stream whose sequence numbers start over. Keep
+containing only stream name, original server storage timestamp and sequence.
+The storage timestamp comes from each message’s metadata, so sequence reuse after
+stream recreation does not depend on a worker’s stale stream snapshot. Keep
 this table with the aggregate counters when backing up or restoring the database.
 
 The `kannon-stats` stream has no configured age limit, so its replay window is

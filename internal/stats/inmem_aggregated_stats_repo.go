@@ -73,7 +73,7 @@ func (r *InMemAggregatedStatsRepository) Count(ctx context.Context, id StoredEve
 	if err := id.Validate(); err != nil {
 		return err
 	}
-	id.StreamCreated = id.StreamCreated.UTC().Round(0)
+	id.StoredAt = id.StoredAt.UTC().Round(0)
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if err := ctx.Err(); err != nil {

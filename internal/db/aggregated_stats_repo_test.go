@@ -23,7 +23,7 @@ func TestCountingRetriesAfterCounterWriteFailure(t *testing.T) {
 	ctx := t.Context()
 	domain := values.MustParse("counting-write-failure.test")
 	at := time.Now().UTC()
-	id := stats.StoredEventID{Stream: domain.String(), StreamCreated: at, Sequence: 1}
+	id := stats.StoredEventID{Stream: domain.String(), StoredAt: at, Sequence: 1}
 	repo := NewAggregatedStatsRepository(db)
 	require.NoError(t, repo.Count(ctx, id, domain, at, stats.TypeOpened))
 	_, err := db.Exec(ctx, `ALTER TABLE aggregated_stats ADD CONSTRAINT counting_write_failure CHECK (domain <> 'counting-write-failure.test' OR count < 2) NOT VALID`)
@@ -51,7 +51,7 @@ func TestCountingRetriesAfterCounterWriteFailure(t *testing.T) {
 func TestCountingSurvivesStorageReconnect(t *testing.T) {
 	domain := values.MustParse("counting-reconnect.test")
 	at := time.Now().UTC()
-	id := stats.StoredEventID{Stream: domain.String(), StreamCreated: at, Sequence: 1}
+	id := stats.StoredEventID{Stream: domain.String(), StoredAt: at, Sequence: 1}
 	require.NoError(t, NewAggregatedStatsRepository(db).Count(t.Context(), id, domain, at, stats.TypeClicked))
 	// A fresh connection pool and adapter have none of the original process state.
 	reconnected, err := pgxpool.NewWithConfig(t.Context(), db.Config())

@@ -29,6 +29,7 @@ type fakeMsg struct {
 	jetstream.Msg
 	data        []byte
 	sequence    uint64
+	storedAt    time.Time
 	metadataErr error
 	ackErr      error
 	acked       int
@@ -40,7 +41,7 @@ func (m *fakeMsg) Metadata() (*jetstream.MsgMetadata, error) {
 	if m.metadataErr != nil {
 		return nil, m.metadataErr
 	}
-	return &jetstream.MsgMetadata{Stream: "kannon-stats", Sequence: jetstream.SequencePair{Stream: m.sequence}}, nil
+	return &jetstream.MsgMetadata{Stream: "kannon-stats", Timestamp: m.storedAt, Sequence: jetstream.SequencePair{Stream: m.sequence}}, nil
 }
 
 func (m *fakeMsg) Data() []byte { return m.data }
@@ -71,7 +72,7 @@ func engagementEvent(t *testing.T, domain, email string, mode tracking.Mode) *fa
 	})
 	require.NoError(t, err)
 
-	return &fakeMsg{data: data, sequence: fixtureSequence.Add(1)}
+	return &fakeMsg{data: data, sequence: fixtureSequence.Add(1), storedAt: time.Now().UTC()}
 }
 
 // perRecipientRows counts the rows the per-recipient consumer left behind for a Domain — what an

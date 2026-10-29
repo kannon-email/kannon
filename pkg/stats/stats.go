@@ -32,12 +32,11 @@ func (c *Config) setDefaults() {
 }
 
 type statsHandler struct {
-	js            jetstream.JetStream
-	service       *stats.Service
-	q             *sq.Queries
-	retention     time.Duration
-	counter       stats.AggregatedEventCounter
-	streamCreated time.Time
+	js        jetstream.JetStream
+	service   *stats.Service
+	q         *sq.Queries
+	retention time.Duration
+	counter   stats.AggregatedEventCounter
 }
 
 // New constructs the stats runnable, loading its slice of configuration from
@@ -131,18 +130,6 @@ func (h *statsHandler) cleanupCycle(ctx context.Context) error {
 // receive all messages independently.
 func (h *statsHandler) handleAggregatedStats(ctx context.Context) error {
 	con := utils.MustGetPullSubscriber(ctx, h.js, "kannon-stats", "kannon.stats.*", "kannon-aggregated-stats")
-	// Bind this consumer to the server's stream incarnation, so sequence reuse
-	// after recreation cannot suppress new events. No local clock or Recipient
-	// data participates in this identity.
-	stream, err := h.js.Stream(ctx, "kannon-stats")
-	if err != nil {
-		return err
-	}
-	info, err := stream.Info(ctx)
-	if err != nil {
-		return err
-	}
-	h.streamCreated = info.Created
 	c, err := con.Consume(func(msg jetstream.Msg) {
 		if err := h.handleAggregatedStatsMsg(ctx, msg); err != nil {
 			slog.Error("Cannot handle aggregated stats msg", "err", err)
@@ -177,7 +164,7 @@ func (h *statsHandler) handleAggregatedStatsMsg(ctx context.Context, msg jetstre
 		slog.Error("cannot read stored stat event metadata", "err", err)
 		return msg.Nak()
 	}
-	id := stats.StoredEventID{Stream: metadata.Stream, StreamCreated: h.streamCreated, Sequence: metadata.Sequence.Stream}
+	id := stats.StoredEventID{Stream: metadata.Stream, StoredAt: metadata.Timestamp, Sequence: metadata.Sequence.Stream}
 	if err := h.counter.Count(ctx, id, domain, event.Timestamp, event.Outcome.Type()); err != nil {
 		slog.Error("cannot increment aggregated stat", "err", err)
 		return msg.Nak()

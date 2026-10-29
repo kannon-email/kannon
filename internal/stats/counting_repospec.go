@@ -19,7 +19,7 @@ func RunCountingRepoSpec(t *testing.T, repo interface {
 	t.Run("RedeliveryCountsOnce", func(t *testing.T) {
 		domain := values.MustParse(fmt.Sprintf("count-%d.test", time.Now().UnixNano()))
 		at := time.Date(2026, 10, 1, 10, 23, 0, 0, time.UTC)
-		id := StoredEventID{Stream: domain.String(), StreamCreated: at.Add(-time.Hour), Sequence: 1}
+		id := StoredEventID{Stream: domain.String(), StoredAt: at.Add(-time.Hour), Sequence: 1}
 		for range 2 {
 			require.NoError(t, repo.Count(t.Context(), id, domain, at, TypeOpened))
 		}
@@ -34,7 +34,7 @@ func RunCountingRepoSpec(t *testing.T, repo interface {
 			t.Run(string(kind), func(t *testing.T) {
 				domain := values.MustParse(fmt.Sprintf("distinct-%d.test", time.Now().UnixNano()))
 				at := time.Date(2026, 10, 1, 10, 23, 0, 0, time.UTC)
-				id := StoredEventID{Stream: domain.String(), StreamCreated: at, Sequence: 1}
+				id := StoredEventID{Stream: domain.String(), StoredAt: at, Sequence: 1}
 				require.NoError(t, repo.Count(t.Context(), id, domain, at, kind))
 				id.Sequence = 2
 				require.NoError(t, repo.Count(t.Context(), id, domain, at, kind))
@@ -45,15 +45,15 @@ func RunCountingRepoSpec(t *testing.T, repo interface {
 			})
 		}
 	})
-	t.Run("StreamIdentityAndIncarnationSeparateSequenceReuse", func(t *testing.T) {
+	t.Run("StoredMessageIdentitySeparatesSequenceReuse", func(t *testing.T) {
 		domain := values.MustParse(fmt.Sprintf("recreated-%d.test", time.Now().UnixNano()))
 		at := time.Date(2026, 10, 1, 10, 23, 0, 123456789, time.UTC)
-		id := StoredEventID{Stream: domain.String(), StreamCreated: at, Sequence: ^uint64(0)}
+		id := StoredEventID{Stream: domain.String(), StoredAt: at, Sequence: ^uint64(0)}
 		require.NoError(t, repo.Count(t.Context(), id, domain, at, TypeOpened))
 		// An equivalent instant must deduplicate even with a different location.
-		id.StreamCreated = at.In(time.FixedZone("offset", 3600))
+		id.StoredAt = at.In(time.FixedZone("offset", 3600))
 		require.NoError(t, repo.Count(t.Context(), id, domain, at, TypeOpened))
-		id.StreamCreated = at.Add(time.Nanosecond)
+		id.StoredAt = at.Add(time.Nanosecond)
 		require.NoError(t, repo.Count(t.Context(), id, domain, at, TypeOpened))
 		id.Stream += "-other"
 		require.NoError(t, repo.Count(t.Context(), id, domain, at, TypeOpened))
@@ -65,7 +65,7 @@ func RunCountingRepoSpec(t *testing.T, repo interface {
 	t.Run("ConcurrentRedeliveryCountsOnce", func(t *testing.T) {
 		domain := values.MustParse(fmt.Sprintf("concurrent-%d.test", time.Now().UnixNano()))
 		at := time.Now().UTC()
-		id := StoredEventID{Stream: domain.String(), StreamCreated: at, Sequence: 1}
+		id := StoredEventID{Stream: domain.String(), StoredAt: at, Sequence: 1}
 		var wg sync.WaitGroup
 		errs := make(chan error, 32)
 		for range 32 {
@@ -84,7 +84,7 @@ func RunCountingRepoSpec(t *testing.T, repo interface {
 	t.Run("FailedWriteCanBeRetried", func(t *testing.T) {
 		domain := values.MustParse(fmt.Sprintf("retry-%d.test", time.Now().UnixNano()))
 		at := time.Now().UTC()
-		id := StoredEventID{Stream: domain.String(), StreamCreated: at, Sequence: 1}
+		id := StoredEventID{Stream: domain.String(), StoredAt: at, Sequence: 1}
 		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 		require.Error(t, repo.Count(ctx, id, domain, at, TypeClicked))
@@ -99,9 +99,9 @@ func RunCountingRepoSpec(t *testing.T, repo interface {
 		domain := values.MustParse(fmt.Sprintf("invalid-%d.test", time.Now().UnixNano()))
 		at := time.Now().UTC()
 		for _, id := range []StoredEventID{
-			{StreamCreated: at, Sequence: 1},
+			{StoredAt: at, Sequence: 1},
 			{Stream: "stats", Sequence: 1},
-			{Stream: "stats", StreamCreated: at},
+			{Stream: "stats", StoredAt: at},
 		} {
 			require.ErrorIs(t, repo.Count(t.Context(), id, domain, at, TypeOpened), ErrInvalidStoredEventID)
 		}

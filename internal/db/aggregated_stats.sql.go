@@ -13,7 +13,7 @@ import (
 
 const countAggregatedEvent = `-- name: CountAggregatedEvent :exec
 WITH first_delivery AS (
-    INSERT INTO counted_stat_events (stream, stream_created, sequence)
+    INSERT INTO counted_stat_events (stream, stored_at, sequence)
     VALUES ($4, $5, $6)
     ON CONFLICT DO NOTHING
     RETURNING 1
@@ -25,12 +25,12 @@ DO UPDATE SET count = aggregated_stats.count + 1
 `
 
 type CountAggregatedEventParams struct {
-	Domain        string
-	Timestamp     pgtype.Timestamp
-	Type          StatsType
-	Stream        string
-	StreamCreated string
-	Sequence      pgtype.Numeric
+	Domain    string
+	Timestamp pgtype.Timestamp
+	Type      StatsType
+	Stream    string
+	StoredAt  string
+	Sequence  pgtype.Numeric
 }
 
 func (q *Queries) CountAggregatedEvent(ctx context.Context, arg CountAggregatedEventParams) error {
@@ -39,7 +39,7 @@ func (q *Queries) CountAggregatedEvent(ctx context.Context, arg CountAggregatedE
 		arg.Timestamp,
 		arg.Type,
 		arg.Stream,
-		arg.StreamCreated,
+		arg.StoredAt,
 		arg.Sequence,
 	)
 	return err

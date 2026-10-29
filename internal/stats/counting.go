@@ -8,14 +8,16 @@ import (
 	"github.com/kannon-email/kannon/internal/values"
 )
 
-// StoredEventID names a stored stream message, independently of its payload and
-// consumer delivery attempt. StreamCreated distinguishes recreated streams whose
-// sequences start over. It must be the server's stream creation time, not local time.
-// No Recipient identity is retained here, including for Anonymous events.
+// StoredEventID names a stored stream message, independently of payload and
+// delivery attempt. StoredAt is the original server storage timestamp from the
+// message metadata, not the event timestamp or a worker's stream snapshot.
+// Together with the stream and sequence it distinguishes sequence reuse after
+// recreation without racing a separate lookup of stream creation time.
+// No Recipient identity is retained, including for Anonymous events.
 type StoredEventID struct {
-	Stream        string
-	StreamCreated time.Time
-	Sequence      uint64
+	Stream   string
+	StoredAt time.Time
+	Sequence uint64
 }
 
 // ErrInvalidStoredEventID prevents counting without a stable delivery identity.
@@ -23,7 +25,7 @@ var ErrInvalidStoredEventID = errors.New("invalid stored stat event identity")
 
 // Validate checks that the transport supplied a complete stored-message identity.
 func (id StoredEventID) Validate() error {
-	if id.Stream == "" || id.StreamCreated.IsZero() || id.Sequence == 0 {
+	if id.Stream == "" || id.StoredAt.IsZero() || id.Sequence == 0 {
 		return ErrInvalidStoredEventID
 	}
 	return nil
