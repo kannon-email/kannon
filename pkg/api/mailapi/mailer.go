@@ -85,7 +85,10 @@ func (s mailAPIService) accept(ctx context.Context, domain *domains.Domain, msg 
 		if errors.As(err, &invalid) {
 			return nil, connect.NewError(connect.CodeInvalidArgument, invalid)
 		}
-		host, _ := smtputils.GetEmailDomain(msg.Sender.Email)
+		host, hostErr := smtputils.GetEmailDomain(msg.Sender.Email)
+		if hostErr != nil {
+			return nil, connect.NewError(connect.CodeInvalidArgument, hostErr)
+		}
 		return nil, sendError(err, host, domain.Domain())
 	}
 	rejected := make([]*pb.RejectedRecipient, 0, len(result.Rejected))

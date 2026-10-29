@@ -2,6 +2,10 @@ package sqlc
 
 import (
 	"context"
+	"errors"
+	"log/slog"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/kannon-email/kannon/internal/batch"
@@ -25,7 +29,11 @@ func (s *intakeStore) Accept(ctx context.Context, tpl *templates.Template, b *ba
 	if err != nil {
 		return err
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	defer func() {
+		if err := tx.Rollback(ctx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+			slog.Error("cannot roll back batch acceptance", "err", err)
+		}
+	}()
 	if tpl != nil {
 		if err := (&templatesRepository{db: tx}).Create(ctx, tpl); err != nil {
 			return err
