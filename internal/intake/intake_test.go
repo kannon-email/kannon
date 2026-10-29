@@ -82,3 +82,33 @@ func TestIntakeWiresRetryBudget(t *testing.T) {
 		})
 	}
 }
+
+func TestIntakeRequiresAuthorityOnPersistenceDomain(t *testing.T) {
+	source := values.MustParse("a.example")
+	target := values.MustParse("b.example")
+	domain := domains.Load(domains.LoadParams{Domain: target})
+	principal := authz.MustNewPrincipal("key", authz.MustNewGrant(authz.RoleSender, authz.DomainAnchor(source)))
+	var audit decisions
+	ctx := authz.WithRecorder(authz.NewContext(t.Context(), principal), &audit)
+	s := intake.New(unavailableStore{}, nil, 0)
+	for _, p := range []intake.Request{{HTML: new("Hello")}, {TemplateID: "existing"}} {
+		p.Sender = batch.Sender{Email: "sender@a.example"}
+		p.Subject = "Hello"
+		_, err := s.Accept(ctx, domain, p)
+		require.ErrorIs(t, err, authz.ErrForbidden)
+		require.Equal(t, authz.Batches(target), audit[len(audit)-1].Resource)
+		require.Equal(t, authz.Denied, audit[len(audit)-1].Outcome)
+	}
+}
+
+func TestIntakeRejectsUnrelatedSenderDespiteAuthority(t *testing.T) {
+	name := values.MustParse("b.example")
+	domain := domains.Load(domains.LoadParams{Domain: name})
+	principal := authz.MustNewPrincipal("key",
+		authz.MustNewGrant(authz.RoleSender, authz.DomainAnchor(name)),
+		authz.MustNewGrant(authz.RoleSender, authz.DomainAnchor(values.MustParse("a.example"))))
+	ctx := authz.NewContext(t.Context(), principal)
+	s := intake.New(unavailableStore{}, nil, 0)
+	_, err := s.Accept(ctx, domain, intake.Request{HTML: new("Hello"), Subject: "Hello", Sender: batch.Sender{Email: "sender@a.example"}})
+	require.ErrorIs(t, err, authz.ErrForbidden)
+}

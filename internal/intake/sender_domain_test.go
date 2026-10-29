@@ -19,7 +19,7 @@ func senderKeyFor(tenant values.DomainName) authz.Principal {
 
 // TestSenderHostPermitted holds the sender-domain rule to exactly what it permitted before the
 // guard replaced the explicit tenant comparison: every case of the old table, unchanged, now run
-// against the authority model. A From host that is the Domain or a proper parent of it, nothing else.
+// against the intake relationship check. A From host that is the Domain or a proper parent of it, nothing else.
 func TestSenderHostPermitted(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -49,8 +49,7 @@ func TestSenderHostPermitted(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			tenant := values.MustParse(tc.tenant)
-			got := authz.Can(senderKeyFor(tenant), authz.Create,
-				senderBatches(canonicalSenderHost(tc.from), tenant))
+			got := senderHostPermitted(canonicalSenderHost(tc.from), tenant)
 			if got != tc.want {
 				t.Fatalf("sending from %q as tenant %q = %v, want %v", tc.from, tc.tenant, got, tc.want)
 			}
@@ -59,19 +58,19 @@ func TestSenderHostPermitted(t *testing.T) {
 }
 
 // The parent-domain allowance widens which host may appear in From and must never widen who may
-// send, so it is still answered by the guard rather than around it. The comparison it replaces
+// send, so authority remains required on the Batch’s Domain. The comparison it replaces
 // consulted no authority at all, so any authenticated caller got the allowance.
 func TestParentAllowanceStillRequiresSendingAuthority(t *testing.T) {
 	tenant := values.MustParse("k.example.com")
 	parent := canonicalSenderHost("example.com")
 
 	stranger := senderKeyFor(values.MustParse("other.example.com"))
-	if authz.Can(stranger, authz.Create, senderBatches(parent, tenant)) {
+	if senderHostPermitted(parent, tenant) && authz.Can(stranger, authz.Create, authz.Batches(tenant)) {
 		t.Fatal("a key of another Domain must not send from this tenant's parent")
 	}
 
 	revoked := authz.MustNewPrincipal("key_revoked@k.example.com")
-	if authz.Can(revoked, authz.Create, senderBatches(parent, tenant)) {
+	if senderHostPermitted(parent, tenant) && authz.Can(revoked, authz.Create, authz.Batches(tenant)) {
 		t.Fatal("a Principal with no Grants must not send from the parent either")
 	}
 }
@@ -111,10 +110,9 @@ func TestSenderRuleIsUnchangedFromTheExplicitComparison(t *testing.T) {
 
 	for _, ts := range tenants {
 		tenant := values.MustParse(ts)
-		key := senderKeyFor(tenant)
 		for _, host := range hosts {
 			before := senderDomainAllowedBefore(host, ts)
-			now := authz.Can(key, authz.Create, senderBatches(canonicalSenderHost(host), tenant))
+			now := senderHostPermitted(canonicalSenderHost(host), tenant)
 			if before == now {
 				continue
 			}

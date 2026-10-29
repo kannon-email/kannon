@@ -91,7 +91,13 @@ func (s *Service) Accept(ctx context.Context, domain *domains.Domain, p Request)
 	if err != nil {
 		return nil, invalid(fmt.Errorf("invalid sender email %q: %w", p.Sender.Email, err))
 	}
-	return authz.Guard(ctx, authz.Create, senderBatches(canonicalSenderHost(host), domain.Name()), func() (*Result, error) {
+	// The Resource must name the Domain whose records will be written, even
+	// when an internal caller supplies a Principal for a different Domain.
+	return authz.Guard(ctx, authz.Create, authz.Batches(domain.Name()), func() (*Result, error) {
+		from := canonicalSenderHost(host)
+		if !senderHostPermitted(from, domain.Name()) {
+			return nil, authz.ErrForbidden
+		}
 		return s.accept(ctx, domain, p)
 	})
 }
@@ -302,14 +308,10 @@ func canonicalSenderHost(host string) values.DomainName {
 	return f
 }
 
-// senderBatches names the Resource a send needs Create on: the From host's own Batches,
-// reachable by a key's sender Grant only when the host is its own Domain. The parent-domain
-// allowance, inexpressible by prefix domination, is authorized against the caller's own (ADR 0008).
-func senderBatches(from, tenant values.DomainName) authz.Resource {
-	if isParentDomain(from, tenant) {
-		return authz.Batches(tenant)
-	}
-	return authz.Batches(from)
+// senderHostPermitted checks the From relationship independently of authority:
+// a Batch may use its Domain or a proper parent as its sender host.
+func senderHostPermitted(from, tenant values.DomainName) bool {
+	return !from.IsZero() && !tenant.IsZero() && (from == tenant || isParentDomain(from, tenant))
 }
 
 // isParentDomain reports whether from is a proper parent of tenant, in the sense DNS gives
