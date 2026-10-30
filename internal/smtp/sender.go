@@ -6,6 +6,7 @@ package smtp
 */
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -65,6 +66,8 @@ func (s *sender) SenderName() string {
 
 // Send email
 func (s *sender) Send(from, to string, msg []byte) SenderError {
+	ctx, cancel := context.WithTimeout(context.Background(), smtpTotalTimeout)
+	defer cancel()
 	toDomain, err := GetEmailDomain(to)
 	slog.Info(fmt.Sprintf("domain %v\n", toDomain))
 	if err != nil {
@@ -72,7 +75,7 @@ func (s *sender) Send(from, to string, msg []byte) SenderError {
 		return newSMTPError(err, true, 510)
 	}
 
-	mxs, lerr := lookupMXs(toDomain)
+	mxs, lerr := lookupMXsContext(ctx, toDomain)
 	if lerr != nil {
 		return lerr
 	}
@@ -83,7 +86,7 @@ func (s *sender) Send(from, to string, msg []byte) SenderError {
 
 	var lastErr *smtpError
 	for _, mx := range mxs {
-		err := deliver(from, to, msg, mx, false, s.Hostname)
+		err := deliver(ctx, from, to, msg, mx, false, s.Hostname)
 		if err == nil {
 			return nil
 		}
@@ -98,9 +101,9 @@ func (s *sender) Send(from, to string, msg []byte) SenderError {
 	return newSMTPError(err, false, lastErr.Code())
 }
 
-func deliver(from, to string, msg []byte, mx string, insecure bool, domain string) *smtpError {
+func deliver(ctx context.Context, from, to string, msg []byte, mx string, insecure bool, domain string) *smtpError {
 	smtpURL := fmt.Sprintf("%v:%v", mx, smtpPort)
-	conn, err := net.DialTimeout("tcp", smtpURL, smtpDialTimeout)
+	conn, err := (&net.Dialer{Timeout: smtpDialTimeout}).DialContext(ctx, "tcp", smtpURL)
 	if err != nil {
 		slog.Debug(fmt.Sprintf("Could not dial: %v", err))
 		// TODO: add error code
@@ -108,7 +111,8 @@ func deliver(from, to string, msg []byte, mx string, insecure bool, domain strin
 		return newSMTPError(err, false, 111)
 	}
 	defer conn.Close()
-	if err := conn.SetDeadline(time.Now().Add(smtpTotalTimeout)); err != nil {
+	deadline, _ := ctx.Deadline()
+	if err := conn.SetDeadline(deadline); err != nil {
 		slog.Debug(fmt.Sprintf("Cannot set deadline: %v", err))
 		// TODO: add error code
 		return newSMTPError(err, false, 111)
@@ -142,7 +146,7 @@ func deliver(from, to string, msg []byte, mx string, insecure bool, domain strin
 				return newSMTPError(err, false, 111)
 			}
 			slog.Debug("TLS error, retrying insecurely\n")
-			return deliver(from, to, msg, mx, true, domain)
+			return deliver(ctx, from, to, msg, mx, true, domain)
 		}
 	}
 
@@ -182,6 +186,12 @@ func deliver(from, to string, msg []byte, mx string, insecure bool, domain strin
 }
 
 func lookupMXs(domain string) ([]string, *smtpError) {
+	ctx, cancel := context.WithTimeout(context.Background(), smtpTotalTimeout)
+	defer cancel()
+	return lookupMXsContext(ctx, domain)
+}
+
+func lookupMXsContext(ctx context.Context, domain string) ([]string, *smtpError) {
 	domain, err := idna.ToASCII(domain)
 	if err != nil {
 		// TODO: add error code
@@ -190,8 +200,11 @@ func lookupMXs(domain string) ([]string, *smtpError) {
 
 	mxs := []string{}
 
-	mxRecords, err := net.LookupMX(domain)
+	mxRecords, err := net.DefaultResolver.LookupMX(ctx, domain)
 	if err != nil {
+		if ctx.Err() != nil {
+			return nil, newSMTPError(ctx.Err(), false, 512)
+		}
 		// TODO: Better handle Temporary errors.
 		dnsErr := &net.DNSError{}
 		ok := errors.As(err, &dnsErr)

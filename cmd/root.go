@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/kannon-email/kannon/pkg/api"
@@ -67,7 +69,8 @@ func run(cmd *cobra.Command, _ []string) {
 // It builds the container, registers every runnable the configuration asked for,
 // and starts them under a shared errgroup-derived context.
 func bootstrap(cmd *cobra.Command, cfg config.RootConfig, services config.Services) error {
-	ctx := cmd.Context()
+	ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	// Both refusals below are read off the `services` section and answered before anything is
 	// built. The container and every runnable read sections of their own, any of which may name a

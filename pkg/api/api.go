@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"time"
 
 	"connectrpc.com/connect"
 	"github.com/kannon-email/kannon/internal/admintoken"
@@ -215,15 +214,5 @@ func startAPIServer(ctx context.Context, port uint, adminAuth []connect.HandlerO
 	protocols.SetUnencryptedHTTP2(true)
 
 	server := &http.Server{Addr: addr, Handler: withRecorder(recorder, mux), Protocols: protocols}
-	go func() {
-		<-ctx.Done()
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if err := server.Shutdown(shutdownCtx); err != nil {
-			slog.Error("error shutting down server", "err", err)
-		}
-	}()
-
-	slog.Info("Connect API server listening on " + addr)
-	return server.ListenAndServe()
+	return container.ServeHTTP(ctx, server)
 }

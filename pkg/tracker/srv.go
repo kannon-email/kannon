@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"time"
 
 	"github.com/kannon-email/kannon/internal/publisher"
 	"github.com/kannon-email/kannon/internal/statssec"
@@ -53,16 +52,7 @@ func (s *srv) Run(ctx context.Context) error {
 
 	server := &http.Server{Addr: addr, Handler: s.handler()}
 
-	go func() {
-		<-ctx.Done()
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if err := server.Shutdown(shutdownCtx); err != nil {
-			slog.Error("error shutting down server", "err", err)
-		}
-	}()
-
-	return server.ListenAndServe()
+	return container.ServeHTTP(ctx, server)
 }
 
 // engagement is what an engagement event may keep: who it came from, and what the

@@ -503,6 +503,16 @@ curl -sX POST http://localhost:50051/kannon.stats.apiv2.StatsApiV2/GetAggregated
 - Kannon exits at boot if `--config` points at a file that is not there, and refuses to start if the file enables no component.
 - Terminate TLS in front of the Tracker: tracking URLs are always `https://stats.<your-domain>/…` while the Tracker itself serves plain HTTP.
 
+SIGTERM and SIGINT stop the services gracefully. HTTP and inbound SMTP requests have
+10 seconds to finish. The sender returns buffered Envelopes that have not started to
+JetStream with NAK, and waits for active SMTP transactions and their outcome events
+before closing NATS. A send has a shared 120-second budget covering DNS, MX fallback
+and TLS fallback. Dependency cleanup has a further 30-second budget; embedded NATS
+stops after its client. Keep `terminationGracePeriodSeconds: 180` in sender and
+combined deployments, as in the example manifest. Forced termination can still
+interrupt an SMTP transaction; SMTP delivery and JetStream acknowledgement are not
+atomic.
+
 ### Docker Compose
 
 - See [`examples/docker-compose/`](examples/docker-compose/) for local or test deployments.

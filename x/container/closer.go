@@ -17,9 +17,10 @@ func (c *Container) addClosers(closers ...CloserFunc) {
 func (c *Container) CloseWithTimeout(timeout time.Duration) error {
 	c.mu.Lock()
 	closers := append([]CloserFunc(nil), c.closers...)
+	finalClosers := append([]CloserFunc(nil), c.finalClosers...)
 	c.mu.Unlock()
 
-	if len(closers) == 0 {
+	if len(closers) == 0 && len(finalClosers) == 0 {
 		return nil
 	}
 
@@ -35,6 +36,7 @@ func (c *Container) CloseWithTimeout(timeout time.Duration) error {
 	}
 
 	var errs []error
+wait:
 	for range closers {
 		select {
 		case err := <-errCh:
@@ -42,10 +44,16 @@ func (c *Container) CloseWithTimeout(timeout time.Duration) error {
 				errs = append(errs, err)
 			}
 		case <-ctx.Done():
-			return fmt.Errorf("shutdown timeout exceeded: %w", ctx.Err())
+			errs = append(errs, fmt.Errorf("shutdown timeout exceeded: %w", ctx.Err()))
+			break wait
 		}
 	}
 
+	for _, close := range finalClosers {
+		if err := close(ctx); err != nil {
+			errs = append(errs, err)
+		}
+	}
 	if len(errs) > 0 {
 		return fmt.Errorf("shutdown errors: %v", errs)
 	}

@@ -2,6 +2,7 @@ package container
 
 import (
 	"context"
+	"errors"
 
 	"golang.org/x/sync/errgroup"
 )
@@ -40,7 +41,11 @@ func (r *Registry) Run(ctx context.Context) error {
 	g, gctx := errgroup.WithContext(ctx)
 	for _, run := range r.runnables {
 		g.Go(func() error {
-			return run.Run(gctx)
+			err := run.Run(gctx)
+			if errors.Is(err, context.Canceled) && gctx.Err() != nil {
+				return nil
+			}
+			return err
 		})
 	}
 	return g.Wait()

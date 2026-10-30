@@ -99,7 +99,10 @@ func (h *statsHandler) handleStats(ctx context.Context) error {
 		return err
 	}
 
-	defer c.Drain()
+	defer func() {
+		c.Drain()
+		<-c.Closed()
+	}()
 
 	<-ctx.Done()
 	return nil
@@ -137,7 +140,10 @@ func (h *statsHandler) handleAggregatedStats(ctx context.Context) error {
 		return err
 	}
 
-	defer c.Drain()
+	defer func() {
+		c.Drain()
+		<-c.Closed()
+	}()
 
 	<-ctx.Done()
 	return nil

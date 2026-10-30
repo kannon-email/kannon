@@ -73,6 +73,8 @@ spec:
       labels:
         name: kannon
     spec:
+      # Finish active SMTP sends (120s), then flush NATS and close dependencies (30s).
+      terminationGracePeriodSeconds: 180
       containers:
         - name: kannon-cp
           image: ghcr.io/kannon-email/kannon/kannon

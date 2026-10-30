@@ -98,21 +98,37 @@ func (s *smtpSender) handleSend(ctx context.Context, consumer jetstream.Consumer
 	slog.Info("🚀 Ready to send!\n")
 
 	maxJobs := s.cfg.MaxJobs
+	if maxJobs == 0 {
+		maxJobs = 10
+	}
+	// Work already handed to SMTP must settle before dependencies close.
+	workCtx := context.WithoutCancel(ctx)
 
 	tasks := NewParallel(maxJobs)
 
 	con, err := consumer.Consume(func(msg jetstream.Msg) {
+		if ctx.Err() != nil {
+			_ = msg.Nak()
+			return
+		}
 		tasks.RunTask(func() {
-			err := s.handleMessage(ctx, msg)
+			if ctx.Err() != nil {
+				_ = msg.Nak()
+				return
+			}
+			err := s.handleMessage(workCtx, msg)
 			s.handleMsgAck(msg, err)
 		})
-	})
+	}, jetstream.PullMaxMessages(int(maxJobs)))
 	if err != nil {
 		return fmt.Errorf("error in consuming messages: %w", err)
 	}
-	defer con.Drain()
 
 	<-ctx.Done()
+	// Stop pulling, then release buffered messages through the callback without
+	// starting new SMTP transactions. Wait for callbacks before joining jobs.
+	con.Drain()
+	<-con.Closed()
 	tasks.WaitAndClose()
 
 	slog.Info("👋 Shutting down SMTPSender Service")
