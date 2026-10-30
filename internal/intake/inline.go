@@ -15,6 +15,7 @@ import (
 	"github.com/kannon-email/kannon/internal/domains"
 	smtp "github.com/kannon-email/kannon/internal/smtp"
 	"github.com/kannon-email/kannon/internal/templates"
+	"github.com/kannon-email/kannon/internal/utils"
 	"github.com/kannon-email/kannon/internal/values"
 )
 
@@ -25,13 +26,16 @@ var (
 	ErrNoRecipientsAccepted  = errors.New("no_recipients_accepted")
 )
 
-// InlineRequest is the supported foundational intake contract. Extensions must
-// be rejected by adapters until their application semantics are implemented.
+// InlineRequest describes REST Batch content and recipients independently of transport.
+// RecipientFields uses the same input indices as Recipients.
 type InlineRequest struct {
-	Sender     batch.Sender
-	Subject    string
-	HTML       string
-	Recipients []string
+	Sender          batch.Sender
+	Subject         string
+	HTML            string
+	TemplateID      string
+	GlobalFields    map[string]string
+	RecipientFields []map[string]string
+	Recipients      []string
 }
 
 // InlineReceipt contains only accepted identity and aggregate intake facts.
@@ -51,15 +55,17 @@ type InlineRefusal struct {
 
 // InlineWork is all accepted work to commit together.
 type InlineWork struct {
-	Template   *templates.Template
-	Batch      *batch.Batch
-	Deliveries []*delivery.Delivery
-	Receipt    InlineReceipt
+	Template         *templates.Template
+	Batch            *batch.Batch
+	Deliveries       []*delivery.Delivery
+	Receipt          InlineReceipt
+	SourceTemplateID string
 }
 
 // InlineStore serializes a Domain/key pair without waiting on another intake.
 // build is invoked only for a fresh key, inside the acceptance transaction.
 type InlineStore interface {
+	FindByDomain(context.Context, values.DomainName, string) (*templates.Template, error)
 	CreateInline(context.Context, values.DomainName, string, string, func() (*InlineWork, error)) (*InlineReceipt, bool, error)
 }
 
@@ -92,8 +98,11 @@ func (s *InlineService) Create(ctx context.Context, domain values.DomainName, ke
 		if len(p.Recipients) > 2000 {
 			return nil, ErrTooManyRecipients
 		}
-		if p.Subject == "" || strings.ContainsAny(p.Subject+p.Sender.Alias, "\r\n") || len(p.Recipients) < 1 || strings.Contains(p.HTML, "{{") || strings.Contains(p.Subject, "{{") {
+		if p.Subject == "" || strings.ContainsAny(p.Subject+p.Sender.Alias, "\r\n") || len(p.Recipients) < 1 || (p.HTML == "") == (p.TemplateID == "") {
 			return nil, invalid(errors.New("invalid or unsupported inline request"))
+		}
+		if _, reserved := p.GlobalFields["email"]; reserved {
+			return nil, invalid(errors.New("email is reserved"))
 		}
 		// Fingerprint the full application input, including refused rows; retain only
 		// its digest, never raw input or refusal details.
@@ -108,7 +117,15 @@ func (s *InlineService) Create(ctx context.Context, domain values.DomainName, ke
 		}
 		var r *InlineReceipt
 		r, replay, e = s.store.CreateInline(ctx, domain, key, hex.EncodeToString(sum[:]), func() (*InlineWork, error) {
-			tpl, e := templates.NewTransient(domain, p.HTML)
+			html := p.HTML
+			if p.TemplateID != "" {
+				source, err := s.store.FindByDomain(ctx, domain, p.TemplateID)
+				if err != nil {
+					return nil, err
+				}
+				html = source.Html()
+			}
+			tpl, e := templates.NewTransient(domain, html)
 			if e != nil {
 				return nil, invalid(e)
 			}
@@ -131,11 +148,30 @@ func (s *InlineService) Create(ctx context.Context, domain values.DomainName, ke
 					code = "duplicate_recipient"
 				}
 				seen[email] = true
+				fields := make(map[string]string)
+				for k, v := range p.GlobalFields {
+					fields[k] = v
+				}
+				if i < len(p.RecipientFields) {
+					for k, v := range p.RecipientFields[i] {
+						fields[k] = v
+					}
+					if _, reserved := p.RecipientFields[i]["email"]; reserved && code == "" {
+						code = "reserved_field"
+					}
+				}
+				fields["email"] = email
+				if code == "" && (utils.HasUnresolvedPlaceholders(utils.ReplaceLiteralFields(html, fields)) || utils.HasUnresolvedPlaceholders(utils.ReplaceLiteralFields(p.Subject, fields))) {
+					code = "unresolved_placeholder"
+				}
+				if strings.ContainsAny(utils.ReplaceLiteralFields(p.Subject, fields), "\r\n") && code == "" {
+					code = "reserved_field"
+				}
 				if code != "" {
 					refusals = append(refusals, InlineRefusal{Index: i, Code: code})
 					continue
 				}
-				item, e := delivery.New(delivery.NewParams{BatchID: b.ID(), Domain: domain.String(), Email: email, ScheduledTime: now, Backoff: s.backoff, RetryWindow: s.retryWindow, Tracking: d.TrackingPolicy()})
+				item, e := delivery.New(delivery.NewParams{BatchID: b.ID(), Domain: domain.String(), Email: email, Fields: fields, ScheduledTime: now, Backoff: s.backoff, RetryWindow: s.retryWindow, Tracking: d.TrackingPolicy()})
 				if e != nil {
 					return nil, e
 				}
@@ -144,7 +180,7 @@ func (s *InlineService) Create(ctx context.Context, domain values.DomainName, ke
 			if len(ds) == 0 {
 				return nil, ErrNoRecipientsAccepted
 			}
-			return &InlineWork{Template: tpl, Batch: b, Deliveries: ds, Receipt: InlineReceipt{ID: b.ID().String(), Domain: domain.String(), CreatedAt: now, AcceptedCount: len(ds), RejectedCount: len(refusals)}}, nil
+			return &InlineWork{SourceTemplateID: p.TemplateID, Template: tpl, Batch: b, Deliveries: ds, Receipt: InlineReceipt{ID: b.ID().String(), Domain: domain.String(), CreatedAt: now, AcceptedCount: len(ds), RejectedCount: len(refusals)}}, nil
 		})
 		return r, e
 	})

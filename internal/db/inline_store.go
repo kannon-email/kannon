@@ -11,9 +11,14 @@ import (
 	"log/slog"
 )
 
-type inlineStore struct{ pool *pgxpool.Pool }
+type inlineStore struct {
+	pool *pgxpool.Pool
+	*templatesRepository
+}
 
-func NewInlineStore(pool *pgxpool.Pool) intake.InlineStore { return &inlineStore{pool: pool} }
+func NewInlineStore(pool *pgxpool.Pool) intake.InlineStore {
+	return &inlineStore{pool: pool, templatesRepository: &templatesRepository{db: pool}}
+}
 func (s *inlineStore) CreateInline(ctx context.Context, domain values.DomainName, key, fingerprint string, build func() (*intake.InlineWork, error)) (*intake.InlineReceipt, bool, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -63,7 +68,7 @@ func (s *inlineStore) CreateInline(ctx context.Context, domain values.DomainName
 	if err != nil {
 		return nil, false, err
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO batch_content_snapshots(batch_id,html) VALUES($1,$2)`, r.ID, work.Template.Html())
+	_, err = tx.Exec(ctx, `INSERT INTO batch_content_snapshots(batch_id,html,source_template_id) VALUES($1,$2,$3)`, r.ID, work.Template.Html(), work.SourceTemplateID)
 	if err != nil {
 		return nil, false, err
 	}

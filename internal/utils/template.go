@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"strings"
 )
 
 func ReplaceCustomFields(str string, fields map[string]string) string {
@@ -74,4 +75,15 @@ func EffectiveFields(email string, fields map[string]string) map[string]string {
 		out[k] = v
 	}
 	return out
+}
+
+// ReplaceLiteralFields substitutes each original placeholder once, treating keys
+// and values literally. Replacement values are never interpreted as templates.
+func ReplaceLiteralFields(text string, fields map[string]string) string {
+	return placeholderReg.ReplaceAllStringFunc(text, func(token string) string {
+		if value, ok := fields[strings.TrimSpace(token[2:len(token)-2])]; ok {
+			return value
+		}
+		return token
+	})
 }

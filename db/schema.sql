@@ -162,7 +162,8 @@ CREATE TABLE public.audit_records (
 
 CREATE TABLE public.batch_content_snapshots (
     batch_id text NOT NULL,
-    html text NOT NULL
+    html text NOT NULL,
+    source_template_id text DEFAULT ''::text NOT NULL
 );
 
 
@@ -914,4 +915,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20260804135145'),
     ('20261029221540'),
     ('20261030225738'),
-    ('20261030230324');
+    ('20261030230324'),
+    ('20261030231457');
