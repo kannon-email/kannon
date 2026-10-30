@@ -23,6 +23,7 @@ import (
 	"github.com/kannon-email/kannon/internal/authz"
 	"github.com/kannon-email/kannon/internal/domains"
 	"github.com/kannon-email/kannon/internal/stats"
+	"github.com/kannon-email/kannon/internal/templates"
 	"github.com/kannon-email/kannon/internal/tracking"
 	"github.com/kannon-email/kannon/internal/values"
 )
@@ -36,14 +37,25 @@ const (
 // NewHandler exposes Domains and readiness. ready must check the configured infrastructure.
 // The supplied service is shared with other transports; no HTTP types escape this package.
 func NewHandler(service *domains.Service, token admintoken.Token, ready func(context.Context) error, credentials ...*apikeys.Service) http.Handler {
-	return newHandler(service, token, ready, nil, credentials...)
+	return newHandler(service, token, ready, nil, nil, credentials...)
 }
 
 // NewHandlerWithStats includes retained event operations alongside Domain operations.
 func NewHandlerWithStats(service *domains.Service, token admintoken.Token, ready func(context.Context) error, events *stats.Service, credentials ...*apikeys.Service) http.Handler {
-	return newHandler(service, token, ready, events, credentials...)
+	return newHandler(service, token, ready, events, nil, credentials...)
 }
-func newHandler(service *domains.Service, token admintoken.Token, ready func(context.Context) error, events *stats.Service, credentials ...*apikeys.Service) http.Handler {
+
+// NewHandlerWithTemplates exposes the Template lifecycle alongside Domains and credentials.
+func NewHandlerWithTemplates(service *domains.Service, token admintoken.Token, ready func(context.Context) error, keys *apikeys.Service, content *templates.Service) http.Handler {
+	return newHandler(service, token, ready, nil, content, keys)
+}
+
+// NewHandlerWithStatsAndTemplates exposes both retained events and Template lifecycle operations.
+func NewHandlerWithStatsAndTemplates(service *domains.Service, token admintoken.Token, ready func(context.Context) error, events *stats.Service, keys *apikeys.Service, content *templates.Service) http.Handler {
+	return newHandler(service, token, ready, events, content, keys)
+}
+
+func newHandler(service *domains.Service, token admintoken.Token, ready func(context.Context) error, events *stats.Service, content *templates.Service, credentials ...*apikeys.Service) http.Handler {
 	var keys *apikeys.Service
 	if len(credentials) > 0 {
 		keys = credentials[0]
@@ -59,6 +71,9 @@ func newHandler(service *domains.Service, token admintoken.Token, ready func(con
 	protected := http.NewServeMux()
 	if events != nil {
 		registerEvents(protected, events)
+	}
+	if content != nil {
+		registerTemplates(protected, content)
 	}
 	if keys != nil {
 		registerKeys(protected, keys)
@@ -241,7 +256,7 @@ func writeError(w http.ResponseWriter, r *http.Request, err error) {
 		WriteProblem(w, r, 422, "validation_failed")
 	case errors.Is(err, apikeys.ErrExpiryNotFuture):
 		WriteProblem(w, r, 422, "expiry_not_future")
-	case errors.Is(err, apikeys.ErrKeyNotFound), errors.Is(err, domains.ErrDomainNotFound):
+	case errors.Is(err, templates.ErrTemplateNotFound), errors.Is(err, apikeys.ErrKeyNotFound), errors.Is(err, domains.ErrDomainNotFound):
 		WriteProblem(w, r, 404, "not_found")
 	case errors.As(err, &pg) && pg.Code == "23505":
 		WriteProblem(w, r, 409, "domain_already_exists")
