@@ -71,6 +71,7 @@ func newHandler(service *domains.Service, token admintoken.Token, ready func(con
 	protected := http.NewServeMux()
 	if events != nil {
 		registerEvents(protected, events)
+		registerAggregated(protected, events)
 	}
 	if content != nil {
 		registerTemplates(protected, content)

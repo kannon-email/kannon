@@ -42,3 +42,10 @@ existing API Keys service. It defaults to the Docker harness. For a disposable,
 empty local database, set `KANNON_TEST_DATABASE_URL` and run
 `go test -race ./pkg/api/rest -run TestPersistentCredentialJourney`.
 The test loads the schema and leaves this disposable database populated.
+
+Aggregate Stats use the existing independent hourly Domain counters through the
+Stats application service. Queries require timezone-qualified `from`/`to` and a
+whole-hour Go `group_by` duration, return at most 1,000 complete buckets anchored
+at `from`, and zero-fill all public event counts. Zero does not prove collection
+uptime. No Batch filter is supported. `TestPersistentAggregateSeries` covers the
+HTTP and application seams with the same disposable database setting above.
