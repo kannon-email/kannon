@@ -1,0 +1,2297 @@
+openapi: 3.1.1
+info:
+  title: Kannon REST API
+  version: v1beta1
+  description: APPROVED DESIGN CONTRACT; NOT YET IMPLEMENTED. Accepted in Q46. Decisions are recorded in docs/rest-api-design.md.
+    REST adapters own generated wire types; domain/application interfaces own independent types. Existing API Keys
+    remain in api_keys without data migration or reissuance.
+servers:
+- url: /v1beta1
+security:
+- bearerAuth: []
+tags:
+- name: Domains
+- name: Templates
+- name: API keys
+- name: Batches
+- name: Deliveries
+- name: Stats
+- name: Health
+x-design-review:
+  status: accepted
+  unresolved: []
+  implementation_follow_up:
+  - Go generator selection and enforcement of domain/transport import separation.
+  - Application operations, storage support and contract tests; preserve existing api_keys rows and secrets.
+  - Documentation/spec hosting.
+  acceptance: User confirmed Q46 and subsequently approved the five-role simplification and lean implementation
+    constraints. Implementation remains a separate task.
+paths:
+  /domains:
+    post:
+      operationId: createDomain
+      tags:
+      - Domains
+      summary: Create a Domain
+      parameters:
+      - $ref: '#/components/parameters/attribution'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Domain'
+          headers:
+            Location:
+              description: URI of the created resource.
+              schema:
+                type: string
+                format: uri-reference
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '409':
+          $ref: '#/components/responses/Error409'
+        '413':
+          $ref: '#/components/responses/Error413'
+        '422':
+          $ref: '#/components/responses/Error422'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        '503':
+          $ref: '#/components/responses/Error503'
+      x-required-roles:
+      - admin@root
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DomainCreate'
+    get:
+      operationId: listDomains
+      tags:
+      - Domains
+      summary: List Domains
+      parameters:
+      - $ref: '#/components/parameters/limit'
+      - $ref: '#/components/parameters/cursor'
+      - $ref: '#/components/parameters/attribution'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainPage'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        '503':
+          $ref: '#/components/responses/Error503'
+      x-required-roles:
+      - admin@root
+      description: ' Ordering: Domain name ascending.'
+  /domains/{domain}:
+    get:
+      operationId: getDomain
+      tags:
+      - Domains
+      summary: Read a Domain
+      parameters:
+      - $ref: '#/components/parameters/domain'
+      - $ref: '#/components/parameters/attribution'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Domain'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        '503':
+          $ref: '#/components/responses/Error503'
+      x-required-roles:
+      - admin
+    patch:
+      operationId: updateDomain
+      tags:
+      - Domains
+      summary: Replace the Domain Tracking Policy
+      parameters:
+      - $ref: '#/components/parameters/domain'
+      - $ref: '#/components/parameters/attribution'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Domain'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '413':
+          $ref: '#/components/responses/Error413'
+        '422':
+          $ref: '#/components/responses/Error422'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        '503':
+          $ref: '#/components/responses/Error503'
+      x-required-roles:
+      - admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DomainPatch'
+  /domains/{domain}/templates:
+    post:
+      operationId: createTemplate
+      tags:
+      - Templates
+      summary: Create a Persistent Template
+      parameters:
+      - $ref: '#/components/parameters/domain'
+      - $ref: '#/components/parameters/attribution'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Template'
+          headers:
+            Location:
+              description: URI of the created resource.
+              schema:
+                type: string
+                format: uri-reference
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '413':
+          $ref: '#/components/responses/Error413'
+        '422':
+          $ref: '#/components/responses/Error422'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        '503':
+          $ref: '#/components/responses/Error503'
+      x-required-roles:
+      - admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TemplateCreate'
+    get:
+      operationId: listTemplates
+      tags:
+      - Templates
+      summary: List Persistent Templates
+      parameters:
+      - $ref: '#/components/parameters/domain'
+      - $ref: '#/components/parameters/limit'
+      - $ref: '#/components/parameters/cursor'
+      - $ref: '#/components/parameters/attribution'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TemplateSummaryPage'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        '503':
+          $ref: '#/components/responses/Error503'
+      x-required-roles:
+      - admin
+      description: ' Ordering: Template ID ascending.'
+  /domains/{domain}/templates/{template_id}:
+    get:
+      operationId: getTemplate
+      tags:
+      - Templates
+      summary: Read a Template
+      parameters:
+      - $ref: '#/components/parameters/domain'
+      - $ref: '#/components/parameters/template_id'
+      - $ref: '#/components/parameters/attribution'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Template'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        '503':
+          $ref: '#/components/responses/Error503'
+      x-required-roles:
+      - admin
+    patch:
+      operationId: updateTemplate
+      tags:
+      - Templates
+      summary: Update title and/or HTML
+      parameters:
+      - $ref: '#/components/parameters/domain'
+      - $ref: '#/components/parameters/template_id'
+      - $ref: '#/components/parameters/attribution'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Template'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '413':
+          $ref: '#/components/responses/Error413'
+        '422':
+          $ref: '#/components/responses/Error422'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        '503':
+          $ref: '#/components/responses/Error503'
+      x-required-roles:
+      - admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TemplatePatch'
+    delete:
+      operationId: deleteTemplate
+      tags:
+      - Templates
+      summary: Delete a Template without affecting accepted Batches
+      parameters:
+      - $ref: '#/components/parameters/domain'
+      - $ref: '#/components/parameters/template_id'
+      - $ref: '#/components/parameters/attribution'
+      responses:
+        '204':
+          description: Success.
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        '503':
+          $ref: '#/components/responses/Error503'
+      x-required-roles:
+      - admin
+  /domains/{domain}/api-keys:
+    post:
+      operationId: createAPIKey
+      tags:
+      - API keys
+      summary: Issue a Domain credential
+      parameters:
+      - $ref: '#/components/parameters/domain'
+      - $ref: '#/components/parameters/attribution'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIKeyCreated'
+          headers:
+            Location:
+              description: URI of the created resource.
+              schema:
+                type: string
+                format: uri-reference
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '413':
+          $ref: '#/components/responses/Error413'
+        '422':
+          $ref: '#/components/responses/Error422'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        '503':
+          $ref: '#/components/responses/Error503'
+      x-required-roles:
+      - admin
+      description: Requires admin authority on the path Domain. Issue only supported roles anchored to that Domain.
+        Existing API Keys remain in api_keys; no limited-role credential issuance or generic delegation engine is
+        introduced.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/APIKeyCreate'
+    get:
+      operationId: listAPIKeys
+      tags:
+      - API keys
+      summary: List credentials without secrets
+      parameters:
+      - $ref: '#/components/parameters/domain'
+      - $ref: '#/components/parameters/limit'
+      - $ref: '#/components/parameters/cursor'
+      - $ref: '#/components/parameters/attribution'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIKeyPage'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        '503':
+          $ref: '#/components/responses/Error503'
+      x-required-roles:
+      - admin
+      description: ' Ordering: created_at descending, then ID descending.'
+  /domains/{domain}/api-keys/{key_id}:
+    get:
+      operationId: getAPIKey
+      tags:
+      - API keys
+      summary: Read credential metadata
+      parameters:
+      - $ref: '#/components/parameters/domain'
+      - $ref: '#/components/parameters/key_id'
+      - $ref: '#/components/parameters/attribution'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIKey'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        '503':
+          $ref: '#/components/responses/Error503'
+      x-required-roles:
+      - admin
+    patch:
+      operationId: revokeAPIKey
+      tags:
+      - API keys
+      summary: Permanently revoke a credential
+      parameters:
+      - $ref: '#/components/parameters/domain'
+      - $ref: '#/components/parameters/key_id'
+      - $ref: '#/components/parameters/attribution'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIKey'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '413':
+          $ref: '#/components/responses/Error413'
+        '422':
+          $ref: '#/components/responses/Error422'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        '503':
+          $ref: '#/components/responses/Error503'
+      x-required-roles:
+      - admin
+      description: Idempotent revocation; roles cannot change and revoked credentials cannot be reactivated. Maps
+        to domain delete authority even though the HTTP method is PATCH.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/APIKeyRevoke'
+  /domains/{domain}/batches:
+    post:
+      operationId: createBatch
+      tags:
+      - Batches
+      summary: Create an immutable Batch and accepted Deliveries atomically
+      parameters:
+      - $ref: '#/components/parameters/domain'
+      - $ref: '#/components/parameters/idempotency'
+      - $ref: '#/components/parameters/attribution'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchCreated'
+          headers:
+            Location:
+              description: URI of the created resource.
+              schema:
+                type: string
+                format: uri-reference
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '409':
+          $ref: '#/components/responses/Error409'
+        '413':
+          $ref: '#/components/responses/Error413'
+        '422':
+          $ref: '#/components/responses/Error422'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        '503':
+          $ref: '#/components/responses/Error503'
+        '200':
+          description: Idempotent replay. No second Batch or Delivery is created. Original inline rejection details
+            are unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchReplay'
+      x-required-roles:
+      - admin
+      - sender
+      description: At least one Recipient must be accepted. Persists accepted Deliveries atomically before 201.
+        Submission success does not imply SMTP delivery. Rejected rows appear with original indexes. Max 2000 Recipients,
+        10 MiB HTTP body.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchCreate'
+    get:
+      operationId: listBatches
+      tags:
+      - Batches
+      summary: List Batch summaries
+      parameters:
+      - $ref: '#/components/parameters/domain'
+      - $ref: '#/components/parameters/limit'
+      - $ref: '#/components/parameters/cursor'
+      - $ref: '#/components/parameters/attribution'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchSummaryPage'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        '503':
+          $ref: '#/components/responses/Error503'
+      x-required-roles:
+      - admin
+      - batch-reader
+      description: ' Ordering: created_at descending, then ID descending.'
+  /domains/{domain}/batches/{batch_id}:
+    get:
+      operationId: getBatch
+      tags:
+      - Batches
+      summary: Read a Batch and its immutable content
+      parameters:
+      - $ref: '#/components/parameters/domain'
+      - $ref: '#/components/parameters/batch_id'
+      - $ref: '#/components/parameters/attribution'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Batch'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        '503':
+          $ref: '#/components/responses/Error503'
+      x-required-roles:
+      - admin
+      - batch-reader
+  /domains/{domain}/batches/{batch_id}/deliveries:
+    get:
+      operationId: listDeliveries
+      tags:
+      - Deliveries
+      summary: List Delivery history
+      parameters:
+      - $ref: '#/components/parameters/domain'
+      - $ref: '#/components/parameters/batch_id'
+      - $ref: '#/components/parameters/limit'
+      - $ref: '#/components/parameters/cursor'
+      - $ref: '#/components/parameters/delivery_status'
+      - $ref: '#/components/parameters/attribution'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliverySummaryPage'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        '503':
+          $ref: '#/components/responses/Error503'
+      x-required-roles:
+      - admin
+      - batch-reader
+      description: ' Ordering: Delivery ID ascending.'
+  /domains/{domain}/batches/{batch_id}/deliveries/{delivery_id}:
+    get:
+      operationId: getDelivery
+      tags:
+      - Deliveries
+      summary: Read one Delivery
+      parameters:
+      - $ref: '#/components/parameters/domain'
+      - $ref: '#/components/parameters/batch_id'
+      - $ref: '#/components/parameters/delivery_id'
+      - $ref: '#/components/parameters/attribution'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Delivery'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        '503':
+          $ref: '#/components/responses/Error503'
+      x-required-roles:
+      - admin
+      - batch-reader
+  /domains/{domain}/stats/events:
+    get:
+      operationId: listStatsEvents
+      tags:
+      - Stats
+      summary: Query retained individual events
+      parameters:
+      - $ref: '#/components/parameters/domain'
+      - $ref: '#/components/parameters/from'
+      - $ref: '#/components/parameters/to'
+      - $ref: '#/components/parameters/type'
+      - $ref: '#/components/parameters/event_batch_id'
+      - $ref: '#/components/parameters/limit'
+      - $ref: '#/components/parameters/cursor'
+      - $ref: '#/components/parameters/attribution'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatsEventPage'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        '503':
+          $ref: '#/components/responses/Error503'
+      x-required-roles:
+      - admin
+      - analyst
+      description: ' Ordering: timestamp descending, then ID descending.'
+  /domains/{domain}/stats/aggregated:
+    get:
+      operationId: getAggregatedStats
+      tags:
+      - Stats
+      summary: Read Domain aggregate counters
+      parameters:
+      - $ref: '#/components/parameters/domain'
+      - $ref: '#/components/parameters/from'
+      - $ref: '#/components/parameters/to'
+      - $ref: '#/components/parameters/group_by'
+      - $ref: '#/components/parameters/attribution'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AggregateSeries'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        '503':
+          $ref: '#/components/responses/Error503'
+      x-required-roles:
+      - admin
+      - analyst
+      - metrics-reader
+      description: ' Ordering: Bucket start ascending.'
+  /health:
+    get:
+      operationId: getHealth
+      tags:
+      - Health
+      summary: Check readiness
+      security: []
+      responses:
+        '200':
+          description: Checks passed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+        '503':
+          $ref: '#/components/responses/Error503'
+      description: Public, minimal readiness check. Failure must not disclose database or infrastructure error detail.
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Configured Admin Token or Domain API Key. Authentication resolves a Principal; role checks happen
+        in application operations.
+  parameters:
+    domain:
+      name: domain
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/DomainName'
+    template_id:
+      name: template_id
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/ID'
+    key_id:
+      name: key_id
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/ID'
+    batch_id:
+      name: batch_id
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/ID'
+    delivery_id:
+      name: delivery_id
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/ID'
+    limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 1000
+        default: 100
+    cursor:
+      name: cursor
+      in: query
+      required: false
+      schema:
+        type: string
+        minLength: 1
+      description: Opaque cursor bound to Domain, collection and filters. Using it with a different query or an
+        invalid token produces 400. No snapshot guarantee while data changes; do not edit the cursor.
+    from:
+      name: from
+      in: query
+      required: true
+      schema:
+        type: string
+        format: date-time
+      description: Inclusive start.
+    to:
+      name: to
+      in: query
+      required: true
+      schema:
+        type: string
+        format: date-time
+      description: Exclusive end.
+    type:
+      name: type
+      in: query
+      required: false
+      schema:
+        type: array
+        items:
+          $ref: '#/components/schemas/EventType'
+        minItems: 1
+        uniqueItems: true
+      style: form
+      explode: true
+    event_batch_id:
+      name: batch_id
+      in: query
+      required: false
+      schema:
+        $ref: '#/components/schemas/ID'
+    group_by:
+      name: group_by
+      in: query
+      required: true
+      schema:
+        type: string
+      examples:
+        hour:
+          value: 1h
+        day:
+          value: 24h
+      description: 'Go duration syntax. Whole-hour multiples >= 1h. Buckets start at from; from aligns to a UTC
+        hour and to-from is a multiple of group_by. Examples: 1h, 6h, 24h, 168h. Runtime validation required. Maximum
+        1000 buckets per query; empty buckets are returned with zeros.'
+    idempotency:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 1
+      description: Domain-scoped creation key. Successful creation prevents duplicate Batch creation for at least
+        24 hours and retains the same Batch identity and original intake counts. Inline rejection details are never
+        persisted or replayed. Changed input conflicts. Rejection before creation leaves the key reusable; an in-progress
+        creation returns 409; every replay is reauthorized. After expiry, key reuse may create a new Batch.
+    attribution:
+      name: X-Kannon-Attribution
+      in: header
+      required: false
+      schema:
+        type: string
+        maxLength: 256
+        description: Application validation additionally enforces 256 UTF-8 bytes, not just characters.
+      description: Optional audit claim, not authority. Requires attribute on the target resource; admin holds it,
+        other accepted roles do not. Valid UTF-8, at most 256 bytes, no control characters, trimmed non-empty value;
+        an empty header means absent. Authenticated credential identity is always retained.
+    delivery_status:
+      name: status
+      in: query
+      required: false
+      schema:
+        $ref: '#/components/schemas/DeliveryStatus'
+      description: Filter persisted Deliveries by current state. rejected means post-intake validation rejection;
+        inline rejections are never persisted.
+  schemas:
+    ID:
+      type: string
+      minLength: 1
+      description: Opaque identifier. Clients must not parse its structure.
+    DomainName:
+      type: string
+      minLength: 1
+      description: Canonical lower-case sending Domain name.
+    Fields:
+      type: object
+      additionalProperties:
+        type: string
+      description: String personalization values interpreted literally. Global values are defaults overridden by
+        per-recipient fields. email is reserved for the actual recipient address and cannot be supplied as an override.
+    Role:
+      type: string
+      enum:
+      - admin
+      - sender
+      - batch-reader
+      - analyst
+      - metrics-reader
+    TrackingMode:
+      type: string
+      enum:
+      - 'off'
+      - anonymous
+      - pseudonymous
+      - identified
+      - full
+    TrackingPolicy:
+      type: object
+      properties:
+        opens:
+          $ref: '#/components/schemas/TrackingMode'
+        links:
+          $ref: '#/components/schemas/TrackingMode'
+      required:
+      - opens
+      - links
+    TrackingOverride:
+      type: object
+      properties:
+        opens:
+          $ref: '#/components/schemas/TrackingMode'
+        links:
+          $ref: '#/components/schemas/TrackingMode'
+      description: Omitted axes impose no additional restriction. A Batch request above the Domain ceiling fails.
+      additionalProperties: false
+    RecipientTracking:
+      type: object
+      properties:
+        opens:
+          type: string
+        links:
+          type: string
+      description: Values use TrackingMode names. Unsupported modes or modes above the Domain ceiling reject this
+        Recipient, not the entire Batch.
+      additionalProperties: false
+    From:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+      required:
+      - email
+      additionalProperties: false
+    Unsubscribe:
+      type: object
+      properties:
+        url_template:
+          type: string
+          minLength: 1
+      description: Sender-owned HTTPS endpoint template, personalized with recipient fields. Not a Kannon endpoint.
+      required:
+      - url_template
+      additionalProperties: false
+    Headers:
+      type: object
+      properties:
+        to:
+          type: array
+          items:
+            type: string
+        cc:
+          type: array
+          items:
+            type: string
+      description: Display headers only; recipients defines actual delivery targets.
+      additionalProperties: false
+    AttachmentInput:
+      type: object
+      properties:
+        filename:
+          type: string
+          minLength: 1
+        content_base64:
+          type: string
+          contentEncoding: base64
+      required:
+      - filename
+      - content_base64
+      additionalProperties: false
+      description: Filenames must be unique within the request. An exact duplicate fails the whole request with
+        422 duplicate_attachment_filename; no attachment is silently overwritten.
+    AttachmentMetadata:
+      type: object
+      properties:
+        filename:
+          type: string
+        size_bytes:
+          type: integer
+          minimum: 0
+      required:
+      - filename
+      - size_bytes
+    RecipientInput:
+      type: object
+      properties:
+        email:
+          type: string
+        fields:
+          $ref: '#/components/schemas/Fields'
+        tracking:
+          $ref: '#/components/schemas/RecipientTracking'
+      description: Input only. Missing/invalid address, unsupported policy, reserved-field override or unresolved
+        personalization reject this Recipient inline. No rejected recipient data is persisted. Trim outer whitespace
+        and lowercase only the email domain for duplicate comparison; preserve local-part case, dots and plus-tags.
+        Later duplicate rows are rejected by original index.
+      additionalProperties: false
+    ContentInput:
+      oneOf:
+      - type: object
+        properties:
+          type:
+            type: string
+            enum:
+            - html
+          html:
+            type: string
+            minLength: 1
+        required:
+        - type
+        - html
+        additionalProperties: false
+      - type: object
+        properties:
+          type:
+            type: string
+            enum:
+            - template
+          template_id:
+            $ref: '#/components/schemas/ID'
+        required:
+        - type
+        - template_id
+        additionalProperties: false
+      discriminator:
+        propertyName: type
+    BatchCreate:
+      type: object
+      properties:
+        from:
+          $ref: '#/components/schemas/From'
+        subject:
+          type: string
+        content:
+          $ref: '#/components/schemas/ContentInput'
+        recipients:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecipientInput'
+          minItems: 1
+          maxItems: 2000
+        scheduled_at:
+          type: string
+          format: date-time
+          description: Omit for immediate sending. If supplied, must be in the future at first creation; otherwise
+            422. A valid replay does not revalidate the timestamp against the current clock.
+        global_fields:
+          $ref: '#/components/schemas/Fields'
+          description: Defaults merged with each recipient fields, which take precedence. Applied to both subject
+            and HTML. email is reserved. Missing placeholders reject the affected Recipient inline.
+        attachments:
+          type: array
+          items:
+            $ref: '#/components/schemas/AttachmentInput'
+        headers:
+          $ref: '#/components/schemas/Headers'
+        tracking:
+          $ref: '#/components/schemas/TrackingOverride'
+        one_click_unsubscribe:
+          $ref: '#/components/schemas/Unsubscribe'
+      description: Maximum HTTP body 10 MiB including base64. Scheduling, tracking and personalization follow the
+        documented domain rules.
+      required:
+      - from
+      - subject
+      - content
+      - recipients
+      additionalProperties: false
+    FieldError:
+      type: object
+      properties:
+        code:
+          type: string
+        pointer:
+          type: string
+        detail:
+          type: string
+      required:
+      - code
+      - pointer
+      - detail
+    Problem:
+      type: object
+      properties:
+        type:
+          type: string
+          format: uri-reference
+          description: 'Stable identifier: urn:kannon:problem:<code>. Does not require a hosted documentation endpoint.'
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri-reference
+        code:
+          type: string
+        request_id:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/FieldError'
+      description: RFC 9457. Stable type identifier urn:kannon:problem:<code>. Codes are stable; title/detail are
+        human-readable. Extension fields may be added.
+      required:
+      - type
+      - title
+      - status
+      - code
+      - request_id
+    RecipientRejection:
+      type: object
+      properties:
+        index:
+          type: integer
+          minimum: 0
+        email:
+          type: string
+        code:
+          type: string
+        pointer:
+          type: string
+        detail:
+          type: string
+      description: 'Zero-based input index. Initial response only: no Delivery or rejection record is persisted
+        for this row.'
+      required:
+      - index
+      - code
+      - pointer
+      - detail
+    Domain:
+      type: object
+      properties:
+        domain:
+          $ref: '#/components/schemas/DomainName'
+        dkim_public_key:
+          type: string
+        tracking:
+          $ref: '#/components/schemas/TrackingPolicy'
+      required:
+      - domain
+      - dkim_public_key
+      - tracking
+      description: The Domain name is its identifier; there is no separate generated Domain ID.
+    DomainCreate:
+      type: object
+      properties:
+        domain:
+          $ref: '#/components/schemas/DomainName'
+      required:
+      - domain
+      additionalProperties: false
+    DomainPatch:
+      type: object
+      properties:
+        tracking:
+          $ref: '#/components/schemas/TrackingPolicy'
+      description: Replaces the full policy; the Domain name is immutable.
+      required:
+      - tracking
+      additionalProperties: false
+    TemplateSummary:
+      type: object
+      properties:
+        id: &id001
+          $ref: '#/components/schemas/ID'
+        domain: &id002
+          $ref: '#/components/schemas/DomainName'
+        title: &id003
+          type: string
+        lifetime: &id004
+          type: string
+          enum:
+          - persistent
+          - transient
+      required:
+      - id
+      - domain
+      - title
+      - lifetime
+    Template:
+      type: object
+      properties:
+        id: *id001
+        domain: *id002
+        title: *id003
+        lifetime: *id004
+        html:
+          type: string
+      required:
+      - id
+      - domain
+      - title
+      - lifetime
+      - html
+    TemplateCreate:
+      type: object
+      properties:
+        title:
+          type: string
+        html:
+          type: string
+          minLength: 1
+      required:
+      - title
+      - html
+      additionalProperties: false
+    TemplatePatch:
+      type: object
+      properties:
+        title:
+          type: string
+        html:
+          type: string
+          minLength: 1
+      minProperties: 1
+      description: Omitted fields stay unchanged. Null is not an instruction to delete a field.
+      additionalProperties: false
+    APIKey:
+      type: object
+      properties:
+        id: &id005
+          $ref: '#/components/schemas/ID'
+        domain: &id006
+          $ref: '#/components/schemas/DomainName'
+        name: &id007
+          type: string
+        prefix: &id008
+          type: string
+        roles: &id009
+          type: array
+          items:
+            $ref: '#/components/schemas/Role'
+          minItems: 1
+          uniqueItems: true
+        status: &id010
+          type: string
+          enum:
+          - active
+          - expired
+          - revoked
+        created_at: &id011
+          type: string
+          format: date-time
+        expires_at: &id012
+          type:
+          - string
+          - 'null'
+          format: date-time
+        revoked_at: &id013
+          type:
+          - string
+          - 'null'
+          format: date-time
+      required:
+      - id
+      - domain
+      - name
+      - prefix
+      - roles
+      - status
+      - created_at
+      - expires_at
+      - revoked_at
+      description: Metadata from the existing api_keys table. Secret is never returned on reads. Legacy rows without
+        role metadata expose sender. expires_at null means no automatic expiry.
+      not:
+        required:
+        - secret
+    APIKeyCreated:
+      type: object
+      properties:
+        id: *id005
+        domain: *id006
+        name: *id007
+        prefix: *id008
+        roles: *id009
+        status: *id010
+        created_at: *id011
+        expires_at: *id012
+        revoked_at: *id013
+        secret:
+          type: string
+      description: Secret is returned once on creation only.
+      required:
+      - id
+      - domain
+      - name
+      - prefix
+      - roles
+      - status
+      - created_at
+      - expires_at
+      - revoked_at
+      - secret
+    APIKeyCreate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        roles:
+          type: array
+          items:
+            $ref: '#/components/schemas/Role'
+          minItems: 1
+          uniqueItems: true
+        expires_at:
+          type: string
+          format: date-time
+          description: Optional. Omit for no automatic expiration. If present, must be in the future.
+      description: Issue in the existing api_keys table. Roles are immutable and anchored to the path Domain; requested
+        authority cannot exceed issuer authority. Legacy keys without role metadata remain sender-only and retain
+        their secrets and identifiers.
+      required:
+      - name
+      - roles
+      additionalProperties: false
+    APIKeyRevoke:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+          - revoked
+      required:
+      - status
+      additionalProperties: false
+    DeliveryStatus:
+      type: string
+      enum:
+      - pending
+      - scheduled
+      - sending
+      - delivered
+      - rejected
+      - bounced
+      - failed
+    DeliveryCounts:
+      type: object
+      properties:
+        pending:
+          type: integer
+          minimum: 0
+        scheduled:
+          type: integer
+          minimum: 0
+        sending:
+          type: integer
+          minimum: 0
+        delivered:
+          type: integer
+          minimum: 0
+        rejected:
+          type: integer
+          minimum: 0
+        bounced:
+          type: integer
+          minimum: 0
+        failed:
+          type: integer
+          minimum: 0
+      required:
+      - pending
+      - scheduled
+      - sending
+      - delivered
+      - rejected
+      - bounced
+      - failed
+    BatchSummary:
+      type: object
+      properties:
+        id: &id014
+          $ref: '#/components/schemas/ID'
+        domain: &id015
+          $ref: '#/components/schemas/DomainName'
+        from: &id016
+          $ref: '#/components/schemas/From'
+        subject: &id017
+          type: string
+        status: &id018
+          type: string
+          enum:
+          - pending
+          - processing
+          - completed
+        created_at: &id019
+          type: string
+          format: date-time
+        scheduled_at: &id020
+          type: string
+          format: date-time
+        completed_at: &id021
+          type:
+          - string
+          - 'null'
+          format: date-time
+        expires_at: &id022
+          type:
+          - string
+          - 'null'
+          format: date-time
+        accepted_count: &id023
+          type: integer
+          minimum: 1
+        rejected_count: &id024
+          type: integer
+          minimum: 0
+        delivery_counts: &id025
+          $ref: '#/components/schemas/DeliveryCounts'
+      description: Completed means no remaining attempts, not all delivered. History expires 30 days after processing
+        completion. Later bounces do not restart that clock.
+      required:
+      - id
+      - domain
+      - from
+      - subject
+      - status
+      - created_at
+      - scheduled_at
+      - completed_at
+      - expires_at
+      - accepted_count
+      - rejected_count
+      - delivery_counts
+    Batch:
+      type: object
+      properties:
+        id: *id014
+        domain: *id015
+        from: *id016
+        subject: *id017
+        status: *id018
+        created_at: *id019
+        scheduled_at: *id020
+        completed_at: *id021
+        expires_at: *id022
+        accepted_count: *id023
+        rejected_count: *id024
+        delivery_counts: *id025
+        content:
+          type: object
+          properties:
+            type:
+              type: string
+              enum:
+              - html
+            html:
+              type: string
+            source_template_id:
+              type:
+              - string
+              - 'null'
+          description: Immutable content snapshot. Source reference is provenance, not a live Template dependency.
+          required:
+          - type
+          - html
+        tracking:
+          $ref: '#/components/schemas/TrackingPolicy'
+        one_click_unsubscribe:
+          $ref: '#/components/schemas/Unsubscribe'
+        attachments:
+          type: array
+          items:
+            $ref: '#/components/schemas/AttachmentMetadata'
+        headers:
+          $ref: '#/components/schemas/Headers'
+      required:
+      - id
+      - domain
+      - from
+      - subject
+      - status
+      - created_at
+      - scheduled_at
+      - completed_at
+      - expires_at
+      - accepted_count
+      - rejected_count
+      - delivery_counts
+      - content
+      - tracking
+      - attachments
+      description: ' History expires 30 days after Batch processing completion. GET then returns 404; Stats may
+        still retain events referencing this ID.'
+    BatchCreated:
+      type: object
+      properties:
+        id: *id014
+        domain: *id015
+        from: *id016
+        subject: *id017
+        status: *id018
+        created_at: *id019
+        scheduled_at: *id020
+        completed_at: *id021
+        expires_at: *id022
+        accepted_count: *id023
+        rejected_count: *id024
+        delivery_counts: *id025
+        rejected_recipients:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecipientRejection'
+      description: Initial creation receipt. Rejected recipient details are response-only and are never persisted.
+        Intake counts and state here reflect creation; GET reads current state.
+      required:
+      - id
+      - domain
+      - from
+      - subject
+      - status
+      - created_at
+      - scheduled_at
+      - completed_at
+      - expires_at
+      - accepted_count
+      - rejected_count
+      - delivery_counts
+      - rejected_recipients
+    DeliverySummary:
+      type: object
+      properties:
+        id: &id026
+          $ref: '#/components/schemas/ID'
+        domain: &id027
+          $ref: '#/components/schemas/DomainName'
+        batch_id: &id028
+          $ref: '#/components/schemas/ID'
+        email: &id029
+          type: string
+        status: &id030
+          $ref: '#/components/schemas/DeliveryStatus'
+        created_at: &id031
+          type: string
+          format: date-time
+        scheduled_at: &id032
+          type: string
+          format: date-time
+        updated_at: &id033
+          type: string
+          format: date-time
+      required:
+      - id
+      - domain
+      - batch_id
+      - email
+      - status
+      - created_at
+      - scheduled_at
+      - updated_at
+    Delivery:
+      type: object
+      properties:
+        id: *id026
+        domain: *id027
+        batch_id: *id028
+        email: *id029
+        status: *id030
+        created_at: *id031
+        scheduled_at: *id032
+        updated_at: *id033
+        tracking:
+          $ref: '#/components/schemas/TrackingPolicy'
+        attempt_count:
+          type: integer
+          minimum: 0
+        last_error:
+          type: object
+          properties:
+            code:
+              type: string
+            detail:
+              type: string
+          required:
+          - code
+          - detail
+      description: Public history persists beyond removal of the worker pool row. Rejected here means validation
+        rejected an existing Delivery, not intake rejection. History expires 30 days after Batch processing completion.
+        GET then returns 404; Stats may still retain events referencing this ID.
+      required:
+      - id
+      - domain
+      - batch_id
+      - email
+      - status
+      - created_at
+      - scheduled_at
+      - updated_at
+      - tracking
+      - attempt_count
+    EventType:
+      type: string
+      enum:
+      - validated
+      - rejected
+      - delivered
+      - bounced
+      - failed
+      - opened
+      - clicked
+    StatsEvent:
+      oneOf:
+      - type: object
+        properties:
+          id: &id034
+            $ref: '#/components/schemas/ID'
+          domain: &id035
+            $ref: '#/components/schemas/DomainName'
+          batch_id: &id036
+            $ref: '#/components/schemas/ID'
+          timestamp: &id037
+            type: string
+            format: date-time
+          type:
+            type: string
+            enum:
+            - validated
+          data:
+            type: object
+            properties: {}
+          email:
+            type: string
+          delivery_id:
+            $ref: '#/components/schemas/ID'
+        required:
+        - id
+        - domain
+        - batch_id
+        - timestamp
+        - type
+        - data
+      - type: object
+        properties:
+          id: *id034
+          domain: *id035
+          batch_id: *id036
+          timestamp: *id037
+          type:
+            type: string
+            enum:
+            - rejected
+          data:
+            type: object
+            properties:
+              reason:
+                type: string
+          email:
+            type: string
+          delivery_id:
+            $ref: '#/components/schemas/ID'
+        required:
+        - id
+        - domain
+        - batch_id
+        - timestamp
+        - type
+        - data
+      - type: object
+        properties:
+          id: *id034
+          domain: *id035
+          batch_id: *id036
+          timestamp: *id037
+          type:
+            type: string
+            enum:
+            - delivered
+          data:
+            type: object
+            properties: {}
+          email:
+            type: string
+          delivery_id:
+            $ref: '#/components/schemas/ID'
+        required:
+        - id
+        - domain
+        - batch_id
+        - timestamp
+        - type
+        - data
+      - type: object
+        properties:
+          id: *id034
+          domain: *id035
+          batch_id: *id036
+          timestamp: *id037
+          type:
+            type: string
+            enum:
+            - bounced
+          data:
+            type: object
+            properties:
+              smtp_code:
+                type: integer
+                minimum: 0
+              detail:
+                type: string
+              permanent:
+                type: boolean
+                description: Permanent SMTP refusal versus retry exhaustion after transient refusals; both are terminal
+                  bounced outcomes.
+          email:
+            type: string
+          delivery_id:
+            $ref: '#/components/schemas/ID'
+        required:
+        - id
+        - domain
+        - batch_id
+        - timestamp
+        - type
+        - data
+      - type: object
+        properties:
+          id: *id034
+          domain: *id035
+          batch_id: *id036
+          timestamp: *id037
+          type:
+            type: string
+            enum:
+            - failed
+          data:
+            type: object
+            properties:
+              reason:
+                type: string
+          email:
+            type: string
+          delivery_id:
+            $ref: '#/components/schemas/ID'
+        required:
+        - id
+        - domain
+        - batch_id
+        - timestamp
+        - type
+        - data
+      - type: object
+        properties:
+          id: *id034
+          domain: *id035
+          batch_id: *id036
+          timestamp: *id037
+          type:
+            type: string
+            enum:
+            - opened
+          data:
+            type: object
+            properties:
+              ip:
+                type: string
+              user_agent:
+                type: string
+          email:
+            type: string
+          delivery_id:
+            $ref: '#/components/schemas/ID'
+          tracking_mode:
+            type: string
+            enum:
+            - pseudonymous
+            - identified
+            - full
+          tracking_identity:
+            type: string
+        required:
+        - id
+        - domain
+        - batch_id
+        - timestamp
+        - type
+        - data
+        - tracking_mode
+        allOf:
+        - if:
+            properties:
+              tracking_mode:
+                const: pseudonymous
+          then:
+            not:
+              anyOf:
+              - required:
+                - email
+              - required:
+                - delivery_id
+            required:
+            - tracking_identity
+        - if:
+            properties:
+              tracking_mode:
+                enum:
+                - pseudonymous
+                - identified
+          then:
+            properties:
+              data:
+                not:
+                  anyOf:
+                  - required:
+                    - ip
+                  - required:
+                    - user_agent
+      - type: object
+        properties:
+          id: *id034
+          domain: *id035
+          batch_id: *id036
+          timestamp: *id037
+          type:
+            type: string
+            enum:
+            - clicked
+          data:
+            type: object
+            properties:
+              ip:
+                type: string
+              user_agent:
+                type: string
+              url:
+                type: string
+                format: uri
+          email:
+            type: string
+          delivery_id:
+            $ref: '#/components/schemas/ID'
+          tracking_mode:
+            type: string
+            enum:
+            - pseudonymous
+            - identified
+            - full
+          tracking_identity:
+            type: string
+        required:
+        - id
+        - domain
+        - batch_id
+        - timestamp
+        - type
+        - data
+        - tracking_mode
+        allOf:
+        - if:
+            properties:
+              tracking_mode:
+                const: pseudonymous
+          then:
+            not:
+              anyOf:
+              - required:
+                - email
+              - required:
+                - delivery_id
+            required:
+            - tracking_identity
+        - if:
+            properties:
+              tracking_mode:
+                enum:
+                - pseudonymous
+                - identified
+          then:
+            properties:
+              data:
+                not:
+                  anyOf:
+                  - required:
+                    - ip
+                  - required:
+                    - user_agent
+      discriminator:
+        propertyName: type
+      description: Engagement identity fields follow Tracking Policy. Anonymous events exist only as counters. Pseudonymous
+        events must not expose email or original delivery_id. Transient worker errors are not public outcome events.
+        Original identifiers may outlive Batch/Delivery history; these historical references do not guarantee the
+        resource remains retrievable.
+    AggregateSeries:
+      type: object
+      properties:
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+        group_by:
+          type: string
+        buckets:
+          type: array
+          items:
+            type: object
+            properties:
+              start:
+                type: string
+                format: date-time
+              end:
+                type: string
+                format: date-time
+              counts:
+                type: object
+                properties:
+                  validated:
+                    type: integer
+                    minimum: 0
+                  rejected:
+                    type: integer
+                    minimum: 0
+                  delivered:
+                    type: integer
+                    minimum: 0
+                  bounced:
+                    type: integer
+                    minimum: 0
+                  failed:
+                    type: integer
+                    minimum: 0
+                  opened:
+                    type: integer
+                    minimum: 0
+                  clicked:
+                    type: integer
+                    minimum: 0
+                required:
+                - validated
+                - rejected
+                - delivered
+                - bounced
+                - failed
+                - opened
+                - clicked
+            required:
+            - start
+            - end
+            - counts
+          maxItems: 1000
+      description: Domain-level event occurrence counters, not unique-recipient counts; no batch_id filter. Includes
+        zero-filled empty buckets. Maximum 1000 complete buckets; split the range or increase group_by. A zero does
+        not prove collection was operational.
+      required:
+      - from
+      - to
+      - group_by
+      - buckets
+    DomainPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Domain'
+        next_cursor:
+          type:
+          - string
+          - 'null'
+      required:
+      - items
+      - next_cursor
+    TemplateSummaryPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TemplateSummary'
+        next_cursor:
+          type:
+          - string
+          - 'null'
+      required:
+      - items
+      - next_cursor
+    APIKeyPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/APIKey'
+        next_cursor:
+          type:
+          - string
+          - 'null'
+      required:
+      - items
+      - next_cursor
+    BatchSummaryPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/BatchSummary'
+        next_cursor:
+          type:
+          - string
+          - 'null'
+      required:
+      - items
+      - next_cursor
+    DeliverySummaryPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeliverySummary'
+        next_cursor:
+          type:
+          - string
+          - 'null'
+      required:
+      - items
+      - next_cursor
+    StatsEventPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/StatsEvent'
+        next_cursor:
+          type:
+          - string
+          - 'null'
+      required:
+      - items
+      - next_cursor
+    Health:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+          - ready
+      required:
+      - status
+    BatchReplay:
+      type: object
+      properties:
+        id:
+          $ref: '#/components/schemas/ID'
+        domain:
+          $ref: '#/components/schemas/DomainName'
+        created_at:
+          type: string
+          format: date-time
+        scheduled_at:
+          type: string
+          format: date-time
+        accepted_count:
+          type: integer
+          minimum: 1
+        rejected_count:
+          type: integer
+          minimum: 0
+      required:
+      - id
+      - domain
+      - created_at
+      - scheduled_at
+      - accepted_count
+      - rejected_count
+      description: Same Batch and original intake counts. Inline rejected recipient details are deliberately absent,
+        never reconstructed or persisted. This is a creation receipt, not current Delivery state.
+      not:
+        required:
+        - rejected_recipients
+  responses:
+    Error400:
+      description: Malformed request or invalid/unknown query parameter.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Error401:
+      description: Missing or invalid credential.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Error403:
+      description: Insufficient authority.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Error404:
+      description: Resource not found.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Error409:
+      description: Conflicting state or idempotency key.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+      headers:
+        Retry-After:
+          description: When retry is appropriate, delay in seconds. Not present for a permanent conflict.
+          schema:
+            type: string
+    Error413:
+      description: HTTP body exceeds 10 MiB.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Error422:
+      description: Invalid content; all recipients rejected creates no Batch.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Error429:
+      description: Request rate limit exceeded.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+      headers:
+        Retry-After:
+          description: When retry is appropriate, delay in seconds. Not present for a permanent conflict.
+          schema:
+            type: string
+    Error500:
+      description: Unexpected service failure.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Error503:
+      description: Service temporarily unavailable.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+      headers:
+        Retry-After:
+          description: When retry is appropriate, delay in seconds. Not present for a permanent conflict.
+          schema:
+            type: string
+x-credential-storage: Retain the existing api_keys table and rows. No key replacement, reissuance, copying or backfill.
+  Add role metadata in place; absent legacy metadata means sender on the existing Domain.
+x-compatibility: Compatible evolution within v1beta1. Breaking changes require a new version. Legacy gRPC receives
+  necessary fixes with no removal date fixed.
+x-time-format: RFC 3339 input with explicit timezone; UTC output. Fractional-second precision is not fixed.
+x-error-codes:
+  malformed_request: 400
+  unknown_query_parameter: 400
+  invalid_query_parameter: 400
+  invalid_cursor: 400
+  invalid_attribution: 400
+  unauthenticated: 401
+  forbidden: 403
+  not_found: 404
+  domain_already_exists: 409
+  idempotency_conflict: 409
+  idempotency_in_progress: 409
+  request_body_too_large: 413
+  validation_failed: 422
+  no_recipients_accepted: 422
+  too_many_recipients: 422
+  duplicate_attachment_filename: 422
+  scheduled_at_not_future: 422
+  expiry_not_future: 422
+  rate_limited: 429
+  internal_error: 500
+  service_unavailable: 503
+x-recipient-rejection-codes:
+- invalid_email
+- duplicate_recipient
+- tracking_above_ceiling
+- unsupported_tracking_mode
+- unsubscribe_url_unresolved
+- unresolved_placeholder
+- reserved_field
+x-implementation-constraints:
+- Reuse existing application modules; add Batch creation where missing. REST adapter -> application operation ->
+  persistence.
+- Generated OpenAPI types stay out of domain/application interfaces. No command bus, per-endpoint factories or redundant
+  pass-through layers.
+- Simple persistent Delivery history with query-based Batch state counts initially; no event sourcing or generic
+  projection framework. Preserve existing Stats pipeline.
+- Batch-specific transactional idempotency with unique constraint and minimal receipt; no generic response cache.
+- Fixed-order keyset cursors; no persisted pagination sessions or distributed snapshots.
