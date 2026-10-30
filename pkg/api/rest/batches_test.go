@@ -66,6 +66,9 @@ func TestInlineBatchRetry(t *testing.T) {
 		t.Fatal(first)
 	}
 	replay := call(path, "retry", body, 200)
+	if replay["created_at"] != first["created_at"] {
+		t.Fatal("creation time changed on replay", first, replay)
+	}
 	if replay["id"] != first["id"] {
 		t.Fatal(replay)
 	}

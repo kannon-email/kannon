@@ -102,13 +102,12 @@ func (s *InlineService) Create(ctx context.Context, domain values.DomainName, ke
 			return nil, err
 		}
 		sum := sha256.Sum256(raw)
-		var e error
+		d, e := s.domains.FindByName(ctx, domain)
+		if e != nil {
+			return nil, e
+		}
 		var r *InlineReceipt
 		r, replay, e = s.store.CreateInline(ctx, domain, key, hex.EncodeToString(sum[:]), func() (*InlineWork, error) {
-			d, e := s.domains.FindByName(ctx, domain)
-			if e != nil {
-				return nil, e
-			}
 			tpl, e := templates.NewTransient(domain, p.HTML)
 			if e != nil {
 				return nil, invalid(e)
@@ -117,7 +116,7 @@ func (s *InlineService) Create(ctx context.Context, domain values.DomainName, ke
 			if e != nil {
 				return nil, invalid(e)
 			}
-			now := time.Now().UTC()
+			now := time.Now().UTC().Truncate(time.Microsecond)
 			ds := []*delivery.Delivery{}
 			seen := map[string]bool{}
 			for i, email := range p.Recipients {

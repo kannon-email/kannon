@@ -7,8 +7,11 @@ CREATE TABLE batch_intake_receipts (
  created_at timestamptz NOT NULL,
  accepted_count integer NOT NULL CHECK (accepted_count > 0),
  rejected_count integer NOT NULL CHECK (rejected_count >= 0),
- html text NOT NULL,
  PRIMARY KEY(domain, idempotency_key)
+);
+CREATE TABLE batch_content_snapshots (
+ batch_id text PRIMARY KEY REFERENCES messages(message_id),
+ html text NOT NULL
 );
 -- Durable accepted identity survives removal from the worker Pool. History
 -- slices extend these facts with lifecycle events; refused input never enters it.
@@ -22,3 +25,4 @@ CREATE TABLE delivery_intake_facts (
 -- migrate:down
 DROP TABLE delivery_intake_facts;
 DROP TABLE batch_intake_receipts;
+DROP TABLE batch_content_snapshots;

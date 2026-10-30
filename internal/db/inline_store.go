@@ -36,6 +36,7 @@ func (s *inlineStore) CreateInline(ctx context.Context, domain values.DomainName
 	var digest string
 	err = tx.QueryRow(ctx, `SELECT batch_id,domain,created_at,accepted_count,rejected_count,fingerprint FROM batch_intake_receipts WHERE domain=$1 AND idempotency_key=$2`, domain.String(), key).Scan(&r.ID, &r.Domain, &r.CreatedAt, &r.AcceptedCount, &r.RejectedCount, &digest)
 	if err == nil {
+		r.CreatedAt = r.CreatedAt.UTC()
 		if digest != fingerprint {
 			return nil, false, intake.ErrIdempotencyConflict
 		}
@@ -58,7 +59,11 @@ func (s *inlineStore) CreateInline(ctx context.Context, domain values.DomainName
 		return nil, false, err
 	}
 	r = &work.Receipt
-	_, err = tx.Exec(ctx, `INSERT INTO batch_intake_receipts(domain,idempotency_key,fingerprint,batch_id,created_at,accepted_count,rejected_count,html) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, r.Domain, key, fingerprint, r.ID, r.CreatedAt, r.AcceptedCount, r.RejectedCount, work.Template.Html())
+	_, err = tx.Exec(ctx, `INSERT INTO batch_intake_receipts(domain,idempotency_key,fingerprint,batch_id,created_at,accepted_count,rejected_count) VALUES($1,$2,$3,$4,$5,$6,$7)`, r.Domain, key, fingerprint, r.ID, r.CreatedAt, r.AcceptedCount, r.RejectedCount)
+	if err != nil {
+		return nil, false, err
+	}
+	_, err = tx.Exec(ctx, `INSERT INTO batch_content_snapshots(batch_id,html) VALUES($1,$2)`, r.ID, work.Template.Html())
 	if err != nil {
 		return nil, false, err
 	}

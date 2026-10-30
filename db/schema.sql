@@ -157,6 +157,16 @@ CREATE TABLE public.audit_records (
 
 
 --
+-- Name: batch_content_snapshots; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.batch_content_snapshots (
+    batch_id text NOT NULL,
+    html text NOT NULL
+);
+
+
+--
 -- Name: batch_intake_receipts; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -168,7 +178,6 @@ CREATE TABLE public.batch_intake_receipts (
     created_at timestamp with time zone NOT NULL,
     accepted_count integer NOT NULL,
     rejected_count integer NOT NULL,
-    html text NOT NULL,
     CONSTRAINT batch_intake_receipts_accepted_count_check CHECK ((accepted_count > 0)),
     CONSTRAINT batch_intake_receipts_rejected_count_check CHECK ((rejected_count >= 0))
 );
@@ -498,6 +507,14 @@ ALTER TABLE ONLY public.audit_records
 
 
 --
+-- Name: batch_content_snapshots batch_content_snapshots_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.batch_content_snapshots
+    ADD CONSTRAINT batch_content_snapshots_pkey PRIMARY KEY (batch_id);
+
+
+--
 -- Name: batch_intake_receipts batch_intake_receipts_batch_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -821,6 +838,14 @@ ALTER TABLE ONLY public."Session"
 
 ALTER TABLE ONLY public.api_keys
     ADD CONSTRAINT api_keys_domain_fkey FOREIGN KEY (domain) REFERENCES public.domains(domain) ON DELETE CASCADE;
+
+
+--
+-- Name: batch_content_snapshots batch_content_snapshots_batch_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.batch_content_snapshots
+    ADD CONSTRAINT batch_content_snapshots_batch_id_fkey FOREIGN KEY (batch_id) REFERENCES public.messages(message_id);
 
 
 --
