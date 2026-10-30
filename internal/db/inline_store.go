@@ -39,7 +39,7 @@ func (s *inlineStore) CreateInline(ctx context.Context, domain values.DomainName
 	}
 	r := &intake.InlineReceipt{}
 	var digest string
-	err = tx.QueryRow(ctx, `SELECT batch_id,domain,created_at,accepted_count,rejected_count,fingerprint FROM batch_intake_receipts WHERE domain=$1 AND idempotency_key=$2`, domain.String(), key).Scan(&r.ID, &r.Domain, &r.CreatedAt, &r.AcceptedCount, &r.RejectedCount, &digest)
+	err = tx.QueryRow(ctx, `SELECT batch_id,domain,created_at,accepted_count,rejected_count,fingerprint,scheduled_at,attachments FROM batch_intake_receipts WHERE domain=$1 AND idempotency_key=$2`, domain.String(), key).Scan(&r.ID, &r.Domain, &r.CreatedAt, &r.AcceptedCount, &r.RejectedCount, &digest, &r.ScheduledAt, &r.Attachments)
 	if err == nil {
 		r.CreatedAt = r.CreatedAt.UTC()
 		if digest != fingerprint {
@@ -64,7 +64,7 @@ func (s *inlineStore) CreateInline(ctx context.Context, domain values.DomainName
 		return nil, false, err
 	}
 	r = &work.Receipt
-	_, err = tx.Exec(ctx, `INSERT INTO batch_intake_receipts(domain,idempotency_key,fingerprint,batch_id,created_at,accepted_count,rejected_count) VALUES($1,$2,$3,$4,$5,$6,$7)`, r.Domain, key, fingerprint, r.ID, r.CreatedAt, r.AcceptedCount, r.RejectedCount)
+	_, err = tx.Exec(ctx, `INSERT INTO batch_intake_receipts(domain,idempotency_key,fingerprint,batch_id,created_at,accepted_count,rejected_count,scheduled_at,attachments) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`, r.Domain, key, fingerprint, r.ID, r.CreatedAt, r.AcceptedCount, r.RejectedCount, r.ScheduledAt, r.Attachments)
 	if err != nil {
 		return nil, false, err
 	}

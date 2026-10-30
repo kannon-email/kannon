@@ -63,7 +63,7 @@ func TestInlineBatchRetry(t *testing.T) {
 	if got := call(path, "limit", strings.Replace(body, `[{"email":" User+tag@EXAMPLE.com "},{"email":"User+tag@example.com"},{"email":"refused-address"}]`, "["+strings.Repeat(`{"email":"same@example.com"},`, 2000)+`{"email":"last@example.com"}]`, 1), 422); got["code"] != "too_many_recipients" {
 		t.Fatal(got)
 	}
-	for _, extra := range []string{`,"scheduled_at":"2099-01-01T00:00:00Z"`, `,"attachments":[]`, `,"tracking":{"opens":"off"}`} {
+	for _, extra := range []string{`,"tracking":{"opens":"off"}`} {
 		call(path, "extension", strings.TrimSuffix(body, "}")+extra+"}", 400)
 	}
 	call(path, "", body, 400)

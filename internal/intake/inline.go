@@ -20,11 +20,23 @@ import (
 )
 
 var (
-	ErrTooManyRecipients     = errors.New("too_many_recipients")
-	ErrIdempotencyConflict   = errors.New("idempotency_conflict")
-	ErrIdempotencyInProgress = errors.New("idempotency_in_progress")
-	ErrNoRecipientsAccepted  = errors.New("no_recipients_accepted")
+	ErrScheduledAtNotFuture        = errors.New("scheduled_at_not_future")
+	ErrDuplicateAttachmentFilename = errors.New("duplicate_attachment_filename")
+	ErrTooManyRecipients           = errors.New("too_many_recipients")
+	ErrIdempotencyConflict         = errors.New("idempotency_conflict")
+	ErrIdempotencyInProgress       = errors.New("idempotency_in_progress")
+	ErrNoRecipientsAccepted        = errors.New("no_recipients_accepted")
 )
+
+// Attachment is one named file supplied with a Batch.
+type Attachment struct {
+	Filename string
+	Content  []byte
+}
+type AttachmentMetadata struct {
+	Filename  string
+	SizeBytes int
+}
 
 // InlineRequest describes REST Batch content and recipients independently of transport.
 // RecipientFields uses the same input indices as Recipients.
@@ -36,10 +48,14 @@ type InlineRequest struct {
 	GlobalFields    map[string]string
 	RecipientFields []map[string]string
 	Recipients      []string
+	ScheduledAt     *time.Time   `json:",omitempty"`
+	Attachments     []Attachment `json:",omitempty"`
 }
 
 // InlineReceipt contains only accepted identity and aggregate intake facts.
 type InlineReceipt struct {
+	ScheduledAt   time.Time
+	Attachments   []AttachmentMetadata
 	ID            string
 	Domain        string
 	CreatedAt     time.Time
@@ -71,6 +87,8 @@ type InlineStore interface {
 
 // InlineService owns REST intake semantics independently of transport types.
 type InlineService struct {
+	// Now supplies the creation clock; nil uses wall time.
+	Now         func() time.Time
 	store       InlineStore
 	domains     domains.Repository
 	backoff     delivery.BackoffPolicy
@@ -117,6 +135,29 @@ func (s *InlineService) Create(ctx context.Context, domain values.DomainName, ke
 		}
 		var r *InlineReceipt
 		r, replay, e = s.store.CreateInline(ctx, domain, key, hex.EncodeToString(sum[:]), func() (*InlineWork, error) {
+			now := time.Now().UTC().Truncate(time.Microsecond)
+			if s.Now != nil {
+				now = s.Now().UTC().Truncate(time.Microsecond)
+			}
+			scheduled := now
+			if p.ScheduledAt != nil {
+				scheduled = p.ScheduledAt.UTC().Truncate(time.Microsecond)
+				if !scheduled.After(now) {
+					return nil, ErrScheduledAtNotFuture
+				}
+			}
+			attachments := batch.Attachments{}
+			metadata := []AttachmentMetadata{}
+			for _, a := range p.Attachments {
+				if _, exists := attachments[a.Filename]; exists {
+					return nil, ErrDuplicateAttachmentFilename
+				}
+				if a.Filename == "" || strings.ContainsAny(a.Filename, "\r\n") {
+					return nil, invalid(errors.New("invalid attachment filename"))
+				}
+				attachments[a.Filename] = a.Content
+				metadata = append(metadata, AttachmentMetadata{Filename: a.Filename, SizeBytes: len(a.Content)})
+			}
 			html := p.HTML
 			if p.TemplateID != "" {
 				source, err := s.store.FindByDomain(ctx, domain, p.TemplateID)
@@ -129,11 +170,10 @@ func (s *InlineService) Create(ctx context.Context, domain values.DomainName, ke
 			if e != nil {
 				return nil, invalid(e)
 			}
-			b, e := batch.New(batch.NewParams{Domain: domain.String(), Sender: p.Sender, Subject: p.Subject, TemplateID: tpl.TemplateID()})
+			b, e := batch.New(batch.NewParams{Domain: domain.String(), Sender: p.Sender, Subject: p.Subject, TemplateID: tpl.TemplateID(), Attachments: attachments})
 			if e != nil {
 				return nil, invalid(e)
 			}
-			now := time.Now().UTC().Truncate(time.Microsecond)
 			ds := []*delivery.Delivery{}
 			seen := map[string]bool{}
 			for i, email := range p.Recipients {
@@ -171,7 +211,7 @@ func (s *InlineService) Create(ctx context.Context, domain values.DomainName, ke
 					refusals = append(refusals, InlineRefusal{Index: i, Code: code})
 					continue
 				}
-				item, e := delivery.New(delivery.NewParams{BatchID: b.ID(), Domain: domain.String(), Email: email, Fields: fields, ScheduledTime: now, Backoff: s.backoff, RetryWindow: s.retryWindow, Tracking: d.TrackingPolicy()})
+				item, e := delivery.New(delivery.NewParams{BatchID: b.ID(), Domain: domain.String(), Email: email, Fields: fields, ScheduledTime: scheduled, Backoff: s.backoff, RetryWindow: s.retryWindow, Tracking: d.TrackingPolicy()})
 				if e != nil {
 					return nil, e
 				}
@@ -180,7 +220,7 @@ func (s *InlineService) Create(ctx context.Context, domain values.DomainName, ke
 			if len(ds) == 0 {
 				return nil, ErrNoRecipientsAccepted
 			}
-			return &InlineWork{SourceTemplateID: p.TemplateID, Template: tpl, Batch: b, Deliveries: ds, Receipt: InlineReceipt{ID: b.ID().String(), Domain: domain.String(), CreatedAt: now, AcceptedCount: len(ds), RejectedCount: len(refusals)}}, nil
+			return &InlineWork{SourceTemplateID: p.TemplateID, Template: tpl, Batch: b, Deliveries: ds, Receipt: InlineReceipt{ID: b.ID().String(), Domain: domain.String(), CreatedAt: now, ScheduledAt: scheduled, Attachments: metadata, AcceptedCount: len(ds), RejectedCount: len(refusals)}}, nil
 		})
 		return r, e
 	})
