@@ -2,7 +2,6 @@ package domains
 
 import (
 	"context"
-	"errors"
 
 	"github.com/kannon-email/kannon/internal/authz"
 	"github.com/kannon-email/kannon/internal/tracking"
@@ -66,12 +65,6 @@ func (s *Service) SetTrackingPolicy(ctx context.Context, name values.DomainName,
 // limit includes the adapter's lookahead row; no count or cursor session is stored.
 func (s *Service) ListPage(ctx context.Context, after string, limit int) ([]*Domain, error) {
 	return authz.Guard(ctx, authz.List, authz.Domains(), func() ([]*Domain, error) {
-		repo, ok := s.repo.(interface {
-			ListPage(context.Context, string, int) ([]*Domain, error)
-		})
-		if !ok {
-			return nil, errors.New("Domain repository does not support keyset listing")
-		}
-		return repo.ListPage(ctx, after, limit)
+		return s.repo.ListPage(ctx, after, limit)
 	})
 }

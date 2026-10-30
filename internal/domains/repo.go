@@ -11,6 +11,7 @@ import (
 // values.DomainName, so a query cannot be reached with a name that was never canonicalised: two
 // spellings of one mail domain would otherwise be two Domains, each with its own DKIM keypair.
 type Repository interface {
+	ListPage(context.Context, string, int) ([]*Domain, error)
 	// Create persists a new Domain. The DKIM key pair must already be
 	// populated by New.
 	Create(ctx context.Context, d *Domain) error

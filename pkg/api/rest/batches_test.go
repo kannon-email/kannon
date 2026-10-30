@@ -72,21 +72,51 @@ func TestInlineBatchRetry(t *testing.T) {
 	call(path, "", body, 400)
 	call(path, "large", strings.Replace(body, "<p>Hello</p>", strings.Repeat("x", 10<<20), 1), 413)
 
+	for _, extra := range []string{`,"scheduled_at":null`, `,"headers":null`, `,"tracking":{"opens":null}`, `,"global_fields":{"name":null}`} {
+		call(path, "null", strings.TrimSuffix(body, "}")+extra+"}", 422)
+	}
+	allRefused := call(path, "all-refused", strings.Replace(body, `[{"email":" User+tag@EXAMPLE.com "},{"email":"User+tag@example.com"},{"email":"refused-address"}]`, `[{"email":"invalid"},{"email":"also-invalid"}]`, 1), 422)
+	fieldErrors, ok := allRefused["errors"].([]any)
+	require.True(t, ok)
+	require.Len(t, fieldErrors, 2)
+	require.Equal(t, "/recipients/1/email", func() any { v, ok := fieldErrors[1].(map[string]any); require.True(t, ok); return v["pointer"] }())
+	display := call(path, "display", strings.TrimSuffix(body, "}")+`,"headers":{"to":["Audience <audience@example.net>"],"cc":["Copy <copy@example.net>"]}}`, 201)
+	readBatch := func(id string) map[string]any {
+		t.Helper()
+		r := httptest.NewRequest(http.MethodGet, path+"/"+id, nil)
+		r.Header.Set("Authorization", "Bearer secret")
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		require.Equal(t, 200, w.Code, w.Body.String())
+		var out map[string]any
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &out))
+		return out
+	}
+	detail := readBatch(fmt.Sprint(display["id"]))
+	require.Equal(t, float64(1), detail["accepted_count"])
+	require.Equal(t, []any{"Audience <audience@example.net>"}, func() any { v, ok := detail["headers"].(map[string]any); require.True(t, ok); return v["to"] }())
+	require.Equal(t, map[string]any{"opens": "identified", "links": "identified"}, detail["tracking"])
 	tracked := strings.TrimSuffix(body, "}") + `,"tracking":{"opens":"anonymous","links":"off"}}`
 	trackingResult := call(path, "tracking", tracked, 201)
 	deliveryRepo := sqlc.NewDeliveryRepository(db, delivery.DefaultBackoff, delivery.DefaultRetryWindow)
-	frozenDelivery, err := deliveryRepo.Get(t.Context(), batch.ID(trackingResult["id"].(string)), "User+tag@example.com")
+	frozenDelivery, err := deliveryRepo.Get(t.Context(), batch.ID(fmt.Sprint(trackingResult["id"])), "User+tag@example.com")
 	require.NoError(t, err)
 	require.Equal(t, tracking.Policy{Opens: tracking.ModeAnonymous, Links: tracking.ModeOff}, frozenDelivery.TrackingPolicy())
 
 	unsubscribe := `{"from":{"email":"sender@example.com"},"subject":"Hello","content":{"type":"html","html":"<p>Hello</p>"},"tracking":{"opens":"off","links":"off"},"one_click_unsubscribe":{"url_template":"https://sender.example/unsub?email={{ email }}&token={{ token }}"},"global_fields":{"token":"default"},"recipients":[{"email":"ok+tag@example.com","fields":{"token":"a&b"}},{"email":"unsupported@example.com","tracking":{"opens":"future"}},{"email":"above@example.com","tracking":{"links":"full"}}]}`
 	u := call(path, "unsubscribe", unsubscribe, 201)
+	require.Equal(t, "https://sender.example/unsub?email={{ email }}&token={{ token }}", func() any {
+		v, ok := readBatch(fmt.Sprint(u["id"]))["one_click_unsubscribe"].(map[string]any)
+		require.True(t, ok)
+		return v["url_template"]
+	}())
 	require.Equal(t, float64(1), u["accepted_count"])
 	require.Equal(t, float64(2), u["rejected_count"])
-	rows := u["rejected_recipients"].([]any)
-	require.Equal(t, "unsupported_tracking_mode", rows[0].(map[string]any)["code"])
-	require.Equal(t, "tracking_above_ceiling", rows[1].(map[string]any)["code"])
-	ud, err := deliveryRepo.Get(t.Context(), batch.ID(u["id"].(string)), "ok+tag@example.com")
+	rows, ok := u["rejected_recipients"].([]any)
+	require.True(t, ok)
+	require.Equal(t, "unsupported_tracking_mode", func() any { v, ok := rows[0].(map[string]any); require.True(t, ok); return v["code"] }())
+	require.Equal(t, "tracking_above_ceiling", func() any { v, ok := rows[1].(map[string]any); require.True(t, ok); return v["code"] }())
+	ud, err := deliveryRepo.Get(t.Context(), batch.ID(fmt.Sprint(u["id"])), "ok+tag@example.com")
 	require.NoError(t, err)
 	message, err := envelope.NewBuilder(sqlc.New(db), nil).Build(t.Context(), ud)
 	require.NoError(t, err)
@@ -108,7 +138,7 @@ func TestInlineBatchRetry(t *testing.T) {
 	for _, mode := range []string{"anonymous", "pseudonymous"} {
 		privacyBody := strings.Replace(strings.Replace(tracked, "anonymous", mode, 1), "<p>Hello</p>", "<html><body>Hello</body></html>", 1)
 		privacy := call(path, "privacy-"+mode, privacyBody, 201)
-		pd, err := deliveryRepo.Get(t.Context(), batch.ID(privacy["id"].(string)), "User+tag@example.com")
+		pd, err := deliveryRepo.Get(t.Context(), batch.ID(fmt.Sprint(privacy["id"])), "User+tag@example.com")
 		require.NoError(t, err)
 		pm, err := envelope.NewBuilder(sqlc.New(db), ss).Build(t.Context(), pd)
 		require.NoError(t, err)
@@ -135,7 +165,7 @@ func TestInlineBatchRetry(t *testing.T) {
 	require.Equal(t, u["id"], call(path, "unsubscribe", unsubscribe, 200)["id"])
 	require.Equal(t, trackingResult["id"], call(path, "tracking", tracked, 200)["id"])
 	call(path, "tracking-new", tracked, 422)
-	stillFrozen, err := deliveryRepo.Get(t.Context(), batch.ID(trackingResult["id"].(string)), "User+tag@example.com")
+	stillFrozen, err := deliveryRepo.Get(t.Context(), batch.ID(fmt.Sprint(trackingResult["id"])), "User+tag@example.com")
 	require.NoError(t, err)
 	require.Equal(t, tracking.ModeAnonymous, stillFrozen.TrackingPolicy().Opens)
 
@@ -158,8 +188,8 @@ func TestInlineBatchRetry(t *testing.T) {
 	if got["accepted_count"] != float64(2) || got["rejected_count"] != float64(1) {
 		t.Fatal(got)
 	}
-	assertSend(got["id"].(string), "one@example.com", `Hello $1\literal`, `<p>$1\literal one@example.com</p>`)
-	assertSend(got["id"].(string), "three@example.com", "Hello Default", "<p>Default three@example.com</p>")
+	assertSend(fmt.Sprint(got["id"]), "one@example.com", `Hello $1\literal`, `<p>$1\literal one@example.com</p>`)
+	assertSend(fmt.Sprint(got["id"]), "three@example.com", "Hello Default", "<p>Default three@example.com</p>")
 	missing := strings.Replace(personal, `"global_fields":{"name":"Default"},`, "", 1)
 	m := call(path, "missing", missing, 201)
 	require.Equal(t, float64(1), m["accepted_count"])
@@ -170,7 +200,7 @@ func TestInlineBatchRetry(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, repo.Create(t.Context(), source))
 	senderCtx := authz.NewContext(t.Context(), authz.MustNewPrincipal("sender", authz.MustNewGrant(authz.RoleSender, authz.DomainAnchor(values.MustParse("example.com")))))
-	senderRequest := intake.InlineRequest{Sender: batch.Sender{Email: "sender@example.com"}, Subject: "Hi {{ name }}", TemplateID: source.TemplateID(), GlobalFields: map[string]string{"name": "Sender"}, Recipients: []string{"sender-only@example.com"}}
+	senderRequest := intake.InlineRequest{Sender: batch.Sender{Email: "sender@example.com"}, Subject: "Hi {{ name }}", TemplateID: source.TemplateID(), GlobalFields: map[string]string{"name": "Sender"}, Recipients: []intake.InlineRecipient{{Email: "sender-only@example.com"}}}
 	acceptedBySender, _, _, err := service.Create(senderCtx, values.MustParse("example.com"), "sender-template", senderRequest)
 	require.NoError(t, err)
 	assertSend(acceptedBySender.ID, "sender-only@example.com", "Hi Sender", "<p>Sender sender-only@example.com</p>")
@@ -179,16 +209,19 @@ func TestInlineBatchRetry(t *testing.T) {
 	call("/v1beta1/domains", "", `{"domain":"other.example.com"}`, 201)
 	require.NoError(t, repo.Create(t.Context(), foreign))
 	senderRequest.TemplateID = foreign.TemplateID()
-	_, _, _, err = service.Create(senderCtx, values.MustParse("example.com"), "foreign-template", senderRequest)
+	_, err = func() (*intake.InlineReceipt, error) {
+		r, _, _, e := service.Create(senderCtx, values.MustParse("example.com"), "foreign-template", senderRequest)
+		return r, e
+	}()
 	require.ErrorIs(t, err, templates.ErrTemplateNotFound)
 	templated := strings.Replace(personal, `"type":"html","html":"<p>{{ name }} {{ email }}</p>"`, `"type":"template","template_id":"`+source.TemplateID()+`"`, 1)
 	frozen := call(path, "template", templated, 201)
 	_, err = repo.Update(t.Context(), source.TemplateID(), func(tpl *templates.Template) error { tpl.SetHTML("CHANGED"); return nil })
 	require.NoError(t, err)
-	assertSend(frozen["id"].(string), "one@example.com", `Hello $1\literal`, `<p>$1\literal one@example.com</p>`)
+	assertSend(fmt.Sprint(frozen["id"]), "one@example.com", `Hello $1\literal`, `<p>$1\literal one@example.com</p>`)
 	_, err = repo.Delete(t.Context(), source.TemplateID())
 	require.NoError(t, err)
-	assertSend(frozen["id"].(string), "one@example.com", `Hello $1\literal`, `<p>$1\literal one@example.com</p>`)
+	assertSend(fmt.Sprint(frozen["id"]), "one@example.com", `Hello $1\literal`, `<p>$1\literal one@example.com</p>`)
 	again := call(path, "template", templated, 200)
 	require.Equal(t, frozen["id"], again["id"])
 	require.Equal(t, frozen["accepted_count"], again["accepted_count"])
@@ -264,7 +297,7 @@ func TestInlineBatchRetry(t *testing.T) {
 	// of HTTP serialization and asserts one identity across all successful calls.
 	name := values.MustParse("example.com")
 	ctx := authz.NewContext(t.Context(), authz.MustNewPrincipal("sender", authz.MustNewGrant(authz.RoleSender, authz.DomainAnchor(name))))
-	request := intake.InlineRequest{Sender: batch.Sender{Email: "sender@example.com"}, Subject: "Concurrent", HTML: "Hello", Recipients: []string{"one@example.com"}}
+	request := intake.InlineRequest{Sender: batch.Sender{Email: "sender@example.com"}, Subject: "Concurrent", HTML: "Hello", Recipients: []intake.InlineRecipient{{Email: "one@example.com"}}}
 	var wg sync.WaitGroup
 	ids := make(chan string, 16)
 	errs := make(chan error, 16)
@@ -300,15 +333,15 @@ func TestInlineBatchRetry(t *testing.T) {
 		}
 	}
 	maximum := request
-	maximum.Recipients = make([]string, 2000)
+	maximum.Recipients = make([]intake.InlineRecipient, 2000)
 	for i := range maximum.Recipients {
-		maximum.Recipients[i] = fmt.Sprintf("User.%d+tag@EXAMPLE.COM", i)
+		maximum.Recipients[i] = intake.InlineRecipient{Email: fmt.Sprintf("User.%d+tag@EXAMPLE.COM", i)}
 	}
 	accepted, refused, _, err := service.Create(ctx, name, "maximum", maximum)
 	if err != nil || accepted.AcceptedCount != 2000 || len(refused) != 0 {
 		t.Fatal("2000 recipient boundary", err)
 	}
-	maximum.Recipients = []string{"User.Name+tag@example.com", "user.name+tag@example.com"}
+	maximum.Recipients = []intake.InlineRecipient{{Email: "User.Name+tag@example.com"}, {Email: "user.name+tag@example.com"}}
 	accepted, _, _, err = service.Create(ctx, name, "local-case", maximum)
 	if err != nil || accepted.AcceptedCount != 2 {
 		t.Fatal("local case changed", err)

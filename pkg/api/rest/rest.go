@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -160,7 +161,7 @@ func newHandler(service *domains.Service, token admintoken.Token, ready func(con
 		if !query(w, r, false) {
 			return
 		}
-		name, err := values.Parse(r.PathValue("domain"))
+		name, err := values.Parse(r.PathValue(domainParameter))
 		if err != nil {
 			WriteProblem(w, r, 400, "malformed_request")
 			return
@@ -176,7 +177,7 @@ func newHandler(service *domains.Service, token admintoken.Token, ready func(con
 		if !query(w, r, false) {
 			return
 		}
-		name, err := values.Parse(r.PathValue("domain"))
+		name, err := values.Parse(r.PathValue(domainParameter))
 		if err != nil {
 			WriteProblem(w, r, 400, "malformed_request")
 			return
@@ -247,12 +248,24 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 
 // WriteProblem writes a sanitized RFC 9457 response with a stable machine code.
 func WriteProblem(w http.ResponseWriter, r *http.Request, status int, code string) {
+	var fields []FieldError
+	if status == 422 {
+		fields = []FieldError{{Code: code, Pointer: "", Detail: "Request content is invalid"}}
+	}
+	writeProblemFields(w, status, code, fields)
+}
+func writeProblemFields(w http.ResponseWriter, status int, code string, fields []FieldError) {
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(map[string]any{"type": "urn:kannon:problem:" + code, "title": http.StatusText(status), statusKey: status, "code": code, "request_id": w.Header().Get("X-Request-ID")}); err != nil {
+	p := Problem{Type: "urn:kannon:problem:" + code, Title: http.StatusText(status), Status: status, Code: code, RequestId: w.Header().Get("X-Request-ID")}
+	if len(fields) > 0 {
+		p.Errors = &fields
+	}
+	if err := json.NewEncoder(w).Encode(p); err != nil {
 		slog.Debug("cannot write Problem Details", "err", err)
 	}
 }
+
 func writeError(w http.ResponseWriter, r *http.Request, err error) {
 	var pg *pgconn.PgError
 	switch {
@@ -272,7 +285,24 @@ func writeError(w http.ResponseWriter, r *http.Request, err error) {
 }
 func decode(w http.ResponseWriter, r *http.Request, v any) bool {
 	r.Body = http.MaxBytesReader(w, r.Body, 10<<20)
-	d := json.NewDecoder(r.Body)
+	raw, readErr := io.ReadAll(r.Body)
+	if readErr != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(readErr, &tooLarge) {
+			WriteProblem(w, r, 413, "request_body_too_large")
+		} else {
+			WriteProblem(w, r, 400, "malformed_request")
+		}
+		return false
+	}
+	var tree any
+	if json.Unmarshal(raw, &tree) == nil {
+		if pointer, found := nullPointer(tree, ""); found {
+			writeProblemFields(w, 422, "validation_failed", []FieldError{{Code: "validation_failed", Pointer: pointer, Detail: "Null is not allowed"}})
+			return false
+		}
+	}
+	d := json.NewDecoder(strings.NewReader(string(raw)))
 	d.DisallowUnknownFields()
 	err := d.Decode(v)
 	if err == nil {
@@ -307,4 +337,28 @@ func query(w http.ResponseWriter, r *http.Request, list bool) bool {
 		}
 	}
 	return true
+}
+
+// Request schemas contain no nullable inputs. Check presence before decoding into
+// Go pointers, which otherwise conflate explicit null with an omitted member.
+func nullPointer(v any, path string) (string, bool) {
+	if v == nil {
+		return path, true
+	}
+	switch x := v.(type) {
+	case map[string]any:
+		for k, v := range x {
+			escaped := strings.ReplaceAll(strings.ReplaceAll(k, "~", "~0"), "/", "~1")
+			if p, ok := nullPointer(v, path+"/"+escaped); ok {
+				return p, true
+			}
+		}
+	case []any:
+		for i, v := range x {
+			if p, ok := nullPointer(v, fmt.Sprintf("%s/%d", path, i)); ok {
+				return p, true
+			}
+		}
+	}
+	return "", false
 }

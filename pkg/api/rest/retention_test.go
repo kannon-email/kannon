@@ -13,6 +13,7 @@ import (
 	"github.com/kannon-email/kannon/internal/values"
 	"github.com/kannon-email/kannon/pkg/api/rest"
 	"github.com/stretchr/testify/require"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -21,7 +22,11 @@ import (
 func TestHistoryExpiresAtThirtyDays(t *testing.T) {
 	db, purge, err := credentialDB()
 	require.NoError(t, err)
-	defer purge()
+	defer func() {
+		if err := purge(); err != nil {
+			t.Error(err)
+		}
+	}()
 	ctx := authz.NewContext(t.Context(), authz.MustNewPrincipal("admin", authz.MustNewGrant(authz.RoleAdmin, authz.RootAnchor())))
 	domain := values.MustParse("example.com")
 	ds := domains.NewService(sqlc.NewDomainsRepository(db))
@@ -30,7 +35,7 @@ func TestHistoryExpiresAtThirtyDays(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	svc := intake.NewInlineService(sqlc.NewInlineStore(db, func() time.Time { return now }), sqlc.NewDomainsRepository(db), nil, 0)
 	svc.Now = func() time.Time { return now }
-	req := intake.InlineRequest{Sender: batch.Sender{Email: "from@example.com"}, Subject: "Hello", HTML: "Hello", Recipients: []string{"to@example.com"}, Attachments: []intake.Attachment{{Filename: "note.txt", Content: []byte("owned attachment")}}}
+	req := intake.InlineRequest{Sender: batch.Sender{Email: "from@example.com"}, Subject: "Hello", HTML: "Hello", Recipients: []intake.InlineRecipient{{Email: "to@example.com"}}, Attachments: []intake.Attachment{{Filename: "note.txt", Content: []byte("owned attachment")}}}
 	receipt, _, _, err := svc.Create(ctx, domain, "retention", req)
 	require.NoError(t, err)
 	tpl, err := templates.NewPersistent(domain, "shared", "shared")
@@ -46,7 +51,7 @@ func TestHistoryExpiresAtThirtyDays(t *testing.T) {
 	scheduled, _, _, err := svc.Create(ctx, domain, "scheduled", scheduledReq)
 	require.NoError(t, err)
 	partialReq := req
-	partialReq.Recipients = []string{"to@example.com", "other@example.com"}
+	partialReq.Recipients = []intake.InlineRecipient{{Email: "to@example.com"}, {Email: "other@example.com"}}
 	partial, _, _, err := svc.Create(ctx, domain, "partial", partialReq)
 	require.NoError(t, err)
 	sr := sqlc.NewStatsRepository(db)
@@ -66,7 +71,7 @@ func TestHistoryExpiresAtThirtyDays(t *testing.T) {
 	h := rest.NewHandlerWithBatches(ds, admintoken.MustParse("secret"), db.Ping, svc, nil, nil)
 	read := func(path string, status int) {
 		t.Helper()
-		r := httptest.NewRequest("GET", "/v1beta1/domains/example.com/batches/"+path, nil)
+		r := httptest.NewRequest(http.MethodGet, "/v1beta1/domains/example.com/batches/"+path, nil)
 		r.Header.Set("Authorization", "Bearer secret")
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, r)
@@ -114,7 +119,10 @@ func TestHistoryExpiresAtThirtyDays(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, receipt.ID, expiredReplay.ID)
 	originalReq.Subject = "changed"
-	_, _, _, err = svc.Create(ctx, domain, "retention", originalReq)
+	_, err = func() (*intake.InlineReceipt, error) {
+		r, _, _, e := svc.Create(ctx, domain, "retention", originalReq)
+		return r, e
+	}()
 	require.ErrorIs(t, err, intake.ErrIdempotencyConflict)
 	batches, err := svc.ListBatches(ctx, domain, intake.HistoryQuery{Limit: 100})
 	require.NoError(t, err)

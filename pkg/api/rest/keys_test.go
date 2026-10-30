@@ -3,6 +3,7 @@ package rest_test
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	schema "github.com/kannon-email/kannon/db"
@@ -69,8 +70,9 @@ func TestPersistentCredentialJourney(t *testing.T) {
 	call(key.Secret, "POST", base, `{"name":"bad","roles":[]}`, 422)
 	call(key.Secret, "POST", base, `{"name":"bad","roles":["sender"],"expires_at":"2000-01-01T00:00:00Z"}`, 422)
 	call(key.Secret, "PATCH", base+"/"+key.Id, `{"roles":["sender"]}`, 400)
+	call(key.Secret, "POST", base, `{"name":"bad","roles":["sender"],"expires_at":null}`, 422)
 	// Legacy issuance has no role metadata, and authenticates without rewriting the row.
-	domain, _ := values.Parse("example.com")
+	domain := values.MustParse("example.com")
 
 	legacy, err := apikeys.NewAPIKey(domain, "legacy", nil)
 	if err != nil {
@@ -139,7 +141,7 @@ func TestPersistentCredentialJourney(t *testing.T) {
 	}{
 		{key.Secret, "operator", 200}, {key.Secret, "   ", 400}, {legacy.PlaintextKey, "operator", 403},
 	} {
-		r := httptest.NewRequest("GET", base, nil)
+		r := httptest.NewRequest(http.MethodGet, base, nil)
 		r.Header.Set("Authorization", "Bearer "+tc.token)
 		r.Header.Set("X-Kannon-Attribution", tc.claim)
 		w := httptest.NewRecorder()
@@ -161,7 +163,6 @@ func TestPersistentCredentialJourney(t *testing.T) {
 	call("secret", "PATCH", base+"/"+key.Id, `{"status":"revoked"}`, 200)
 	call("secret", "PATCH", base+"/"+key.Id, `{"status":"revoked"}`, 200)
 	call(key.Secret, "GET", base, "", 401)
-
 }
 
 // credentialDB accepts a disposable local PostgreSQL database as well as Docker.

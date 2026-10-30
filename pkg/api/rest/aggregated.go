@@ -11,7 +11,7 @@ import (
 
 func registerAggregated(mux *http.ServeMux, service *stats.Service) {
 	mux.HandleFunc("GET /v1beta1/domains/{domain}/stats/aggregated", func(w http.ResponseWriter, r *http.Request) {
-		d, err := values.Parse(r.PathValue("domain"))
+		d, err := values.Parse(r.PathValue(domainParameter))
 		if err != nil {
 			WriteProblem(w, r, 400, "malformed_request")
 			return
@@ -22,7 +22,7 @@ func registerAggregated(mux *http.ServeMux, service *stats.Service) {
 			return
 		}
 		for k, v := range q {
-			if k != "from" && k != "to" && k != "group_by" {
+			if k != fromParameter && k != "to" && k != groupByParameter {
 				WriteProblem(w, r, 400, "unknown_query_parameter")
 				return
 			}
@@ -31,9 +31,9 @@ func registerAggregated(mux *http.ServeMux, service *stats.Service) {
 				return
 			}
 		}
-		from, e1 := time.Parse(time.RFC3339Nano, q.Get("from"))
+		from, e1 := time.Parse(time.RFC3339Nano, q.Get(fromParameter))
 		to, e2 := time.Parse(time.RFC3339Nano, q.Get("to"))
-		group, e3 := time.ParseDuration(q.Get("group_by"))
+		group, e3 := time.ParseDuration(q.Get(groupByParameter))
 		if e1 != nil || e2 != nil || e3 != nil {
 			WriteProblem(w, r, 400, "invalid_query_parameter")
 			return
@@ -49,9 +49,9 @@ func registerAggregated(mux *http.ServeMux, service *stats.Service) {
 		}
 		items := make([]map[string]any, 0, len(buckets))
 		for _, b := range buckets {
-			counts := map[string]int64{"validated": b.Counts[stats.TypeAccepted], "rejected": b.Counts[stats.TypeRejected], "delivered": b.Counts[stats.TypeDelivered], "bounced": b.Counts[stats.TypeBounce], "failed": b.Counts[stats.TypeFailed], "opened": b.Counts[stats.TypeOpened], "clicked": b.Counts[stats.TypeClicked]}
+			counts := map[string]int64{string(EventTypeValidated): b.Counts[stats.TypeAccepted], "rejected": b.Counts[stats.TypeRejected], "delivered": b.Counts[stats.TypeDelivered], "bounced": b.Counts[stats.TypeBounce], "failed": b.Counts[stats.TypeFailed], "opened": b.Counts[stats.TypeOpened], "clicked": b.Counts[stats.TypeClicked]}
 			items = append(items, map[string]any{"start": b.Start, "end": b.End, "counts": counts})
 		}
-		writeJSON(w, 200, map[string]any{"from": from.UTC(), "to": to.UTC(), "group_by": q.Get("group_by"), "buckets": items})
+		writeJSON(w, 200, map[string]any{fromParameter: from.UTC(), "to": to.UTC(), groupByParameter: q.Get(groupByParameter), "buckets": items})
 	})
 }

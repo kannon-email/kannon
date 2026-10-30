@@ -25,7 +25,12 @@ func TestPersistentAggregateSeries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() { db.Close(); _ = purge() }()
+	defer func() {
+		db.Close()
+		if err := purge(); err != nil {
+			t.Error(err)
+		}
+	}()
 	svc := stats.NewService(sqlc.NewStatsRepository(db), stats.WithAggregatedStatsRepository(sqlc.NewAggregatedStatsRepository(db)))
 	d := values.MustParse("aggregate.example")
 	start := time.Date(2026, 1, 1, 3, 0, 0, 0, time.UTC)
@@ -66,8 +71,12 @@ func TestPersistentAggregateSeries(t *testing.T) {
 	shifted := strings.ReplaceAll(strings.ReplaceAll(q, "03:00:00Z", "04:00:00%2B01:00"), "09:00:00Z", "10:00:00%2B01:00")
 	var offsetResult map[string]any
 	var utcResult map[string]any
-	_ = json.Unmarshal([]byte(call("secret", "GET", base+shifted, "", 200)), &offsetResult)
-	_ = json.Unmarshal([]byte(body), &utcResult)
+	if err := json.Unmarshal([]byte(call("secret", "GET", base+shifted, "", 200)), &offsetResult); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal([]byte(body), &utcResult); err != nil {
+		t.Fatal(err)
+	}
 	if !reflect.DeepEqual(offsetResult, utcResult) {
 		t.Fatal(offsetResult, utcResult)
 	}
@@ -99,7 +108,9 @@ func TestPersistentAggregateSeries(t *testing.T) {
 	}
 	for _, role := range []string{"admin", "analyst", "metrics-reader", "sender", "batch-reader"} {
 		var key rest.APIKeyCreated
-		_ = json.Unmarshal([]byte(call("secret", "POST", "/v1beta1/domains/aggregate.example/api-keys", `{"name":"reader","roles":["`+role+`"]}`, 201)), &key)
+		if err := json.Unmarshal([]byte(call("secret", "POST", "/v1beta1/domains/aggregate.example/api-keys", `{"name":"reader","roles":["`+role+`"]}`, 201)), &key); err != nil {
+			t.Fatal(err)
+		}
 		want := 200
 		if role == "sender" || role == "batch-reader" {
 			want = 403

@@ -2,6 +2,7 @@ package sqlc
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -35,8 +36,7 @@ func (s *inlineStore) CreateInline(ctx context.Context, domain values.DomainName
 			slog.Error("cannot roll back inline intake", "err", err)
 		}
 	}()
-	var locked bool
-	err = tx.QueryRow(ctx, `SELECT pg_try_advisory_xact_lock(hashtextextended($1,0))`, domain.String()+":"+key).Scan(&locked)
+	locked, err := New(tx).LockInlineKey(ctx, domain.String()+":"+key)
 	if err != nil {
 		return nil, false, err
 	}
@@ -44,12 +44,14 @@ func (s *inlineStore) CreateInline(ctx context.Context, domain values.DomainName
 		return nil, false, intake.ErrIdempotencyInProgress
 	}
 	r := &intake.InlineReceipt{}
-	var digest string
-	err = tx.QueryRow(ctx, `SELECT batch_id,domain,created_at,accepted_count,rejected_count,fingerprint,scheduled_at,attachments FROM batch_intake_receipts WHERE domain=$1 AND idempotency_key=$2`, domain.String(), key).Scan(&r.ID, &r.Domain, &r.CreatedAt, &r.AcceptedCount, &r.RejectedCount, &digest, &r.ScheduledAt, &r.Attachments)
+	row, err := New(tx).ReadInlineReceipt(ctx, ReadInlineReceiptParams{Domain: domain.String(), IdempotencyKey: key})
 	if err == nil {
-		r.CreatedAt = r.CreatedAt.UTC()
-		if digest != fingerprint {
+		if row.Fingerprint != fingerprint {
 			return nil, false, intake.ErrIdempotencyConflict
+		}
+		r = &intake.InlineReceipt{ID: row.BatchID, Domain: row.Domain, CreatedAt: row.CreatedAt.Time.UTC(), ScheduledAt: row.ScheduledAt.Time.UTC(), AcceptedCount: int(row.AcceptedCount), RejectedCount: int(row.RejectedCount)}
+		if err := json.Unmarshal(row.Attachments, &r.Attachments); err != nil {
+			return nil, false, err
 		}
 		return r, true, nil
 	}
@@ -70,16 +72,24 @@ func (s *inlineStore) CreateInline(ctx context.Context, domain values.DomainName
 		return nil, false, err
 	}
 	r = &work.Receipt
-	_, err = tx.Exec(ctx, `INSERT INTO batch_intake_receipts(domain,idempotency_key,fingerprint,batch_id,created_at,accepted_count,rejected_count,scheduled_at,attachments) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`, r.Domain, key, fingerprint, r.ID, r.CreatedAt, r.AcceptedCount, r.RejectedCount, r.ScheduledAt, r.Attachments)
+	metadata, err := json.Marshal(r.Attachments)
 	if err != nil {
 		return nil, false, err
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO batch_content_snapshots(batch_id,html,source_template_id) VALUES($1,$2,$3)`, r.ID, work.Template.Html(), work.SourceTemplateID)
+	err = New(tx).InsertInlineReceipt(ctx, InsertInlineReceiptParams{Domain: r.Domain, IdempotencyKey: key, Fingerprint: fingerprint, BatchID: r.ID, CreatedAt: timestamptz(r.CreatedAt), AcceptedCount: int32(r.AcceptedCount), RejectedCount: int32(r.RejectedCount), ScheduledAt: timestamptz(r.ScheduledAt), Attachments: metadata})
+	if err != nil {
+		return nil, false, err
+	}
+	err = New(tx).InsertInlineSnapshot(ctx, InsertInlineSnapshotParams{BatchID: r.ID, Html: work.Template.Html(), SourceTemplateID: work.SourceTemplateID})
 	if err != nil {
 		return nil, false, err
 	}
 	for _, d := range work.Deliveries {
-		_, err = tx.Exec(ctx, `INSERT INTO delivery_intake_facts(id,batch_id,email,tracking) VALUES($1,$2,$3,$4)`, batch.NewID(r.Domain).String(), r.ID, d.Email(), d.TrackingPolicy())
+		policy, err := json.Marshal(d.TrackingPolicy())
+		if err != nil {
+			return nil, false, err
+		}
+		err = New(tx).InsertInlineDelivery(ctx, InsertInlineDeliveryParams{ID: batch.NewID(r.Domain).String(), BatchID: r.ID, Email: d.Email(), Tracking: policy})
 		if err != nil {
 			return nil, false, err
 		}

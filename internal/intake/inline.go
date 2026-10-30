@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"net/mail"
 	"strings"
 	"time"
 
@@ -39,19 +40,24 @@ type AttachmentMetadata struct {
 	SizeBytes int
 }
 
+// InlineRecipient keeps one target and its personalization and policy together.
+type InlineRecipient struct {
+	Email    string
+	Fields   map[string]string
+	Tracking tracking.Policy
+}
+
 // InlineRequest describes REST Batch content and recipients independently of transport.
-// RecipientFields uses the same input indices as Recipients.
 type InlineRequest struct {
+	Headers             batch.Headers
 	Tracking            tracking.Policy
-	RecipientTracking   []tracking.Policy
 	OneClickUnsubscribe batch.OneClickUnsubscribe
 	Sender              batch.Sender
 	Subject             string
 	HTML                string
 	TemplateID          string
 	GlobalFields        map[string]string
-	RecipientFields     []map[string]string
-	Recipients          []string
+	Recipients          []InlineRecipient
 	ScheduledAt         *time.Time   `json:",omitempty"`
 	Attachments         []Attachment `json:",omitempty"`
 }
@@ -85,6 +91,7 @@ type InlineWork struct {
 // InlineStore serializes a Domain/key pair without waiting on another intake.
 // build is invoked only for a fresh key, inside the acceptance transaction.
 type InlineStore interface {
+	BatchReader
 	FindByDomain(context.Context, values.DomainName, string) (*templates.Template, error)
 	CreateInline(context.Context, values.DomainName, string, string, func() (*InlineWork, error)) (*InlineReceipt, bool, error)
 }
@@ -122,6 +129,16 @@ func (s *InlineService) Create(ctx context.Context, domain values.DomainName, ke
 		}
 		if p.Subject == "" || strings.ContainsAny(p.Subject+p.Sender.Alias, "\r\n") || len(p.Recipients) < 1 || (p.HTML == "") == (p.TemplateID == "") {
 			return nil, invalid(errors.New("invalid or unsupported inline request"))
+		}
+		for _, list := range [][]string{p.Headers.To, p.Headers.Cc} {
+			for _, address := range list {
+				if strings.ContainsAny(address, "\r\n") {
+					return nil, invalid(errors.New("invalid display header"))
+				}
+				if _, err := mail.ParseAddress(address); err != nil {
+					return nil, invalid(errors.New("invalid display header"))
+				}
+			}
 		}
 		if _, reserved := p.GlobalFields["email"]; reserved {
 			return nil, invalid(errors.New("email is reserved"))
@@ -177,14 +194,14 @@ func (s *InlineService) Create(ctx context.Context, domain values.DomainName, ke
 			if e != nil {
 				return nil, invalid(e)
 			}
-			b, e := batch.New(batch.NewParams{Domain: domain.String(), Sender: p.Sender, Subject: p.Subject, TemplateID: tpl.TemplateID(), Attachments: attachments, Tracking: p.Tracking, OneClickUnsubscribe: p.OneClickUnsubscribe})
+			b, e := batch.New(batch.NewParams{Domain: domain.String(), Sender: p.Sender, Subject: p.Subject, TemplateID: tpl.TemplateID(), Attachments: attachments, Headers: p.Headers, Tracking: tracking.Resolve(d.TrackingPolicy(), p.Tracking, tracking.Policy{}), OneClickUnsubscribe: p.OneClickUnsubscribe})
 			if e != nil {
 				return nil, invalid(e)
 			}
 			ds := []*delivery.Delivery{}
 			seen := map[string]bool{}
-			for i, email := range p.Recipients {
-				email = strings.TrimSpace(email)
+			for i, recipient := range p.Recipients {
+				email := strings.TrimSpace(recipient.Email)
 				if at := strings.LastIndex(email, "@"); at >= 0 {
 					email = email[:at+1] + strings.ToLower(email[at+1:])
 				}
@@ -199,13 +216,11 @@ func (s *InlineService) Create(ctx context.Context, domain values.DomainName, ke
 				for k, v := range p.GlobalFields {
 					fields[k] = v
 				}
-				if i < len(p.RecipientFields) {
-					for k, v := range p.RecipientFields[i] {
-						fields[k] = v
-					}
-					if _, reserved := p.RecipientFields[i]["email"]; reserved && code == "" {
-						code = "reserved_field"
-					}
+				for k, v := range recipient.Fields {
+					fields[k] = v
+				}
+				if _, reserved := recipient.Fields["email"]; reserved && code == "" {
+					code = "reserved_field"
 				}
 				fields["email"] = email
 				if code == "" && (utils.HasUnresolvedPlaceholders(utils.ReplaceLiteralFields(html, fields)) || utils.HasUnresolvedPlaceholders(utils.ReplaceLiteralFields(p.Subject, fields))) {
@@ -214,10 +229,7 @@ func (s *InlineService) Create(ctx context.Context, domain values.DomainName, ke
 				if strings.ContainsAny(utils.ReplaceLiteralFields(p.Subject, fields), "\r\n") && code == "" {
 					code = "reserved_field"
 				}
-				recipientPolicy := tracking.Policy{}
-				if i < len(p.RecipientTracking) {
-					recipientPolicy = p.RecipientTracking[i]
-				}
+				recipientPolicy := recipient.Tracking
 				if code == "" && !supportedPolicy(recipientPolicy) {
 					code = string(ReasonUnsupportedTrackingMode)
 				}

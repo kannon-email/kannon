@@ -2,6 +2,8 @@ package rest_test
 
 import (
 	"encoding/json"
+	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -26,7 +28,12 @@ func TestPersistentEvents(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() { db.Close(); _ = purge() }()
+	defer func() {
+		db.Close()
+		if err := purge(); err != nil {
+			t.Error(err)
+		}
+	}()
 	svc := stats.NewService(sqlc.NewStatsRepository(db))
 	d := values.MustParse("events.example")
 	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -51,7 +58,7 @@ func TestPersistentEvents(t *testing.T) {
 	h := rest.NewHandlerWithStats(domains.NewService(sqlc.NewDomainsRepository(db)), admintoken.MustParse("secret"), db.Ping, svc, keys)
 	call := func(q string, status int) map[string]any {
 		t.Helper()
-		r := httptest.NewRequest("GET", "/v1beta1/domains/events.example/stats/events?"+q, nil)
+		r := httptest.NewRequest(http.MethodGet, "/v1beta1/domains/events.example/stats/events?"+q, nil)
 		r.Header.Set("Authorization", "Bearer secret")
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, r)
@@ -59,10 +66,12 @@ func TestPersistentEvents(t *testing.T) {
 			t.Fatalf("%d %s", w.Code, w.Body)
 		}
 		var v map[string]any
-		_ = json.Unmarshal(w.Body.Bytes(), &v)
+		if err := json.Unmarshal(w.Body.Bytes(), &v); err != nil {
+			t.Fatal(err)
+		}
 		return v
 	}
-	rDomain := httptest.NewRequest("POST", "/v1beta1/domains", strings.NewReader(`{"domain":"events.example"}`))
+	rDomain := httptest.NewRequest(http.MethodPost, "/v1beta1/domains", strings.NewReader(`{"domain":"events.example"}`))
 	rDomain.Header.Set("Authorization", "Bearer secret")
 	wDomain := httptest.NewRecorder()
 	h.ServeHTTP(wDomain, rDomain)
@@ -71,30 +80,44 @@ func TestPersistentEvents(t *testing.T) {
 	}
 	q := "from=2026-01-01T00:00:00Z&to=2026-01-01T01:00:00Z&limit=1"
 	page := call(q, 200)
-	items := page["items"].([]any)
-	if len(items) != 1 || items[0].(map[string]any)["type"] != "rejected" {
+	items, ok := page["items"].([]any)
+	if !ok {
 		t.Fatal(page)
 	}
-	page = call(q+"&cursor="+page["next_cursor"].(string), 200)
-	if page["items"].([]any)[0].(map[string]any)["type"] != "delivered" || page["next_cursor"] != nil {
+	if len(items) != 1 {
+		t.Fatal(items)
+	}
+	item, ok := items[0].(map[string]any)
+	if !ok || item["type"] != "rejected" {
 		t.Fatal(page)
 	}
-	cursor := call(q, 200)["next_cursor"].(string)
+	page = call(q+"&cursor="+fmt.Sprint(page["next_cursor"]), 200)
+	items, ok = page["items"].([]any)
+	if !ok || len(items) != 1 {
+		t.Fatal(page)
+	}
+	item, ok = items[0].(map[string]any)
+	if !ok || item["type"] != "delivered" || page["next_cursor"] != nil {
+		t.Fatal(page)
+	}
+	cursor := fmt.Sprint(call(q, 200)["next_cursor"])
 	call(q+"&type=delivered&cursor="+cursor, 400)
 	call(q+"&extra=x", 400)
 	call(q+"&type=error", 400)
 	call("from=2026-01-01T00:00:00&to=2026-01-02T00:00:00Z", 400)
 	call(q+"&from=2026-01-01T00:00:00Z", 400)
 	mixed := call("from=2026-01-01T00:00:00Z&to=2026-01-01T01:00:00Z&type=delivered&type=rejected", 200)
-	if len(mixed["items"].([]any)) != 2 {
+	items, ok = mixed["items"].([]any)
+	if !ok || len(items) != 2 {
 		t.Fatal(mixed)
 	}
 	page = call(q+"&type=delivered", 200)
-	if len(page["items"].([]any)) != 1 {
+	items, ok = page["items"].([]any)
+	if !ok || len(items) != 1 {
 		t.Fatal(page)
 	}
 	for _, role := range []string{"analyst", "metrics-reader", "sender", "admin"} {
-		r := httptest.NewRequest("POST", "/v1beta1/domains/events.example/api-keys", strings.NewReader(`{"name":"reader","roles":["`+role+`"]}`))
+		r := httptest.NewRequest(http.MethodPost, "/v1beta1/domains/events.example/api-keys", strings.NewReader(`{"name":"reader","roles":["`+role+`"]}`))
 		r.Header.Set("Authorization", "Bearer secret")
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, r)
@@ -102,9 +125,11 @@ func TestPersistentEvents(t *testing.T) {
 			t.Fatal(w.Body)
 		}
 		var key rest.APIKeyCreated
-		_ = json.Unmarshal(w.Body.Bytes(), &key)
+		if err := json.Unmarshal(w.Body.Bytes(), &key); err != nil {
+			t.Fatal(err)
+		}
 		for _, domain := range []string{"events.example", "other.example"} {
-			r = httptest.NewRequest("GET", "/v1beta1/domains/"+domain+"/stats/events?"+q, nil)
+			r = httptest.NewRequest(http.MethodGet, "/v1beta1/domains/"+domain+"/stats/events?"+q, nil)
 			r.Header.Set("Authorization", "Bearer "+key.Secret)
 			w = httptest.NewRecorder()
 			h.ServeHTTP(w, r)
@@ -129,13 +154,22 @@ func TestPersistentEvents(t *testing.T) {
 		}
 	}
 	page = call("from=2026-01-01T00:00:00Z&to=2026-01-02T00:00:00Z&batch_id=privacy-batch", 200)
-	rows := page["items"].([]any)
+	rows, ok := page["items"].([]any)
+	if !ok {
+		t.Fatal(page)
+	}
 	if len(rows) != 3 {
 		t.Fatal(page)
 	}
 	for _, item := range rows {
-		v := item.(map[string]any)
-		data := v["data"].(map[string]any)
+		v, ok := item.(map[string]any)
+		if !ok {
+			t.Fatal(item)
+		}
+		data, ok := v["data"].(map[string]any)
+		if !ok {
+			t.Fatal(v)
+		}
 		mode := v["tracking_mode"]
 		if mode != "full" && (data["ip"] != nil || data["user_agent"] != nil) {
 			t.Fatal(v)
@@ -144,5 +178,4 @@ func TestPersistentEvents(t *testing.T) {
 			t.Fatal(v)
 		}
 	}
-
 }
