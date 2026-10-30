@@ -39,6 +39,75 @@ CREATE TYPE public.template_type AS ENUM (
 );
 
 
+--
+-- Name: complete_batch_history(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.complete_batch_history() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+ -- Serialize terminal transitions for one Batch, including concurrent final outcomes.
+ PERFORM 1 FROM batch_intake_receipts WHERE batch_id=NEW.batch_id FOR UPDATE;
+ UPDATE batch_intake_receipts r SET completed_at=clock_timestamp()
+ WHERE r.batch_id=NEW.batch_id AND r.completed_at IS NULL
+ AND NOT EXISTS (SELECT 1 FROM delivery_intake_facts f WHERE f.batch_id=r.batch_id AND f.outcome_at IS NULL);
+ RETURN NEW;
+END $$;
+
+
+--
+-- Name: initialize_delivery_history(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.initialize_delivery_history() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+ SELECT original_scheduled_time INTO NEW.scheduled_at FROM sending_pool_emails WHERE message_id=NEW.batch_id AND email=NEW.email;
+ NEW.scheduled_at := COALESCE(NEW.scheduled_at,now());
+ IF NEW.scheduled_at > now() THEN NEW.status := 'scheduled'; END IF;
+ RETURN NEW;
+END $$;
+
+
+--
+-- Name: update_delivery_history_outcome(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.update_delivery_history_outcome() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+ IF NEW.type::text NOT IN ('delivered','rejected','bounced','failed') THEN RETURN NEW; END IF;
+ UPDATE delivery_intake_facts f SET status=NEW.type::text,
+ outcome_at=NEW.timestamp, updated_at=GREATEST(f.updated_at,NEW.timestamp),
+ error_code=CASE WHEN NEW.type::text='delivered' THEN '' ELSE NEW.type::text END,
+ error_detail=CASE WHEN NEW.type::text='delivered' THEN '' ELSE COALESCE(NEW.data->'rejected'->>'reason',NEW.data->'failed'->>'reason',NEW.data->'bounced'->>'msg','') END
+ FROM batch_intake_receipts r
+ WHERE f.batch_id=r.batch_id AND r.domain=NEW.domain AND f.batch_id=NEW.message_id AND f.email=NEW.email
+ AND (f.outcome_at IS NULL OR NEW.timestamp>f.outcome_at)
+ AND NOT (f.status='bounced' AND NEW.type::text='delivered');
+ RETURN NEW;
+END $$;
+
+
+--
+-- Name: update_delivery_history_pool(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.update_delivery_history_pool() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+ UPDATE delivery_intake_facts SET
+ status=CASE NEW.status::text WHEN 'sending' THEN 'sending' WHEN 'scheduled' THEN 'scheduled' ELSE 'pending' END,
+ attempt_count=NEW.send_attempts_cnt + CASE WHEN NEW.status::text='sending' THEN 1 ELSE 0 END, updated_at=now()
+ WHERE batch_id=NEW.message_id AND email=NEW.email AND outcome_at IS NULL;
+ RETURN NEW;
+END $$;
+
+
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
@@ -180,6 +249,7 @@ CREATE TABLE public.batch_intake_receipts (
     created_at timestamp with time zone NOT NULL,
     accepted_count integer NOT NULL,
     rejected_count integer NOT NULL,
+    completed_at timestamp with time zone,
     CONSTRAINT batch_intake_receipts_accepted_count_check CHECK ((accepted_count > 0)),
     CONSTRAINT batch_intake_receipts_rejected_count_check CHECK ((rejected_count >= 0))
 );
@@ -205,7 +275,15 @@ CREATE TABLE public.delivery_intake_facts (
     id text NOT NULL,
     batch_id text NOT NULL,
     email text NOT NULL,
-    tracking jsonb NOT NULL
+    tracking jsonb NOT NULL,
+    status text DEFAULT 'pending'::text NOT NULL,
+    scheduled_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    attempt_count integer DEFAULT 0 NOT NULL,
+    outcome_at timestamp with time zone,
+    error_code text DEFAULT ''::text NOT NULL,
+    error_detail text DEFAULT ''::text NOT NULL,
+    CONSTRAINT delivery_intake_facts_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'scheduled'::text, 'sending'::text, 'delivered'::text, 'rejected'::text, 'bounced'::text, 'failed'::text])))
 );
 
 
@@ -707,6 +785,20 @@ CREATE INDEX audit_records_occurred_at_idx ON public.audit_records USING btree (
 
 
 --
+-- Name: batch_history_order; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX batch_history_order ON public.batch_intake_receipts USING btree (domain, created_at DESC, batch_id DESC);
+
+
+--
+-- Name: delivery_history_order; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX delivery_history_order ON public.delivery_intake_facts USING btree (batch_id, id);
+
+
+--
 -- Name: domain_template_domain_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -819,6 +911,34 @@ CREATE UNIQUE INDEX unique_emails_message_id_idx ON public.sending_pool_emails U
 
 
 --
+-- Name: delivery_intake_facts complete_batch_history; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER complete_batch_history AFTER UPDATE ON public.delivery_intake_facts FOR EACH ROW EXECUTE FUNCTION public.complete_batch_history();
+
+
+--
+-- Name: delivery_intake_facts initialize_delivery_history; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER initialize_delivery_history BEFORE INSERT ON public.delivery_intake_facts FOR EACH ROW EXECUTE FUNCTION public.initialize_delivery_history();
+
+
+--
+-- Name: stats update_delivery_history_outcome; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER update_delivery_history_outcome AFTER INSERT ON public.stats FOR EACH ROW EXECUTE FUNCTION public.update_delivery_history_outcome();
+
+
+--
+-- Name: sending_pool_emails update_delivery_history_pool; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER update_delivery_history_pool AFTER UPDATE ON public.sending_pool_emails FOR EACH ROW EXECUTE FUNCTION public.update_delivery_history_pool();
+
+
+--
 -- Name: Account Account_userId_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -917,54 +1037,6 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20261029221540'),
     ('20261030225738'),
     ('20261030230324'),
-    ('20261030231407');
-
-SET search_path TO public;
-ALTER TABLE delivery_intake_facts
- ADD COLUMN status text NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','scheduled','sending','delivered','rejected','bounced','failed')),
- ADD COLUMN scheduled_at timestamptz NOT NULL DEFAULT now(),
- ADD COLUMN updated_at timestamptz NOT NULL DEFAULT now(),
- ADD COLUMN attempt_count integer NOT NULL DEFAULT 0,
- ADD COLUMN outcome_at timestamptz,
- ADD COLUMN error_code text NOT NULL DEFAULT '',
- ADD COLUMN error_detail text NOT NULL DEFAULT '';
-
--- Initialize from the accepted worker record, including future schedules.
-CREATE FUNCTION initialize_delivery_history() RETURNS trigger LANGUAGE plpgsql AS $$
-BEGIN
- SELECT original_scheduled_time INTO NEW.scheduled_at FROM sending_pool_emails WHERE message_id=NEW.batch_id AND email=NEW.email;
- NEW.scheduled_at := COALESCE(NEW.scheduled_at,now());
- IF NEW.scheduled_at > now() THEN NEW.status := 'scheduled'; END IF;
- RETURN NEW;
-END $$;
-CREATE TRIGGER initialize_delivery_history BEFORE INSERT ON delivery_intake_facts FOR EACH ROW EXECUTE FUNCTION initialize_delivery_history();
-
--- Worker claims and retries update the same durable record in their transaction.
-CREATE FUNCTION update_delivery_history_pool() RETURNS trigger LANGUAGE plpgsql AS $$
-BEGIN
- UPDATE delivery_intake_facts SET
- status=CASE NEW.status::text WHEN 'sending' THEN 'sending' WHEN 'scheduled' THEN 'scheduled' ELSE 'pending' END,
- attempt_count=NEW.send_attempts_cnt + CASE WHEN NEW.status::text='sending' THEN 1 ELSE 0 END, updated_at=now()
- WHERE batch_id=NEW.message_id AND email=NEW.email AND outcome_at IS NULL;
- RETURN NEW;
-END $$;
-CREATE TRIGGER update_delivery_history_pool AFTER UPDATE ON sending_pool_emails FOR EACH ROW EXECUTE FUNCTION update_delivery_history_pool();
-
--- Outcomes arrive through the existing Stats writer, even after pool removal.
--- Never associate engagement identities with accepted recipient identities.
-CREATE FUNCTION update_delivery_history_outcome() RETURNS trigger LANGUAGE plpgsql AS $$
-BEGIN
- IF NEW.type::text NOT IN ('delivered','rejected','bounced','failed') THEN RETURN NEW; END IF;
- UPDATE delivery_intake_facts f SET status=NEW.type::text,
- outcome_at=NEW.timestamp, updated_at=GREATEST(f.updated_at,NEW.timestamp),
- error_code=CASE WHEN NEW.type::text='delivered' THEN '' ELSE NEW.type::text END,
- error_detail=CASE WHEN NEW.type::text='delivered' THEN '' ELSE COALESCE(NEW.data->'rejected'->>'reason',NEW.data->'failed'->>'reason',NEW.data->'bounced'->>'msg','') END
- FROM batch_intake_receipts r
- WHERE f.batch_id=r.batch_id AND r.domain=NEW.domain AND f.batch_id=NEW.message_id AND f.email=NEW.email
- AND (f.outcome_at IS NULL OR NEW.timestamp>f.outcome_at)
- AND NOT (f.status='bounced' AND NEW.type::text='delivered');
- RETURN NEW;
-END $$;
-CREATE TRIGGER update_delivery_history_outcome AFTER INSERT ON stats FOR EACH ROW EXECUTE FUNCTION update_delivery_history_outcome();
-
-INSERT INTO public.schema_migrations (version) VALUES ('20261030231401');
+    ('20261030231401'),
+    ('20261030231407'),
+    ('20261030231941');
