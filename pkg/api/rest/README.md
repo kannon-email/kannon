@@ -43,13 +43,13 @@ empty local database, set `KANNON_TEST_DATABASE_URL` and run
 `go test -race ./pkg/api/rest -run TestPersistentCredentialJourney`.
 Each fixture creates and drops an isolated database; the test role needs CREATEDB.
 
-The foundational Batch intake slice accepts inline `content.type: html`, `from`,
-`subject`, and up to 2000 recipients carrying only `email`. Optional extensions
-(fields, tracking overrides, schedules, attachments, display headers and unsubscribe)
-are explicitly rejected while their dependent slices are implemented. Unknown
-members return `malformed_request`; unsupported content alternatives return
-`validation_failed`. Placeholder-bearing content is rejected until personalization
-is supported. Legacy gRPC intake semantics remain separate.
+Batch intake accepts exactly one HTML body or Domain-owned Template reference.
+Global fields supply defaults; recipient fields override them in subject and HTML.
+Values are literal, and email is reserved for the actual recipient address.
+Missing placeholders and recipient email overrides refuse only the affected row.
+Accepted HTML is copied into a private snapshot; the source Template ID is retained
+as provenance without a live dependency. Replay never resolves the source again.
+Scheduling and attachments are supported. Legacy gRPC personalization remains separate.
 
 Successful Domain-scoped keys currently remain bound indefinitely (exceeding the
 24-hour minimum). Only a fingerprint, accepted Batch identity, creation time and

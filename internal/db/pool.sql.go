@@ -136,7 +136,8 @@ func (q *Queries) GetPool(ctx context.Context, arg GetPoolParams) (SendingPoolEm
 
 const getSendingData = `-- name: GetSendingData :one
 SELECT
-    t.html,
+    COALESCE(s.html,t.html) AS html,
+    (s.batch_id IS NOT NULL)::boolean AS literal_fields,
     m.domain,
     d.dkim_private_key,
     d.dkim_public_key,
@@ -149,11 +150,13 @@ SELECT
 FROM messages as m
     JOIN templates as t ON t.template_id = m.template_id
     JOIN domains as d ON d.domain = m.domain
+    LEFT JOIN batch_content_snapshots s ON s.batch_id = m.message_id
     WHERE m.message_id = $1
 `
 
 type GetSendingDataRow struct {
 	Html           string
+	LiteralFields  bool
 	Domain         string
 	DkimPrivateKey string
 	DkimPublicKey  string
@@ -170,6 +173,7 @@ func (q *Queries) GetSendingData(ctx context.Context, messageID string) (GetSend
 	var i GetSendingDataRow
 	err := row.Scan(
 		&i.Html,
+		&i.LiteralFields,
 		&i.Domain,
 		&i.DkimPrivateKey,
 		&i.DkimPublicKey,

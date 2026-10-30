@@ -31,21 +31,30 @@ func registerBatches(mux *http.ServeMux, service *intake.InlineService) {
 			From    From   `json:"from"`
 			Subject string `json:"subject"`
 			Content struct {
-				Type string  `json:"type"`
-				HTML *string `json:"html"`
+				Type       string  `json:"type"`
+				HTML       *string `json:"html"`
+				TemplateID *string `json:"template_id"`
 			} `json:"content"`
-			Recipients []struct {
-				Email *string `json:"email"`
+			GlobalFields map[string]string `json:"global_fields"`
+			Recipients   []struct {
+				Fields map[string]string `json:"fields"`
+				Email  *string           `json:"email"`
 			} `json:"recipients"`
 		}
 		if !decode(w, r, &input) {
 			return
 		}
-		if input.Content.Type != "html" || input.Content.HTML == nil {
+		if !((input.Content.Type == "html" && input.Content.HTML != nil && *input.Content.HTML != "" && input.Content.TemplateID == nil) || (input.Content.Type == "template" && input.Content.TemplateID != nil && *input.Content.TemplateID != "" && input.Content.HTML == nil)) {
 			WriteProblem(w, r, 422, "validation_failed")
 			return
 		}
-		p := intake.InlineRequest{ScheduledAt: input.ScheduledAt, Sender: batch.Sender{Email: string(input.From.Email)}, Subject: input.Subject, HTML: *input.Content.HTML}
+		p := intake.InlineRequest{ScheduledAt: input.ScheduledAt, Sender: batch.Sender{Email: string(input.From.Email)}, Subject: input.Subject, GlobalFields: input.GlobalFields}
+		if input.Content.HTML != nil {
+			p.HTML = *input.Content.HTML
+		}
+		if input.Content.TemplateID != nil {
+			p.TemplateID = *input.Content.TemplateID
+		}
 		for _, a := range input.Attachments {
 			if a.Content == nil {
 				WriteProblem(w, r, 422, "validation_failed")
@@ -62,6 +71,7 @@ func registerBatches(mux *http.ServeMux, service *intake.InlineService) {
 				email = *v.Email
 			}
 			p.Recipients = append(p.Recipients, email)
+			p.RecipientFields = append(p.RecipientFields, v.Fields)
 		}
 		keys := r.Header.Values("Idempotency-Key")
 		if len(keys) != 1 || keys[0] == "" {

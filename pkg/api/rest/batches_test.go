@@ -9,12 +9,20 @@ import (
 	"github.com/kannon-email/kannon/internal/authz"
 	"github.com/kannon-email/kannon/internal/batch"
 	sqlc "github.com/kannon-email/kannon/internal/db"
+	"github.com/kannon-email/kannon/internal/delivery"
 	"github.com/kannon-email/kannon/internal/domains"
+	"github.com/kannon-email/kannon/internal/envelope"
 	"github.com/kannon-email/kannon/internal/intake"
+	"github.com/kannon-email/kannon/internal/templates"
+	"github.com/kannon-email/kannon/internal/tracking"
 	"github.com/kannon-email/kannon/internal/values"
 	"github.com/kannon-email/kannon/pkg/api/rest"
+	"github.com/stretchr/testify/require"
+	"io"
+	"mime/quotedprintable"
 	"net/http"
 	"net/http/httptest"
+	"net/mail"
 	"strings"
 	"sync"
 	"testing"
@@ -55,12 +63,68 @@ func TestInlineBatchRetry(t *testing.T) {
 	if got := call(path, "limit", strings.Replace(body, `[{"email":" User+tag@EXAMPLE.com "},{"email":"User+tag@example.com"},{"email":"refused-address"}]`, "["+strings.Repeat(`{"email":"same@example.com"},`, 2000)+`{"email":"last@example.com"}]`, 1), 422); got["code"] != "too_many_recipients" {
 		t.Fatal(got)
 	}
-	for _, extra := range []string{`,"global_fields":{}`, `,"tracking":{"opens":"off"}`} {
+	for _, extra := range []string{`,"tracking":{"opens":"off"}`} {
 		call(path, "extension", strings.TrimSuffix(body, "}")+extra+"}", 400)
 	}
 	call(path, "", body, 400)
 	call(path, "large", strings.Replace(body, "<p>Hello</p>", strings.Repeat("x", 10<<20), 1), 413)
 
+	_, err = sqlc.NewDomainsRepository(db).SetTrackingPolicy(t.Context(), values.MustParse("example.com"), tracking.Policy{Opens: tracking.ModeOff, Links: tracking.ModeOff})
+	require.NoError(t, err)
+	assertSend := func(id, email, subject, html string) {
+		t.Helper()
+		d, err := sqlc.NewDeliveryRepository(db, delivery.DefaultBackoff, delivery.DefaultRetryWindow).Get(t.Context(), batch.ID(id), email)
+		require.NoError(t, err)
+		e, err := envelope.NewBuilder(sqlc.New(db), nil).Build(t.Context(), d)
+		require.NoError(t, err)
+		msg, err := mail.ReadMessage(strings.NewReader(string(e.Body())))
+		require.NoError(t, err)
+		require.Equal(t, subject, msg.Header.Get("Subject"))
+		decoded, err := io.ReadAll(quotedprintable.NewReader(msg.Body))
+		require.NoError(t, err)
+
+		require.Contains(t, string(decoded), html)
+	}
+	personal := `{"from":{"email":"sender@example.com"},"subject":"Hello {{ name }}","content":{"type":"html","html":"<p>{{ name }} {{ email }}</p>"},"global_fields":{"name":"Default"},"recipients":[{"email":"one@example.com","fields":{"name":"$1\\literal"}},{"email":"two@example.com","fields":{"email":"override"}},{"email":"three@example.com","fields":{}}]}`
+	got := call(path, "personal", personal, 201)
+	if got["accepted_count"] != float64(2) || got["rejected_count"] != float64(1) {
+		t.Fatal(got)
+	}
+	assertSend(got["id"].(string), "one@example.com", `Hello $1\literal`, `<p>$1\literal one@example.com</p>`)
+	assertSend(got["id"].(string), "three@example.com", "Hello Default", "<p>Default three@example.com</p>")
+	missing := strings.Replace(personal, `"global_fields":{"name":"Default"},`, "", 1)
+	m := call(path, "missing", missing, 201)
+	require.Equal(t, float64(1), m["accepted_count"])
+	require.Equal(t, float64(2), m["rejected_count"])
+	call(path, "reserved-global", strings.Replace(personal, `"name":"Default"`, `"email":"spoof"`, 1), 422)
+	repo := sqlc.NewTemplatesRepository(db)
+	source, err := templates.NewPersistent(values.MustParse("example.com"), "<p>{{ name }} {{ email }}</p>", "Original")
+	require.NoError(t, err)
+	require.NoError(t, repo.Create(t.Context(), source))
+	senderCtx := authz.NewContext(t.Context(), authz.MustNewPrincipal("sender", authz.MustNewGrant(authz.RoleSender, authz.DomainAnchor(values.MustParse("example.com")))))
+	senderRequest := intake.InlineRequest{Sender: batch.Sender{Email: "sender@example.com"}, Subject: "Hi {{ name }}", TemplateID: source.TemplateID(), GlobalFields: map[string]string{"name": "Sender"}, Recipients: []string{"sender-only@example.com"}}
+	acceptedBySender, _, _, err := service.Create(senderCtx, values.MustParse("example.com"), "sender-template", senderRequest)
+	require.NoError(t, err)
+	assertSend(acceptedBySender.ID, "sender-only@example.com", "Hi Sender", "<p>Sender sender-only@example.com</p>")
+	foreign, err := templates.NewPersistent(values.MustParse("other.example.com"), "Other", "Other")
+	require.NoError(t, err)
+	call("/v1beta1/domains", "", `{"domain":"other.example.com"}`, 201)
+	require.NoError(t, repo.Create(t.Context(), foreign))
+	senderRequest.TemplateID = foreign.TemplateID()
+	_, _, _, err = service.Create(senderCtx, values.MustParse("example.com"), "foreign-template", senderRequest)
+	require.ErrorIs(t, err, templates.ErrTemplateNotFound)
+	templated := strings.Replace(personal, `"type":"html","html":"<p>{{ name }} {{ email }}</p>"`, `"type":"template","template_id":"`+source.TemplateID()+`"`, 1)
+	frozen := call(path, "template", templated, 201)
+	_, err = repo.Update(t.Context(), source.TemplateID(), func(tpl *templates.Template) error { tpl.SetHTML("CHANGED"); return nil })
+	require.NoError(t, err)
+	assertSend(frozen["id"].(string), "one@example.com", `Hello $1\literal`, `<p>$1\literal one@example.com</p>`)
+	_, err = repo.Delete(t.Context(), source.TemplateID())
+	require.NoError(t, err)
+	assertSend(frozen["id"].(string), "one@example.com", `Hello $1\literal`, `<p>$1\literal one@example.com</p>`)
+	again := call(path, "template", templated, 200)
+	require.Equal(t, frozen["id"], again["id"])
+	require.Equal(t, frozen["accepted_count"], again["accepted_count"])
+	require.NotContains(t, again, "rejected_recipients")
 	first := call(path, "retry", body, 201)
 	if first["accepted_count"] != float64(1) || first["rejected_count"] != float64(2) {
 		t.Fatal(first)
