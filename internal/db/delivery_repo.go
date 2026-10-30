@@ -14,7 +14,7 @@ import (
 )
 
 type deliveryRepository struct {
-	db          *pgxpool.Pool
+	db          DBTX
 	backoff     delivery.BackoffPolicy
 	retryWindow time.Duration
 }

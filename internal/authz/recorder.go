@@ -17,7 +17,7 @@ const (
 	Allowed Outcome = "allowed"
 
 	// Denied is a resolved Principal that may not — either the Action or, when a claim was
-	// made, the Attribute the claim requires.
+	// made, the Attribute the claim requires, or a request-specific constraint.
 	Denied Outcome = "denied"
 
 	// NoPrincipal is a guarded operation reached by a request nothing authenticated. Never a
@@ -52,8 +52,8 @@ type Decision struct {
 	Outcome Outcome
 
 	// Reason names which check refused, empty when none did. Not a restatement of Outcome:
-	// Guard refuses for two different reasons — the Action, or the Attribute a claim needs —
-	// and "denied" alone cannot tell an operator which of the two happened.
+	// Guard may refuse the Action, an Attribution, or a request-specific constraint;
+	// "denied" alone cannot tell an operator which check failed.
 	Reason string
 
 	// At is the instant the decision was reached, stamped here rather than wherever the record

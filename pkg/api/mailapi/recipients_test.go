@@ -30,15 +30,15 @@ func TestRecipientsFromRequestKeepsAFailurePerRecipient(t *testing.T) {
 	assert.Equal(t, "first@email.com", got[0].Email)
 	assert.Equal(t, map[string]string{"name": "First"}, got[0].Fields)
 	assert.Equal(t, tracking.Policy{}, got[0].Tracking, "an omitted Policy states nothing")
-	assert.NoError(t, got[0].trackingErr)
+	assert.NoError(t, got[0].TrackingError)
 
 	assert.Equal(t, "unreadable@email.com", got[1].Email)
-	assert.Error(t, got[1].trackingErr, "the unreadable Mode must travel on its own row")
+	assert.Error(t, got[1].TrackingError, "the unreadable Mode must travel on its own row")
 
 	assert.Equal(t, "last@email.com", got[2].Email)
 	assert.Equal(t, tracking.Policy{Opens: tracking.ModeOff}, got[2].Tracking,
 		"a row after an unreadable one is translated normally")
-	assert.NoError(t, got[2].trackingErr)
+	assert.NoError(t, got[2].TrackingError)
 }
 
 // TestRecipientsFromRequestSurvivesANilRow covers the one shape only an in-process
@@ -50,5 +50,5 @@ func TestRecipientsFromRequestSurvivesANilRow(t *testing.T) {
 
 	require.Len(t, got, 1)
 	assert.False(t, got[0].HasAddress())
-	assert.NoError(t, got[0].trackingErr)
+	assert.NoError(t, got[0].TrackingError)
 }
