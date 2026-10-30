@@ -1,6 +1,9 @@
 package sqlc
 
-import "github.com/kannon-email/kannon/internal/stats"
+import (
+	"github.com/kannon-email/kannon/internal/stats"
+	"github.com/kannon-email/kannon/internal/tracking"
+)
 
 // StatsData is the JSONB payload of the stats.data column: what one Delivery
 // outcome looks like on disk, stated by Kannon rather than inherited from a wire
@@ -31,14 +34,15 @@ import "github.com/kannon-email/kannon/internal/stats"
 // and the domain type this maps to and from — stats.Outcome — is the place where
 // "exactly one of these" is enforced by construction.
 type StatsData struct {
-	Accepted  *StatsDataAccepted  `json:"accepted,omitempty"`
-	Delivered *StatsDataDelivered `json:"delivered,omitempty"`
-	Failed    *StatsDataFailed    `json:"failed,omitempty"`
-	Bounced   *StatsDataBounced   `json:"bounced,omitempty"`
-	Opened    *StatsDataOpened    `json:"opened,omitempty"`
-	Clicked   *StatsDataClicked   `json:"clicked,omitempty"`
-	Rejected  *StatsDataRejected  `json:"rejected,omitempty"`
-	Error     *StatsDataError     `json:"error,omitempty"`
+	TrackingMode tracking.Mode       `json:"trackingMode,omitempty"`
+	Accepted     *StatsDataAccepted  `json:"accepted,omitempty"`
+	Delivered    *StatsDataDelivered `json:"delivered,omitempty"`
+	Failed       *StatsDataFailed    `json:"failed,omitempty"`
+	Bounced      *StatsDataBounced   `json:"bounced,omitempty"`
+	Opened       *StatsDataOpened    `json:"opened,omitempty"`
+	Clicked      *StatsDataClicked   `json:"clicked,omitempty"`
+	Rejected     *StatsDataRejected  `json:"rejected,omitempty"`
+	Error        *StatsDataError     `json:"error,omitempty"`
 }
 
 // StatsDataAccepted carries nothing: the Validator having accepted an address is

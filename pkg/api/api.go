@@ -113,14 +113,14 @@ func run(ctx context.Context, config Config, cnt *container.Container) error {
 	// this point asks the configuration layer what authority a request has.
 	adminAuth := authzconnect.AdminTokenHandlerOptions(adminToken)
 
-	return startAPIServer(ctx, port, adminAuth, recorder, adminAPIService, mailAPIService, statsAPIService, statsV2APIService, hzAPIService, rest.NewHandler(domains.NewService(sq.NewDomainsRepository(db)), adminToken, func(ctx context.Context) error {
+	return startAPIServer(ctx, port, adminAuth, recorder, adminAPIService, mailAPIService, statsAPIService, statsV2APIService, hzAPIService, rest.NewHandlerWithStats(domains.NewService(sq.NewDomainsRepository(db)), adminToken, func(ctx context.Context) error {
 		for _, err := range hz.NewHZ(cnt).HZ(ctx) {
 			if err != nil {
 				return err
 			}
 		}
 		return nil
-	}, apikeys.NewService(sq.NewAPIKeysRepository(db))))
+	}, statsService, apikeys.NewService(sq.NewAPIKeysRepository(db))))
 }
 
 // startAuditRecording resolves the Recorder every authorization decision on this process reports to,
