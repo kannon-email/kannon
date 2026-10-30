@@ -72,6 +72,7 @@ func newHandler(service *domains.Service, token admintoken.Token, ready func(con
 	protected := http.NewServeMux()
 	if inline != nil {
 		registerBatches(protected, inline)
+		registerDeliveries(protected, inline)
 	}
 	if events != nil {
 		registerEvents(protected, events)
