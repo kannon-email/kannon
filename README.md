@@ -609,7 +609,7 @@ We welcome contributions! Please:
 ### Testing
 
 - Unit and integration tests live next to the code in `internal/`, `pkg/` and `x/`; `make test` runs them with `-race -short`
-- Some tests use Docker to spin up a test Postgres instance, and are skipped by `-short`
+- Some Postgres integration tests (including `pkg/tracker`) are skipped by `-short`; tracker unit tests still run without Docker. Other packages such as `internal/db` start Postgres even with `-short`, so `make test` still requires Docker.
 - **E2E tests** in [`e2e/`](e2e/) exercise the whole sending pipeline with the demo sender
 
 ## License
