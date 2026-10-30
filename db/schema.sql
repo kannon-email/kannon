@@ -171,6 +171,8 @@ CREATE TABLE public.batch_content_snapshots (
 --
 
 CREATE TABLE public.batch_intake_receipts (
+    scheduled_at timestamp with time zone NOT NULL,
+    attachments jsonb DEFAULT '[]'::jsonb NOT NULL,
     domain text NOT NULL,
     idempotency_key text NOT NULL,
     fingerprint text NOT NULL,
@@ -914,7 +916,8 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20260804135145'),
     ('20261029221540'),
     ('20261030225738'),
-    ('20261030230324');
+    ('20261030230324'),
+    ('20261030231407');
 
 SET search_path TO public;
 ALTER TABLE delivery_intake_facts

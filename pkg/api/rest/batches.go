@@ -7,6 +7,7 @@ import (
 	"github.com/kannon-email/kannon/internal/intake"
 	"github.com/kannon-email/kannon/internal/values"
 	"net/http"
+	"time"
 )
 
 func registerBatches(mux *http.ServeMux, service *intake.InlineService) {
@@ -22,6 +23,11 @@ func registerBatches(mux *http.ServeMux, service *intake.InlineService) {
 		// A strict supported subset ensures optional extensions cannot be silently
 		// discarded, including unknown members inside the generated content union.
 		var input struct {
+			ScheduledAt *time.Time `json:"scheduled_at"`
+			Attachments []struct {
+				Filename string  `json:"filename"`
+				Content  *[]byte `json:"content_base64"`
+			} `json:"attachments"`
 			From    From   `json:"from"`
 			Subject string `json:"subject"`
 			Content struct {
@@ -39,7 +45,14 @@ func registerBatches(mux *http.ServeMux, service *intake.InlineService) {
 			WriteProblem(w, r, 422, "validation_failed")
 			return
 		}
-		p := intake.InlineRequest{Sender: batch.Sender{Email: string(input.From.Email)}, Subject: input.Subject, HTML: *input.Content.HTML}
+		p := intake.InlineRequest{ScheduledAt: input.ScheduledAt, Sender: batch.Sender{Email: string(input.From.Email)}, Subject: input.Subject, HTML: *input.Content.HTML}
+		for _, a := range input.Attachments {
+			if a.Content == nil {
+				WriteProblem(w, r, 422, "validation_failed")
+				return
+			}
+			p.Attachments = append(p.Attachments, intake.Attachment{Filename: a.Filename, Content: *a.Content})
+		}
 		if input.From.Name != nil {
 			p.Sender.Alias = *input.From.Name
 		}
@@ -64,6 +77,10 @@ func registerBatches(mux *http.ServeMux, service *intake.InlineService) {
 			case errors.Is(err, intake.ErrIdempotencyInProgress):
 				w.Header().Set("Retry-After", "1")
 				WriteProblem(w, r, 409, "idempotency_in_progress")
+			case errors.Is(err, intake.ErrScheduledAtNotFuture):
+				WriteProblem(w, r, 422, "scheduled_at_not_future")
+			case errors.Is(err, intake.ErrDuplicateAttachmentFilename):
+				WriteProblem(w, r, 422, "duplicate_attachment_filename")
 			case errors.Is(err, intake.ErrTooManyRecipients):
 				WriteProblem(w, r, 422, "too_many_recipients")
 			case errors.Is(err, intake.ErrNoRecipientsAccepted):
@@ -76,7 +93,7 @@ func registerBatches(mux *http.ServeMux, service *intake.InlineService) {
 			return
 		}
 		if replay {
-			writeJSON(w, 200, BatchReplay{Id: receipt.ID, Domain: receipt.Domain, CreatedAt: receipt.CreatedAt, ScheduledAt: receipt.CreatedAt, AcceptedCount: receipt.AcceptedCount, RejectedCount: receipt.RejectedCount})
+			writeJSON(w, 200, BatchReplay{Id: receipt.ID, Domain: receipt.Domain, CreatedAt: receipt.CreatedAt, ScheduledAt: receipt.ScheduledAt, AcceptedCount: receipt.AcceptedCount, RejectedCount: receipt.RejectedCount})
 			return
 		}
 		rejected := []RecipientRejection{}
@@ -84,6 +101,6 @@ func registerBatches(mux *http.ServeMux, service *intake.InlineService) {
 			rejected = append(rejected, RecipientRejection{Index: v.Index, Code: v.Code, Pointer: fmt.Sprintf("/recipients/%d/email", v.Index), Detail: "Recipient refused: " + v.Code})
 		}
 		w.Header().Set("Location", "/v1beta1/domains/"+receipt.Domain+"/batches/"+receipt.ID)
-		writeJSON(w, 201, BatchCreated{Id: receipt.ID, Domain: receipt.Domain, CreatedAt: receipt.CreatedAt, ScheduledAt: receipt.CreatedAt, AcceptedCount: receipt.AcceptedCount, RejectedCount: receipt.RejectedCount, RejectedRecipients: rejected, From: input.From, Subject: input.Subject, Status: BatchCreatedStatusPending, DeliveryCounts: DeliveryCounts{Pending: receipt.AcceptedCount}})
+		writeJSON(w, 201, BatchCreated{Id: receipt.ID, Domain: receipt.Domain, CreatedAt: receipt.CreatedAt, ScheduledAt: receipt.ScheduledAt, AcceptedCount: receipt.AcceptedCount, RejectedCount: receipt.RejectedCount, RejectedRecipients: rejected, From: input.From, Subject: input.Subject, Status: BatchCreatedStatusPending, DeliveryCounts: DeliveryCounts{Pending: receipt.AcceptedCount}})
 	})
 }
