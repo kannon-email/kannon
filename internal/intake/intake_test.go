@@ -117,3 +117,21 @@ func TestIntakeRejectsUnrelatedSenderDespiteAuthority(t *testing.T) {
 	require.Equal(t, authz.Batches(name), audit[0].Resource)
 	require.NotEmpty(t, audit[0].Reason)
 }
+
+func TestSenderRefusalDescribesApplicationDecision(t *testing.T) {
+	name := values.MustParse("example.com")
+	domain := domains.Load(domains.LoadParams{Domain: name})
+	ctx := authz.NewContext(t.Context(), authz.MustNewPrincipal("key", authz.MustNewGrant(authz.RoleSender, authz.DomainAnchor(name))))
+	var audit decisions
+	ctx = authz.WithRecorder(ctx, &audit)
+	_, err := intake.New(unavailableStore{}, nil, 0).Accept(ctx, domain, intake.Request{
+		Sender: batch.Sender{Email: "sender@other.example"}, HTML: new("Hello"),
+	})
+	var refusal *intake.SenderNotAuthorized
+	require.ErrorAs(t, err, &refusal)
+	require.Equal(t, "other.example", refusal.Host)
+	require.Equal(t, "example.com", refusal.Domain.String())
+	require.ErrorIs(t, err, authz.ErrForbidden)
+	require.Len(t, audit, 1)
+	require.Equal(t, authz.Denied, audit[0].Outcome)
+}

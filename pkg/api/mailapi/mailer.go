@@ -20,7 +20,6 @@ import (
 	"github.com/kannon-email/kannon/internal/delivery"
 	"github.com/kannon-email/kannon/internal/domains"
 	"github.com/kannon-email/kannon/internal/intake"
-	smtputils "github.com/kannon-email/kannon/internal/smtp"
 	"github.com/kannon-email/kannon/internal/trackingpb"
 	"github.com/kannon-email/kannon/internal/values"
 	pb "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1"
@@ -85,11 +84,7 @@ func (s mailAPIService) accept(ctx context.Context, domain *domains.Domain, msg 
 		if errors.As(err, &invalid) {
 			return nil, connect.NewError(connect.CodeInvalidArgument, invalid)
 		}
-		host, hostErr := smtputils.GetEmailDomain(msg.Sender.Email)
-		if hostErr != nil {
-			return nil, connect.NewError(connect.CodeInvalidArgument, hostErr)
-		}
-		return nil, sendError(err, host, domain.Domain())
+		return nil, sendError(err)
 	}
 	rejected := make([]*pb.RejectedRecipient, 0, len(result.Rejected))
 	for _, r := range result.Rejected {
@@ -195,11 +190,12 @@ func (s mailAPIService) authenticate(ctx context.Context, headers http.Header) (
 // sendError renders whatever the guarded send returned. A refusal keeps the code and the
 // wording the old tenant comparison produced, to the letter, so no client can tell the
 // mechanism changed (#438); ErrNoPrincipal stays apart, being a different problem.
-func sendError(err error, host, tenant string) error {
+func sendError(err error) error {
+	var refusal *intake.SenderNotAuthorized
 	switch {
-	case errors.Is(err, authz.ErrForbidden):
+	case errors.As(err, &refusal):
 		return connect.NewError(connect.CodePermissionDenied,
-			fmt.Errorf("sender domain %q is not authorized for tenant %q", host, tenant))
+			fmt.Errorf("sender domain %q is not authorized for tenant %q", refusal.Host, refusal.Domain.String()))
 	case errors.Is(err, authz.ErrNoPrincipal):
 		return authzconnect.Error(err, connect.CodePermissionDenied)
 	default:

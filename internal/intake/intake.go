@@ -78,8 +78,25 @@ func (e *InvalidRequest) Error() string { return e.Err.Error() }
 func (e *InvalidRequest) Unwrap() error { return e.Err }
 func invalid(err error) error           { return &InvalidRequest{Err: err} }
 
+// SenderNotAuthorized describes a refused sending operation without requiring a
+// transport to re-evaluate the sender relationship. It retains the Guard error
+// so authorization callers can continue using errors.Is.
+type SenderNotAuthorized struct {
+	Host   string
+	Domain values.DomainName
+	Err    error
+}
+
+func (e *SenderNotAuthorized) Error() string { return e.Err.Error() }
+func (e *SenderNotAuthorized) Unwrap() error { return e.Err }
+
 // Accept authorizes before touching storage, decides Recipients independently,
 // freezes their Tracking Policy and persists the entire acceptance atomically.
+//
+// This is the application sending operation used by legacy gRPC. It deliberately
+// preserves legacy personalization (global substitution in HTML before recipient
+// rendering), accepts past schedules, and creates a Batch even if every Recipient
+// is refused. Adapters must not apply the REST contract's different rules here.
 func (s *Service) Accept(ctx context.Context, domain *domains.Domain, p Request) (*Result, error) {
 	if strings.ContainsAny(p.Subject, "\r\n") {
 		return nil, invalid(errors.New("subject contains forbidden CR/LF"))
@@ -97,9 +114,13 @@ func (s *Service) Accept(ctx context.Context, domain *domains.Domain, p Request)
 	if !senderHostPermitted(canonicalSenderHost(host), domain.Name()) {
 		constraint = fmt.Errorf("sender host %q is not the Domain %q or its parent", host, domain.Name())
 	}
-	return authz.GuardWithConstraint(ctx, authz.Create, authz.Batches(domain.Name()), constraint, func() (*Result, error) {
+	result, err := authz.GuardWithConstraint(ctx, authz.Create, authz.Batches(domain.Name()), constraint, func() (*Result, error) {
 		return s.accept(ctx, domain, p)
 	})
+	if errors.Is(err, authz.ErrForbidden) {
+		return nil, &SenderNotAuthorized{Host: host, Domain: domain.Name(), Err: err}
+	}
+	return result, err
 }
 
 func (s *Service) accept(ctx context.Context, domain *domains.Domain, p Request) (*Result, error) {
