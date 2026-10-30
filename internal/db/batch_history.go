@@ -10,28 +10,14 @@ import (
 
 func (s *inlineStore) ReadBatch(ctx context.Context, d values.DomainName, id string) (*intake.BatchHistory, error) {
 	b := &intake.BatchHistory{}
-	err := s.pool.QueryRow(ctx, `SELECT r.batch_id,r.domain,r.created_at,r.scheduled_at,r.completed_at,r.accepted_count,r.rejected_count,m.subject,m.sender_email,m.sender_alias,c.html,m.tracking,r.attachments,m.headers FROM batch_intake_receipts r JOIN messages m ON m.message_id=r.batch_id JOIN batch_content_snapshots c ON c.batch_id=r.batch_id WHERE r.domain=$1 AND r.batch_id=$2`, d.String(), id).Scan(&b.ID, &b.Domain, &b.CreatedAt, &b.ScheduledAt, &b.CompletedAt, &b.AcceptedCount, &b.RejectedCount, &b.Subject, &b.Sender.Email, &b.Sender.Alias, &b.HTML, &b.Tracking, &b.Attachments, &b.Headers)
+	err := s.pool.QueryRow(ctx, `SELECT r.batch_id,r.domain,r.created_at,r.scheduled_at,r.completed_at,r.accepted_count,r.rejected_count,m.subject,m.sender_email,m.sender_alias,c.html,c.source_template_id,m.tracking,r.attachments,m.headers,COALESCE((SELECT jsonb_object_agg(status,n) FROM (SELECT status,count(*) n FROM delivery_intake_facts WHERE batch_id=r.batch_id GROUP BY status) counts),'{}'::jsonb) FROM batch_intake_receipts r JOIN messages m ON m.message_id=r.batch_id JOIN batch_content_snapshots c ON c.batch_id=r.batch_id WHERE r.domain=$1 AND r.batch_id=$2`, d.String(), id).Scan(&b.ID, &b.Domain, &b.CreatedAt, &b.ScheduledAt, &b.CompletedAt, &b.AcceptedCount, &b.RejectedCount, &b.Subject, &b.Sender.Email, &b.Sender.Alias, &b.HTML, &b.SourceTemplateID, &b.Tracking, &b.Attachments, &b.Headers, &b.Counts)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, intake.ErrDeliveryNotFound
 	}
 	if err != nil {
 		return nil, err
 	}
-	rows, err := s.pool.Query(ctx, `SELECT status,count(*) FROM delivery_intake_facts WHERE batch_id=$1 GROUP BY status`, id)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	b.Counts = map[string]int{}
-	for rows.Next() {
-		var st string
-		var n int
-		if err = rows.Scan(&st, &n); err != nil {
-			return nil, err
-		}
-		b.Counts[st] = n
-	}
-	return b, rows.Err()
+	return b, nil
 }
 func (s *inlineStore) ListBatches(ctx context.Context, d values.DomainName, q intake.HistoryQuery) ([]intake.BatchHistory, error) {
 	rows, err := s.pool.Query(ctx, `SELECT batch_id FROM batch_intake_receipts WHERE domain=$1 AND ($2='' OR (created_at,batch_id)<($3,$2)) ORDER BY created_at DESC,batch_id DESC LIMIT $4`, d.String(), q.AfterID, q.AfterTime, q.Limit)

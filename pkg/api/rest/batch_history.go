@@ -95,6 +95,9 @@ func registerBatchHistory(mux *http.ServeMux, s *intake.InlineService) {
 				}
 				a := batchSummary(*b)
 				out := Batch{Id: a.Id, Domain: a.Domain, From: a.From, Subject: a.Subject, CreatedAt: a.CreatedAt, ScheduledAt: a.ScheduledAt, CompletedAt: a.CompletedAt, ExpiresAt: a.ExpiresAt, AcceptedCount: a.AcceptedCount, RejectedCount: a.RejectedCount, DeliveryCounts: a.DeliveryCounts, Status: BatchStatus(a.Status), Tracking: TrackingPolicy{Opens: TrackingMode(b.Tracking.Opens), Links: TrackingMode(b.Tracking.Links)}, Attachments: []AttachmentMetadata{}}
+				if b.SourceTemplateID != "" {
+					out.Content.SourceTemplateId = &b.SourceTemplateID
+				}
 				out.Content.Html = b.HTML
 				out.Content.Type = "html"
 				for _, att := range b.Attachments {

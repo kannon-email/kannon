@@ -212,6 +212,26 @@ func TestDeliverySurvivesPoolAndLateBounce(t *testing.T) {
 			t.Fatal(d)
 		}
 	}
+	// Concurrent final outcomes must persist one completion fact for mixed results.
+	outcomes := []stats.Outcome{stats.Delivered(), stats.Failed("retry budget spent")}
+	done := make(chan error, 2)
+	for i, email := range []string{"a@example.com", "b@example.com"} {
+		go func(email string, o stats.Outcome) {
+			done <- sr.Insert(ctx, stats.NewStat(email, second.ID, name, time.Now(), o))
+		}(email, outcomes[i])
+	}
+	for range 2 {
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+	}
+	var mixed rest.Batch
+	if err := json.Unmarshal(get(base+"/"+second.ID, 200), &mixed); err != nil {
+		t.Fatal(err)
+	}
+	if mixed.Status != "completed" || mixed.CompletedAt == nil || mixed.DeliveryCounts.Delivered != 1 || mixed.DeliveryCounts.Failed != 1 {
+		t.Fatal(mixed)
+	}
 	sender := authz.NewContext(t.Context(), authz.MustNewPrincipal("sender", authz.MustNewGrant(authz.RoleSender, authz.DomainAnchor(name))))
 	if _, err := svc.ReadBatch(sender, name, receipt.ID); err == nil {
 		t.Fatal("sender read batch")

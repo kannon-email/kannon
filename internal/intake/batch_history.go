@@ -12,6 +12,7 @@ import (
 
 // BatchHistory combines immutable acceptance data with current outcome counts.
 type BatchHistory struct {
+	SourceTemplateID             string
 	ID, Domain, Subject, HTML    string
 	Sender                       batch.Sender
 	CreatedAt, ScheduledAt       time.Time

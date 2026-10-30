@@ -19,6 +19,7 @@ import (
 // outgoing Envelope: template HTML + Domain DKIM keys + Batch metadata.
 // It is populated by a SendingDataSource at the storage boundary.
 type SendingData struct {
+	LiteralFields  bool
 	Subject        string
 	HTML           string
 	Domain         string
@@ -138,7 +139,11 @@ func (b *defaultBuilder) prepareMessage(ctx context.Context, d *delivery.Deliver
 	if err != nil {
 		return nil, err
 	}
-	subject := utils.ReplaceCustomFields(data.Subject, fields)
+	render := utils.ReplaceCustomFields
+	if data.LiteralFields {
+		render = utils.ReplaceLiteralFields
+	}
+	subject := render(data.Subject, fields)
 
 	sender := batch.Sender{Email: data.SenderEmail, Alias: data.SenderAlias}
 	h := buildHeaders(subject, sender, d.Email(), data.MessageID, emailMessageID, b.baseHeaders, data.Headers,
@@ -217,7 +222,11 @@ func signMessage(domain, dkimPrivateKey string, msg []byte) ([]byte, error) {
 // whatever is configured when the engagement arrives.
 func (b *defaultBuilder) preparedHTML(ctx context.Context, d *delivery.Delivery, data SendingData, fields map[string]string) (string, error) {
 	policy := d.TrackingPolicy()
-	html := utils.ReplaceCustomFields(data.HTML, fields)
+	render := utils.ReplaceCustomFields
+	if data.LiteralFields {
+		render = utils.ReplaceLiteralFields
+	}
+	html := render(data.HTML, fields)
 
 	identity, err := newTrackingIdentity(policy, d.Email(), data.Domain)
 	if err != nil {
@@ -400,6 +409,7 @@ func (s sqlcSource) GetSendingData(ctx context.Context, batchID batch.ID) (Sendi
 	}
 
 	return SendingData{
+		LiteralFields:  row.LiteralFields,
 		Subject:        row.Subject,
 		HTML:           row.Html,
 		Domain:         row.Domain,
