@@ -82,7 +82,7 @@ func TestDeliverConnAcceptance(t *testing.T) {
 					return wire.PrintfLine("%s", tc.quitReply)
 				}()
 			}()
-			err := deliverConn(client, "from@example.com", "to@example.com", []byte("Subject: regression\r\n\r\nhello\r\n"), "mx.example", false, "sender.example")
+			err := deliverConn(t.Context(), client, "from@example.com", "to@example.com", []byte("Subject: regression\r\n\r\nhello\r\n"), "mx.example", false, "sender.example")
 			if serverErr := <-done; serverErr != nil {
 				t.Fatal(serverErr)
 			}

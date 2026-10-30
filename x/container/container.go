@@ -40,9 +40,10 @@ type Container struct {
 
 	// mu guards closers and hzs, which are appended to from singleton factory
 	// callbacks that may run concurrently across runnable goroutines.
-	mu      sync.Mutex
-	closers []CloserFunc
-	hzs     []HZ
+	mu           sync.Mutex
+	closers      []CloserFunc
+	finalClosers []CloserFunc
+	hzs          []HZ
 }
 
 type senderCfg struct {
@@ -184,13 +185,15 @@ func (c *Container) startEmbeddedNatsServer(context.Context) (*server.Server, er
 
 	slog.Info("Embedded NATS server started at " + ns.ClientURL())
 
-	c.addClosers(func(ctx context.Context) error {
+	c.mu.Lock()
+	c.finalClosers = append(c.finalClosers, func(ctx context.Context) error {
 		slog.Info("Shutting down embedded NATS server...")
 		ns.Shutdown()
 		ns.WaitForShutdown()
 		return nil
 	})
 
+	c.mu.Unlock()
 	c.addHZ("embedded-nats", func(ctx context.Context) error {
 		if !ns.ReadyForConnections(100 * time.Millisecond) {
 			return errors.New("embedded NATS server not ready")
@@ -229,20 +232,21 @@ func (c *Container) connectNats(context.Context) (*nats.Conn, error) {
 	}
 
 	slog.Debug("connecting to NATS: " + natsURL)
-	nc, err := nats.Connect(natsURL)
+	closed := make(chan struct{})
+	nc, err := nats.Connect(natsURL, nats.ClosedHandler(func(*nats.Conn) { close(closed) }))
 	if err != nil {
 		return nil, err
 	}
 
 	c.addClosers(func(ctx context.Context) error {
-		done := make(chan error, 1)
-		go func() {
-			done <- nc.Drain()
-		}()
 		defer nc.Close()
-		select {
-		case err := <-done:
+		if err := nc.Drain(); err != nil {
 			return err
+		}
+		// Drain starts asynchronously; Close here would discard queued publishes.
+		select {
+		case <-closed:
+			return nc.LastError()
 		case <-ctx.Done():
 			return ctx.Err()
 		}

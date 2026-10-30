@@ -262,7 +262,10 @@ func (d *disp) handleMsg(ctx context.Context, sbj, subName string, parse parseFu
 	if err != nil {
 		return fmt.Errorf("cannot consume %s for %s: %w", sbj, subName, err)
 	}
-	defer c.Drain()
+	defer func() {
+		c.Drain()
+		<-c.Closed()
+	}()
 
 	<-ctx.Done()
 	d.log().Info(fmt.Sprintf("Consumer %s stopped", subName))

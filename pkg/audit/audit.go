@@ -114,7 +114,10 @@ func (h *auditHandler) handleRecords(ctx context.Context) error {
 		return err
 	}
 
-	defer c.Drain()
+	defer func() {
+		c.Drain()
+		<-c.Closed()
+	}()
 
 	<-ctx.Done()
 	return nil

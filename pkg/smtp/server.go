@@ -2,6 +2,7 @@ package smtp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -32,18 +33,29 @@ func run(ctx context.Context, nc *nats.Conn, config Config) error {
 
 	slog.Info(fmt.Sprintf("Starting server at: %v", s.Addr))
 
+	done := make(chan struct{})
+	stopped := make(chan error, 1)
 	go func() {
-		<-ctx.Done()
-
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-		defer cancel()
-
-		if err := s.Shutdown(ctx); err != nil {
-			slog.Error("error shutting down server", "err", err)
+		select {
+		case <-ctx.Done():
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			err := s.Shutdown(shutdownCtx)
+			if err != nil {
+				_ = s.Close()
+			}
+			stopped <- err
+		case <-done:
+			stopped <- nil
 		}
 	}()
-
-	return s.ListenAndServe()
+	err := s.ListenAndServe()
+	close(done)
+	shutdownErr := <-stopped
+	if err != nil && !errors.Is(err, smtp.ErrServerClosed) {
+		return err
+	}
+	return shutdownErr
 }
 
 func buildServer(config Config, nc *nats.Conn) *smtp.Server {

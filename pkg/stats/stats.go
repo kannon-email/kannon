@@ -89,20 +89,7 @@ func run(ctx context.Context, cnt *container.Container, cfg Config) error {
 // This is intentionally a separate consumer from handleAggregatedStats so both
 // can independently process the same messages for different purposes.
 func (h *statsHandler) handleStats(ctx context.Context) error {
-	con := utils.MustGetPullSubscriber(ctx, h.js, "kannon-stats", "kannon.stats.*", "kannon-stats-logs")
-	c, err := con.Consume(func(msg jetstream.Msg) {
-		if err := h.handleStatsMsg(ctx, msg); err != nil {
-			slog.Error("Cannot handle stats msg", "err", err)
-		}
-	})
-	if err != nil {
-		return err
-	}
-
-	defer c.Drain()
-
-	<-ctx.Done()
-	return nil
+	return h.consumeStats(ctx, "kannon-stats-logs", h.handleStatsMsg)
 }
 
 func (h *statsHandler) cleanupCycle(ctx context.Context) error {
@@ -127,19 +114,23 @@ func (h *statsHandler) cleanupCycle(ctx context.Context) error {
 // Uses a separate consumer name ("kannon-aggregated-stats") from handleStats so both
 // receive all messages independently.
 func (h *statsHandler) handleAggregatedStats(ctx context.Context) error {
-	con := utils.MustGetPullSubscriber(ctx, h.js, "kannon-stats", "kannon.stats.*", "kannon-aggregated-stats")
+	return h.consumeStats(ctx, "kannon-aggregated-stats", h.handleAggregatedStatsMsg)
+}
+
+// consumeStats owns the shared consumer lifecycle; each durable retains its own handler.
+func (h *statsHandler) consumeStats(ctx context.Context, name string, handle func(context.Context, jetstream.Msg) error) error {
+	con := utils.MustGetPullSubscriber(ctx, h.js, "kannon-stats", "kannon.stats.*", name)
 	c, err := con.Consume(func(msg jetstream.Msg) {
-		if err := h.handleAggregatedStatsMsg(ctx, msg); err != nil {
-			slog.Error("Cannot handle aggregated stats msg", "err", err)
+		if err := handle(ctx, msg); err != nil {
+			slog.Error("Cannot handle stats msg", "consumer", name, "err", err)
 		}
 	})
 	if err != nil {
 		return err
 	}
-
-	defer c.Drain()
-
 	<-ctx.Done()
+	c.Drain()
+	<-c.Closed()
 	return nil
 }
 

@@ -222,15 +222,6 @@ func startAPIServer(ctx context.Context, port uint, adminAuth []connect.HandlerO
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
-	go func() {
-		<-ctx.Done()
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if err := server.Shutdown(shutdownCtx); err != nil {
-			slog.Error("error shutting down server", "err", err)
-		}
-	}()
-
 	slog.Info("Connect API server listening on " + addr)
-	return server.ListenAndServe()
+	return container.ServeHTTP(ctx, server)
 }

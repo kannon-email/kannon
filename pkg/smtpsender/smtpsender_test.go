@@ -365,3 +365,48 @@ func (g *countingGuard) count() int {
 	defer g.mu.Unlock()
 	return g.claims
 }
+
+func TestShutdownWaitsForSMTPAndReturnsQueuedEnvelopes(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	js := tests.NatsJetStream(t)
+	mustSendingStream(ctx, t, js)
+	sender := &blockingSender{released: make(chan struct{})}
+	var release sync.Once
+	defer release.Do(func() { close(sender.released) })
+	pub := &recordingPublisher{}
+	s := &smtpSender{sender: sender, publisher: pub, js: js, cfg: Config{MaxJobs: 1}}
+	consumer := s.mustSendingConsumer(ctx)
+	for range 4 {
+		_, err := js.Publish(ctx, "kannon.sending", envelopeBytes(t, "shutdown@example.com"))
+		require.NoError(t, err)
+	}
+	stopped := make(chan error, 1)
+	go func() { stopped <- s.handleSend(ctx, consumer) }()
+	require.Eventually(t, func() bool { return sender.count() == 1 }, 5*time.Second, time.Millisecond)
+	cancel()
+	select {
+	case <-stopped:
+		t.Fatal("shutdown returned while SMTP was active")
+	case <-time.After(30 * time.Millisecond):
+	}
+	release.Do(func() { close(sender.released) })
+	select {
+	case err := <-stopped:
+		require.ErrorIs(t, err, context.Canceled)
+	case <-time.After(5 * time.Second):
+		t.Fatal("shutdown did not finish")
+	}
+	require.Equal(t, 1, sender.count())
+	require.Len(t, pub.subjects(), 1)
+	// The remaining envelopes are still available, rather than acknowledged or lost.
+	batch, err := consumer.Fetch(3, jetstream.FetchMaxWait(time.Second))
+	require.NoError(t, err)
+	n := 0
+	for msg := range batch.Messages() {
+		n++
+		require.NoError(t, msg.Ack())
+	}
+	require.NoError(t, batch.Error())
+	require.Equal(t, 3, n)
+}
