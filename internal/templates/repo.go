@@ -10,6 +10,9 @@ import (
 type Pagination struct {
 	Skip uint
 	Take uint
+	// AfterID and Keyset select ID-ordered cursor pagination.
+	AfterID string
+	Keyset  bool
 }
 
 // UpdateFunc receives the current Template and may mutate it in place.

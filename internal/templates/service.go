@@ -94,3 +94,28 @@ func (s *Service) DeleteTemplate(ctx context.Context, domain values.DomainName, 
 		return s.repo.Delete(ctx, templateID)
 	})
 }
+
+// ListPage lists persistent Templates in ascending opaque ID order without a total count.
+func (s *Service) ListPage(ctx context.Context, domain values.DomainName, after string, limit uint) ([]*Template, error) {
+	return authz.Guard(ctx, authz.List, authz.Templates(domain), func() ([]*Template, error) {
+		return s.repo.List(ctx, domain, Pagination{Take: limit, AfterID: after, Keyset: true})
+	})
+}
+
+// PatchTemplate changes only supplied fields, preserving omitted values.
+func (s *Service) PatchTemplate(ctx context.Context, domain values.DomainName, id string, html, title *string) (*Template, error) {
+	return authz.Guard(ctx, authz.Update, authz.Template(domain, id), func() (*Template, error) {
+		if _, err := s.repo.FindByDomain(ctx, domain, id); err != nil {
+			return nil, err
+		}
+		return s.repo.Update(ctx, id, func(t *Template) error {
+			if html != nil {
+				t.SetHTML(*html)
+			}
+			if title != nil {
+				t.SetTitle(*title)
+			}
+			return nil
+		})
+	})
+}

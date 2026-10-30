@@ -104,6 +104,22 @@ func (r *templatesRepository) FindByDomain(ctx context.Context, domain values.Do
 }
 
 func (r *templatesRepository) List(ctx context.Context, domain values.DomainName, page templates.Pagination) ([]*templates.Template, error) {
+	if page.Keyset {
+		rows, err := New(r.db).ListTemplatesPage(ctx, ListTemplatesPageParams{Domain: domain.String(), AfterID: page.AfterID, Take: int32(page.Take)})
+		if err != nil {
+			return nil, err
+		}
+		out := make([]*templates.Template, 0, len(rows))
+		for _, row := range rows {
+			t, err := rowToTemplate(row)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, t)
+		}
+		return out, nil
+	}
+
 	q := New(r.db)
 	rows, err := q.GetTemplates(ctx, GetTemplatesParams{
 		Domain: domain.String(),
