@@ -51,11 +51,6 @@ func NewHandlerWithTemplates(service *domains.Service, token admintoken.Token, r
 	return newHandler(service, token, ready, nil, content, nil, keys)
 }
 
-// NewHandlerWithStatsAndTemplates exposes both retained events and Template lifecycle operations.
-func NewHandlerWithStatsAndTemplates(service *domains.Service, token admintoken.Token, ready func(context.Context) error, events *stats.Service, keys *apikeys.Service, content *templates.Service) http.Handler {
-	return newHandler(service, token, ready, events, content, nil, keys)
-}
-
 // NewHandlerWithBatches includes foundational intake alongside existing REST operations.
 func NewHandlerWithBatches(service *domains.Service, token admintoken.Token, ready func(context.Context) error, inline *intake.InlineService, events *stats.Service, content *templates.Service, credentials ...*apikeys.Service) http.Handler {
 	return newHandler(service, token, ready, events, content, inline, credentials...)
@@ -80,6 +75,7 @@ func newHandler(service *domains.Service, token admintoken.Token, ready func(con
 	}
 	if events != nil {
 		registerEvents(protected, events)
+		registerAggregated(protected, events)
 	}
 	if content != nil {
 		registerTemplates(protected, content)
