@@ -38,11 +38,11 @@ type BatchReader interface {
 }
 
 func (s *InlineService) ReadBatch(ctx context.Context, d values.DomainName, id string) (*BatchHistory, error) {
-	return authz.Guard(ctx, authz.Read, authz.Batches(d), func() (*BatchHistory, error) { return s.store.(BatchReader).ReadBatch(ctx, d, id) })
+	return authz.Guard(ctx, authz.Read, authz.Batches(d), func() (*BatchHistory, error) { return s.store.ReadBatch(ctx, d, id) })
 }
 func (s *InlineService) ListBatches(ctx context.Context, d values.DomainName, q HistoryQuery) ([]BatchHistory, error) {
-	return authz.Guard(ctx, authz.Read, authz.Batches(d), func() ([]BatchHistory, error) { return s.store.(BatchReader).ListBatches(ctx, d, q) })
+	return authz.Guard(ctx, authz.Read, authz.Batches(d), func() ([]BatchHistory, error) { return s.store.ListBatches(ctx, d, q) })
 }
 func (s *InlineService) ListDeliveries(ctx context.Context, d values.DomainName, id string, q HistoryQuery) ([]DeliveryHistory, error) {
-	return authz.Guard(ctx, authz.Read, authz.Batches(d), func() ([]DeliveryHistory, error) { return s.store.(BatchReader).ListDeliveries(ctx, d, id, q) })
+	return authz.Guard(ctx, authz.Read, authz.Batches(d), func() ([]DeliveryHistory, error) { return s.store.ListDeliveries(ctx, d, id, q) })
 }

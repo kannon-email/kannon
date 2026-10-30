@@ -29,7 +29,7 @@ func registerTemplates(mux *http.ServeMux, service *templates.Service) {
 		if !query(w, r, false) {
 			return
 		}
-		domain, err := values.Parse(r.PathValue("domain"))
+		domain, err := values.Parse(r.PathValue(domainParameter))
 		if err != nil {
 			WriteProblem(w, r, 400, "malformed_request")
 			return
@@ -50,12 +50,12 @@ func registerTemplates(mux *http.ServeMux, service *templates.Service) {
 		w.Header().Set("Location", "/v1beta1/domains/"+domain.String()+"/templates/"+t.TemplateID())
 		writeJSON(w, 201, templateWire(t))
 	})
-	for _, method := range []string{"GET", "PATCH", "DELETE"} {
+	for _, method := range []string{"GET", http.MethodPatch, http.MethodDelete} {
 		mux.HandleFunc(method+" /v1beta1/domains/{domain}/templates/{template_id}", func(w http.ResponseWriter, r *http.Request) {
 			if !query(w, r, false) {
 				return
 			}
-			domain, err := values.Parse(r.PathValue("domain"))
+			domain, err := values.Parse(r.PathValue(domainParameter))
 			if err != nil {
 				WriteProblem(w, r, 400, "malformed_request")
 				return
@@ -63,7 +63,7 @@ func registerTemplates(mux *http.ServeMux, service *templates.Service) {
 			id := r.PathValue("template_id")
 			var t *templates.Template
 			switch r.Method {
-			case "PATCH":
+			case http.MethodPatch:
 				var input TemplatePatch
 				if !decode(w, r, &input) {
 					return
@@ -73,7 +73,7 @@ func registerTemplates(mux *http.ServeMux, service *templates.Service) {
 					return
 				}
 				t, err = service.PatchTemplate(r.Context(), domain, id, input.Html, input.Title)
-			case "DELETE":
+			case http.MethodDelete:
 				t, err = service.DeleteTemplate(r.Context(), domain, id)
 			default:
 				t, err = service.GetTemplate(r.Context(), domain, id)
@@ -82,8 +82,8 @@ func registerTemplates(mux *http.ServeMux, service *templates.Service) {
 				writeError(w, r, err)
 				return
 			}
-			if r.Method == "DELETE" {
-				w.WriteHeader(204)
+			if r.Method == http.MethodDelete {
+				w.WriteHeader(http.StatusNoContent)
 				return
 			}
 			writeJSON(w, 200, templateWire(t))
@@ -93,14 +93,14 @@ func registerTemplates(mux *http.ServeMux, service *templates.Service) {
 		if !query(w, r, true) {
 			return
 		}
-		domain, err := values.Parse(r.PathValue("domain"))
+		domain, err := values.Parse(r.PathValue(domainParameter))
 		if err != nil {
 			WriteProblem(w, r, 400, "malformed_request")
 			return
 		}
 		limit := 100
-		if r.URL.Query().Has("limit") {
-			limit, err = strconv.Atoi(r.URL.Query().Get("limit"))
+		if r.URL.Query().Has(limitParameter) {
+			limit, err = strconv.Atoi(r.URL.Query().Get(limitParameter))
 			if err != nil || limit < 1 || limit > 1000 {
 				WriteProblem(w, r, 400, "invalid_query_parameter")
 				return
@@ -108,8 +108,8 @@ func registerTemplates(mux *http.ServeMux, service *templates.Service) {
 		}
 		const collection = "v1beta1:templates:persistent:id:asc"
 		after := ""
-		if r.URL.Query().Has("cursor") {
-			raw, e := base64.RawURLEncoding.DecodeString(r.URL.Query().Get("cursor"))
+		if r.URL.Query().Has(cursorParameter) {
+			raw, e := base64.RawURLEncoding.DecodeString(r.URL.Query().Get(cursorParameter))
 			var c templateCursor
 			if e != nil || json.Unmarshal(raw, &c) != nil || c.Collection != collection || c.Domain != domain.String() || c.ID == "" {
 				WriteProblem(w, r, 400, "invalid_cursor")
@@ -124,7 +124,11 @@ func registerTemplates(mux *http.ServeMux, service *templates.Service) {
 		}
 		result := TemplateSummaryPage{Items: []TemplateSummary{}}
 		if len(items) > limit {
-			raw, _ := json.Marshal(templateCursor{Collection: collection, Domain: domain.String(), ID: items[limit-1].TemplateID()})
+			raw, err := json.Marshal(templateCursor{Collection: collection, Domain: domain.String(), ID: items[limit-1].TemplateID()})
+			if err != nil {
+				writeError(w, r, err)
+				return
+			}
 			cursor := base64.RawURLEncoding.EncodeToString(raw)
 			result.NextCursor = &cursor
 			items = items[:limit]

@@ -14,7 +14,7 @@ import (
 
 func registerEvents(mux *http.ServeMux, service *stats.Service) {
 	mux.HandleFunc("GET /v1beta1/domains/{domain}/stats/events", func(w http.ResponseWriter, r *http.Request) {
-		d, err := values.Parse(r.PathValue("domain"))
+		d, err := values.Parse(r.PathValue(domainParameter))
 		if err != nil {
 			WriteProblem(w, r, 400, "malformed_request")
 			return
@@ -26,18 +26,18 @@ func registerEvents(mux *http.ServeMux, service *stats.Service) {
 		}
 		for k, v := range q {
 			switch k {
-			case "from", "to", "batch_id", "limit", "cursor", "type":
+			case fromParameter, "to", batchIDParameter, limitParameter, cursorParameter, typeParameter:
 			default:
 				WriteProblem(w, r, 400, "unknown_query_parameter")
 				return
 			}
-			if k != "type" && len(v) != 1 {
+			if k != typeParameter && len(v) != 1 {
 				WriteProblem(w, r, 400, "invalid_query_parameter")
 				return
 			}
 		}
-		input := stats.EventQuery{Limit: 100, BatchID: q.Get("batch_id"), Cursor: q.Get("cursor")}
-		input.Range.Start, err = time.Parse(time.RFC3339Nano, q.Get("from"))
+		input := stats.EventQuery{Limit: 100, BatchID: q.Get(batchIDParameter), Cursor: q.Get(cursorParameter)}
+		input.Range.Start, err = time.Parse(time.RFC3339Nano, q.Get(fromParameter))
 		if err == nil {
 			input.Range.Stop, err = time.Parse(time.RFC3339Nano, q.Get("to"))
 		}
@@ -45,21 +45,22 @@ func registerEvents(mux *http.ServeMux, service *stats.Service) {
 			WriteProblem(w, r, 400, "invalid_query_parameter")
 			return
 		}
-		if q.Has("limit") {
-			input.Limit, err = strconv.Atoi(q.Get("limit"))
+		if q.Has(limitParameter) {
+			input.Limit, err = strconv.Atoi(q.Get(limitParameter))
 		}
-		if err != nil || (q.Has("batch_id") && input.BatchID == "") {
+		if err != nil || (q.Has(batchIDParameter) && input.BatchID == "") {
 			WriteProblem(w, r, 400, "invalid_query_parameter")
 			return
 		}
-		if q.Has("cursor") && input.Cursor == "" {
+		if q.Has(cursorParameter) && input.Cursor == "" {
 			WriteProblem(w, r, 400, "invalid_cursor")
 			return
 		}
-		for _, t := range q["type"] {
-			if t == "validated" {
+		for _, t := range q[typeParameter] {
+			switch t {
+			case string(EventTypeValidated):
 				t = "accepted"
-			} else if t == "accepted" {
+			case "accepted":
 				WriteProblem(w, r, 400, "invalid_query_parameter")
 				return
 			}
@@ -92,11 +93,11 @@ func registerEvents(mux *http.ServeMux, service *stats.Service) {
 func eventWire(s *stats.Stat) map[string]any {
 	typ := string(s.Type)
 	if s.Type == stats.TypeAccepted {
-		typ = "validated"
+		typ = string(EventTypeValidated)
 	}
 	data := map[string]any{}
 	o := s.Outcome
-	v := map[string]any{"id": strconv.FormatInt(int64(s.ID), 10), "domain": s.Domain.String(), "batch_id": s.MessageID, "timestamp": s.Timestamp.UTC(), "type": typ, "data": data}
+	v := map[string]any{"id": strconv.FormatInt(int64(s.ID), 10), domainParameter: s.Domain.String(), batchIDParameter: s.MessageID, "timestamp": s.Timestamp.UTC(), typeParameter: typ, "data": data}
 	if s.Email != "" {
 		v["email"] = s.Email
 	}

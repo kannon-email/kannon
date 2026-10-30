@@ -49,7 +49,10 @@ func (s *Service) QueryEvents(ctx context.Context, d values.DomainName, q EventQ
 				return EventPage{}, ErrEventQuery
 			}
 		}
-		b, _ := json.Marshal([]any{d.String(), q.Range.Start.UTC(), q.Range.Stop.UTC(), q.Types, q.BatchID})
+		b, err := json.Marshal([]any{d.String(), q.Range.Start.UTC(), q.Range.Stop.UTC(), q.Types, q.BatchID})
+		if err != nil {
+			return EventPage{}, err
+		}
 		hash := sha256.Sum256(b)
 		binding := base64.RawURLEncoding.EncodeToString(hash[:])
 		var after eventCursor
@@ -59,13 +62,7 @@ func (s *Service) QueryEvents(ctx context.Context, d values.DomainName, q EventQ
 				return EventPage{}, ErrEventCursor
 			}
 		}
-		repo, ok := s.repo.(interface {
-			QueryEvents(context.Context, values.DomainName, EventQuery, time.Time, int32) ([]*Stat, error)
-		})
-		if !ok {
-			return EventPage{}, errors.New("event queries unavailable")
-		}
-		rows, err := repo.QueryEvents(ctx, d, q, after.Timestamp, after.ID)
+		rows, err := s.repo.QueryEvents(ctx, d, q, after.Timestamp, after.ID)
 		if err != nil {
 			return EventPage{}, err
 		}
@@ -73,7 +70,10 @@ func (s *Service) QueryEvents(ctx context.Context, d values.DomainName, q EventQ
 		if len(rows) > q.Limit {
 			page.Items = rows[:q.Limit]
 			last := page.Items[len(page.Items)-1]
-			raw, _ := json.Marshal(eventCursor{binding, last.Timestamp, last.ID})
+			raw, err := json.Marshal(eventCursor{binding, last.Timestamp, last.ID})
+			if err != nil {
+				return EventPage{}, err
+			}
 			page.NextCursor = base64.RawURLEncoding.EncodeToString(raw)
 		}
 		return page, nil

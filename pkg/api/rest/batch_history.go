@@ -37,24 +37,24 @@ func batchSummary(b intake.BatchHistory) BatchSummary {
 func registerBatchHistory(mux *http.ServeMux, s *intake.InlineService) {
 	for _, path := range []string{"/v1beta1/domains/{domain}/batches", "/v1beta1/domains/{domain}/batches/{batch_id}", "/v1beta1/domains/{domain}/batches/{batch_id}/deliveries"} {
 		mux.HandleFunc("GET "+path, func(w http.ResponseWriter, r *http.Request) {
-			d, err := values.Parse(r.PathValue("domain"))
+			d, err := values.Parse(r.PathValue(domainParameter))
 			if err != nil {
 				WriteProblem(w, r, 400, "malformed_request")
 				return
 			}
-			id := r.PathValue("batch_id")
+			id := r.PathValue(batchIDParameter)
 			deliveries := r.Pattern == "GET /v1beta1/domains/{domain}/batches/{batch_id}/deliveries"
 			detail := id != "" && !deliveries
 			q := intake.HistoryQuery{Limit: 100}
 			v := r.URL.Query()
 			for k, vs := range v {
-				if len(vs) != 1 || detail || (k != "limit" && k != "cursor" && !(deliveries && k == "status")) {
+				if len(vs) != 1 || detail || (k != limitParameter && k != cursorParameter && (!deliveries || k != "status")) {
 					WriteProblem(w, r, 400, "invalid_query_parameter")
 					return
 				}
 			}
-			if v.Has("limit") {
-				q.Limit, err = strconv.Atoi(v.Get("limit"))
+			if v.Has(limitParameter) {
+				q.Limit, err = strconv.Atoi(v.Get(limitParameter))
 				if err != nil || q.Limit < 1 || q.Limit > 1000 {
 					WriteProblem(w, r, 400, "invalid_query_parameter")
 					return
@@ -70,8 +70,8 @@ func registerBatchHistory(mux *http.ServeMux, s *intake.InlineService) {
 				}
 			}
 			scope := d.String() + ":" + id + ":" + strconv.FormatBool(deliveries) + ":" + q.Status
-			if v.Has("cursor") {
-				raw, e := base64.RawURLEncoding.DecodeString(v.Get("cursor"))
+			if v.Has(cursorParameter) {
+				raw, e := base64.RawURLEncoding.DecodeString(v.Get(cursorParameter))
 				var c historyCursor
 				if e != nil || json.Unmarshal(raw, &c) != nil || c.Scope != scope || c.ID == "" || (!deliveries && c.Time.IsZero()) {
 					WriteProblem(w, r, 400, "invalid_cursor")
@@ -93,8 +93,25 @@ func registerBatchHistory(mux *http.ServeMux, s *intake.InlineService) {
 					fail(e)
 					return
 				}
+				var headers struct {
+					To          []string `json:"to"`
+					Cc          []string `json:"cc"`
+					Unsubscribe *struct {
+						URLTemplate string `json:"url_template"`
+					} `json:"one_click_unsubscribe"`
+				}
+				if err := json.Unmarshal(b.Headers, &headers); err != nil {
+					writeError(w, r, err)
+					return
+				}
 				a := batchSummary(*b)
 				out := Batch{Id: a.Id, Domain: a.Domain, From: a.From, Subject: a.Subject, CreatedAt: a.CreatedAt, ScheduledAt: a.ScheduledAt, CompletedAt: a.CompletedAt, ExpiresAt: a.ExpiresAt, AcceptedCount: a.AcceptedCount, RejectedCount: a.RejectedCount, DeliveryCounts: a.DeliveryCounts, Status: BatchStatus(a.Status), Tracking: TrackingPolicy{Opens: TrackingMode(b.Tracking.Opens), Links: TrackingMode(b.Tracking.Links)}, Attachments: []AttachmentMetadata{}}
+				if len(headers.To)+len(headers.Cc) > 0 {
+					out.Headers = &Headers{To: &headers.To, Cc: &headers.Cc}
+				}
+				if headers.Unsubscribe != nil {
+					out.OneClickUnsubscribe = &Unsubscribe{UrlTemplate: headers.Unsubscribe.URLTemplate}
+				}
 				if b.SourceTemplateID != "" {
 					out.Content.SourceTemplateId = &b.SourceTemplateID
 				}
@@ -109,7 +126,10 @@ func registerBatchHistory(mux *http.ServeMux, s *intake.InlineService) {
 			limit := q.Limit
 			q.Limit++
 			cursor := func(id string, t time.Time) *string {
-				raw, _ := json.Marshal(historyCursor{scope, id, t})
+				raw, err := json.Marshal(historyCursor{scope, id, t})
+				if err != nil {
+					return nil
+				}
 				v := base64.RawURLEncoding.EncodeToString(raw)
 				return &v
 			}

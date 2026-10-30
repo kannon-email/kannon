@@ -129,17 +129,12 @@ func (r *StatsRepository) QueryEvents(ctx context.Context, d values.DomainName, 
 			types = append(types, string(t))
 		}
 	}
-	rows, err := r.db.Query(ctx, `SELECT id,type,email,message_id,domain,timestamp,data FROM stats WHERE domain=$1 AND timestamp >= $2 AND timestamp < $3 AND type::text=ANY($4::text[]) AND ($5='' OR message_id=$5) AND ($6::int=0 OR (timestamp,id)<($7,$6)) AND NOT (type::text IN ('opened','clicked') AND (email = '' OR email = 'anonymous@track.' || domain OR COALESCE(data->>'trackingMode','') = 'anonymous')) ORDER BY timestamp DESC,id DESC LIMIT $8`, d.String(), q.Range.Start.UTC(), q.Range.Stop.UTC(), types, q.BatchID, id, after.UTC(), q.Limit+1)
+	rows, err := New(r.db).ListPublicEvents(ctx, ListPublicEventsParams{Domain: d.String(), Timestamp: toPgTimestamp(q.Range.Start.UTC()), Timestamp_2: toPgTimestamp(q.Range.Stop.UTC()), Column4: types, Column5: q.BatchID, Column6: id, Timestamp_3: toPgTimestamp(after.UTC()), Limit: int32(q.Limit + 1)})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 	result := []*stats.Stat{}
-	for rows.Next() {
-		var row Stat
-		if err := rows.Scan(&row.ID, &row.Type, &row.Email, &row.MessageID, &row.Domain, &row.Timestamp, &row.Data); err != nil {
-			return nil, err
-		}
+	for _, row := range rows {
 		s, err := toDomainStat(row)
 		if err != nil {
 			return nil, err
@@ -147,5 +142,5 @@ func (r *StatsRepository) QueryEvents(ctx context.Context, d values.DomainName, 
 		s.TrackingMode = row.Data.TrackingMode
 		result = append(result, s)
 	}
-	return result, rows.Err()
+	return result, nil
 }

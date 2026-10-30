@@ -222,3 +222,7 @@ func (r *fakeRepo) List(_ context.Context) ([]*domains.Domain, error) {
 	}
 	return all, nil
 }
+
+func (r *fakeRepo) ListPage(ctx context.Context, after string, limit int) ([]*domains.Domain, error) {
+	return r.List(ctx)
+}

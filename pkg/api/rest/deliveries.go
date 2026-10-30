@@ -12,12 +12,12 @@ func registerDeliveries(mux *http.ServeMux, service *intake.InlineService) {
 		if !query(w, r, false) {
 			return
 		}
-		domain, err := values.Parse(r.PathValue("domain"))
+		domain, err := values.Parse(r.PathValue(domainParameter))
 		if err != nil {
 			WriteProblem(w, r, 400, "malformed_request")
 			return
 		}
-		d, err := service.GetDelivery(r.Context(), domain, r.PathValue("batch_id"), r.PathValue("delivery_id"))
+		d, err := service.GetDelivery(r.Context(), domain, r.PathValue(batchIDParameter), r.PathValue("delivery_id"))
 		if errors.Is(err, intake.ErrDeliveryNotFound) {
 			WriteProblem(w, r, 404, "not_found")
 			return

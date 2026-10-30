@@ -2,6 +2,7 @@ package rest_test
 
 import (
 	"encoding/json"
+	"errors"
 	"github.com/kannon-email/kannon/internal/admintoken"
 	"github.com/kannon-email/kannon/internal/authz"
 	"github.com/kannon-email/kannon/internal/batch"
@@ -12,6 +13,7 @@ import (
 	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/internal/values"
 	"github.com/kannon-email/kannon/pkg/api/rest"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -36,7 +38,7 @@ func TestDeliverySurvivesPoolAndLateBounce(t *testing.T) {
 		t.Fatal(err)
 	}
 	svc := intake.NewInlineService(sqlc.NewInlineStore(db), sqlc.NewDomainsRepository(db), nil, 0)
-	receipt, _, _, err := svc.Create(ctx, name, "history", intake.InlineRequest{Sender: batch.Sender{Email: "from@example.com"}, Subject: "Hello", HTML: "Hello", Recipients: []string{"to@example.com", "refused"}})
+	receipt, _, _, err := svc.Create(ctx, name, "history", intake.InlineRequest{Sender: batch.Sender{Email: "from@example.com"}, Subject: "Hello", HTML: "Hello", Recipients: []intake.InlineRecipient{{Email: "to@example.com"}, {Email: "refused"}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +50,7 @@ func TestDeliverySurvivesPoolAndLateBounce(t *testing.T) {
 	h := rest.NewHandlerWithBatches(ds, admintoken.MustParse("secret"), db.Ping, svc, nil, nil)
 	read := func(domain, bid string, status int) rest.Delivery {
 		t.Helper()
-		r := httptest.NewRequest("GET", "/v1beta1/domains/"+domain+"/batches/"+bid+"/deliveries/"+id, nil)
+		r := httptest.NewRequest(http.MethodGet, "/v1beta1/domains/"+domain+"/batches/"+bid+"/deliveries/"+id, nil)
 		r.Header.Set("Authorization", "Bearer secret")
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, r)
@@ -66,7 +68,7 @@ func TestDeliverySurvivesPoolAndLateBounce(t *testing.T) {
 	if d := read("example.com", receipt.ID, 200); d.Status != "pending" || d.Email != "to@example.com" {
 		t.Fatal(d)
 	}
-	r := httptest.NewRequest("GET", "/v1beta1/domains/example.com/batches/"+receipt.ID, nil)
+	r := httptest.NewRequest(http.MethodGet, "/v1beta1/domains/example.com/batches/"+receipt.ID, nil)
 	r.Header.Set("Authorization", "Bearer secret")
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
@@ -83,7 +85,7 @@ func TestDeliverySurvivesPoolAndLateBounce(t *testing.T) {
 
 	get := func(path string, code int) []byte {
 		t.Helper()
-		req := httptest.NewRequest("GET", path, nil)
+		req := httptest.NewRequest(http.MethodGet, path, nil)
 		req.Header.Set("Authorization", "Bearer secret")
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, req)
@@ -110,7 +112,7 @@ func TestDeliverySurvivesPoolAndLateBounce(t *testing.T) {
 	get(base+"?cursor=invalid", 400)
 	get(base+"/"+receipt.ID+"/deliveries?status=invalid", 400)
 	get(base+"/missing/deliveries", 404)
-	second, _, _, err := svc.Create(ctx, name, "history-second", intake.InlineRequest{Sender: batch.Sender{Email: "from@example.com"}, Subject: "Second", HTML: "Second", Recipients: []string{"a@example.com", "b@example.com"}})
+	second, _, _, err := svc.Create(ctx, name, "history-second", intake.InlineRequest{Sender: batch.Sender{Email: "from@example.com"}, Subject: "Second", HTML: "Second", Recipients: []intake.InlineRecipient{{Email: "a@example.com"}, {Email: "b@example.com"}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +174,7 @@ func TestDeliverySurvivesPoolAndLateBounce(t *testing.T) {
 	if err := repo.Clean(ctx, batch.ID(receipt.ID), "to@example.com"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := repo.Get(ctx, batch.ID(receipt.ID), "to@example.com"); err != delivery.ErrDeliveryNotFound {
+	if _, err := repo.Get(ctx, batch.ID(receipt.ID), "to@example.com"); !errors.Is(err, delivery.ErrDeliveryNotFound) {
 		t.Fatal(err)
 	}
 	if d := read("example.com", receipt.ID, 200); d.Status != "delivered" {

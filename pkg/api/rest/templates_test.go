@@ -24,7 +24,11 @@ func TestPersistentTemplateJourney(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer cleanup()
+	defer func() {
+		if err := cleanup(); err != nil {
+			t.Error(err)
+		}
+	}()
 	defer db.Close()
 	h := rest.NewHandlerWithTemplates(domains.NewService(sqlc.NewDomainsRepository(db)), admintoken.MustParse("secret"), db.Ping, apikeys.NewService(sqlc.NewAPIKeysRepository(db)), templates.NewService(sqlc.NewTemplatesRepository(db)))
 	call := func(token, method, path, body string, status int) *httptest.ResponseRecorder {
@@ -52,19 +56,24 @@ func TestPersistentTemplateJourney(t *testing.T) {
 	if location != base+"/"+resource.Id || resource.Lifetime != "persistent" {
 		t.Fatal(created)
 	}
-	for _, body := range []string{`{}`, `{"html":""}`, `{"html":null}`} {
+	for _, body := range []string{`{}`, `{"html":""}`, `{"html":null}`, `{"title":null,"html":"new"}`} {
 		call("secret", "PATCH", location, body, 422)
 	}
 	call("secret", "PATCH", location, `{"title":"Updated"}`, 200)
 	read := call("secret", "GET", location, "", 200)
-	json.Unmarshal(read.Body.Bytes(), &resource)
+	if err := json.Unmarshal(read.Body.Bytes(), &resource); err != nil {
+		t.Fatal(err)
+	}
 	if resource.Title != "Updated" || resource.Html != "<p>Hello</p>" || resource.Domain != "example.com" {
 		t.Fatal(resource)
 	}
 	call("secret", "POST", base, `{"title":"Second","html":"body"}`, 201)
 	// A sending-created transient Template must never appear in authored lists.
 	domain := values.MustParse("example.com")
-	transient, _ := templates.NewTransient(domain, "private sending body")
+	transient, err := templates.NewTransient(domain, "private sending body")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := sqlc.NewTemplatesRepository(db).Create(context.Background(), transient); err != nil {
 		t.Fatal(err)
 	}
@@ -73,13 +82,17 @@ func TestPersistentTemplateJourney(t *testing.T) {
 		t.Fatal("HTML in list")
 	}
 	var page rest.TemplateSummaryPage
-	json.Unmarshal(list.Body.Bytes(), &page)
+	if err := json.Unmarshal(list.Body.Bytes(), &page); err != nil {
+		t.Fatal(err)
+	}
 	if len(page.Items) != 1 || page.NextCursor == nil {
 		t.Fatal(page)
 	}
 	next := call("secret", "GET", base+"?cursor="+*page.NextCursor, "", 200)
 	var second rest.TemplateSummaryPage
-	json.Unmarshal(next.Body.Bytes(), &second)
+	if err := json.Unmarshal(next.Body.Bytes(), &second); err != nil {
+		t.Fatal(err)
+	}
 	if len(second.Items) != 1 || second.Items[0].Id <= page.Items[0].Id {
 		t.Fatal(second)
 	}
@@ -87,7 +100,9 @@ func TestPersistentTemplateJourney(t *testing.T) {
 	for _, role := range []string{"admin", "sender"} {
 		key := call("secret", "POST", "/v1beta1/domains/example.com/api-keys", `{"name":"test","roles":["`+role+`"]}`, 201)
 		var k rest.APIKeyCreated
-		json.Unmarshal(key.Body.Bytes(), &k)
+		if err := json.Unmarshal(key.Body.Bytes(), &k); err != nil {
+			t.Fatal(err)
+		}
 		status := 403
 		if role == "admin" {
 			status = 200
@@ -120,7 +135,9 @@ func TestPersistentTemplateJourney(t *testing.T) {
 		t.Fatal(patched, err)
 	}
 	read = call("secret", "GET", location, "", 200)
-	json.Unmarshal(read.Body.Bytes(), &resource)
+	if err := json.Unmarshal(read.Body.Bytes(), &resource); err != nil {
+		t.Fatal(err)
+	}
 	if resource.Html != html {
 		t.Fatal(resource)
 	}

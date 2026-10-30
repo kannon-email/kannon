@@ -39,7 +39,7 @@ func registerKeys(mux *http.ServeMux, service *apikeys.Service) {
 		if !query(w, r, false) {
 			return
 		}
-		domain, err := values.Parse(r.PathValue("domain"))
+		domain, err := values.Parse(r.PathValue(domainParameter))
 		if err != nil {
 			WriteProblem(w, r, 400, "malformed_request")
 			return
@@ -61,18 +61,18 @@ func registerKeys(mux *http.ServeMux, service *apikeys.Service) {
 		w.Header().Set("Location", "/v1beta1/domains/"+domain.String()+"/api-keys/"+k.Id)
 		writeJSON(w, 201, APIKeyCreated{Id: k.Id, Domain: k.Domain, Name: k.Name, Prefix: k.Prefix, Roles: k.Roles, CreatedAt: k.CreatedAt, ExpiresAt: k.ExpiresAt, RevokedAt: k.RevokedAt, Status: APIKeyCreatedStatus(k.Status), Secret: result.PlaintextKey})
 	})
-	for _, method := range []string{"GET", "PATCH"} {
+	for _, method := range []string{"GET", http.MethodPatch} {
 		mux.HandleFunc(method+" /v1beta1/domains/{domain}/api-keys/{key_id}", func(w http.ResponseWriter, r *http.Request) {
 			if !query(w, r, false) {
 				return
 			}
-			ref, err := apikeys.ParseKeyRef(r.PathValue("domain"), r.PathValue("key_id"))
+			ref, err := apikeys.ParseKeyRef(r.PathValue(domainParameter), r.PathValue("key_id"))
 			if err != nil {
 				WriteProblem(w, r, 400, "malformed_request")
 				return
 			}
 			var k *apikeys.APIKey
-			if r.Method == "PATCH" {
+			if r.Method == http.MethodPatch {
 				var input APIKeyRevoke
 				if !decode(w, r, &input) {
 					return
@@ -96,22 +96,22 @@ func registerKeys(mux *http.ServeMux, service *apikeys.Service) {
 		if !query(w, r, true) {
 			return
 		}
-		domain, err := values.Parse(r.PathValue("domain"))
+		domain, err := values.Parse(r.PathValue(domainParameter))
 		if err != nil {
 			WriteProblem(w, r, 400, "malformed_request")
 			return
 		}
 		limit := 100
-		if r.URL.Query().Has("limit") {
-			limit, err = strconv.Atoi(r.URL.Query().Get("limit"))
+		if r.URL.Query().Has(limitParameter) {
+			limit, err = strconv.Atoi(r.URL.Query().Get(limitParameter))
 			if err != nil || limit < 1 || limit > 1000 {
 				WriteProblem(w, r, 400, "invalid_query_parameter")
 				return
 			}
 		}
 		page := apikeys.Pagination{Limit: limit + 1}
-		if r.URL.Query().Has("cursor") {
-			raw, e := base64.RawURLEncoding.DecodeString(r.URL.Query().Get("cursor"))
+		if r.URL.Query().Has(cursorParameter) {
+			raw, e := base64.RawURLEncoding.DecodeString(r.URL.Query().Get(cursorParameter))
 			var c keyCursor
 			if e != nil || json.Unmarshal(raw, &c) != nil || c.Collection != "v1beta1:api-keys:created_at,id:desc" || c.Domain != domain.String() || c.Time.IsZero() || strings.TrimSpace(c.ID) == "" {
 				WriteProblem(w, r, 400, "invalid_cursor")
@@ -128,7 +128,11 @@ func registerKeys(mux *http.ServeMux, service *apikeys.Service) {
 		result := APIKeyPage{Items: []APIKey{}}
 		if len(keys) > limit {
 			last := keys[limit-1]
-			raw, _ := json.Marshal(keyCursor{Collection: "v1beta1:api-keys:created_at,id:desc", Domain: domain.String(), Time: last.CreatedAt(), ID: last.ID().String()})
+			raw, err := json.Marshal(keyCursor{Collection: "v1beta1:api-keys:created_at,id:desc", Domain: domain.String(), Time: last.CreatedAt(), ID: last.ID().String()})
+			if err != nil {
+				writeError(w, r, err)
+				return
+			}
 			c := base64.RawURLEncoding.EncodeToString(raw)
 			result.NextCursor = &c
 			keys = keys[:limit]

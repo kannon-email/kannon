@@ -2,39 +2,43 @@ package sqlc
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/kannon-email/kannon/internal/intake"
 	"github.com/kannon-email/kannon/internal/values"
+	"time"
 )
 
 func (s *inlineStore) ReadBatch(ctx context.Context, d values.DomainName, id string) (*intake.BatchHistory, error) {
-	b := &intake.BatchHistory{}
-	err := s.pool.QueryRow(ctx, `SELECT r.batch_id,r.domain,r.created_at,r.scheduled_at,r.completed_at,r.accepted_count,r.rejected_count,m.subject,m.sender_email,m.sender_alias,c.html,c.source_template_id,m.tracking,r.attachments,m.headers,COALESCE((SELECT jsonb_object_agg(status,n) FROM (SELECT status,count(*) n FROM delivery_intake_facts WHERE batch_id=r.batch_id GROUP BY status) counts),'{}'::jsonb) FROM batch_intake_receipts r JOIN messages m ON m.message_id=r.batch_id JOIN batch_content_snapshots c ON c.batch_id=r.batch_id WHERE r.domain=$1 AND r.batch_id=$2 AND (r.completed_at IS NULL OR r.completed_at > $3::timestamptz - interval '720 hours')`, d.String(), id, s.now()).Scan(&b.ID, &b.Domain, &b.CreatedAt, &b.ScheduledAt, &b.CompletedAt, &b.AcceptedCount, &b.RejectedCount, &b.Subject, &b.Sender.Email, &b.Sender.Alias, &b.HTML, &b.SourceTemplateID, &b.Tracking, &b.Attachments, &b.Headers, &b.Counts)
+	row, err := New(s.pool).ReadInlineBatch(ctx, ReadInlineBatchParams{Domain: d.String(), BatchID: id, Column3: timestamptz(s.now())})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, intake.ErrDeliveryNotFound
 	}
 	if err != nil {
 		return nil, err
 	}
-	return b, nil
-}
-func (s *inlineStore) ListBatches(ctx context.Context, d values.DomainName, q intake.HistoryQuery) ([]intake.BatchHistory, error) {
-	rows, err := s.pool.Query(ctx, `SELECT batch_id FROM batch_intake_receipts WHERE domain=$1 AND EXISTS (SELECT 1 FROM messages m WHERE m.message_id=batch_intake_receipts.batch_id) AND (completed_at IS NULL OR completed_at > $5::timestamptz - interval '720 hours') AND ($2='' OR (created_at,batch_id)<($3,$2)) ORDER BY created_at DESC,batch_id DESC LIMIT $4`, d.String(), q.AfterID, q.AfterTime, q.Limit, s.now())
+	b := &intake.BatchHistory{ID: row.BatchID, Domain: row.Domain, CreatedAt: row.CreatedAt.Time, ScheduledAt: row.ScheduledAt.Time, AcceptedCount: int(row.AcceptedCount), RejectedCount: int(row.RejectedCount), Subject: row.Subject, HTML: row.Html, SourceTemplateID: row.SourceTemplateID, Tracking: row.Tracking}
+	b.Sender.Email = row.SenderEmail
+	b.Sender.Alias = row.SenderAlias
+	if row.CompletedAt.Valid {
+		b.CompletedAt = &row.CompletedAt.Time
+	}
+	if err := json.Unmarshal(row.Attachments, &b.Attachments); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(row.Counts, &b.Counts); err != nil {
+		return nil, err
+	}
+	b.Headers, err = json.Marshal(row.Headers)
 	if err != nil {
 		return nil, err
 	}
-	var ids []string
-	for rows.Next() {
-		var id string
-		if err = rows.Scan(&id); err != nil {
-			rows.Close()
-			return nil, err
-		}
-		ids = append(ids, id)
-	}
-	err = rows.Err()
-	rows.Close()
+	return b, nil
+}
+func (s *inlineStore) ListBatches(ctx context.Context, d values.DomainName, q intake.HistoryQuery) ([]intake.BatchHistory, error) {
+	ids, err := New(s.pool).ListInlineBatchIDs(ctx, ListInlineBatchIDsParams{Domain: d.String(), Column2: q.AfterID, CreatedAt: timestamptz(q.AfterTime), Limit: int32(q.Limit), Column5: timestamptz(s.now())})
 	if err != nil {
 		return nil, err
 	}
@@ -55,18 +59,14 @@ func (s *inlineStore) ListDeliveries(ctx context.Context, d values.DomainName, i
 	if _, err := s.ReadBatch(ctx, d, id); err != nil {
 		return nil, err
 	}
-	rows, err := s.pool.Query(ctx, `SELECT f.id,f.batch_id,r.domain,f.email,f.status,r.created_at,f.scheduled_at,f.updated_at FROM delivery_intake_facts f JOIN batch_intake_receipts r ON r.batch_id=f.batch_id WHERE r.domain=$1 AND f.batch_id=$2 AND f.id>$3 AND ($4='' OR f.status=$4) ORDER BY f.id LIMIT $5`, d.String(), id, q.AfterID, q.Status, q.Limit)
+	rows, err := New(s.pool).ListInlineDeliveries(ctx, ListInlineDeliveriesParams{Domain: d.String(), BatchID: id, ID: q.AfterID, Column4: q.Status, Limit: int32(q.Limit)})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 	out := []intake.DeliveryHistory{}
-	for rows.Next() {
-		var v intake.DeliveryHistory
-		if err = rows.Scan(&v.ID, &v.BatchID, &v.Domain, &v.Email, &v.Status, &v.CreatedAt, &v.ScheduledAt, &v.UpdatedAt); err != nil {
-			return nil, err
-		}
-		out = append(out, v)
+	for _, row := range rows {
+		out = append(out, intake.DeliveryHistory{ID: row.ID, BatchID: row.BatchID, Domain: row.Domain, Email: row.Email, Status: row.Status, CreatedAt: row.CreatedAt.Time, ScheduledAt: row.ScheduledAt.Time, UpdatedAt: row.UpdatedAt.Time})
 	}
-	return out, rows.Err()
+	return out, nil
 }
+func timestamptz(t time.Time) pgtype.Timestamptz { return pgtype.Timestamptz{Time: t, Valid: true} }
