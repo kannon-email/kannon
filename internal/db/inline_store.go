@@ -9,15 +9,21 @@ import (
 	"github.com/kannon-email/kannon/internal/intake"
 	"github.com/kannon-email/kannon/internal/values"
 	"log/slog"
+	"time"
 )
 
 type inlineStore struct {
 	pool *pgxpool.Pool
+	now  func() time.Time
 	*templatesRepository
 }
 
-func NewInlineStore(pool *pgxpool.Pool) intake.InlineStore {
-	return &inlineStore{pool: pool, templatesRepository: &templatesRepository{db: pool}}
+func NewInlineStore(pool *pgxpool.Pool, clock ...func() time.Time) intake.InlineStore {
+	now := time.Now
+	if len(clock) > 0 {
+		now = clock[0]
+	}
+	return &inlineStore{pool: pool, now: now, templatesRepository: &templatesRepository{db: pool}}
 }
 func (s *inlineStore) CreateInline(ctx context.Context, domain values.DomainName, key, fingerprint string, build func() (*intake.InlineWork, error)) (*intake.InlineReceipt, bool, error) {
 	tx, err := s.pool.Begin(ctx)
