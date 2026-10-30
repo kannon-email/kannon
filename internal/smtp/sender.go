@@ -185,12 +185,6 @@ func deliver(ctx context.Context, from, to string, msg []byte, mx string, insecu
 	return nil
 }
 
-func lookupMXs(domain string) ([]string, *smtpError) {
-	ctx, cancel := context.WithTimeout(context.Background(), smtpTotalTimeout)
-	defer cancel()
-	return lookupMXsContext(ctx, domain)
-}
-
 func lookupMXsContext(ctx context.Context, domain string) ([]string, *smtpError) {
 	domain, err := idna.ToASCII(domain)
 	if err != nil {

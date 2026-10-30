@@ -108,12 +108,16 @@ func (s *smtpSender) handleSend(ctx context.Context, consumer jetstream.Consumer
 
 	con, err := consumer.Consume(func(msg jetstream.Msg) {
 		if ctx.Err() != nil {
-			_ = msg.Nak()
+			if err := msg.Nak(); err != nil {
+				slog.Error("cannot return queued message during shutdown", "err", err)
+			}
 			return
 		}
 		tasks.RunTask(func() {
 			if ctx.Err() != nil {
-				_ = msg.Nak()
+				if err := msg.Nak(); err != nil {
+					slog.Error("cannot return queued message during shutdown", "err", err)
+				}
 				return
 			}
 			err := s.handleMessage(workCtx, msg)

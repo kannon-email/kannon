@@ -377,7 +377,7 @@ func TestShutdownWaitsForSMTPAndReturnsQueuedEnvelopes(t *testing.T) {
 	pub := &recordingPublisher{}
 	s := &smtpSender{sender: sender, publisher: pub, js: js, cfg: Config{MaxJobs: 1}}
 	consumer := s.mustSendingConsumer(ctx)
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		_, err := js.Publish(ctx, "kannon.sending", envelopeBytes(t, "shutdown@example.com"))
 		require.NoError(t, err)
 	}
