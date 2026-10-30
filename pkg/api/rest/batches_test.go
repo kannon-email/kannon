@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	msgauth "github.com/emersion/go-msgauth/dkim"
 	"github.com/kannon-email/kannon/internal/admintoken"
 	"github.com/kannon-email/kannon/internal/authz"
 	"github.com/kannon-email/kannon/internal/batch"
@@ -13,6 +14,7 @@ import (
 	"github.com/kannon-email/kannon/internal/domains"
 	"github.com/kannon-email/kannon/internal/envelope"
 	"github.com/kannon-email/kannon/internal/intake"
+	"github.com/kannon-email/kannon/internal/statssec"
 	"github.com/kannon-email/kannon/internal/templates"
 	"github.com/kannon-email/kannon/internal/tracking"
 	"github.com/kannon-email/kannon/internal/values"
@@ -23,6 +25,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/mail"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -63,14 +66,79 @@ func TestInlineBatchRetry(t *testing.T) {
 	if got := call(path, "limit", strings.Replace(body, `[{"email":" User+tag@EXAMPLE.com "},{"email":"User+tag@example.com"},{"email":"refused-address"}]`, "["+strings.Repeat(`{"email":"same@example.com"},`, 2000)+`{"email":"last@example.com"}]`, 1), 422); got["code"] != "too_many_recipients" {
 		t.Fatal(got)
 	}
-	for _, extra := range []string{`,"tracking":{"opens":"off"}`} {
+	for _, extra := range []string{`,"unknown":true`} {
 		call(path, "extension", strings.TrimSuffix(body, "}")+extra+"}", 400)
 	}
 	call(path, "", body, 400)
 	call(path, "large", strings.Replace(body, "<p>Hello</p>", strings.Repeat("x", 10<<20), 1), 413)
 
+	tracked := strings.TrimSuffix(body, "}") + `,"tracking":{"opens":"anonymous","links":"off"}}`
+	trackingResult := call(path, "tracking", tracked, 201)
+	deliveryRepo := sqlc.NewDeliveryRepository(db, delivery.DefaultBackoff, delivery.DefaultRetryWindow)
+	frozenDelivery, err := deliveryRepo.Get(t.Context(), batch.ID(trackingResult["id"].(string)), "User+tag@example.com")
+	require.NoError(t, err)
+	require.Equal(t, tracking.Policy{Opens: tracking.ModeAnonymous, Links: tracking.ModeOff}, frozenDelivery.TrackingPolicy())
+
+	unsubscribe := `{"from":{"email":"sender@example.com"},"subject":"Hello","content":{"type":"html","html":"<p>Hello</p>"},"tracking":{"opens":"off","links":"off"},"one_click_unsubscribe":{"url_template":"https://sender.example/unsub?email={{ email }}&token={{ token }}"},"global_fields":{"token":"default"},"recipients":[{"email":"ok+tag@example.com","fields":{"token":"a&b"}},{"email":"unsupported@example.com","tracking":{"opens":"future"}},{"email":"above@example.com","tracking":{"links":"full"}}]}`
+	u := call(path, "unsubscribe", unsubscribe, 201)
+	require.Equal(t, float64(1), u["accepted_count"])
+	require.Equal(t, float64(2), u["rejected_count"])
+	rows := u["rejected_recipients"].([]any)
+	require.Equal(t, "unsupported_tracking_mode", rows[0].(map[string]any)["code"])
+	require.Equal(t, "tracking_above_ceiling", rows[1].(map[string]any)["code"])
+	ud, err := deliveryRepo.Get(t.Context(), batch.ID(u["id"].(string)), "ok+tag@example.com")
+	require.NoError(t, err)
+	message, err := envelope.NewBuilder(sqlc.New(db), nil).Build(t.Context(), ud)
+	require.NoError(t, err)
+	parsed, err := mail.ReadMessage(strings.NewReader(string(message.Body())))
+	require.NoError(t, err)
+	require.Equal(t, "<https://sender.example/unsub?email=ok%2Btag%40example.com&token=a%26b>", parsed.Header.Get("List-Unsubscribe"))
+	require.Equal(t, "List-Unsubscribe=One-Click", parsed.Header.Get("List-Unsubscribe-Post"))
+	require.Contains(t, parsed.Header.Get("DKIM-Signature"), "List-Unsubscribe")
+	domainKeys, err := sqlc.NewDomainsRepository(db).FindByName(t.Context(), values.MustParse("example.com"))
+	require.NoError(t, err)
+	verified, err := msgauth.VerifyWithOptions(strings.NewReader(string(message.Body())), &msgauth.VerifyOptions{LookupTXT: func(string) ([]string, error) {
+		return []string{"v=DKIM1; k=rsa; p=" + domainKeys.DkimPublicKey()}, nil
+	}})
+	require.NoError(t, err)
+	require.Len(t, verified, 1)
+	require.NoError(t, verified[0].Err)
+	// Exercise REST intake through actual signed engagement tokens, with no DNS/network calls.
+	ss := statssec.NewStatsService(sqlc.New(db))
+	for _, mode := range []string{"anonymous", "pseudonymous"} {
+		privacyBody := strings.Replace(strings.Replace(tracked, "anonymous", mode, 1), "<p>Hello</p>", "<html><body>Hello</body></html>", 1)
+		privacy := call(path, "privacy-"+mode, privacyBody, 201)
+		pd, err := deliveryRepo.Get(t.Context(), batch.ID(privacy["id"].(string)), "User+tag@example.com")
+		require.NoError(t, err)
+		pm, err := envelope.NewBuilder(sqlc.New(db), ss).Build(t.Context(), pd)
+		require.NoError(t, err)
+		pmail, err := mail.ReadMessage(strings.NewReader(string(pm.Body())))
+		require.NoError(t, err)
+		decoded, err := io.ReadAll(quotedprintable.NewReader(pmail.Body))
+		require.NoError(t, err)
+		token := regexp.MustCompile(`https://stats.example.com/o/([^" >]+)`).FindStringSubmatch(string(decoded))
+		require.Len(t, token, 2)
+		claims, err := ss.VerifyOpenToken(t.Context(), token[1])
+		require.NoError(t, err)
+		require.Equal(t, tracking.Mode(mode), claims.Mode)
+		require.NotEqual(t, "User+tag@example.com", claims.Email)
+		require.True(t, tracking.InReservedNamespace(claims.Email, "example.com"))
+	}
+
+	unresolved := strings.Replace(unsubscribe, "{{ token }}", "{{ missing }}", 1)
+	require.Equal(t, "no_recipients_accepted", call(path, "unresolved", unresolved, 422)["code"])
+	call(path, "bad-url", strings.Replace(unsubscribe, "https://sender.example", "http://sender.example", 1), 422)
+
 	_, err = sqlc.NewDomainsRepository(db).SetTrackingPolicy(t.Context(), values.MustParse("example.com"), tracking.Policy{Opens: tracking.ModeOff, Links: tracking.ModeOff})
 	require.NoError(t, err)
+	// A successful replay must not reconsider the now stricter Domain ceiling.
+	require.Equal(t, u["id"], call(path, "unsubscribe", unsubscribe, 200)["id"])
+	require.Equal(t, trackingResult["id"], call(path, "tracking", tracked, 200)["id"])
+	call(path, "tracking-new", tracked, 422)
+	stillFrozen, err := deliveryRepo.Get(t.Context(), batch.ID(trackingResult["id"].(string)), "User+tag@example.com")
+	require.NoError(t, err)
+	require.Equal(t, tracking.ModeAnonymous, stillFrozen.TrackingPolicy().Opens)
+
 	assertSend := func(id, email, subject, html string) {
 		t.Helper()
 		d, err := sqlc.NewDeliveryRepository(db, delivery.DefaultBackoff, delivery.DefaultRetryWindow).Get(t.Context(), batch.ID(id), email)

@@ -15,6 +15,7 @@ import (
 	"github.com/kannon-email/kannon/internal/domains"
 	smtp "github.com/kannon-email/kannon/internal/smtp"
 	"github.com/kannon-email/kannon/internal/templates"
+	"github.com/kannon-email/kannon/internal/tracking"
 	"github.com/kannon-email/kannon/internal/utils"
 	"github.com/kannon-email/kannon/internal/values"
 )
@@ -41,15 +42,18 @@ type AttachmentMetadata struct {
 // InlineRequest describes REST Batch content and recipients independently of transport.
 // RecipientFields uses the same input indices as Recipients.
 type InlineRequest struct {
-	Sender          batch.Sender
-	Subject         string
-	HTML            string
-	TemplateID      string
-	GlobalFields    map[string]string
-	RecipientFields []map[string]string
-	Recipients      []string
-	ScheduledAt     *time.Time   `json:",omitempty"`
-	Attachments     []Attachment `json:",omitempty"`
+	Tracking            tracking.Policy
+	RecipientTracking   []tracking.Policy
+	OneClickUnsubscribe batch.OneClickUnsubscribe
+	Sender              batch.Sender
+	Subject             string
+	HTML                string
+	TemplateID          string
+	GlobalFields        map[string]string
+	RecipientFields     []map[string]string
+	Recipients          []string
+	ScheduledAt         *time.Time   `json:",omitempty"`
+	Attachments         []Attachment `json:",omitempty"`
 }
 
 // InlineReceipt contains only accepted identity and aggregate intake facts.
@@ -135,6 +139,9 @@ func (s *InlineService) Create(ctx context.Context, domain values.DomainName, ke
 		}
 		var r *InlineReceipt
 		r, replay, e = s.store.CreateInline(ctx, domain, key, hex.EncodeToString(sum[:]), func() (*InlineWork, error) {
+			if !supportedPolicy(p.Tracking) || len(tracking.CeilingViolations(d.TrackingPolicy(), p.Tracking)) > 0 {
+				return nil, invalid(errors.New("invalid batch tracking policy"))
+			}
 			now := time.Now().UTC().Truncate(time.Microsecond)
 			if s.Now != nil {
 				now = s.Now().UTC().Truncate(time.Microsecond)
@@ -170,7 +177,7 @@ func (s *InlineService) Create(ctx context.Context, domain values.DomainName, ke
 			if e != nil {
 				return nil, invalid(e)
 			}
-			b, e := batch.New(batch.NewParams{Domain: domain.String(), Sender: p.Sender, Subject: p.Subject, TemplateID: tpl.TemplateID(), Attachments: attachments})
+			b, e := batch.New(batch.NewParams{Domain: domain.String(), Sender: p.Sender, Subject: p.Subject, TemplateID: tpl.TemplateID(), Attachments: attachments, Tracking: p.Tracking, OneClickUnsubscribe: p.OneClickUnsubscribe})
 			if e != nil {
 				return nil, invalid(e)
 			}
@@ -207,11 +214,24 @@ func (s *InlineService) Create(ctx context.Context, domain values.DomainName, ke
 				if strings.ContainsAny(utils.ReplaceLiteralFields(p.Subject, fields), "\r\n") && code == "" {
 					code = "reserved_field"
 				}
+				recipientPolicy := tracking.Policy{}
+				if i < len(p.RecipientTracking) {
+					recipientPolicy = p.RecipientTracking[i]
+				}
+				if code == "" && !supportedPolicy(recipientPolicy) {
+					code = string(ReasonUnsupportedTrackingMode)
+				}
+				if code == "" && (len(tracking.CeilingViolations(d.TrackingPolicy(), recipientPolicy)) > 0 || len(tracking.CeilingViolations(p.Tracking, recipientPolicy)) > 0) {
+					code = string(ReasonTrackingAboveCeiling)
+				}
+				if _, ok := unresolvedUnsubscribeURL(p.OneClickUnsubscribe, batch.Recipient{Email: email, Fields: fields}); code == "" && !ok {
+					code = string(ReasonUnsubscribeURLUnresolved)
+				}
 				if code != "" {
 					refusals = append(refusals, InlineRefusal{Index: i, Code: code})
 					continue
 				}
-				item, e := delivery.New(delivery.NewParams{BatchID: b.ID(), Domain: domain.String(), Email: email, Fields: fields, ScheduledTime: scheduled, Backoff: s.backoff, RetryWindow: s.retryWindow, Tracking: d.TrackingPolicy()})
+				item, e := delivery.New(delivery.NewParams{BatchID: b.ID(), Domain: domain.String(), Email: email, Fields: fields, ScheduledTime: scheduled, Backoff: s.backoff, RetryWindow: s.retryWindow, Tracking: tracking.Resolve(d.TrackingPolicy(), p.Tracking, recipientPolicy)})
 				if e != nil {
 					return nil, e
 				}
@@ -225,4 +245,16 @@ func (s *InlineService) Create(ctx context.Context, domain values.DomainName, ke
 		return r, e
 	})
 	return receipt, refusals, replay, err
+}
+
+// supportedPolicy distinguishes silence from modes this build cannot execute.
+func supportedPolicy(p tracking.Policy) bool {
+	for _, m := range []tracking.Mode{p.Opens, p.Links} {
+		if m != tracking.ModeUnspecified {
+			if _, ok := m.Rank(); !ok {
+				return false
+			}
+		}
+	}
+	return true
 }
