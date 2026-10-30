@@ -23,3 +23,5 @@ SELECT * FROM templates WHERE domain = @domain AND type = 'template' ORDER BY id
 
 -- name: CountTemplates :one
 SELECT COUNT(*) FROM templates WHERE domain = @domain AND type = 'template';
+-- name: ListTemplatesPage :many
+SELECT * FROM templates WHERE domain = @domain AND type = 'template' AND template_id > @after_id ORDER BY template_id LIMIT @take;
