@@ -386,8 +386,8 @@ func TestShutdownWaitsForSMTPAndReturnsQueuedEnvelopes(t *testing.T) {
 	require.Eventually(t, func() bool { return sender.count() == 1 }, 5*time.Second, time.Millisecond)
 	cancel()
 	select {
-	case <-stopped:
-		t.Fatal("shutdown returned while SMTP was active")
+	case err := <-stopped:
+		t.Fatalf("shutdown returned while SMTP was active: %v", err)
 	case <-time.After(30 * time.Millisecond):
 	}
 	release.Do(func() { close(sender.released) })
