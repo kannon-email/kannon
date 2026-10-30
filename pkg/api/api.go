@@ -214,7 +214,14 @@ func startAPIServer(ctx context.Context, port uint, adminAuth []connect.HandlerO
 	protocols.SetHTTP1(true)
 	protocols.SetUnencryptedHTTP2(true)
 
-	server := &http.Server{Addr: addr, Handler: withRecorder(recorder, mux), Protocols: protocols}
+	// Bound header reads and idle connections without limiting RPC body transfers.
+	server := &http.Server{
+		Addr:              addr,
+		Handler:           withRecorder(recorder, mux),
+		Protocols:         protocols,
+		ReadHeaderTimeout: 5 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
 	go func() {
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
