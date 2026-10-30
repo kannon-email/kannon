@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"connectrpc.com/connect"
 	"github.com/kannon-email/kannon/internal/admintoken"
@@ -213,6 +214,14 @@ func startAPIServer(ctx context.Context, port uint, adminAuth []connect.HandlerO
 	protocols.SetHTTP1(true)
 	protocols.SetUnencryptedHTTP2(true)
 
-	server := &http.Server{Addr: addr, Handler: withRecorder(recorder, mux), Protocols: protocols}
+	// Bound header reads and idle connections without limiting RPC body transfers.
+	server := &http.Server{
+		Addr:              addr,
+		Handler:           withRecorder(recorder, mux),
+		Protocols:         protocols,
+		ReadHeaderTimeout: 5 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
+	slog.Info("Connect API server listening on " + addr)
 	return container.ServeHTTP(ctx, server)
 }

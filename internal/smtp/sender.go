@@ -118,6 +118,11 @@ func deliver(ctx context.Context, from, to string, msg []byte, mx string, insecu
 		return newSMTPError(err, false, 111)
 	}
 
+	return deliverConn(ctx, conn, from, to, msg, mx, insecure, domain)
+}
+
+// deliverConn runs the SMTP exchange on an established connection.
+func deliverConn(ctx context.Context, conn net.Conn, from, to string, msg []byte, mx string, insecure bool, domain string) *smtpError {
 	c, err := smtp.NewClient(conn, mx)
 	if err != nil {
 		slog.Debug(fmt.Sprintf("Error creating client: %v", err))
@@ -177,9 +182,9 @@ func deliver(ctx context.Context, from, to string, msg []byte, mx string, insecu
 		return newSMTPErrorFromSTMP(err)
 	}
 
+	// DATA was accepted. A failed QUIT must not trigger a duplicate delivery.
 	if err := c.Quit(); err != nil {
-		slog.Debug(fmt.Sprintf("err: %v\n", err))
-		return newSMTPErrorFromSTMP(err)
+		slog.Debug("QUIT failed after DATA acceptance", "err", err)
 	}
 
 	return nil
