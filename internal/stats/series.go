@@ -28,6 +28,7 @@ func (s *Service) QueryAggregateSeries(ctx context.Context, domain values.Domain
 		if s.aggregatedRepo == nil {
 			return nil, ErrNoAggregatedRepo
 		}
+		r.Start, r.Stop = r.Start.UTC(), r.Stop.UTC()
 		rows, err := s.aggregatedRepo.Query(ctx, domain, r)
 		if err != nil {
 			return nil, err

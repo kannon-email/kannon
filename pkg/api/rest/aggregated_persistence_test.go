@@ -11,6 +11,7 @@ import (
 	"github.com/kannon-email/kannon/internal/values"
 	"github.com/kannon-email/kannon/pkg/api/rest"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -62,6 +63,14 @@ func TestPersistentAggregateSeries(t *testing.T) {
 	base := "/v1beta1/domains/aggregate.example/stats/aggregated?"
 	q := "from=2026-01-01T03:00:00Z&to=2026-01-01T09:00:00Z&group_by=3h"
 	body := call("secret", "GET", base+q, "", 200)
+	shifted := strings.ReplaceAll(strings.ReplaceAll(q, "03:00:00Z", "04:00:00%2B01:00"), "09:00:00Z", "10:00:00%2B01:00")
+	var offsetResult map[string]any
+	var utcResult map[string]any
+	_ = json.Unmarshal([]byte(call("secret", "GET", base+shifted, "", 200)), &offsetResult)
+	_ = json.Unmarshal([]byte(body), &utcResult)
+	if !reflect.DeepEqual(offsetResult, utcResult) {
+		t.Fatal(offsetResult, utcResult)
+	}
 	var got struct {
 		Buckets []struct {
 			Start  time.Time
