@@ -121,7 +121,7 @@ func run(ctx context.Context, config Config, cnt *container.Container) error {
 			}
 		}
 		return nil
-	}, intake.NewInlineService(sq.NewInlineStore(db), sq.NewDomainsRepository(db), cnt.BackoffPolicy(), cnt.RetryWindow()), apikeys.NewService(sq.NewAPIKeysRepository(db))))
+	}, intake.NewInlineService(sq.NewInlineStore(db), sq.NewDomainsRepository(db), cnt.BackoffPolicy(), cnt.RetryWindow()), statsService, apikeys.NewService(sq.NewAPIKeysRepository(db))))
 }
 
 // startAuditRecording resolves the Recorder every authorization decision on this process reports to,

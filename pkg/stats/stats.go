@@ -202,6 +202,7 @@ func (h *statsHandler) handleStatsMsg(ctx context.Context, msg jetstream.Msg) er
 	}
 
 	stat := stats.NewStat(event.Email, event.MessageID, domain, event.Timestamp, event.Outcome)
+	stat.TrackingMode = event.TrackingMode
 	mode := event.TrackingMode
 
 	if mode == tracking.ModeAnonymous {

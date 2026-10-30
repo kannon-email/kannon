@@ -2,10 +2,12 @@ package stats
 
 import (
 	"context"
+	"slices"
 	"sort"
 	"sync"
 	"time"
 
+	"github.com/kannon-email/kannon/internal/tracking"
 	"github.com/kannon-email/kannon/internal/values"
 )
 
@@ -143,4 +145,34 @@ func (r *InMemRepository) filter(domain values.DomainName, tr TimeRange) []*Stat
 		result = append(result, s)
 	}
 	return result
+}
+
+// QueryEvents mirrors the retained event query for application tests.
+func (r *InMemRepository) QueryEvents(_ context.Context, domain values.DomainName, q EventQuery, after time.Time, id int32) ([]*Stat, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	result := []*Stat{}
+	for _, s := range r.filter(domain, q.Range) {
+		if !publicType(s.Type) || (len(q.Types) > 0 && !slices.Contains(q.Types, s.Type)) || (q.BatchID != "" && s.MessageID != q.BatchID) {
+			continue
+		}
+		if id != 0 && (s.Timestamp.After(after) || (s.Timestamp.Equal(after) && s.ID >= id)) {
+			continue
+		}
+		if (s.Type == TypeOpened || s.Type == TypeClicked) && (s.TrackingMode == tracking.ModeAnonymous || tracking.NamesNobody(s.Email, domain.String())) {
+			continue
+		}
+		cp := *s
+		result = append(result, &cp)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].Timestamp.Equal(result[j].Timestamp) {
+			return result[i].ID > result[j].ID
+		}
+		return result[i].Timestamp.After(result[j].Timestamp)
+	})
+	if len(result) > q.Limit+1 {
+		result = result[:q.Limit+1]
+	}
+	return result, nil
 }

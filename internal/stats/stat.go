@@ -3,6 +3,7 @@ package stats
 import (
 	"time"
 
+	"github.com/kannon-email/kannon/internal/tracking"
 	"github.com/kannon-email/kannon/internal/values"
 )
 
@@ -31,13 +32,14 @@ const (
 // two columns disagree — one written by an older build, say — keeps reporting
 // whatever its type column says rather than being silently reinterpreted.
 type Stat struct {
-	ID        int32
-	Type      Type
-	Email     string
-	MessageID string
-	Domain    values.DomainName
-	Timestamp time.Time
-	Outcome   Outcome
+	TrackingMode tracking.Mode
+	ID           int32
+	Type         Type
+	Email        string
+	MessageID    string
+	Domain       values.DomainName
+	Timestamp    time.Time
+	Outcome      Outcome
 }
 
 // NewStat creates a new Stat from an incoming stats event, typing the row off
