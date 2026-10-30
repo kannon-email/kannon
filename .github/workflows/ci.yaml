@@ -70,7 +70,7 @@ jobs:
       - name: Lint
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.13.2 # Keep in sync with mise.toml.
+          version: v2.15.0 # Keep in sync with mise.toml.
           args: --timeout 5m
       - name: Check dead code
         run: make deadcode
