@@ -51,7 +51,12 @@ func (s *srv) Run(ctx context.Context) error {
 	addr := fmt.Sprintf("0.0.0.0:%d", s.cfg.Port)
 	slog.Info("running tracker on " + addr)
 
-	server := &http.Server{Addr: addr, Handler: s.handler()}
+	server := &http.Server{
+		Addr:              addr,
+		Handler:           s.handler(),
+		ReadHeaderTimeout: 5 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
 
 	go func() {
 		<-ctx.Done()
