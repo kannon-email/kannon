@@ -36,6 +36,7 @@ type statsHandler struct {
 	service   *stats.Service
 	q         *sq.Queries
 	retention time.Duration
+	counter   stats.AggregatedEventCounter
 }
 
 // New constructs the stats runnable, loading its slice of configuration from
@@ -66,6 +67,7 @@ func run(ctx context.Context, cnt *container.Container, cfg Config) error {
 		service:   service,
 		q:         q,
 		retention: cfg.Retention,
+		counter:   aggregatedRepo,
 	}
 
 	eg, ctx := errgroup.WithContext(ctx)
@@ -148,8 +150,13 @@ func (h *statsHandler) handleAggregatedStatsMsg(ctx context.Context, msg jetstre
 		return msg.Term()
 	}
 
-	statType := event.Outcome.Type()
-	if err := h.service.IncrementAggregatedStat(ctx, domain, event.Timestamp, statType); err != nil {
+	metadata, err := msg.Metadata()
+	if err != nil {
+		slog.Error("cannot read stored stat event metadata", "err", err)
+		return msg.Nak()
+	}
+	id := stats.StoredEventID{Stream: metadata.Stream, StoredAt: metadata.Timestamp, Sequence: metadata.Sequence.Stream}
+	if err := h.counter.Count(ctx, id, domain, event.Timestamp, event.Outcome.Type()); err != nil {
 		slog.Error("cannot increment aggregated stat", "err", err)
 		return msg.Nak()
 	}

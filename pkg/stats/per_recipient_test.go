@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"log/slog"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -26,18 +27,31 @@ import (
 // and a permanent fault that comes back is the #396 hot loop. jetstream.Msg is embedded to panic.
 type fakeMsg struct {
 	jetstream.Msg
-	data   []byte
-	acked  int
-	termed int
-	naked  int
+	data        []byte
+	sequence    uint64
+	storedAt    time.Time
+	metadataErr error
+	ackErr      error
+	acked       int
+	termed      int
+	naked       int
+}
+
+func (m *fakeMsg) Metadata() (*jetstream.MsgMetadata, error) {
+	if m.metadataErr != nil {
+		return nil, m.metadataErr
+	}
+	return &jetstream.MsgMetadata{Stream: "kannon-stats", Timestamp: m.storedAt, Sequence: jetstream.SequencePair{Stream: m.sequence}}, nil
 }
 
 func (m *fakeMsg) Data() []byte { return m.data }
-func (m *fakeMsg) Ack() error   { m.acked++; return nil }
+func (m *fakeMsg) Ack() error   { m.acked++; return m.ackErr }
 func (m *fakeMsg) Term() error  { m.termed++; return nil }
 func (m *fakeMsg) Nak() error   { m.naked++; return nil }
 
 func (m *fakeMsg) NakWithDelay(time.Duration) error { m.naked++; return nil }
+
+var fixtureSequence atomic.Uint64
 
 // engagementEvent is one Opened event as the Tracker publishes it, under the given Mode and
 // carrying the given identity claim: the Recipient's address, a pseudonym, the Anonymous sentinel
@@ -58,7 +72,7 @@ func engagementEvent(t *testing.T, domain, email string, mode tracking.Mode) *fa
 	})
 	require.NoError(t, err)
 
-	return &fakeMsg{data: data}
+	return &fakeMsg{data: data, sequence: fixtureSequence.Add(1), storedAt: time.Now().UTC()}
 }
 
 // perRecipientRows counts the rows the per-recipient consumer left behind for a Domain — what an

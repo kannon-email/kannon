@@ -2,6 +2,7 @@ package sqlc
 
 import (
 	"context"
+	"math/big"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -48,4 +49,20 @@ func (r *AggregatedStatsRepository) Query(ctx context.Context, domain values.Dom
 		})
 	}
 	return result, nil
+}
+
+// Count commits the deduplication marker and hourly increment in one SQL statement.
+// A counter write failure rolls back its marker too, making redelivery retryable.
+func (r *AggregatedStatsRepository) Count(ctx context.Context, id stats.StoredEventID, domain values.DomainName, timestamp time.Time, statType stats.Type) error {
+	if err := id.Validate(); err != nil {
+		return err
+	}
+	return New(r.db).CountAggregatedEvent(ctx, CountAggregatedEventParams{
+		Domain:    domain.String(),
+		Timestamp: pgtype.Timestamp{Time: timestamp.UTC().Truncate(time.Hour), Valid: true},
+		Type:      StatsType(statType),
+		Stream:    id.Stream,
+		StoredAt:  id.StoredAt.UTC().Format(time.RFC3339Nano),
+		Sequence:  pgtype.Numeric{Int: new(big.Int).SetUint64(id.Sequence), Valid: true},
+	})
 }

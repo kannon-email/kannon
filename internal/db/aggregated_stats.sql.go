@@ -11,6 +11,40 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countAggregatedEvent = `-- name: CountAggregatedEvent :exec
+WITH first_delivery AS (
+    INSERT INTO counted_stat_events (stream, stored_at, sequence)
+    VALUES ($4, $5, $6)
+    ON CONFLICT DO NOTHING
+    RETURNING 1
+)
+INSERT INTO aggregated_stats (domain, timestamp, type, count)
+SELECT $1, $2, $3, 1 FROM first_delivery
+ON CONFLICT (domain, timestamp, type)
+DO UPDATE SET count = aggregated_stats.count + 1
+`
+
+type CountAggregatedEventParams struct {
+	Domain    string
+	Timestamp pgtype.Timestamp
+	Type      StatsType
+	Stream    string
+	StoredAt  string
+	Sequence  pgtype.Numeric
+}
+
+func (q *Queries) CountAggregatedEvent(ctx context.Context, arg CountAggregatedEventParams) error {
+	_, err := q.db.Exec(ctx, countAggregatedEvent,
+		arg.Domain,
+		arg.Timestamp,
+		arg.Type,
+		arg.Stream,
+		arg.StoredAt,
+		arg.Sequence,
+	)
+	return err
+}
+
 const incrementAggregatedStat = `-- name: IncrementAggregatedStat :exec
 INSERT INTO aggregated_stats (domain, timestamp, type, count)
 VALUES ($1, $2, $3, 1)

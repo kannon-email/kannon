@@ -52,6 +52,7 @@ func newTestHandler() statsHandler {
 		service:   service,
 		q:         q,
 		retention: testRetention,
+		counter:   sq.NewAggregatedStatsRepository(db),
 	}
 }
 
