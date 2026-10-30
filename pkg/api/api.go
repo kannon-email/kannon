@@ -15,6 +15,7 @@ import (
 	"github.com/kannon-email/kannon/internal/authzconnect"
 	sq "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/domains"
+	"github.com/kannon-email/kannon/internal/intake"
 	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/internal/templates"
 	"github.com/kannon-email/kannon/pkg/api/adminapi"
@@ -114,14 +115,14 @@ func run(ctx context.Context, config Config, cnt *container.Container) error {
 	// this point asks the configuration layer what authority a request has.
 	adminAuth := authzconnect.AdminTokenHandlerOptions(adminToken)
 
-	return startAPIServer(ctx, port, adminAuth, recorder, adminAPIService, mailAPIService, statsAPIService, statsV2APIService, hzAPIService, rest.NewHandlerWithStatsAndTemplates(domains.NewService(sq.NewDomainsRepository(db)), adminToken, func(ctx context.Context) error {
+	return startAPIServer(ctx, port, adminAuth, recorder, adminAPIService, mailAPIService, statsAPIService, statsV2APIService, hzAPIService, rest.NewHandlerWithBatches(domains.NewService(sq.NewDomainsRepository(db)), adminToken, func(ctx context.Context) error {
 		for _, err := range hz.NewHZ(cnt).HZ(ctx) {
 			if err != nil {
 				return err
 			}
 		}
 		return nil
-	}, statsService, apikeys.NewService(sq.NewAPIKeysRepository(db)), templates.NewService(sq.NewTemplatesRepository(db))))
+	}, intake.NewInlineService(sq.NewInlineStore(db), sq.NewDomainsRepository(db), cnt.BackoffPolicy(), cnt.RetryWindow()), statsService, templates.NewService(sq.NewTemplatesRepository(db)), apikeys.NewService(sq.NewAPIKeysRepository(db))))
 }
 
 // startAuditRecording resolves the Recorder every authorization decision on this process reports to,

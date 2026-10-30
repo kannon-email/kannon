@@ -1,7 +1,7 @@
 \restrict dbmate
 
--- Dumped from database version 17.6 (Homebrew)
--- Dumped by pg_dump version 17.6 (Homebrew)
+-- Dumped from database version 18.6 (Homebrew)
+-- Dumped by pg_dump version 18.6 (Homebrew)
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -157,14 +157,29 @@ CREATE TABLE public.audit_records (
 
 
 --
--- Name: domain_template; Type: TABLE; Schema: public; Owner: -
+-- Name: batch_content_snapshots; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.domain_template (
-    name text NOT NULL,
+CREATE TABLE public.batch_content_snapshots (
+    batch_id text NOT NULL,
+    html text NOT NULL
+);
+
+
+--
+-- Name: batch_intake_receipts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.batch_intake_receipts (
     domain text NOT NULL,
-    "templateId" text NOT NULL,
-    source jsonb NOT NULL
+    idempotency_key text NOT NULL,
+    fingerprint text NOT NULL,
+    batch_id text NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    accepted_count integer NOT NULL,
+    rejected_count integer NOT NULL,
+    CONSTRAINT batch_intake_receipts_accepted_count_check CHECK ((accepted_count > 0)),
+    CONSTRAINT batch_intake_receipts_rejected_count_check CHECK ((rejected_count >= 0))
 );
 
 
@@ -177,6 +192,30 @@ CREATE TABLE public.counted_stat_events (
     stored_at text NOT NULL,
     sequence numeric(20,0) NOT NULL,
     CONSTRAINT counted_stat_events_sequence_check CHECK ((sequence > (0)::numeric))
+);
+
+
+--
+-- Name: delivery_intake_facts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.delivery_intake_facts (
+    id text NOT NULL,
+    batch_id text NOT NULL,
+    email text NOT NULL,
+    tracking jsonb NOT NULL
+);
+
+
+--
+-- Name: domain_template; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.domain_template (
+    name text NOT NULL,
+    domain text NOT NULL,
+    "templateId" text NOT NULL,
+    source jsonb NOT NULL
 );
 
 
@@ -468,11 +507,27 @@ ALTER TABLE ONLY public.audit_records
 
 
 --
--- Name: domain_template domain_template_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: batch_content_snapshots batch_content_snapshots_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.domain_template
-    ADD CONSTRAINT domain_template_pkey PRIMARY KEY ("templateId");
+ALTER TABLE ONLY public.batch_content_snapshots
+    ADD CONSTRAINT batch_content_snapshots_pkey PRIMARY KEY (batch_id);
+
+
+--
+-- Name: batch_intake_receipts batch_intake_receipts_batch_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.batch_intake_receipts
+    ADD CONSTRAINT batch_intake_receipts_batch_id_key UNIQUE (batch_id);
+
+
+--
+-- Name: batch_intake_receipts batch_intake_receipts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.batch_intake_receipts
+    ADD CONSTRAINT batch_intake_receipts_pkey PRIMARY KEY (domain, idempotency_key);
 
 
 --
@@ -481,6 +536,30 @@ ALTER TABLE ONLY public.domain_template
 
 ALTER TABLE ONLY public.counted_stat_events
     ADD CONSTRAINT counted_stat_events_pkey PRIMARY KEY (stream, stored_at, sequence);
+
+
+--
+-- Name: delivery_intake_facts delivery_intake_facts_batch_id_email_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.delivery_intake_facts
+    ADD CONSTRAINT delivery_intake_facts_batch_id_email_key UNIQUE (batch_id, email);
+
+
+--
+-- Name: delivery_intake_facts delivery_intake_facts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.delivery_intake_facts
+    ADD CONSTRAINT delivery_intake_facts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: domain_template domain_template_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.domain_template
+    ADD CONSTRAINT domain_template_pkey PRIMARY KEY ("templateId");
 
 
 --
@@ -591,10 +670,15 @@ CREATE UNIQUE INDEX "VerificationToken_token_key" ON public."VerificationToken" 
 
 
 --
--- Name: api_keys_domain_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: api_keys_domain_created_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX api_keys_domain_created_id_idx ON public.api_keys USING btree (domain, created_at DESC, id DESC);
+
+
+--
+-- Name: api_keys_domain_idx; Type: INDEX; Schema: public; Owner: -
+--
 
 CREATE INDEX api_keys_domain_idx ON public.api_keys USING btree (domain);
 
@@ -666,14 +750,14 @@ CREATE INDEX messages_message_id_idx ON public.messages USING btree (message_id)
 -- Name: sending_pool_emails_status_claimed_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX sending_pool_emails_status_claimed_at_idx ON public.sending_pool_emails USING btree (status, claimed_at) WHERE ((status)::text = ANY ((ARRAY['sending'::character varying, 'validating'::character varying])::text[]));
+CREATE INDEX sending_pool_emails_status_claimed_at_idx ON public.sending_pool_emails USING btree (status, claimed_at) WHERE ((status)::text = ANY (ARRAY[('sending'::character varying)::text, ('validating'::character varying)::text]));
 
 
 --
 -- Name: sending_pool_emails_status_scheduled_time_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX sending_pool_emails_status_scheduled_time_idx ON public.sending_pool_emails USING btree (status, scheduled_time) WHERE ((status)::text = ANY ((ARRAY['to_validate'::character varying, 'scheduled'::character varying])::text[]));
+CREATE INDEX sending_pool_emails_status_scheduled_time_idx ON public.sending_pool_emails USING btree (status, scheduled_time) WHERE ((status)::text = ANY (ARRAY[('to_validate'::character varying)::text, ('scheduled'::character varying)::text]));
 
 
 --
@@ -757,6 +841,30 @@ ALTER TABLE ONLY public.api_keys
 
 
 --
+-- Name: batch_content_snapshots batch_content_snapshots_batch_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.batch_content_snapshots
+    ADD CONSTRAINT batch_content_snapshots_batch_id_fkey FOREIGN KEY (batch_id) REFERENCES public.messages(message_id);
+
+
+--
+-- Name: batch_intake_receipts batch_intake_receipts_batch_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.batch_intake_receipts
+    ADD CONSTRAINT batch_intake_receipts_batch_id_fkey FOREIGN KEY (batch_id) REFERENCES public.messages(message_id);
+
+
+--
+-- Name: delivery_intake_facts delivery_intake_facts_batch_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.delivery_intake_facts
+    ADD CONSTRAINT delivery_intake_facts_batch_id_fkey FOREIGN KEY (batch_id) REFERENCES public.batch_intake_receipts(batch_id);
+
+
+--
 -- Name: domain_user domain_user_userId_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -805,4 +913,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20260804082406'),
     ('20260804135145'),
     ('20261029221540'),
-    ('20261030225738');
+    ('20261030225738'),
+    ('20261030230324');

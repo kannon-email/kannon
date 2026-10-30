@@ -41,7 +41,25 @@ with an exclusive boundary and one lookahead row.
 existing API Keys service. It defaults to the Docker harness. For a disposable,
 empty local database, set `KANNON_TEST_DATABASE_URL` and run
 `go test -race ./pkg/api/rest -run TestPersistentCredentialJourney`.
-The test loads the schema and leaves this disposable database populated.
+Each fixture creates and drops an isolated database; the test role needs CREATEDB.
+
+The foundational Batch intake slice accepts inline `content.type: html`, `from`,
+`subject`, and up to 2000 recipients carrying only `email`. Optional extensions
+(fields, tracking overrides, schedules, attachments, display headers and unsubscribe)
+are explicitly rejected while their dependent slices are implemented. Unknown
+members return `malformed_request`; unsupported content alternatives return
+`validation_failed`. Placeholder-bearing content is rejected until personalization
+is supported. Legacy gRPC intake semantics remain separate.
+
+Successful Domain-scoped keys currently remain bound indefinitely (exceeding the
+24-hour minimum). Only a fingerprint, accepted Batch identity, creation time and
+intake counts are retained for replay; no request/response cache or inline refusal
+records exist. Accepted HTML and stable Delivery identities are durable intake
+facts for subsequent history slices. No history-query endpoints are added here.
+
+For PostgreSQL integration tests without Docker, set `KANNON_TEST_DATABASE_URL`
+to a disposable local PostgreSQL database. The test role must have CREATEDB;
+each fixture creates and drops its own isolated database.
 
 Aggregate Stats use the existing independent hourly Domain counters through the
 Stats application service. Queries require timezone-qualified `from`/`to` and a
