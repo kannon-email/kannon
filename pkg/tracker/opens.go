@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"image"
+	"image/png"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -51,11 +52,13 @@ func (s *srv) handleOpen(w http.ResponseWriter, r *http.Request) {
 	slog.Info(fmt.Sprintf("👀 %s %s %s %s %s", r.Method, claims.MessageID, kept.userAgent, r.Host, kept.ip))
 }
 
-var trackingPixel = image.NewGray(image.Rect(0, 0, 0, 0))
+var trackingPixel = image.NewNRGBA(image.Rect(0, 0, 1, 1))
 
 func writeTrackingPixel(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "image/png")
-	if _, err := w.Write(trackingPixel.Pix); err != nil {
+	// Each open must reach the tracker rather than reuse a cached response.
+	w.Header().Set("Cache-Control", "no-store")
+	if err := png.Encode(w, trackingPixel); err != nil {
 		slog.Error("cannot write image", "err", err)
 	}
 }
