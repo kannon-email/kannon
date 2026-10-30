@@ -12,6 +12,7 @@ import (
 )
 
 func registerBatches(mux *http.ServeMux, service *intake.InlineService) {
+	registerBatchHistory(mux, service)
 	mux.HandleFunc("POST /v1beta1/domains/{domain}/batches", func(w http.ResponseWriter, r *http.Request) {
 		if !query(w, r, false) {
 			return

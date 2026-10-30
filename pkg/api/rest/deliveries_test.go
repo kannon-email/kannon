@@ -66,6 +66,87 @@ func TestDeliverySurvivesPoolAndLateBounce(t *testing.T) {
 	if d := read("example.com", receipt.ID, 200); d.Status != "pending" || d.Email != "to@example.com" {
 		t.Fatal(d)
 	}
+	r := httptest.NewRequest("GET", "/v1beta1/domains/example.com/batches/"+receipt.ID, nil)
+	r.Header.Set("Authorization", "Bearer secret")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != 200 {
+		t.Fatalf("batch read: %d %s", w.Code, w.Body)
+	}
+	var b rest.Batch
+	if err := json.Unmarshal(w.Body.Bytes(), &b); err != nil {
+		t.Fatal(err)
+	}
+	if b.Status != "pending" || b.DeliveryCounts.Pending != 1 || b.CompletedAt != nil || b.Content.Html != "Hello" {
+		t.Fatal(b)
+	}
+
+	get := func(path string, code int) []byte {
+		t.Helper()
+		req := httptest.NewRequest("GET", path, nil)
+		req.Header.Set("Authorization", "Bearer secret")
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if rec.Code != code {
+			t.Fatalf("%s: %d %s", path, rec.Code, rec.Body)
+		}
+		return rec.Body.Bytes()
+	}
+	base := "/v1beta1/domains/example.com/batches"
+	var page rest.BatchSummaryPage
+	if err := json.Unmarshal(get(base+"?limit=1", 200), &page); err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Items) != 1 || page.Items[0].Id != receipt.ID || page.NextCursor != nil {
+		t.Fatal(page)
+	}
+	var deliveries rest.DeliverySummaryPage
+	if err := json.Unmarshal(get(base+"/"+receipt.ID+"/deliveries?status=pending", 200), &deliveries); err != nil {
+		t.Fatal(err)
+	}
+	if len(deliveries.Items) != 1 || deliveries.Items[0].Id != id {
+		t.Fatal(deliveries)
+	}
+	get(base+"?cursor=invalid", 400)
+	get(base+"/"+receipt.ID+"/deliveries?status=invalid", 400)
+	get(base+"/missing/deliveries", 404)
+	second, _, _, err := svc.Create(ctx, name, "history-second", intake.InlineRequest{Sender: batch.Sender{Email: "from@example.com"}, Subject: "Second", HTML: "Second", Recipients: []string{"a@example.com", "b@example.com"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = db.Exec(ctx, `UPDATE batch_intake_receipts SET created_at=$1 WHERE batch_id=$2`, receipt.CreatedAt, second.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err = json.Unmarshal(get(base+"?limit=1", 200), &page); err != nil {
+		t.Fatal(err)
+	}
+	if page.NextCursor == nil {
+		t.Fatal("missing cursor")
+	}
+	firstID := page.Items[0].Id
+	next := *page.NextCursor
+	if err = json.Unmarshal(get(base+"?limit=1&cursor="+next, 200), &page); err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Items) != 1 || page.Items[0].Id == firstID || page.NextCursor != nil {
+		t.Fatal(page)
+	}
+	get(base+"/"+receipt.ID+"/deliveries?cursor="+next, 400)
+	if err = json.Unmarshal(get(base+"/"+second.ID+"/deliveries?limit=1", 200), &deliveries); err != nil {
+		t.Fatal(err)
+	}
+	if deliveries.NextCursor == nil {
+		t.Fatal("missing delivery cursor")
+	}
+	deliveryCursor := *deliveries.NextCursor
+	firstDelivery := deliveries.Items[0].Id
+	if err = json.Unmarshal(get(base+"/"+second.ID+"/deliveries?limit=1&cursor="+deliveryCursor, 200), &deliveries); err != nil {
+		t.Fatal(err)
+	}
+	if len(deliveries.Items) != 1 || deliveries.Items[0].Id <= firstDelivery || deliveries.NextCursor != nil {
+		t.Fatal(deliveries)
+	}
+	get(base+"/"+second.ID+"/deliveries?status=pending&cursor="+deliveryCursor, 400)
 	repo := sqlc.NewDeliveryRepository(db, nil, time.Hour)
 	if err := repo.SetScheduled(ctx, batch.ID(receipt.ID), "to@example.com"); err != nil {
 		t.Fatal(err)
@@ -97,9 +178,23 @@ func TestDeliverySurvivesPoolAndLateBounce(t *testing.T) {
 	if d := read("example.com", receipt.ID, 200); d.Status != "delivered" {
 		t.Fatal(d)
 	}
+	var complete rest.Batch
+	if err := json.Unmarshal(get(base+"/"+receipt.ID, 200), &complete); err != nil {
+		t.Fatal(err)
+	}
+	if complete.Status != "completed" || complete.CompletedAt == nil || complete.ExpiresAt == nil || complete.ExpiresAt.Sub(*complete.CompletedAt) != 30*24*time.Hour {
+		t.Fatal(complete)
+	}
 	emit(stats.Bounced(true, 550, "gone"), now.Add(time.Second))
 	if d := read("example.com", receipt.ID, 200); d.Status != "bounced" || d.LastError == nil || d.LastError.Detail != "gone" {
 		t.Fatal(d)
+	}
+	var bounced rest.Batch
+	if err := json.Unmarshal(get(base+"/"+receipt.ID, 200), &bounced); err != nil {
+		t.Fatal(err)
+	}
+	if bounced.DeliveryCounts.Bounced != 1 || !bounced.CompletedAt.Equal(*complete.CompletedAt) || !bounced.ExpiresAt.Equal(*complete.ExpiresAt) {
+		t.Fatal(bounced)
 	}
 	emit(stats.Delivered(), now)
 	if d := read("example.com", receipt.ID, 200); d.Status != "bounced" {
@@ -117,7 +212,33 @@ func TestDeliverySurvivesPoolAndLateBounce(t *testing.T) {
 			t.Fatal(d)
 		}
 	}
+	// Concurrent final outcomes must persist one completion fact for mixed results.
+	outcomes := []stats.Outcome{stats.Delivered(), stats.Failed("retry budget spent")}
+	done := make(chan error, 2)
+	for i, email := range []string{"a@example.com", "b@example.com"} {
+		go func(email string, o stats.Outcome) {
+			done <- sr.Insert(ctx, stats.NewStat(email, second.ID, name, time.Now(), o))
+		}(email, outcomes[i])
+	}
+	for range 2 {
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+	}
+	var mixed rest.Batch
+	if err := json.Unmarshal(get(base+"/"+second.ID, 200), &mixed); err != nil {
+		t.Fatal(err)
+	}
+	if mixed.Status != "completed" || mixed.CompletedAt == nil || mixed.DeliveryCounts.Delivered != 1 || mixed.DeliveryCounts.Failed != 1 {
+		t.Fatal(mixed)
+	}
 	sender := authz.NewContext(t.Context(), authz.MustNewPrincipal("sender", authz.MustNewGrant(authz.RoleSender, authz.DomainAnchor(name))))
+	if _, err := svc.ReadBatch(sender, name, receipt.ID); err == nil {
+		t.Fatal("sender read batch")
+	}
+	if _, err := svc.ListBatches(sender, name, intake.HistoryQuery{Limit: 100}); err == nil {
+		t.Fatal("sender listed batches")
+	}
 	if _, err := svc.GetDelivery(sender, name, receipt.ID, id); err == nil {
 		t.Fatal("sender read history")
 	}
