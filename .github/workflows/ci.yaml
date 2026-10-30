@@ -4,11 +4,18 @@ on:
   push:
     branches:
       - "main"
+    # Tag builds always run: GitHub does not evaluate path filters for tags.
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
     tags:
       - "v*"
   pull_request:
     branches:
       - "main"
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -18,6 +25,7 @@ jobs:
   test:
     name: Unit Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
@@ -33,6 +41,7 @@ jobs:
   test-e2e:
     name: E2E Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
@@ -48,20 +57,27 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-      - name: Set up pinned tooling
-        uses: jdx/mise-action@v5
+      - name: Set up Go
+        uses: actions/setup-go@v7
         with:
-          install_args: go golangci-lint
-      - name: Lint and check dead code
-        run: make lint
+          go-version-file: go.mod
+      - name: Lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.15.0 # Keep in sync with mise.toml.
+          args: --timeout 5m
+      - name: Check dead code
+        run: make deadcode
 
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: [test, test-e2e, lint]
     permissions:
       contents: read
@@ -70,6 +86,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
       - name: Log in to the Container registry
+        if: github.event_name == 'push'
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
