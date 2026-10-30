@@ -22,6 +22,7 @@ import (
 	"github.com/kannon-email/kannon/internal/apikeys"
 	"github.com/kannon-email/kannon/internal/authz"
 	"github.com/kannon-email/kannon/internal/domains"
+	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/internal/tracking"
 	"github.com/kannon-email/kannon/internal/values"
 )
@@ -35,6 +36,14 @@ const (
 // NewHandler exposes Domains and readiness. ready must check the configured infrastructure.
 // The supplied service is shared with other transports; no HTTP types escape this package.
 func NewHandler(service *domains.Service, token admintoken.Token, ready func(context.Context) error, credentials ...*apikeys.Service) http.Handler {
+	return newHandler(service, token, ready, nil, credentials...)
+}
+
+// NewHandlerWithStats includes retained event operations alongside Domain operations.
+func NewHandlerWithStats(service *domains.Service, token admintoken.Token, ready func(context.Context) error, events *stats.Service, credentials ...*apikeys.Service) http.Handler {
+	return newHandler(service, token, ready, events, credentials...)
+}
+func newHandler(service *domains.Service, token admintoken.Token, ready func(context.Context) error, events *stats.Service, credentials ...*apikeys.Service) http.Handler {
 	var keys *apikeys.Service
 	if len(credentials) > 0 {
 		keys = credentials[0]
@@ -48,6 +57,9 @@ func NewHandler(service *domains.Service, token admintoken.Token, ready func(con
 		writeJSON(w, 200, map[string]string{statusKey: "ready"})
 	})
 	protected := http.NewServeMux()
+	if events != nil {
+		registerEvents(protected, events)
+	}
 	if keys != nil {
 		registerKeys(protected, keys)
 	}

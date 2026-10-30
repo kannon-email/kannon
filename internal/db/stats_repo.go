@@ -22,13 +22,15 @@ func NewStatsRepository(db *pgxpool.Pool) *StatsRepository {
 
 func (r *StatsRepository) Insert(ctx context.Context, stat *stats.Stat) error {
 	q := New(r.db)
+	data := StatsDataFromOutcome(stat.Outcome)
+	data.TrackingMode = stat.TrackingMode
 	return q.InsertStat(ctx, InsertStatParams{
 		Email:     stat.Email,
 		MessageID: stat.MessageID,
 		Type:      StatsType(stat.Type),
 		Timestamp: toPgTimestamp(stat.Timestamp),
 		Domain:    stat.Domain.String(),
-		Data:      StatsDataFromOutcome(stat.Outcome),
+		Data:      data,
 	})
 }
 
@@ -116,4 +118,34 @@ func toDomainStat(row Stat) (*stats.Stat, error) {
 		row.Timestamp.Time,
 		row.Data.Outcome(),
 	), nil
+}
+
+// QueryEvents uses keyset pagination and never joins expiring operational history.
+func (r *StatsRepository) QueryEvents(ctx context.Context, d values.DomainName, q stats.EventQuery, after time.Time, id int32) ([]*stats.Stat, error) {
+	types := []string{"accepted", "rejected", "delivered", "bounced", "failed", "opened", "clicked"}
+	if len(q.Types) > 0 {
+		types = nil
+		for _, t := range q.Types {
+			types = append(types, string(t))
+		}
+	}
+	rows, err := r.db.Query(ctx, `SELECT id,type,email,message_id,domain,timestamp,data FROM stats WHERE domain=$1 AND timestamp >= $2 AND timestamp < $3 AND type::text=ANY($4::text[]) AND ($5='' OR message_id=$5) AND ($6::int=0 OR (timestamp,id)<($7,$6)) AND NOT (type::text IN ('opened','clicked') AND (email = '' OR email = 'anonymous@track.' || domain OR COALESCE(data->>'trackingMode','') = 'anonymous')) ORDER BY timestamp DESC,id DESC LIMIT $8`, d.String(), q.Range.Start.UTC(), q.Range.Stop.UTC(), types, q.BatchID, id, after.UTC(), q.Limit+1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := []*stats.Stat{}
+	for rows.Next() {
+		var row Stat
+		if err := rows.Scan(&row.ID, &row.Type, &row.Email, &row.MessageID, &row.Domain, &row.Timestamp, &row.Data); err != nil {
+			return nil, err
+		}
+		s, err := toDomainStat(row)
+		if err != nil {
+			return nil, err
+		}
+		s.TrackingMode = row.Data.TrackingMode
+		result = append(result, s)
+	}
+	return result, rows.Err()
 }
