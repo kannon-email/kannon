@@ -17,6 +17,7 @@ import (
 	"github.com/kannon-email/kannon/internal/domains"
 	"github.com/kannon-email/kannon/internal/intake"
 	"github.com/kannon-email/kannon/internal/stats"
+	"github.com/kannon-email/kannon/internal/templates"
 	"github.com/kannon-email/kannon/pkg/api/adminapi"
 	"github.com/kannon-email/kannon/pkg/api/hzapi"
 	"github.com/kannon-email/kannon/pkg/api/mailapi"
@@ -121,7 +122,7 @@ func run(ctx context.Context, config Config, cnt *container.Container) error {
 			}
 		}
 		return nil
-	}, intake.NewInlineService(sq.NewInlineStore(db), sq.NewDomainsRepository(db), cnt.BackoffPolicy(), cnt.RetryWindow()), statsService, apikeys.NewService(sq.NewAPIKeysRepository(db))))
+	}, intake.NewInlineService(sq.NewInlineStore(db), sq.NewDomainsRepository(db), cnt.BackoffPolicy(), cnt.RetryWindow()), statsService, templates.NewService(sq.NewTemplatesRepository(db)), apikeys.NewService(sq.NewAPIKeysRepository(db))))
 }
 
 // startAuditRecording resolves the Recorder every authorization decision on this process reports to,
