@@ -16,6 +16,9 @@ import (
 type PurgeFunc func() error
 
 func TestPostgresInit(schema string) (*pgxpool.Pool, PurgeFunc, error) {
+	if url := os.Getenv("KANNON_TEST_DATABASE_URL"); url != "" {
+		return localPostgres(url, schema)
+	}
 	var db *pgxpool.Pool
 	ctx := context.Background()
 
@@ -95,4 +98,42 @@ func initDB(dbPort string) (*pgxpool.Pool, error) {
 		return nil, fmt.Errorf("cannot create pgx pool: %w", err)
 	}
 	return pool, nil
+}
+
+// localPostgres creates an isolated disposable database for each test fixture.
+func localPostgres(url, schema string) (*pgxpool.Pool, PurgeFunc, error) {
+	admin, err := pgxpool.New(context.Background(), url)
+	if err != nil {
+		return nil, nil, err
+	}
+	name := fmt.Sprintf("kannon_rest_%d", time.Now().UnixNano())
+	if _, err = admin.Exec(context.Background(), "CREATE DATABASE "+name); err != nil {
+		admin.Close()
+		return nil, nil, err
+	}
+	config, err := pgxpool.ParseConfig(url)
+	if err != nil {
+		admin.Close()
+		return nil, nil, err
+	}
+	config.ConnConfig.Database = name
+	pool, err := pgxpool.NewWithConfig(context.Background(), config)
+	if err != nil {
+		admin.Close()
+		return nil, nil, err
+	}
+	if _, err = pool.Exec(context.Background(), schema); err != nil {
+		pool.Close()
+		admin.Close()
+		return nil, nil, err
+	}
+	if _, err = pool.Exec(context.Background(), "SET search_path TO public"); err != nil {
+		return nil, nil, err
+	}
+	return pool, func() error {
+		pool.Close()
+		_, err := admin.Exec(context.Background(), "DROP DATABASE "+name)
+		admin.Close()
+		return err
+	}, nil
 }

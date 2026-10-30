@@ -22,6 +22,7 @@ import (
 	"github.com/kannon-email/kannon/internal/apikeys"
 	"github.com/kannon-email/kannon/internal/authz"
 	"github.com/kannon-email/kannon/internal/domains"
+	"github.com/kannon-email/kannon/internal/intake"
 	"github.com/kannon-email/kannon/internal/tracking"
 	"github.com/kannon-email/kannon/internal/values"
 )
@@ -35,6 +36,14 @@ const (
 // NewHandler exposes Domains and readiness. ready must check the configured infrastructure.
 // The supplied service is shared with other transports; no HTTP types escape this package.
 func NewHandler(service *domains.Service, token admintoken.Token, ready func(context.Context) error, credentials ...*apikeys.Service) http.Handler {
+	return newHandler(service, token, ready, nil, credentials...)
+}
+
+// NewHandlerWithBatches exposes the foundational Batch intake operation.
+func NewHandlerWithBatches(service *domains.Service, token admintoken.Token, ready func(context.Context) error, inline *intake.InlineService, credentials ...*apikeys.Service) http.Handler {
+	return newHandler(service, token, ready, inline, credentials...)
+}
+func newHandler(service *domains.Service, token admintoken.Token, ready func(context.Context) error, inline *intake.InlineService, credentials ...*apikeys.Service) http.Handler {
 	var keys *apikeys.Service
 	if len(credentials) > 0 {
 		keys = credentials[0]
@@ -48,6 +57,9 @@ func NewHandler(service *domains.Service, token admintoken.Token, ready func(con
 		writeJSON(w, 200, map[string]string{statusKey: "ready"})
 	})
 	protected := http.NewServeMux()
+	if inline != nil {
+		registerBatches(protected, inline)
+	}
 	if keys != nil {
 		registerKeys(protected, keys)
 	}
@@ -234,6 +246,7 @@ func writeError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.As(err, &pg) && pg.Code == "23505":
 		WriteProblem(w, r, 409, "domain_already_exists")
 	default:
+		slog.Error("REST operation failed", "err", err)
 		WriteProblem(w, r, 500, "internal_error")
 	}
 }

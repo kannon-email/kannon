@@ -3,6 +3,7 @@ package rest_test
 import (
 	"context"
 	"encoding/json"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 	schema "github.com/kannon-email/kannon/db"
 	"github.com/kannon-email/kannon/internal/admintoken"
@@ -14,7 +15,7 @@ import (
 	"github.com/kannon-email/kannon/internal/values"
 	"github.com/kannon-email/kannon/pkg/api/rest"
 	"net/http/httptest"
-	"os"
+
 	"strings"
 	"testing"
 	"time"
@@ -165,25 +166,7 @@ func TestPersistentCredentialJourney(t *testing.T) {
 
 // credentialDB accepts a disposable local PostgreSQL database as well as Docker.
 func credentialDB() (*pgxpool.Pool, func() error, error) {
-	url := os.Getenv("KANNON_TEST_DATABASE_URL")
-	if url == "" {
-		return tests.TestPostgresInit(schema.Schema)
-	}
-	pool, err := pgxpool.New(context.Background(), url)
-	if err != nil {
-		return nil, nil, err
-	}
-	_, err = pool.Exec(context.Background(), schema.Schema)
-	if err != nil {
-		pool.Close()
-		return nil, nil, err
-	}
-	_, err = pool.Exec(context.Background(), "SET search_path TO public")
-	if err != nil {
-		pool.Close()
-		return nil, nil, err
-	}
-	return pool, func() error { return nil }, nil
+	return tests.TestPostgresInit(schema.Schema)
 }
 
 func timePtr(t time.Time) *time.Time { return &t }
