@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/kannon-email/kannon/internal/authz"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -37,6 +39,7 @@ func (r *apiKeysRepository) Create(ctx context.Context, key *apikeys.APIKey) err
 		KeyPrefix: key.KeyPrefix(),
 		Name:      key.Name(),
 		ExpiresAt: expiresAt,
+		Roles:     roleStrings(key.Roles()),
 	})
 	if err != nil {
 		return err
@@ -146,10 +149,12 @@ func (r *apiKeysRepository) List(ctx context.Context, domain values.DomainName, 
 	q := New(r.db)
 
 	rows, err := q.ListAPIKeysByDomain(ctx, ListAPIKeysByDomainParams{
-		Domain:  domain.String(),
-		Column2: filters.OnlyActive,
-		Limit:   int32(page.Limit),
-		Offset:  int32(page.Offset),
+		Domain:     domain.String(),
+		Column2:    filters.OnlyActive,
+		Limit:      int32(page.Limit),
+		Offset:     int32(page.Offset),
+		BeforeTime: pgtype.Timestamp{Time: beforeTime(page.Before), Valid: page.Before != nil},
+		BeforeID:   page.BeforeID,
 	})
 	if err != nil {
 		return nil, err
@@ -190,7 +195,16 @@ func rowToAPIKey(row ApiKey) (*apikeys.APIKey, error) {
 		return nil, fmt.Errorf("api key row %q holds a non-canonical domain %q: %w", row.ID, row.Domain, err)
 	}
 
+	roles := []authz.RoleName{}
+	for _, raw := range row.Roles {
+		role, err := authz.ParseRoleName(raw)
+		if err != nil {
+			return nil, err
+		}
+		roles = append(roles, role)
+	}
 	params := apikeys.LoadAPIKeyParams{
+		Roles:     roles,
 		ID:        apikeys.ID(row.ID),
 		KeyHash:   row.KeyHash,
 		KeyPrefix: row.KeyPrefix,
@@ -210,4 +224,27 @@ func rowToAPIKey(row ApiKey) (*apikeys.APIKey, error) {
 	}
 
 	return apikeys.LoadAPIKey(params), nil
+}
+
+func roleStrings(roles []authz.RoleName) []string {
+	result := make([]string, len(roles))
+	for i, r := range roles {
+		result[i] = string(r)
+	}
+	return result
+}
+func beforeTime(t *time.Time) time.Time {
+	if t == nil {
+		return time.Time{}
+	}
+	return *t
+}
+
+// FindByKeyHash resolves a Bearer credential independently of its request target.
+func (r *apiKeysRepository) FindByKeyHash(ctx context.Context, hash string) (*apikeys.APIKey, error) {
+	row, err := New(r.db).FindAPIKeyByHash(ctx, hash)
+	if err != nil {
+		return nil, apikeys.ErrKeyNotFound
+	}
+	return rowToAPIKey(row)
 }

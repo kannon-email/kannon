@@ -19,6 +19,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/kannon-email/kannon/internal/admintoken"
+	"github.com/kannon-email/kannon/internal/apikeys"
 	"github.com/kannon-email/kannon/internal/authz"
 	"github.com/kannon-email/kannon/internal/domains"
 	"github.com/kannon-email/kannon/internal/tracking"
@@ -33,7 +34,11 @@ const (
 
 // NewHandler exposes Domains and readiness. ready must check the configured infrastructure.
 // The supplied service is shared with other transports; no HTTP types escape this package.
-func NewHandler(service *domains.Service, token admintoken.Token, ready func(context.Context) error) http.Handler {
+func NewHandler(service *domains.Service, token admintoken.Token, ready func(context.Context) error, credentials ...*apikeys.Service) http.Handler {
+	var keys *apikeys.Service
+	if len(credentials) > 0 {
+		keys = credentials[0]
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /v1beta1/health", func(w http.ResponseWriter, r *http.Request) {
 		if ready == nil || ready(r.Context()) != nil {
@@ -43,6 +48,9 @@ func NewHandler(service *domains.Service, token admintoken.Token, ready func(con
 		writeJSON(w, 200, map[string]string{statusKey: "ready"})
 	})
 	protected := http.NewServeMux()
+	if keys != nil {
+		registerKeys(protected, keys)
+	}
 	protected.HandleFunc("POST /v1beta1/domains", func(w http.ResponseWriter, r *http.Request) {
 		if !query(w, r, false) {
 			return
@@ -166,6 +174,9 @@ func NewHandler(service *domains.Service, token admintoken.Token, ready func(con
 			return
 		}
 		p, err := token.Authenticate(parts[1])
+		if err != nil && keys != nil {
+			p, err = keys.Authenticate(r.Context(), parts[1])
+		}
 		if err != nil {
 			w.Header().Set("WWW-Authenticate", "Bearer")
 			WriteProblem(w, r, 401, "unauthenticated")
@@ -214,7 +225,11 @@ func writeError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, authz.ErrForbidden), errors.Is(err, authz.ErrNoPrincipal):
 		WriteProblem(w, r, 403, "forbidden")
-	case errors.Is(err, domains.ErrDomainNotFound):
+	case errors.Is(err, apikeys.ErrInvalidRoles), errors.Is(err, apikeys.ErrInvalidName):
+		WriteProblem(w, r, 422, "validation_failed")
+	case errors.Is(err, apikeys.ErrExpiryNotFuture):
+		WriteProblem(w, r, 422, "expiry_not_future")
+	case errors.Is(err, apikeys.ErrKeyNotFound), errors.Is(err, domains.ErrDomainNotFound):
 		WriteProblem(w, r, 404, "not_found")
 	case errors.As(err, &pg) && pg.Code == "23505":
 		WriteProblem(w, r, 409, "domain_already_exists")

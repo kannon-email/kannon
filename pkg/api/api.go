@@ -9,6 +9,7 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/kannon-email/kannon/internal/admintoken"
+	"github.com/kannon-email/kannon/internal/apikeys"
 	"github.com/kannon-email/kannon/internal/audit"
 	"github.com/kannon-email/kannon/internal/authz"
 	"github.com/kannon-email/kannon/internal/authzconnect"
@@ -119,7 +120,7 @@ func run(ctx context.Context, config Config, cnt *container.Container) error {
 			}
 		}
 		return nil
-	}))
+	}, apikeys.NewService(sq.NewAPIKeysRepository(db))))
 }
 
 // startAuditRecording resolves the Recorder every authorization decision on this process reports to,

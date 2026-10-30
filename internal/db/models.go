@@ -71,6 +71,7 @@ type ApiKey struct {
 	DeactivatedAt pgtype.Timestamp
 	KeyHash       string
 	KeyPrefix     string
+	Roles         []string
 }
 
 type Domain struct {

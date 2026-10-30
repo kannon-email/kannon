@@ -136,7 +136,8 @@ CREATE TABLE public.api_keys (
     is_active boolean DEFAULT true NOT NULL,
     deactivated_at timestamp without time zone,
     key_hash character varying(64) NOT NULL,
-    key_prefix character varying(10) NOT NULL
+    key_prefix character varying(10) NOT NULL,
+    roles text[]
 );
 
 
@@ -593,6 +594,8 @@ CREATE UNIQUE INDEX "VerificationToken_token_key" ON public."VerificationToken" 
 -- Name: api_keys_domain_idx; Type: INDEX; Schema: public; Owner: -
 --
 
+CREATE INDEX api_keys_domain_created_id_idx ON public.api_keys USING btree (domain, created_at DESC, id DESC);
+
 CREATE INDEX api_keys_domain_idx ON public.api_keys USING btree (domain);
 
 
@@ -801,4 +804,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20260803094036'),
     ('20260804082406'),
     ('20260804135145'),
-    ('20261029221540');
+    ('20261029221540'),
+    ('20261030225738');
