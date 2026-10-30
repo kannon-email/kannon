@@ -50,6 +50,18 @@ catch concurrency bugs (Kannon uses `errgroup`, NATS consumers, and worker
 pools) at PR time instead of in production. If you hit a `DATA RACE` report
 locally, treat it as a real bug.
 
+Tracker unit tests can run without Docker:
+
+```sh
+go test -race -short ./pkg/tracker
+```
+
+Run `go test -race ./pkg/tracker` with Docker available to also exercise the
+tracker's signed-token integration tests against real Postgres and statssec.
+The short flag skips that integration group, while still running tracker unit
+tests. It does not make the entire repository's short suite Docker-free:
+`internal/db`, for example, starts Postgres in `TestMain` even with `-short`.
+
 ### 5. Run E2E Tests
 
 ```sh
