@@ -276,7 +276,8 @@ func decode(w http.ResponseWriter, r *http.Request, v any) bool {
 	err := d.Decode(v)
 	if err == nil {
 		var tail any
-		if d.Decode(&tail) == io.EOF {
+		err = d.Decode(&tail)
+		if err == io.EOF {
 			return true
 		}
 	}
