@@ -171,10 +171,8 @@ func testRefusedOperationIsRecordedAsDenied(t *testing.T, clientFactory *clientF
 	db := auditDB(t, infra)
 	client := clientFactory.NewClient(t, infra)
 
-	// An API Key resolves to sender on its own Domain and nowhere else, so a send whose From is at an
-	// unrelated Domain asks for create on *that* Domain's Batches and is refused. Unrelated and not a
-	// parent, deliberately: a From host that is a proper parent of the tenant is authorized against
-	// the tenant's own Batches instead (ADR 0008), and such a send would be permitted.
+	// A Sender under an unrelated Domain violates the intake constraint even
+	// though the key may create Batches under its own Domain.
 	unrelated := tests.FakeDomain(t)
 
 	err := client.SendEmailExpectingFailure(t, &mailerapiv1.SendHTMLReq{
@@ -186,9 +184,9 @@ func testRefusedOperationIsRecordedAsDenied(t *testing.T, clientFactory *clientF
 	})
 	assert.Equal(t, connect.CodePermissionDenied, connect.CodeOf(err))
 
-	// Filed under the Domain the send reached for and not the tenant it came from, which is what
-	// makes "what has been refused on this Domain" a question the register answers.
-	rec := requireAuditRecord(t, db, unrelated, onResource("domains", unrelated, "batches"))
+	// Intake names the Domain whose Batch it would persist; the Sender mismatch
+	// is the refusal reason, rather than a different persistence target.
+	rec := requireAuditRecord(t, db, client.domain, onResource("domains", client.domain, "batches"))
 
 	assert.Equal(t, outcomeDenied, rec.outcome)
 	assert.Equal(t, actionCreate, rec.action)

@@ -91,13 +91,13 @@ func (s *Service) Accept(ctx context.Context, domain *domains.Domain, p Request)
 	if err != nil {
 		return nil, invalid(fmt.Errorf("invalid sender email %q: %w", p.Sender.Email, err))
 	}
-	// The Resource must name the Domain whose records will be written, even
-	// when an internal caller supplies a Principal for a different Domain.
-	return authz.Guard(ctx, authz.Create, authz.Batches(domain.Name()), func() (*Result, error) {
-		from := canonicalSenderHost(host)
-		if !senderHostPermitted(from, domain.Name()) {
-			return nil, authz.ErrForbidden
-		}
+	// Authorize the persistence Domain and the Sender relationship together so
+	// a rejected Sender cannot leave an Allowed audit decision behind.
+	var constraint error
+	if !senderHostPermitted(canonicalSenderHost(host), domain.Name()) {
+		constraint = fmt.Errorf("sender host %q is not the Domain %q or its parent", host, domain.Name())
+	}
+	return authz.GuardWithConstraint(ctx, authz.Create, authz.Batches(domain.Name()), constraint, func() (*Result, error) {
 		return s.accept(ctx, domain, p)
 	})
 }

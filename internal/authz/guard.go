@@ -33,6 +33,14 @@ func FromContext(ctx context.Context) (Principal, bool) {
 // Resource and outcome together (ADR 0010). The signature is unchanged by that: the Recorder travels
 // in the context and Can stays pure, so a deployment can switch the whole of it off.
 func Guard[T any](ctx context.Context, action Action, resource Resource, fn func() (T, error)) (T, error) {
+	return GuardWithConstraint(ctx, action, resource, nil, fn)
+}
+
+// GuardWithConstraint also requires a request-specific authority constraint to
+// hold. A non-nil constraint refuses the operation with ErrForbidden and records
+// its reason before any side effects, just like a missing Grant. The Resource
+// still names what the operation would act on, not the input that failed validation.
+func GuardWithConstraint[T any](ctx context.Context, action Action, resource Resource, constraint error, fn func() (T, error)) (T, error) {
 	var zero T
 
 	rec := recorderFrom(ctx)
@@ -53,6 +61,11 @@ func Guard[T any](ctx context.Context, action Action, resource Resource, fn func
 			rec.Record(decision(p, action, resource, Denied, "the Attribution is not permitted on this Resource"))
 			return zero, err
 		}
+	}
+
+	if constraint != nil {
+		rec.Record(decision(p, action, resource, Denied, constraint.Error()))
+		return zero, ErrForbidden
 	}
 
 	// Recorded before the operation runs, so the decision is written down even if the operation

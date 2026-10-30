@@ -107,8 +107,13 @@ func TestIntakeRejectsUnrelatedSenderDespiteAuthority(t *testing.T) {
 	principal := authz.MustNewPrincipal("key",
 		authz.MustNewGrant(authz.RoleSender, authz.DomainAnchor(name)),
 		authz.MustNewGrant(authz.RoleSender, authz.DomainAnchor(values.MustParse("a.example"))))
-	ctx := authz.NewContext(t.Context(), principal)
+	var audit decisions
+	ctx := authz.WithRecorder(authz.NewContext(t.Context(), principal), &audit)
 	s := intake.New(unavailableStore{}, nil, 0)
 	_, err := s.Accept(ctx, domain, intake.Request{HTML: new("Hello"), Subject: "Hello", Sender: batch.Sender{Email: "sender@a.example"}})
 	require.ErrorIs(t, err, authz.ErrForbidden)
+	require.Len(t, audit, 1)
+	require.Equal(t, authz.Denied, audit[0].Outcome)
+	require.Equal(t, authz.Batches(name), audit[0].Resource)
+	require.NotEmpty(t, audit[0].Reason)
 }
