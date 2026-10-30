@@ -104,3 +104,25 @@ func rowToDomain(row Domain) (*domains.Domain, error) {
 		Tracking: row.Tracking.Normalized(),
 	}), nil
 }
+
+// ListPage uses the unique Domain name as an exclusive keyset boundary.
+func (r *domainsRepository) ListPage(ctx context.Context, after string, limit int) ([]*domains.Domain, error) {
+	rows, err := r.db.Query(ctx, `SELECT id, domain, dkim_private_key, dkim_public_key, created_at, tracking FROM domains WHERE domain > $1 ORDER BY domain LIMIT $2`, after, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []*domains.Domain{}
+	for rows.Next() {
+		var row Domain
+		if err := rows.Scan(&row.ID, &row.Domain, &row.DkimPrivateKey, &row.DkimPublicKey, &row.CreatedAt, &row.Tracking); err != nil {
+			return nil, err
+		}
+		d, err := rowToDomain(row)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, d)
+	}
+	return out, rows.Err()
+}
