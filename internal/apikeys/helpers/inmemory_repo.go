@@ -2,6 +2,7 @@ package apikeyshelpers
 
 import (
 	"context"
+	"sort"
 	"sync"
 	"time"
 
@@ -134,9 +135,18 @@ func (r *InMemoryRepository) List(ctx context.Context, domain values.DomainName,
 		if filters.OnlyActive && !key.IsActiveStatus() {
 			continue
 		}
+		if page.Before != nil && (key.CreatedAt().After(*page.Before) || (key.CreatedAt().Equal(*page.Before) && key.ID().String() >= page.BeforeID)) {
+			continue
+		}
 		allKeys = append(allKeys, key)
 	}
 
+	sort.Slice(allKeys, func(i, j int) bool {
+		if allKeys[i].CreatedAt().Equal(allKeys[j].CreatedAt()) {
+			return allKeys[i].ID().String() > allKeys[j].ID().String()
+		}
+		return allKeys[i].CreatedAt().After(allKeys[j].CreatedAt())
+	})
 	start := page.Offset
 	if start > len(allKeys) {
 		return []*apikeys.APIKey{}, nil
@@ -179,6 +189,7 @@ func (r *InMemoryRepository) Count(ctx context.Context, domain values.DomainName
 func (r *InMemoryRepository) cloneKey(key *apikeys.APIKey) *apikeys.APIKey {
 	return apikeys.LoadAPIKey(apikeys.LoadAPIKeyParams{
 		ID:            key.ID(),
+		Roles:         key.Roles(),
 		KeyHash:       key.KeyHash(),
 		KeyPrefix:     key.KeyPrefix(),
 		Name:          key.Name(),
@@ -196,4 +207,15 @@ func (r *InMemoryRepository) cloneTimePtr(t *time.Time) *time.Time {
 	}
 	cloned := *t
 	return &cloned
+}
+
+func (r *InMemoryRepository) FindByKeyHash(ctx context.Context, hash string) (*apikeys.APIKey, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, keys := range r.byKeyHash {
+		if key, ok := keys[hash]; ok {
+			return r.cloneKey(key), nil
+		}
+	}
+	return nil, apikeys.ErrKeyNotFound
 }

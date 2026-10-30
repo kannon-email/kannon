@@ -28,3 +28,17 @@ query-bound cursor payloads, without a generic pagination framework.
 HTTP acceptance tests use the complete adapter. Run `go test -race -short
 ./pkg/api/rest` without Docker; omit `-short` to run the PostgreSQL Domain journey.
 Application authorization matrices remain in `internal/domains`.
+
+Credential routes share the API Keys application service and the existing
+`api_keys` table. Bearer lookup resolves the credential before authorization on
+the target Domain; it does not infer identity from the requested path. Missing
+legacy role metadata resolves to sender. Role metadata is fixed at issuance;
+PATCH only accepts permanent revocation. Connect authentication remains separate.
+API Key cursors bind the Domain, collection and descending created_at/ID order,
+with an exclusive boundary and one lookahead row.
+
+`TestPersistentCredentialJourney` exercises real PostgreSQL through HTTP and the
+existing API Keys service. It defaults to the Docker harness. For a disposable,
+empty local database, set `KANNON_TEST_DATABASE_URL` and run
+`go test -race ./pkg/api/rest -run TestPersistentCredentialJourney`.
+The test loads the schema and leaves this disposable database populated.

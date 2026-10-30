@@ -31,9 +31,9 @@ func (q *Queries) CountAPIKeysByDomain(ctx context.Context, arg CountAPIKeysByDo
 }
 
 const createAPIKey = `-- name: CreateAPIKey :one
-INSERT INTO api_keys (id, domain, key_hash, key_prefix, name, expires_at)
-VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, name, domain, created_at, expires_at, is_active, deactivated_at, key_hash, key_prefix
+INSERT INTO api_keys (id, domain, key_hash, key_prefix, name, expires_at, roles)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+RETURNING id, name, domain, created_at, expires_at, is_active, deactivated_at, key_hash, key_prefix, roles
 `
 
 type CreateAPIKeyParams struct {
@@ -43,6 +43,7 @@ type CreateAPIKeyParams struct {
 	KeyPrefix string
 	Name      string
 	ExpiresAt pgtype.Timestamp
+	Roles     []string
 }
 
 func (q *Queries) CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (ApiKey, error) {
@@ -53,6 +54,7 @@ func (q *Queries) CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (Api
 		arg.KeyPrefix,
 		arg.Name,
 		arg.ExpiresAt,
+		arg.Roles,
 	)
 	var i ApiKey
 	err := row.Scan(
@@ -65,12 +67,35 @@ func (q *Queries) CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (Api
 		&i.DeactivatedAt,
 		&i.KeyHash,
 		&i.KeyPrefix,
+		&i.Roles,
+	)
+	return i, err
+}
+
+const findAPIKeyByHash = `-- name: FindAPIKeyByHash :one
+SELECT id, name, domain, created_at, expires_at, is_active, deactivated_at, key_hash, key_prefix, roles FROM api_keys WHERE key_hash = $1
+`
+
+func (q *Queries) FindAPIKeyByHash(ctx context.Context, keyHash string) (ApiKey, error) {
+	row := q.db.QueryRow(ctx, findAPIKeyByHash, keyHash)
+	var i ApiKey
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Domain,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.IsActive,
+		&i.DeactivatedAt,
+		&i.KeyHash,
+		&i.KeyPrefix,
+		&i.Roles,
 	)
 	return i, err
 }
 
 const getAPIKeyByHash = `-- name: GetAPIKeyByHash :one
-SELECT id, name, domain, created_at, expires_at, is_active, deactivated_at, key_hash, key_prefix
+SELECT id, name, domain, created_at, expires_at, is_active, deactivated_at, key_hash, key_prefix, roles
 FROM api_keys
 WHERE key_hash = $1 AND domain = $2
 `
@@ -93,12 +118,13 @@ func (q *Queries) GetAPIKeyByHash(ctx context.Context, arg GetAPIKeyByHashParams
 		&i.DeactivatedAt,
 		&i.KeyHash,
 		&i.KeyPrefix,
+		&i.Roles,
 	)
 	return i, err
 }
 
 const getAPIKeyByID = `-- name: GetAPIKeyByID :one
-SELECT id, name, domain, created_at, expires_at, is_active, deactivated_at, key_hash, key_prefix
+SELECT id, name, domain, created_at, expires_at, is_active, deactivated_at, key_hash, key_prefix, roles
 FROM api_keys
 WHERE id = $1 AND domain = $2
 `
@@ -121,12 +147,13 @@ func (q *Queries) GetAPIKeyByID(ctx context.Context, arg GetAPIKeyByIDParams) (A
 		&i.DeactivatedAt,
 		&i.KeyHash,
 		&i.KeyPrefix,
+		&i.Roles,
 	)
 	return i, err
 }
 
 const getAPIKeyByIDForUpdate = `-- name: GetAPIKeyByIDForUpdate :one
-SELECT id, name, domain, created_at, expires_at, is_active, deactivated_at, key_hash, key_prefix
+SELECT id, name, domain, created_at, expires_at, is_active, deactivated_at, key_hash, key_prefix, roles
 FROM api_keys
 WHERE id = $1 AND domain = $2
 FOR UPDATE
@@ -150,24 +177,28 @@ func (q *Queries) GetAPIKeyByIDForUpdate(ctx context.Context, arg GetAPIKeyByIDF
 		&i.DeactivatedAt,
 		&i.KeyHash,
 		&i.KeyPrefix,
+		&i.Roles,
 	)
 	return i, err
 }
 
 const listAPIKeysByDomain = `-- name: ListAPIKeysByDomain :many
-SELECT id, name, domain, created_at, expires_at, is_active, deactivated_at, key_hash, key_prefix
+SELECT id, name, domain, created_at, expires_at, is_active, deactivated_at, key_hash, key_prefix, roles
 FROM api_keys
 WHERE domain = $1
     AND (CASE WHEN $2::boolean THEN is_active = TRUE ELSE TRUE END)
-ORDER BY created_at DESC
+AND ($5::timestamp IS NULL OR (created_at, id) < ($5::timestamp, $6::text))
+ORDER BY created_at DESC, id DESC
 LIMIT $3 OFFSET $4
 `
 
 type ListAPIKeysByDomainParams struct {
-	Domain  string
-	Column2 bool
-	Limit   int32
-	Offset  int32
+	Domain     string
+	Column2    bool
+	Limit      int32
+	Offset     int32
+	BeforeTime pgtype.Timestamp
+	BeforeID   string
 }
 
 func (q *Queries) ListAPIKeysByDomain(ctx context.Context, arg ListAPIKeysByDomainParams) ([]ApiKey, error) {
@@ -176,6 +207,8 @@ func (q *Queries) ListAPIKeysByDomain(ctx context.Context, arg ListAPIKeysByDoma
 		arg.Column2,
 		arg.Limit,
 		arg.Offset,
+		arg.BeforeTime,
+		arg.BeforeID,
 	)
 	if err != nil {
 		return nil, err
@@ -194,6 +227,7 @@ func (q *Queries) ListAPIKeysByDomain(ctx context.Context, arg ListAPIKeysByDoma
 			&i.DeactivatedAt,
 			&i.KeyHash,
 			&i.KeyPrefix,
+			&i.Roles,
 		); err != nil {
 			return nil, err
 		}
@@ -212,7 +246,7 @@ SET name = $3,
     is_active = $5,
     deactivated_at = $6
 WHERE id = $1 AND domain = $2
-RETURNING id, name, domain, created_at, expires_at, is_active, deactivated_at, key_hash, key_prefix
+RETURNING id, name, domain, created_at, expires_at, is_active, deactivated_at, key_hash, key_prefix, roles
 `
 
 type UpdateAPIKeyParams struct {
@@ -244,6 +278,7 @@ func (q *Queries) UpdateAPIKey(ctx context.Context, arg UpdateAPIKeyParams) (Api
 		&i.DeactivatedAt,
 		&i.KeyHash,
 		&i.KeyPrefix,
+		&i.Roles,
 	)
 	return i, err
 }

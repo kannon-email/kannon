@@ -2,6 +2,7 @@ package apikeys
 
 import (
 	"context"
+	"time"
 
 	"github.com/kannon-email/kannon/internal/values"
 )
@@ -11,8 +12,10 @@ type ListFilters struct {
 }
 
 type Pagination struct {
-	Limit  int
-	Offset int
+	Before   *time.Time
+	BeforeID string
+	Limit    int
+	Offset   int
 }
 
 // UpdateFunc is a function that modifies an API key
@@ -24,6 +27,9 @@ type UpdateFunc func(key *APIKey) error
 // never canonicalised — on an authentication path that would mean a valid key failing to resolve.
 type Repository interface {
 	Create(ctx context.Context, key *APIKey) error
+
+	// FindByKeyHash resolves Bearer identity before a target Domain is authorized.
+	FindByKeyHash(ctx context.Context, hash string) (*APIKey, error)
 
 	// Update atomically reads, modifies, and persists a key within a transaction
 	// The updateFn receives the current key and should modify it in place
