@@ -69,9 +69,16 @@ daemon must be running.
 
 ### 7. Run Linters
 
+Install the pinned Go and golangci-lint versions with `mise install go golangci-lint`
+and activate mise in your shell. The deadcode tool is pinned through `go.mod`.
+
 ```sh
 make lint
 ```
+
+`make lint` checks golangci-lint and unreachable code without modifying source
+files. Use `make lint-fix` to explicitly apply golangci-lint fixes, then rerun
+`make lint` to check the result.
 
 ## Code Style & Best Practices
 
@@ -155,6 +162,7 @@ The project uses several GitHub Actions workflows:
 - **`ci.yaml`**: Main CI pipeline that runs on all PRs and pushes to `main`
   - **Unit Tests**: Runs `make test` with Go module caching for faster builds
   - **E2E Tests**: Runs `make test-e2e` in a separate job
+  - **Lint**: Runs non-mutating `make lint` (golangci-lint and deadcode) using the tooling pinned in `mise.toml`; required before Docker builds
   - **Docker Build**: Builds and pushes Docker images with layer caching (only on `main` and tags)
   - Includes concurrency management to cancel outdated builds
 

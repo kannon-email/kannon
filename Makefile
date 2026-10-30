@@ -1,6 +1,6 @@
 GOBIN=$(PWD)/.bin
 
-.PHONY: test bench generate-db generate-proto upgrade lint deadcode
+.PHONY: test bench generate-db generate-proto upgrade lint lint-fix deadcode
 
 upgrade:
 	go get -u ./...
@@ -26,10 +26,13 @@ generate-proto:
 generate: generate-db generate-proto
 
 lint: deadcode
+	golangci-lint run
+
+lint-fix:
 	golangci-lint run --fix
 
 deadcode:
-	@out=$$(go tool deadcode -test ./...); \
+	@out=$$(go tool deadcode -test ./...) || exit $$?; \
 	if [ -n "$$out" ]; then \
 		echo "$$out"; \
 		echo "deadcode: unreachable code detected"; \
