@@ -786,6 +786,13 @@ CREATE INDEX audit_records_occurred_at_idx ON public.audit_records USING btree (
 
 
 --
+-- Name: batch_history_expiration; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX batch_history_expiration ON public.batch_intake_receipts USING btree (completed_at) WHERE (completed_at IS NOT NULL);
+
+
+--
 -- Name: batch_history_order; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -972,14 +979,6 @@ ALTER TABLE ONLY public.batch_content_snapshots
 
 
 --
--- Name: batch_intake_receipts batch_intake_receipts_batch_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.batch_intake_receipts
-    ADD CONSTRAINT batch_intake_receipts_batch_id_fkey FOREIGN KEY (batch_id) REFERENCES public.messages(message_id);
-
-
---
 -- Name: delivery_intake_facts delivery_intake_facts_batch_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1041,4 +1040,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20261030231401'),
     ('20261030231407'),
     ('20261030231457'),
-    ('20261030231941');
+    ('20261030231941'),
+    ('20261030232432');
