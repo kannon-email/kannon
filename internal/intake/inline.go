@@ -112,6 +112,13 @@ type InlineService struct {
 func NewInlineService(store InlineStore, domains domains.Repository, backoff delivery.BackoffPolicy, retryWindow time.Duration) *InlineService {
 	return &InlineService{store: store, domains: domains, backoff: backoff, retryWindow: retryWindow}
 }
+
+// Create authorizes, then accepts a REST Batch once per Domain/key pair. Request
+// rules that hold whenever they are asked are checked before the idempotency
+// lookup; the rules whose answer can change with time or state (schedule, Domain
+// ceiling, Templates) run in buildWork, only for a fresh key, so a replay returns
+// its retained receipt. A replay reports no refusals: idempotency retains the
+// creation receipt, never refusal details (ADR 0016).
 func (s *InlineService) Create(ctx context.Context, domain values.DomainName, key string, p InlineRequest) (*InlineReceipt, []InlineRefusal, bool, error) {
 	var refusals []InlineRefusal
 	var replay bool
@@ -124,142 +131,247 @@ func (s *InlineService) Create(ctx context.Context, domain values.DomainName, ke
 		constraint = authz.ErrForbidden
 	}
 	receipt, err := authz.GuardWithConstraint(ctx, authz.Create, authz.Batches(domain), constraint, func() (*InlineReceipt, error) {
-		if len(key) < 1 || len(key) > 256 || strings.TrimSpace(key) != key || strings.ContainsAny(key, "\r\n") {
-			return nil, invalid(errors.New("invalid idempotency key"))
+		if err := validateInline(key, p); err != nil {
+			return nil, err
 		}
-		if len(p.Recipients) > 2000 {
-			return nil, ErrTooManyRecipients
-		}
-		if p.Subject == "" || strings.ContainsAny(p.Subject+p.Sender.Alias, "\r\n") || len(p.Recipients) < 1 || (p.HTML == "") == (p.TemplateID == "") {
-			return nil, invalid(errors.New("invalid or unsupported inline request"))
-		}
-		for _, list := range [][]string{p.Headers.To, p.Headers.Cc} {
-			for _, address := range list {
-				if strings.ContainsAny(address, "\r\n") {
-					return nil, invalid(errors.New("invalid display header"))
-				}
-				if _, err := mail.ParseAddress(address); err != nil {
-					return nil, invalid(errors.New("invalid display header"))
-				}
-			}
-		}
-		if _, reserved := p.GlobalFields["email"]; reserved {
-			return nil, invalid(errors.New("email is reserved"))
-		}
-		// Fingerprint the full application input, including refused rows; retain only
-		// its digest, never raw input or refusal details.
-		raw, err := json.Marshal(p)
+		fingerprint, err := inlineFingerprint(p)
 		if err != nil {
 			return nil, err
 		}
-		sum := sha256.Sum256(raw)
-		d, e := s.domains.FindByName(ctx, domain)
-		if e != nil {
-			return nil, e
+		d, err := s.domains.FindByName(ctx, domain)
+		if err != nil {
+			return nil, err
 		}
 		var r *InlineReceipt
-		r, replay, e = s.store.CreateInline(ctx, domain, key, hex.EncodeToString(sum[:]), func() (*InlineWork, error) {
-			if !supportedPolicy(p.Tracking) || len(tracking.CeilingViolations(d.TrackingPolicy(), p.Tracking)) > 0 {
-				return nil, invalid(errors.New("invalid batch tracking policy"))
-			}
-			now := time.Now().UTC().Truncate(time.Microsecond)
-			if s.Now != nil {
-				now = s.Now().UTC().Truncate(time.Microsecond)
-			}
-			scheduled := now
-			if p.ScheduledAt != nil {
-				scheduled = p.ScheduledAt.UTC().Truncate(time.Microsecond)
-				if !scheduled.After(now) {
-					return nil, ErrScheduledAtNotFuture
-				}
-			}
-			attachments := batch.Attachments{}
-			metadata := []AttachmentMetadata{}
-			for _, a := range p.Attachments {
-				if _, exists := attachments[a.Filename]; exists {
-					return nil, ErrDuplicateAttachmentFilename
-				}
-				if a.Filename == "" || strings.ContainsAny(a.Filename, "\r\n") {
-					return nil, invalid(errors.New("invalid attachment filename"))
-				}
-				attachments[a.Filename] = a.Content
-				metadata = append(metadata, AttachmentMetadata{Filename: a.Filename, SizeBytes: len(a.Content)})
-			}
-			html := p.HTML
-			if p.TemplateID != "" {
-				source, err := s.store.FindByDomain(ctx, domain, p.TemplateID)
-				if err != nil {
-					return nil, err
-				}
-				html = source.Html()
-			}
-			tpl, e := templates.NewTransient(domain, html)
-			if e != nil {
-				return nil, invalid(e)
-			}
-			b, e := batch.New(batch.NewParams{Domain: domain.String(), Sender: p.Sender, Subject: p.Subject, TemplateID: tpl.TemplateID(), Attachments: attachments, Headers: p.Headers, Tracking: tracking.Resolve(d.TrackingPolicy(), p.Tracking, tracking.Policy{}), OneClickUnsubscribe: p.OneClickUnsubscribe})
-			if e != nil {
-				return nil, invalid(e)
-			}
-			ds := []*delivery.Delivery{}
-			seen := map[string]bool{}
-			for i, recipient := range p.Recipients {
-				email := strings.TrimSpace(recipient.Email)
-				if at := strings.LastIndex(email, "@"); at >= 0 {
-					email = email[:at+1] + strings.ToLower(email[at+1:])
-				}
-				code := ""
-				if !smtp.Validate(email) {
-					code = "invalid_email"
-				} else if seen[email] {
-					code = "duplicate_recipient"
-				}
-				seen[email] = true
-				fields := make(map[string]string)
-				for k, v := range p.GlobalFields {
-					fields[k] = v
-				}
-				for k, v := range recipient.Fields {
-					fields[k] = v
-				}
-				if _, reserved := recipient.Fields["email"]; reserved && code == "" {
-					code = "reserved_field"
-				}
-				fields["email"] = email
-				if code == "" && (utils.HasUnresolvedPlaceholders(utils.ReplaceLiteralFields(html, fields)) || utils.HasUnresolvedPlaceholders(utils.ReplaceLiteralFields(p.Subject, fields))) {
-					code = "unresolved_placeholder"
-				}
-				if strings.ContainsAny(utils.ReplaceLiteralFields(p.Subject, fields), "\r\n") && code == "" {
-					code = "reserved_field"
-				}
-				recipientPolicy := recipient.Tracking
-				if code == "" && !supportedPolicy(recipientPolicy) {
-					code = string(ReasonUnsupportedTrackingMode)
-				}
-				if code == "" && (len(tracking.CeilingViolations(d.TrackingPolicy(), recipientPolicy)) > 0 || len(tracking.CeilingViolations(p.Tracking, recipientPolicy)) > 0) {
-					code = string(ReasonTrackingAboveCeiling)
-				}
-				if _, ok := unresolvedUnsubscribeURL(p.OneClickUnsubscribe, batch.Recipient{Email: email, Fields: fields}); code == "" && !ok {
-					code = string(ReasonUnsubscribeURLUnresolved)
-				}
-				if code != "" {
-					refusals = append(refusals, InlineRefusal{Index: i, Code: code})
-					continue
-				}
-				item, e := delivery.New(delivery.NewParams{BatchID: b.ID(), Domain: domain.String(), Email: email, Fields: fields, ScheduledTime: scheduled, Backoff: s.backoff, RetryWindow: s.retryWindow, Tracking: tracking.Resolve(d.TrackingPolicy(), p.Tracking, recipientPolicy)})
-				if e != nil {
-					return nil, e
-				}
-				ds = append(ds, item)
-			}
-			if len(ds) == 0 {
-				return nil, ErrNoRecipientsAccepted
-			}
-			return &InlineWork{SourceTemplateID: p.TemplateID, Template: tpl, Batch: b, Deliveries: ds, Receipt: InlineReceipt{ID: b.ID().String(), Domain: domain.String(), CreatedAt: now, ScheduledAt: scheduled, Attachments: metadata, AcceptedCount: len(ds), RejectedCount: len(refusals)}}, nil
+		r, replay, err = s.store.CreateInline(ctx, domain, key, fingerprint, func() (*InlineWork, error) {
+			work, rs, err := s.buildWork(ctx, domain, d.TrackingPolicy(), p)
+			refusals = rs
+			return work, err
 		})
-		return r, e
+		return r, err
 	})
 	return receipt, refusals, replay, err
+}
+
+// validateInline applies the request rules that do not depend on time or stored
+// state, in the order their faults are reported.
+func validateInline(key string, p InlineRequest) error {
+	if len(key) < 1 || len(key) > 256 || strings.TrimSpace(key) != key || strings.ContainsAny(key, "\r\n") {
+		return invalid(errors.New("invalid idempotency key"))
+	}
+	if len(p.Recipients) > maxInlineRecipients {
+		return ErrTooManyRecipients
+	}
+	if p.Subject == "" || strings.ContainsAny(p.Subject+p.Sender.Alias, "\r\n") || len(p.Recipients) < 1 || (p.HTML == "") == (p.TemplateID == "") {
+		return invalid(errors.New("invalid or unsupported inline request"))
+	}
+	for _, list := range [][]string{p.Headers.To, p.Headers.Cc} {
+		for _, address := range list {
+			if strings.ContainsAny(address, "\r\n") {
+				return invalid(errors.New("invalid display header"))
+			}
+			if _, err := mail.ParseAddress(address); err != nil {
+				return invalid(errors.New("invalid display header"))
+			}
+		}
+	}
+	if _, reserved := p.GlobalFields["email"]; reserved {
+		return invalid(errors.New("email is reserved"))
+	}
+	return nil
+}
+
+// maxInlineRecipients bounds one REST Batch.
+const maxInlineRecipients = 2000
+
+// inlineFingerprint digests the full application input, including refused rows;
+// only the digest is retained, never raw input or refusal details.
+func inlineFingerprint(p InlineRequest) (string, error) {
+	raw, err := json.Marshal(p)
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:]), nil
+}
+
+// now is the creation clock at the precision persistence retains.
+func (s *InlineService) now() time.Time {
+	if s.Now != nil {
+		return s.Now().UTC().Truncate(time.Microsecond)
+	}
+	return time.Now().UTC().Truncate(time.Microsecond)
+}
+
+// buildWork decides a fresh key's Batch: everything here runs inside the
+// acceptance transaction and only when no receipt exists for the key.
+func (s *InlineService) buildWork(ctx context.Context, domain values.DomainName, ceiling tracking.Policy, p InlineRequest) (*InlineWork, []InlineRefusal, error) {
+	if !supportedPolicy(p.Tracking) || len(tracking.CeilingViolations(ceiling, p.Tracking)) > 0 {
+		return nil, nil, invalid(errors.New("invalid batch tracking policy"))
+	}
+	now := s.now()
+	scheduled, err := inlineSchedule(p.ScheduledAt, now)
+	if err != nil {
+		return nil, nil, err
+	}
+	attachments, metadata, err := inlineAttachments(p.Attachments)
+	if err != nil {
+		return nil, nil, err
+	}
+	html := p.HTML
+	if p.TemplateID != "" {
+		source, err := s.store.FindByDomain(ctx, domain, p.TemplateID)
+		if err != nil {
+			return nil, nil, err
+		}
+		html = source.Html()
+	}
+	tpl, err := templates.NewTransient(domain, html)
+	if err != nil {
+		return nil, nil, invalid(err)
+	}
+	b, err := batch.New(batch.NewParams{Domain: domain.String(), Sender: p.Sender, Subject: p.Subject, TemplateID: tpl.TemplateID(), Attachments: attachments, Headers: p.Headers, Tracking: tracking.Resolve(ceiling, p.Tracking, tracking.Policy{}), OneClickUnsubscribe: p.OneClickUnsubscribe})
+	if err != nil {
+		return nil, nil, invalid(err)
+	}
+	accepted, refusals := decideRecipients(ceiling, html, p)
+	ds := []*delivery.Delivery{}
+	for _, r := range accepted {
+		// An immediate Batch is scheduled at its receipt time, so its Deliveries
+		// are pending from the moment the receipt exists.
+		item, err := delivery.New(delivery.NewParams{BatchID: b.ID(), Domain: domain.String(), Email: r.email, Fields: r.fields, ScheduledTime: scheduled, Backoff: s.backoff, RetryWindow: s.retryWindow, Tracking: r.tracking})
+		if err != nil {
+			return nil, refusals, err
+		}
+		ds = append(ds, item)
+	}
+	// REST differs from legacy Accept here: a Batch with no accepted Recipient
+	// is refused whole rather than created empty.
+	if len(ds) == 0 {
+		return nil, refusals, ErrNoRecipientsAccepted
+	}
+	return &InlineWork{SourceTemplateID: p.TemplateID, Template: tpl, Batch: b, Deliveries: ds, Receipt: InlineReceipt{ID: b.ID().String(), Domain: domain.String(), CreatedAt: now, ScheduledAt: scheduled, Attachments: metadata, AcceptedCount: len(ds), RejectedCount: len(refusals)}}, refusals, nil
+}
+
+// inlineSchedule resolves when a Batch's Deliveries start: now when unstated.
+// REST differs from legacy Accept here: a stated time must be in the future.
+func inlineSchedule(at *time.Time, now time.Time) (time.Time, error) {
+	if at == nil {
+		return now, nil
+	}
+	scheduled := at.UTC().Truncate(time.Microsecond)
+	if !scheduled.After(now) {
+		return time.Time{}, ErrScheduledAtNotFuture
+	}
+	return scheduled, nil
+}
+
+// inlineAttachments keys attachments by filename and keeps their request order
+// in the metadata a receipt retains.
+func inlineAttachments(as []Attachment) (batch.Attachments, []AttachmentMetadata, error) {
+	attachments := batch.Attachments{}
+	metadata := []AttachmentMetadata{}
+	for _, a := range as {
+		if _, exists := attachments[a.Filename]; exists {
+			return nil, nil, ErrDuplicateAttachmentFilename
+		}
+		if a.Filename == "" || strings.ContainsAny(a.Filename, "\r\n") {
+			return nil, nil, invalid(errors.New("invalid attachment filename"))
+		}
+		attachments[a.Filename] = a.Content
+		metadata = append(metadata, AttachmentMetadata{Filename: a.Filename, SizeBytes: len(a.Content)})
+	}
+	return attachments, metadata, nil
+}
+
+// REST-only Recipient refusals. They are wire codes of the REST contract
+// (x-recipient-rejection-codes), beside the reasons REST shares with legacy intake.
+const (
+	ReasonDuplicateRecipient    RejectionReason = "duplicate_recipient"
+	ReasonUnresolvedPlaceholder RejectionReason = "unresolved_placeholder"
+	ReasonReservedField         RejectionReason = "reserved_field"
+)
+
+// inlineRecipient is one accepted Recipient, ready to become a Delivery.
+type inlineRecipient struct {
+	email    string
+	fields   map[string]string
+	tracking tracking.Policy
+}
+
+// decideRecipients accepts or refuses each Recipient independently, preserving
+// request order. html is the Batch body before personalization.
+func decideRecipients(ceiling tracking.Policy, html string, p InlineRequest) ([]inlineRecipient, []InlineRefusal) {
+	var accepted []inlineRecipient
+	var refusals []InlineRefusal
+	seen := map[string]bool{}
+	for i, recipient := range p.Recipients {
+		r, reason := decideRecipient(ceiling, html, p, recipient, seen)
+		if reason != "" {
+			refusals = append(refusals, InlineRefusal{Index: i, Code: string(reason)})
+			continue
+		}
+		accepted = append(accepted, r)
+	}
+	return accepted, refusals
+}
+
+// decideRecipient returns the first applicable refusal, in the precedence the
+// checks are listed. seen records every normalized address, refused or not.
+//
+// REST differs from legacy Accept here: global and Recipient fields are merged
+// and substituted literally, once, and a placeholder left unresolved refuses the
+// Recipient instead of being sent verbatim.
+func decideRecipient(ceiling tracking.Policy, html string, p InlineRequest, recipient InlineRecipient, seen map[string]bool) (inlineRecipient, RejectionReason) {
+	email := normalizeInlineEmail(recipient.Email)
+	var reason RejectionReason
+	if !smtp.Validate(email) {
+		reason = ReasonInvalidEmail
+	} else if seen[email] {
+		reason = ReasonDuplicateRecipient
+	}
+	seen[email] = true
+	fields := make(map[string]string)
+	for k, v := range p.GlobalFields {
+		fields[k] = v
+	}
+	for k, v := range recipient.Fields {
+		fields[k] = v
+	}
+	if _, reserved := recipient.Fields["email"]; reserved && reason == "" {
+		reason = ReasonReservedField
+	}
+	fields["email"] = email
+	subject := utils.ReplaceLiteralFields(p.Subject, fields)
+	if reason == "" && (utils.HasUnresolvedPlaceholders(utils.ReplaceLiteralFields(html, fields)) || utils.HasUnresolvedPlaceholders(subject)) {
+		reason = ReasonUnresolvedPlaceholder
+	}
+	if reason == "" && strings.ContainsAny(subject, "\r\n") {
+		reason = ReasonReservedField
+	}
+	if reason == "" && !supportedPolicy(recipient.Tracking) {
+		reason = ReasonUnsupportedTrackingMode
+	}
+	if reason == "" && (len(tracking.CeilingViolations(ceiling, recipient.Tracking)) > 0 || len(tracking.CeilingViolations(p.Tracking, recipient.Tracking)) > 0) {
+		reason = ReasonTrackingAboveCeiling
+	}
+	if _, ok := unresolvedUnsubscribeURL(p.OneClickUnsubscribe, batch.Recipient{Email: email, Fields: fields}); reason == "" && !ok {
+		reason = ReasonUnsubscribeURLUnresolved
+	}
+	if reason != "" {
+		return inlineRecipient{}, reason
+	}
+	return inlineRecipient{email: email, fields: fields, tracking: tracking.Resolve(ceiling, p.Tracking, recipient.Tracking)}, ""
+}
+
+// normalizeInlineEmail trims an address and lowercases its domain part only;
+// the local part is case-sensitive.
+func normalizeInlineEmail(email string) string {
+	email = strings.TrimSpace(email)
+	if at := strings.LastIndex(email, "@"); at >= 0 {
+		email = email[:at+1] + strings.ToLower(email[at+1:])
+	}
+	return email
 }
 
 // supportedPolicy distinguishes silence from modes this build cannot execute.
