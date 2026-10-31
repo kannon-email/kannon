@@ -102,6 +102,8 @@ func TestPersistentEvents(t *testing.T) {
 	}
 	cursor := fmt.Sprint(call(q, 200)["next_cursor"])
 	call(q+"&type=delivered&cursor="+cursor, 400)
+	filteredCursor := fmt.Sprint(call(q+"&type=delivered&type=rejected", 200)["next_cursor"])
+	call(strings.Replace(q, "limit=1", "limit=100", 1)+"&type=rejected&type=delivered&type=rejected&cursor="+filteredCursor, 200)
 	call(q+"&extra=x", 400)
 	call(q+"&type=error", 400)
 	call("from=2026-01-01T00:00:00&to=2026-01-02T00:00:00Z", 400)

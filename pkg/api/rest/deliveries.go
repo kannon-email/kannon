@@ -1,19 +1,19 @@
 package rest
 
 import (
-	"github.com/kannon-email/kannon/internal/intake"
-	"github.com/kannon-email/kannon/internal/values"
 	"net/http"
+
+	"github.com/kannon-email/kannon/internal/intake"
 )
 
 func registerDeliveries(mux *http.ServeMux, service *intake.InlineService) {
 	mux.Handle("GET /v1beta1/domains/{domain}/batches/{batch_id}/deliveries/{delivery_id}", handler(func(w http.ResponseWriter, r *http.Request) error {
-		if err := query(r, false); err != nil {
+		if _, err := parseQuery(r.URL.RawQuery); err != nil {
 			return err
 		}
-		domain, err := values.Parse(r.PathValue(domainParameter))
+		domain, err := parseDomainPath(r)
 		if err != nil {
-			return problemError(400, "malformed_request")
+			return err
 		}
 		d, err := service.GetDelivery(r.Context(), domain, r.PathValue(batchIDParameter), r.PathValue("delivery_id"))
 		if err != nil {

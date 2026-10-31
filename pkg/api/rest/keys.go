@@ -4,13 +4,12 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
-	"strconv"
+	"net/url"
 	"strings"
 	"time"
 
 	"github.com/kannon-email/kannon/internal/apikeys"
 	"github.com/kannon-email/kannon/internal/authz"
-	"github.com/kannon-email/kannon/internal/values"
 )
 
 func keyWire(k *apikeys.APIKey) APIKey {
@@ -36,15 +35,15 @@ type keyCursor struct {
 
 func registerKeys(mux *http.ServeMux, service *apikeys.Service) {
 	mux.Handle("POST /v1beta1/domains/{domain}/api-keys", handler(func(w http.ResponseWriter, r *http.Request) error {
-		if err := query(r, false); err != nil {
+		if _, err := parseQuery(r.URL.RawQuery); err != nil {
 			return err
 		}
-		domain, err := values.Parse(r.PathValue(domainParameter))
+		domain, err := parseDomainPath(r)
 		if err != nil {
-			return problemError(400, "malformed_request")
+			return err
 		}
-		var input APIKeyCreate
-		if err := decode(w, r, &input); err != nil {
+		input, err := decodeBody[APIKeyCreate](r.Body)
+		if err != nil {
 			return err
 		}
 		roles := []authz.RoleName{}
@@ -62,18 +61,23 @@ func registerKeys(mux *http.ServeMux, service *apikeys.Service) {
 	}))
 	for _, method := range []string{"GET", http.MethodPatch} {
 		mux.Handle(method+" /v1beta1/domains/{domain}/api-keys/{key_id}", handler(func(w http.ResponseWriter, r *http.Request) error {
-			if err := query(r, false); err != nil {
+			if _, err := parseQuery(r.URL.RawQuery); err != nil {
 				return err
 			}
-			ref, err := apikeys.ParseKeyRef(r.PathValue(domainParameter), r.PathValue("key_id"))
+			domain, err := parseDomainPath(r)
+			if err != nil {
+				return err
+			}
+			id, err := apikeys.ParseID(r.PathValue("key_id"))
 			if err != nil {
 				return problemError(400, "malformed_request")
 			}
+			ref := apikeys.NewKeyRef(domain, id)
 			var k *apikeys.APIKey
 			if r.Method == http.MethodPatch {
-				var input APIKeyRevoke
-				if err := decode(w, r, &input); err != nil {
-					return err
+				input, decodeErr := decodeBody[APIKeyRevoke](r.Body)
+				if decodeErr != nil {
+					return decodeErr
 				}
 				if input.Status != Revoked {
 					return problemError(422, "validation_failed")
@@ -90,29 +94,17 @@ func registerKeys(mux *http.ServeMux, service *apikeys.Service) {
 		}))
 	}
 	mux.Handle("GET /v1beta1/domains/{domain}/api-keys", handler(func(w http.ResponseWriter, r *http.Request) error {
-		if err := query(r, true); err != nil {
+		q, err := parseQuery(r.URL.RawQuery, limitParameter, cursorParameter)
+		if err != nil {
 			return err
 		}
-		domain, err := values.Parse(r.PathValue(domainParameter))
+		domain, err := parseDomainPath(r)
 		if err != nil {
-			return problemError(400, "malformed_request")
+			return err
 		}
-		limit := 100
-		if r.URL.Query().Has(limitParameter) {
-			limit, err = strconv.Atoi(r.URL.Query().Get(limitParameter))
-			if err != nil || limit < 1 || limit > 1000 {
-				return problemError(400, "invalid_query_parameter")
-			}
-		}
-		page := apikeys.Pagination{Limit: limit + 1}
-		if r.URL.Query().Has(cursorParameter) {
-			raw, e := base64.RawURLEncoding.DecodeString(r.URL.Query().Get(cursorParameter))
-			var c keyCursor
-			if e != nil || json.Unmarshal(raw, &c) != nil || c.Collection != "v1beta1:api-keys:created_at,id:desc" || c.Domain != domain.String() || c.Time.IsZero() || strings.TrimSpace(c.ID) == "" {
-				return problemError(400, "invalid_cursor")
-			}
-			page.Before = &c.Time
-			page.BeforeID = c.ID
+		page, limit, err := parseKeyPage(q, domain.String())
+		if err != nil {
+			return err
 		}
 		keys, err := service.ListPage(r.Context(), domain, page)
 		if err != nil {
@@ -135,4 +127,22 @@ func registerKeys(mux *http.ServeMux, service *apikeys.Service) {
 		writeJSON(w, 200, result)
 		return nil
 	}))
+}
+
+func parseKeyPage(q url.Values, domain string) (apikeys.Pagination, int, error) {
+	limit, err := pageLimit(q)
+	if err != nil {
+		return apikeys.Pagination{}, 0, err
+	}
+	page := apikeys.Pagination{Limit: limit + 1}
+	if q.Has(cursorParameter) {
+		raw, e := base64.RawURLEncoding.DecodeString(q.Get(cursorParameter))
+		var c keyCursor
+		if e != nil || json.Unmarshal(raw, &c) != nil || c.Collection != "v1beta1:api-keys:created_at,id:desc" || c.Domain != domain || c.Time.IsZero() || strings.TrimSpace(c.ID) == "" {
+			return apikeys.Pagination{}, 0, problemError(400, "invalid_cursor")
+		}
+		page.Before = &c.Time
+		page.BeforeID = c.ID
+	}
+	return page, limit, nil
 }

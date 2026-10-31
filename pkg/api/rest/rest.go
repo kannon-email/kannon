@@ -8,14 +8,9 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
-	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
-
-	"strconv"
 	"strings"
 
 	"github.com/kannon-email/kannon/internal/admintoken"
@@ -85,11 +80,11 @@ func newHandler(service *domains.Service, token admintoken.Token, ready func(con
 		registerKeys(protected, keys)
 	}
 	protected.Handle("POST /v1beta1/domains", handler(func(w http.ResponseWriter, r *http.Request) error {
-		if err := query(r, false); err != nil {
+		if _, err := parseQuery(r.URL.RawQuery); err != nil {
 			return err
 		}
-		var input DomainCreate
-		if err := decode(w, r, &input); err != nil {
+		input, err := decodeBody[DomainCreate](r.Body)
+		if err != nil {
 			return err
 		}
 		name, err := values.Parse(input.Domain)
@@ -105,28 +100,13 @@ func newHandler(service *domains.Service, token admintoken.Token, ready func(con
 		return nil
 	}))
 	protected.Handle("GET /v1beta1/domains", handler(func(w http.ResponseWriter, r *http.Request) error {
-		if err := query(r, true); err != nil {
+		q, err := parseQuery(r.URL.RawQuery, limitParameter, cursorParameter)
+		if err != nil {
 			return err
 		}
-		limit := 100
-		if r.URL.Query().Has(limitParameter) {
-			n, err := strconv.Atoi(r.URL.Query().Get(limitParameter))
-			if err != nil || n < 1 || n > 1000 {
-				return problemError(400, "invalid_query_parameter")
-			}
-			limit = n
-		}
-		after := ""
-		if r.URL.Query().Has(cursorParameter) {
-			b, err := base64.RawURLEncoding.DecodeString(r.URL.Query().Get(cursorParameter))
-			prefix := "v1beta1:domains:name:"
-			if err != nil || !strings.HasPrefix(string(b), prefix) {
-				return problemError(400, "invalid_cursor")
-			}
-			after = strings.TrimPrefix(string(b), prefix)
-			if _, err = values.Parse(after); err != nil {
-				return problemError(400, "invalid_cursor")
-			}
+		after, limit, err := parseDomainPage(q)
+		if err != nil {
+			return err
 		}
 		all, err := service.ListPage(r.Context(), after, limit+1)
 		if err != nil {
@@ -153,12 +133,12 @@ func newHandler(service *domains.Service, token admintoken.Token, ready func(con
 		return nil
 	}))
 	protected.Handle("GET /v1beta1/domains/{domain}", handler(func(w http.ResponseWriter, r *http.Request) error {
-		if err := query(r, false); err != nil {
+		if _, err := parseQuery(r.URL.RawQuery); err != nil {
 			return err
 		}
-		name, err := values.Parse(r.PathValue(domainParameter))
+		name, err := parseDomainPath(r)
 		if err != nil {
-			return problemError(400, "malformed_request")
+			return err
 		}
 		d, err := service.GetDomain(r.Context(), name)
 		if err != nil {
@@ -168,15 +148,15 @@ func newHandler(service *domains.Service, token admintoken.Token, ready func(con
 		return nil
 	}))
 	protected.Handle("PATCH /v1beta1/domains/{domain}", handler(func(w http.ResponseWriter, r *http.Request) error {
-		if err := query(r, false); err != nil {
+		if _, err := parseQuery(r.URL.RawQuery); err != nil {
 			return err
 		}
-		name, err := values.Parse(r.PathValue(domainParameter))
+		name, err := parseDomainPath(r)
 		if err != nil {
-			return problemError(400, "malformed_request")
+			return err
 		}
-		var input DomainPatch
-		if err := decode(w, r, &input); err != nil {
+		input, err := decodeBody[DomainPatch](r.Body)
+		if err != nil {
 			return err
 		}
 		p := tracking.Policy{Opens: tracking.Mode(input.Tracking.Opens), Links: tracking.Mode(input.Tracking.Links)}
@@ -234,76 +214,22 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	}
 }
 
-func decode(w http.ResponseWriter, r *http.Request, v any) error {
-	r.Body = http.MaxBytesReader(w, r.Body, 10<<20)
-	raw, readErr := io.ReadAll(r.Body)
-	if readErr != nil {
-		var tooLarge *http.MaxBytesError
-		if errors.As(readErr, &tooLarge) {
-			return problemError(413, "request_body_too_large")
-		} else {
-			return problemError(400, "malformed_request")
-		}
-	}
-	var tree any
-	if json.Unmarshal(raw, &tree) == nil {
-		if pointer, found := nullPointer(tree, ""); found {
-			return &requestError{status: 422, code: "validation_failed", fields: []FieldError{{Code: "validation_failed", Pointer: pointer, Detail: "Null is not allowed"}}}
-		}
-	}
-	d := json.NewDecoder(strings.NewReader(string(raw)))
-	d.DisallowUnknownFields()
-	err := d.Decode(v)
-	if err == nil {
-		var tail any
-		err = d.Decode(&tail)
-		if err == io.EOF {
-			return nil
-		}
-	}
-	var tooLarge *http.MaxBytesError
-	if errors.As(err, &tooLarge) {
-		return problemError(413, "request_body_too_large")
-	} else {
-		return problemError(400, "malformed_request")
-	}
-}
-func query(r *http.Request, list bool) error {
-	q, err := url.ParseQuery(r.URL.RawQuery)
+func parseDomainPage(q url.Values) (string, int, error) {
+	limit, err := pageLimit(q)
 	if err != nil {
-		return problemError(400, "invalid_query_parameter")
+		return "", 0, err
 	}
-	for k, v := range q {
-		if !list || (k != limitParameter && k != cursorParameter) {
-			return problemError(400, "unknown_query_parameter")
+	after := ""
+	if q.Has(cursorParameter) {
+		b, err := base64.RawURLEncoding.DecodeString(q.Get(cursorParameter))
+		prefix := "v1beta1:domains:name:"
+		if err != nil || !strings.HasPrefix(string(b), prefix) {
+			return "", 0, problemError(400, "invalid_cursor")
 		}
-		if len(v) != 1 {
-			return problemError(400, "invalid_query_parameter")
-		}
-	}
-	return nil
-}
-
-// Request schemas contain no nullable inputs. Check presence before decoding into
-// Go pointers, which otherwise conflate explicit null with an omitted member.
-func nullPointer(v any, path string) (string, bool) {
-	if v == nil {
-		return path, true
-	}
-	switch x := v.(type) {
-	case map[string]any:
-		for k, v := range x {
-			escaped := strings.ReplaceAll(strings.ReplaceAll(k, "~", "~0"), "/", "~1")
-			if p, ok := nullPointer(v, path+"/"+escaped); ok {
-				return p, true
-			}
-		}
-	case []any:
-		for i, v := range x {
-			if p, ok := nullPointer(v, fmt.Sprintf("%s/%d", path, i)); ok {
-				return p, true
-			}
+		after = strings.TrimPrefix(string(b), prefix)
+		if _, err = values.Parse(after); err != nil {
+			return "", 0, problemError(400, "invalid_cursor")
 		}
 	}
-	return "", false
+	return after, limit, nil
 }

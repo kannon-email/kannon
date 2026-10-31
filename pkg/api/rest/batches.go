@@ -3,102 +3,30 @@ package rest
 import (
 	"errors"
 	"fmt"
-	"github.com/kannon-email/kannon/internal/batch"
-	"github.com/kannon-email/kannon/internal/intake"
-	"github.com/kannon-email/kannon/internal/tracking"
-	"github.com/kannon-email/kannon/internal/values"
 	"net/http"
-	"time"
+
+	"github.com/kannon-email/kannon/internal/intake"
 )
 
 func registerBatches(mux *http.ServeMux, service *intake.InlineService) {
 	registerBatchHistory(mux, service)
 	mux.Handle("POST /v1beta1/domains/{domain}/batches", handler(func(w http.ResponseWriter, r *http.Request) error {
-		if err := query(r, false); err != nil {
+		if _, err := parseQuery(r.URL.RawQuery); err != nil {
 			return err
 		}
-		domain, err := values.Parse(r.PathValue(domainParameter))
+		domain, err := parseDomainPath(r)
 		if err != nil {
-			return problemError(400, "malformed_request")
-		}
-		// A strict supported subset ensures optional extensions cannot be silently
-		// discarded, including unknown members inside the generated content union.
-		var input struct {
-			Headers             *Headers        `json:"headers"`
-			Tracking            tracking.Policy `json:"tracking"`
-			OneClickUnsubscribe *struct {
-				URLTemplate *string `json:"url_template"`
-			} `json:"one_click_unsubscribe"`
-			ScheduledAt *time.Time `json:"scheduled_at"`
-			Attachments []struct {
-				Filename string  `json:"filename"`
-				Content  *[]byte `json:"content_base64"`
-			} `json:"attachments"`
-			From    From   `json:"from"`
-			Subject string `json:"subject"`
-			Content struct {
-				Type       string  `json:"type"`
-				HTML       *string `json:"html"`
-				TemplateID *string `json:"template_id"`
-			} `json:"content"`
-			GlobalFields map[string]string `json:"global_fields"`
-			Recipients   []struct {
-				Tracking tracking.Policy   `json:"tracking"`
-				Fields   map[string]string `json:"fields"`
-				Email    *string           `json:"email"`
-			} `json:"recipients"`
-		}
-		if err := decode(w, r, &input); err != nil {
 			return err
 		}
-		validHTML := input.Content.Type == "html" && input.Content.HTML != nil && *input.Content.HTML != "" && input.Content.TemplateID == nil
-		validTemplate := input.Content.Type == "template" && input.Content.TemplateID != nil && *input.Content.TemplateID != "" && input.Content.HTML == nil
-		if !validHTML && !validTemplate {
-			return problemError(422, "validation_failed")
+		input, err := decodeBatch(r.Body)
+		if err != nil {
+			return err
 		}
-		p := intake.InlineRequest{ScheduledAt: input.ScheduledAt, Sender: batch.Sender{Email: string(input.From.Email)}, Subject: input.Subject, GlobalFields: input.GlobalFields}
-		p.Tracking = input.Tracking
-		if input.Headers != nil {
-			if input.Headers.To != nil {
-				p.Headers.To = *input.Headers.To
-			}
-			if input.Headers.Cc != nil {
-				p.Headers.Cc = *input.Headers.Cc
-			}
+		key, err := idempotencyKey(r.Header)
+		if err != nil {
+			return err
 		}
-		if input.OneClickUnsubscribe != nil {
-			if input.OneClickUnsubscribe.URLTemplate == nil || *input.OneClickUnsubscribe.URLTemplate == "" {
-				return problemError(422, "validation_failed")
-			}
-			p.OneClickUnsubscribe.URLTemplate = *input.OneClickUnsubscribe.URLTemplate
-		}
-		if input.Content.HTML != nil {
-			p.HTML = *input.Content.HTML
-		}
-		if input.Content.TemplateID != nil {
-			p.TemplateID = *input.Content.TemplateID
-		}
-		for _, a := range input.Attachments {
-			if a.Content == nil {
-				return problemError(422, "validation_failed")
-			}
-			p.Attachments = append(p.Attachments, intake.Attachment{Filename: a.Filename, Content: *a.Content})
-		}
-		if input.From.Name != nil {
-			p.Sender.Alias = *input.From.Name
-		}
-		for _, v := range input.Recipients {
-			email := ""
-			if v.Email != nil {
-				email = *v.Email
-			}
-			p.Recipients = append(p.Recipients, intake.InlineRecipient{Email: email, Fields: v.Fields, Tracking: v.Tracking})
-		}
-		keys := r.Header.Values("Idempotency-Key")
-		if len(keys) != 1 || keys[0] == "" {
-			return problemError(400, "malformed_request")
-		}
-		receipt, refusals, replay, err := service.Create(r.Context(), domain, keys[0], p)
+		receipt, refusals, replay, err := service.Create(r.Context(), domain, key, input.Request)
 		rejected := []RecipientRejection{}
 		for _, v := range refusals {
 			field := "email"
@@ -125,7 +53,7 @@ func registerBatches(mux *http.ServeMux, service *intake.InlineService) {
 			return nil
 		}
 		w.Header().Set("Location", "/v1beta1/domains/"+receipt.Domain+"/batches/"+receipt.ID)
-		writeJSON(w, 201, BatchCreated{Id: receipt.ID, Domain: receipt.Domain, CreatedAt: receipt.CreatedAt, ScheduledAt: receipt.ScheduledAt, AcceptedCount: receipt.AcceptedCount, RejectedCount: receipt.RejectedCount, RejectedRecipients: rejected, From: input.From, Subject: input.Subject, Status: BatchCreatedStatusPending, DeliveryCounts: DeliveryCounts{Pending: receipt.AcceptedCount}})
+		writeJSON(w, 201, BatchCreated{Id: receipt.ID, Domain: receipt.Domain, CreatedAt: receipt.CreatedAt, ScheduledAt: receipt.ScheduledAt, AcceptedCount: receipt.AcceptedCount, RejectedCount: receipt.RejectedCount, RejectedRecipients: rejected, From: input.From, Subject: input.Request.Subject, Status: BatchCreatedStatusPending, DeliveryCounts: DeliveryCounts{Pending: receipt.AcceptedCount}})
 		return nil
 	}))
 }
