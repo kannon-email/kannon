@@ -33,6 +33,14 @@ api:
   # in a secret rather than in this file.
   admin_token: env://KANNON_ADMIN_TOKEN:-change-me
 
+# Signs every bounce return path, so the inbound SMTP server can tell a DSN about a message
+# Kannon sent from one anybody could forge to cancel a Delivery. Required by the dispatcher and
+# the smtp server, which must share it; at least 32 characters. The fallback exists only so this
+# example starts: outside it, write `secret: env://KANNON_BOUNCE_SECRET` and keep a random value
+# (`openssl rand -hex 32`) in a secret.
+bounce:
+  secret: env://KANNON_BOUNCE_SECRET:-local-example-bounce-secret-change-me
+
 sender:
   hostname: kannon.ludusrusso.dev
   max_jobs: 100

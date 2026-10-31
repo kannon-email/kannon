@@ -19,6 +19,7 @@ package dispatcher
 // Delivery of every Batch that referenced it.
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -31,6 +32,7 @@ import (
 	"github.com/kannon-email/kannon/internal/delivery"
 	"github.com/kannon-email/kannon/internal/envelope"
 	"github.com/kannon-email/kannon/internal/pool"
+	"github.com/kannon-email/kannon/internal/returnpath"
 	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/internal/statssec"
 	statstypes "github.com/kannon-email/kannon/proto/kannon/stats/types"
@@ -95,7 +97,7 @@ func TestDispatchCycle_RetryBudgetSpent_FailsInsteadOfReschedulingForever(t *tes
 	pub := &subjectPublisher{}
 	d := &disp{
 		claimer: claimer,
-		eb:      envelope.NewBuilder(q, statssec.NewStatsService(q)),
+		eb:      envelope.NewBuilder(q, statssec.NewStatsService(q), returnpath.MustParse(strings.Repeat("s", returnpath.MinSecretLength))),
 		pub:     pub,
 	}
 

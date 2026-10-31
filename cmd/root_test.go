@@ -54,22 +54,7 @@ func TestRequireAdminToken(t *testing.T) {
 				viper.Set(config.APIAdminTokenKey, tc.token)
 			}
 
-			err := requireAdminToken(tc.services)
-
-			if !tc.wantErr {
-				if err != nil {
-					t.Fatalf("expected the boot to be allowed, got %v", err)
-				}
-				return
-			}
-			if err == nil {
-				t.Fatal("expected the boot to be refused")
-			}
-			for _, want := range []string{config.APIAdminTokenKey, "env://"} {
-				if !strings.Contains(err.Error(), want) {
-					t.Errorf("expected the refusal to name %q, got %q", want, err)
-				}
-			}
+			assertBootDecision(t, requireAdminToken(tc.services), tc.wantErr, config.APIAdminTokenKey)
 		})
 	}
 }
@@ -88,5 +73,77 @@ func TestRequireAdminTokenWithAnUnresolvableReference(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "KANNON_ADMIN_TOKEN_NOBODY_SET") {
 		t.Errorf("expected the refusal to name the variable, got %q", err)
+	}
+}
+
+// The bounce secret is required of the two processes that sign and read return paths, and of no
+// other, and a secret short enough to guess is refused rather than accepted.
+func TestRequireBounceSecret(t *testing.T) {
+	const good = "0123456789abcdef0123456789abcdef"
+
+	tests := []struct {
+		name     string
+		services config.Services
+		secret   string
+		wantErr  bool
+	}{
+		{
+			name:     "the dispatcher runs with no secret configured",
+			services: config.Services{Dispatcher: config.Service{Enabled: true}},
+			wantErr:  true,
+		},
+		{
+			name:     "the inbound SMTP server runs with no secret configured",
+			services: config.Services{SMTP: config.Service{Enabled: true}},
+			wantErr:  true,
+		},
+		{
+			name:     "the secret is too short to be one",
+			services: config.Services{SMTP: config.Service{Enabled: true}},
+			secret:   "change-me",
+			wantErr:  true,
+		},
+		{
+			name:     "both run with a secret",
+			services: config.Services{Dispatcher: config.Service{Enabled: true}, SMTP: config.Service{Enabled: true}},
+			secret:   good,
+		},
+		{
+			name:     "this process neither signs nor reads return paths",
+			services: config.Services{API: config.Service{Enabled: true}, Sender: config.Service{Enabled: true}},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			viper.Reset()
+			t.Cleanup(viper.Reset)
+			if tc.secret != "" {
+				viper.Set(config.BounceSecretKey, tc.secret)
+			}
+
+			assertBootDecision(t, requireBounceSecret(tc.services), tc.wantErr, config.BounceSecretKey)
+		})
+	}
+}
+
+// assertBootDecision checks a boot-time requirement's answer: nil when the boot is allowed, and
+// otherwise a refusal naming the key to set and the environment spelling it can be referenced from,
+// since that message is all the operator gets.
+func assertBootDecision(t *testing.T, err error, wantErr bool, key string) {
+	t.Helper()
+	if !wantErr {
+		if err != nil {
+			t.Fatalf("expected the boot to be allowed, got %v", err)
+		}
+		return
+	}
+	if err == nil {
+		t.Fatal("expected the boot to be refused")
+	}
+	for _, want := range []string{key, "env://"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("expected the refusal to name %q, got %q", want, err)
+		}
 	}
 }

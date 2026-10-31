@@ -29,6 +29,7 @@ import (
 	"log/slog"
 	"math"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -44,6 +45,7 @@ import (
 	"github.com/kannon-email/kannon/internal/dkim"
 	"github.com/kannon-email/kannon/internal/envelope"
 	"github.com/kannon-email/kannon/internal/pool"
+	"github.com/kannon-email/kannon/internal/returnpath"
 	"github.com/kannon-email/kannon/internal/tests"
 	"github.com/kannon-email/kannon/internal/tracking"
 	mailertypes "github.com/kannon-email/kannon/proto/kannon/mailer/types"
@@ -201,7 +203,7 @@ func TestDispatchCycle_BudgetDeathMidPage_NoDeliveryLost(t *testing.T) {
 	pub := &recordingPublisher{}
 	d := &disp{
 		claimer: claimer,
-		eb:      envelope.NewBuilderWith(src, noopTokens{}),
+		eb:      envelope.NewBuilderWith(src, noopTokens{}, returnpath.MustParse(strings.Repeat("s", returnpath.MinSecretLength))),
 		pub:     pub,
 	}
 
