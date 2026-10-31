@@ -11,6 +11,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/kannon-email/kannon/internal/admintoken"
+	"github.com/kannon-email/kannon/internal/apikeys"
 	"github.com/kannon-email/kannon/internal/domains"
 	"github.com/kannon-email/kannon/internal/intake"
 	"github.com/kannon-email/kannon/pkg/api/rest"
@@ -24,6 +25,39 @@ type failingDomainRepository struct {
 
 func (r failingDomainRepository) ListPage(context.Context, string, int) ([]*domains.Domain, error) {
 	return nil, r.err
+}
+
+type failingKeyRepository struct {
+	apikeys.Repository
+	err error
+}
+
+func (r failingKeyRepository) FindByKeyHash(context.Context, string) (*apikeys.APIKey, error) {
+	return nil, r.err
+}
+
+// A storage outage while resolving a Bearer credential is not a bad credential.
+func TestCredentialLookupFailure(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		err    error
+		status int
+	}{
+		{"unknown credential", apikeys.ErrKeyNotFound, 401},
+		{"storage outage", fmt.Errorf("private: %w", context.DeadlineExceeded), 500},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			keys := apikeys.NewService(failingKeyRepository{err: tc.err})
+			h := rest.NewHandler(domains.NewService(failingDomainRepository{}), admintoken.MustParse("secret"), nil, keys)
+			r := httptest.NewRequest(http.MethodGet, "/v1beta1/domains", nil)
+			r.Header.Set("Authorization", "Bearer k_unknown")
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, r)
+			if w.Code != tc.status {
+				t.Fatalf("unexpected response: %d %s", w.Code, w.Body)
+			}
+		})
+	}
 }
 
 func TestApplicationErrorResponses(t *testing.T) {

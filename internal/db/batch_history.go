@@ -14,11 +14,29 @@ import (
 func (s *inlineStore) ReadBatch(ctx context.Context, d values.DomainName, id string) (*intake.BatchHistory, error) {
 	row, err := New(s.pool).ReadInlineBatch(ctx, ReadInlineBatchParams{Domain: d.String(), BatchID: id, Column3: timestamptz(s.now())})
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, intake.ErrDeliveryNotFound
+		return nil, intake.ErrBatchNotFound
 	}
 	if err != nil {
 		return nil, err
 	}
+	return batchHistoryFromRow(row)
+}
+func (s *inlineStore) ListBatches(ctx context.Context, d values.DomainName, q intake.HistoryQuery) ([]intake.BatchHistory, error) {
+	rows, err := New(s.pool).ListInlineBatches(ctx, ListInlineBatchesParams{Domain: d.String(), Column2: q.AfterID, CreatedAt: timestamptz(q.AfterTime), Limit: int32(q.Limit), Column5: timestamptz(s.now())})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]intake.BatchHistory, 0, len(rows))
+	for _, row := range rows {
+		b, err := batchHistoryFromRow(ReadInlineBatchRow(row))
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *b)
+	}
+	return out, nil
+}
+func batchHistoryFromRow(row ReadInlineBatchRow) (*intake.BatchHistory, error) {
 	b := &intake.BatchHistory{ID: row.BatchID, Domain: row.Domain, CreatedAt: row.CreatedAt.Time, ScheduledAt: row.ScheduledAt.Time, AcceptedCount: int(row.AcceptedCount), RejectedCount: int(row.RejectedCount), Subject: row.Subject, HTML: row.Html, SourceTemplateID: row.SourceTemplateID, Tracking: row.Tracking}
 	b.Sender.Email = row.SenderEmail
 	b.Sender.Alias = row.SenderAlias
@@ -31,33 +49,20 @@ func (s *inlineStore) ReadBatch(ctx context.Context, d values.DomainName, id str
 	if err := json.Unmarshal(row.Counts, &b.Counts); err != nil {
 		return nil, err
 	}
-	b.Headers, err = json.Marshal(row.Headers)
+	headers, err := json.Marshal(row.Headers)
 	if err != nil {
 		return nil, err
 	}
+	b.Headers = headers
 	return b, nil
 }
-func (s *inlineStore) ListBatches(ctx context.Context, d values.DomainName, q intake.HistoryQuery) ([]intake.BatchHistory, error) {
-	ids, err := New(s.pool).ListInlineBatchIDs(ctx, ListInlineBatchIDsParams{Domain: d.String(), Column2: q.AfterID, CreatedAt: timestamptz(q.AfterTime), Limit: int32(q.Limit), Column5: timestamptz(s.now())})
+func (s *inlineStore) ListDeliveries(ctx context.Context, d values.DomainName, id string, q intake.HistoryQuery) ([]intake.DeliveryHistory, error) {
+	visible, err := New(s.pool).InlineBatchVisible(ctx, InlineBatchVisibleParams{Domain: d.String(), BatchID: id, Column3: timestamptz(s.now())})
 	if err != nil {
 		return nil, err
 	}
-	out := []intake.BatchHistory{}
-	for _, id := range ids {
-		b, err := s.ReadBatch(ctx, d, id)
-		if errors.Is(err, intake.ErrDeliveryNotFound) {
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, *b)
-	}
-	return out, nil
-}
-func (s *inlineStore) ListDeliveries(ctx context.Context, d values.DomainName, id string, q intake.HistoryQuery) ([]intake.DeliveryHistory, error) {
-	if _, err := s.ReadBatch(ctx, d, id); err != nil {
-		return nil, err
+	if !visible {
+		return nil, intake.ErrBatchNotFound
 	}
 	rows, err := New(s.pool).ListInlineDeliveries(ctx, ListInlineDeliveriesParams{Domain: d.String(), BatchID: id, ID: q.AfterID, Column4: q.Status, Limit: int32(q.Limit)})
 	if err != nil {

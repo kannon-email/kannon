@@ -9,7 +9,10 @@ import (
 	"time"
 )
 
-var ErrDeliveryNotFound = errors.New("delivery not found")
+var (
+	ErrDeliveryNotFound = errors.New("delivery not found")
+	ErrBatchNotFound    = errors.New("batch not found")
+)
 
 // DeliveryHistory is the durable accepted Delivery, independent of the worker Pool.
 type DeliveryHistory struct {

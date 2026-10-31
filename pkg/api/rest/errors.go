@@ -50,7 +50,7 @@ func errorProblem(err error) *requestError {
 		return problemError(422, "validation_failed")
 	case errors.Is(err, apikeys.ErrExpiryNotFuture):
 		return problemError(422, "expiry_not_future")
-	case errors.Is(err, templates.ErrTemplateNotFound), errors.Is(err, apikeys.ErrKeyNotFound), errors.Is(err, domains.ErrDomainNotFound), errors.Is(err, intake.ErrDeliveryNotFound):
+	case errors.Is(err, templates.ErrTemplateNotFound), errors.Is(err, apikeys.ErrKeyNotFound), errors.Is(err, domains.ErrDomainNotFound), errors.Is(err, intake.ErrDeliveryNotFound), errors.Is(err, intake.ErrBatchNotFound):
 		return problemError(404, "not_found")
 	case errors.Is(err, domains.ErrDomainAlreadyExists):
 		return problemError(409, "domain_already_exists")

@@ -243,8 +243,11 @@ func beforeTime(t *time.Time) time.Time {
 // FindByKeyHash resolves a Bearer credential independently of its request target.
 func (r *apiKeysRepository) FindByKeyHash(ctx context.Context, hash string) (*apikeys.APIKey, error) {
 	row, err := New(r.db).FindAPIKeyByHash(ctx, hash)
-	if err != nil {
+	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, apikeys.ErrKeyNotFound
+	}
+	if err != nil {
+		return nil, err
 	}
 	return rowToAPIKey(row)
 }

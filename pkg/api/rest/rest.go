@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -180,6 +181,9 @@ func newHandler(service *domains.Service, token admintoken.Token, ready func(con
 		p, err := token.Authenticate(parts[1])
 		if err != nil && keys != nil {
 			p, err = keys.Authenticate(r.Context(), parts[1])
+			if err != nil && !errors.Is(err, apikeys.ErrKeyNotFound) {
+				return err
+			}
 		}
 		if err != nil {
 			return problemError(401, "unauthenticated")

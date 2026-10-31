@@ -12,6 +12,23 @@ import (
 	tracking "github.com/kannon-email/kannon/internal/tracking"
 )
 
+const inlineBatchVisible = `-- name: InlineBatchVisible :one
+SELECT EXISTS(SELECT 1 FROM batch_intake_receipts r JOIN messages m ON m.message_id=r.batch_id WHERE r.domain=$1 AND r.batch_id=$2 AND (r.completed_at IS NULL OR r.completed_at > $3::timestamptz - interval '720 hours'))
+`
+
+type InlineBatchVisibleParams struct {
+	Domain  string
+	BatchID string
+	Column3 pgtype.Timestamptz
+}
+
+func (q *Queries) InlineBatchVisible(ctx context.Context, arg InlineBatchVisibleParams) (bool, error) {
+	row := q.db.QueryRow(ctx, inlineBatchVisible, arg.Domain, arg.BatchID, arg.Column3)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const insertInlineDelivery = `-- name: InsertInlineDelivery :exec
 INSERT INTO delivery_intake_facts(id,batch_id,email,tracking) VALUES($1,$2,$3,$4)
 `
@@ -79,11 +96,11 @@ func (q *Queries) InsertInlineSnapshot(ctx context.Context, arg InsertInlineSnap
 	return err
 }
 
-const listInlineBatchIDs = `-- name: ListInlineBatchIDs :many
-SELECT batch_id FROM batch_intake_receipts WHERE batch_intake_receipts.domain=$1 AND EXISTS (SELECT 1 FROM messages m WHERE m.message_id=batch_intake_receipts.batch_id) AND (completed_at IS NULL OR completed_at > $5::timestamptz - interval '720 hours') AND ($2='' OR (created_at,batch_id)<($3,$2)) ORDER BY created_at DESC,batch_id DESC LIMIT $4
+const listInlineBatches = `-- name: ListInlineBatches :many
+SELECT r.batch_id,r.domain,r.created_at,r.scheduled_at,r.completed_at,r.accepted_count,r.rejected_count,m.subject,m.sender_email,m.sender_alias,c.html,c.source_template_id,m.tracking,r.attachments,m.headers,COALESCE((SELECT jsonb_object_agg(status,n) FROM (SELECT status,count(*) n FROM delivery_intake_facts WHERE batch_id=r.batch_id GROUP BY status) counts),'{}'::jsonb)::jsonb AS counts FROM batch_intake_receipts r JOIN messages m ON m.message_id=r.batch_id JOIN batch_content_snapshots c ON c.batch_id=r.batch_id WHERE r.domain=$1 AND (r.completed_at IS NULL OR r.completed_at > $5::timestamptz - interval '720 hours') AND ($2='' OR (r.created_at,r.batch_id)<($3,$2)) ORDER BY r.created_at DESC,r.batch_id DESC LIMIT $4
 `
 
-type ListInlineBatchIDsParams struct {
+type ListInlineBatchesParams struct {
 	Domain    string
 	Column2   interface{}
 	CreatedAt pgtype.Timestamptz
@@ -91,8 +108,27 @@ type ListInlineBatchIDsParams struct {
 	Column5   pgtype.Timestamptz
 }
 
-func (q *Queries) ListInlineBatchIDs(ctx context.Context, arg ListInlineBatchIDsParams) ([]string, error) {
-	rows, err := q.db.Query(ctx, listInlineBatchIDs,
+type ListInlineBatchesRow struct {
+	BatchID          string
+	Domain           string
+	CreatedAt        pgtype.Timestamptz
+	ScheduledAt      pgtype.Timestamptz
+	CompletedAt      pgtype.Timestamptz
+	AcceptedCount    int32
+	RejectedCount    int32
+	Subject          string
+	SenderEmail      string
+	SenderAlias      string
+	Html             string
+	SourceTemplateID string
+	Tracking         tracking.Policy
+	Attachments      []byte
+	Headers          Headers
+	Counts           []byte
+}
+
+func (q *Queries) ListInlineBatches(ctx context.Context, arg ListInlineBatchesParams) ([]ListInlineBatchesRow, error) {
+	rows, err := q.db.Query(ctx, listInlineBatches,
 		arg.Domain,
 		arg.Column2,
 		arg.CreatedAt,
@@ -103,13 +139,30 @@ func (q *Queries) ListInlineBatchIDs(ctx context.Context, arg ListInlineBatchIDs
 		return nil, err
 	}
 	defer rows.Close()
-	var items []string
+	var items []ListInlineBatchesRow
 	for rows.Next() {
-		var batch_id string
-		if err := rows.Scan(&batch_id); err != nil {
+		var i ListInlineBatchesRow
+		if err := rows.Scan(
+			&i.BatchID,
+			&i.Domain,
+			&i.CreatedAt,
+			&i.ScheduledAt,
+			&i.CompletedAt,
+			&i.AcceptedCount,
+			&i.RejectedCount,
+			&i.Subject,
+			&i.SenderEmail,
+			&i.SenderAlias,
+			&i.Html,
+			&i.SourceTemplateID,
+			&i.Tracking,
+			&i.Attachments,
+			&i.Headers,
+			&i.Counts,
+		); err != nil {
 			return nil, err
 		}
-		items = append(items, batch_id)
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

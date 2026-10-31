@@ -159,7 +159,10 @@ func (s *Service) ListPage(ctx context.Context, domain values.DomainName, page P
 // Legacy transports continue using ValidateForAuth with their explicit Domain.
 func (s *Service) Authenticate(ctx context.Context, secret string) (authz.Principal, error) {
 	key, err := s.repo.FindByKeyHash(ctx, HashKey(secret))
-	if err != nil || !key.IsValid() {
+	if err != nil {
+		return authz.Principal{}, err
+	}
+	if !key.IsValid() {
 		return authz.Principal{}, ErrKeyNotFound
 	}
 	return key.Principal()
