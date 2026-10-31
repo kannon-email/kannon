@@ -42,7 +42,7 @@ func TestScheduledAttachments(t *testing.T) {
 	now := time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC)
 	service := intake.NewInlineService(sqlc.NewInlineStore(db), sqlc.NewDomainsRepository(db), nil, 0)
 	service.Now = func() time.Time { return now }
-	h := rest.NewHandlerWithBatches(domains.NewService(sqlc.NewDomainsRepository(db)), admintoken.MustParse("secret"), db.Ping, service, nil, nil)
+	h := rest.NewHandler(rest.Services{Domains: domains.NewService(sqlc.NewDomainsRepository(db)), Token: admintoken.MustParse("secret"), Ready: db.Ping, Inline: service})
 	call := func(path, key, body string, status int) {
 		t.Helper()
 		r := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))

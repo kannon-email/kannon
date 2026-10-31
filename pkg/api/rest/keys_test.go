@@ -37,7 +37,7 @@ func TestPersistentCredentialJourney(t *testing.T) {
 		}
 	}()
 	keys := apikeys.NewService(sqlc.NewAPIKeysRepository(db))
-	h := rest.NewHandler(domains.NewService(sqlc.NewDomainsRepository(db)), admintoken.MustParse("secret"), db.Ping, keys)
+	h := rest.NewHandler(rest.Services{Domains: domains.NewService(sqlc.NewDomainsRepository(db)), Token: admintoken.MustParse("secret"), Ready: db.Ping, Keys: keys})
 	call := func(token, method, path, body string, status int) string {
 		t.Helper()
 		r := httptest.NewRequest(method, path, strings.NewReader(body))

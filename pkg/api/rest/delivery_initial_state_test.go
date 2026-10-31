@@ -55,7 +55,7 @@ func TestDeliveryInitialStateUsesAcceptanceClock(t *testing.T) {
 				require.False(t, replay)
 				require.True(t, receipt.CreatedAt.Equal(now))
 				require.True(t, receipt.ScheduledAt.Equal(wantTime))
-				h := rest.NewHandlerWithBatches(ds, admintoken.MustParse("secret"), db.Ping, svc, nil, nil)
+				h := rest.NewHandler(rest.Services{Domains: ds, Token: admintoken.MustParse("secret"), Ready: db.Ping, Inline: svc})
 				read := func(path string, into any) {
 					t.Helper()
 					r := httptest.NewRequest(http.MethodGet, "/v1beta1/domains/example.com/batches/"+receipt.ID+path, nil)

@@ -58,7 +58,7 @@ func registerTemplates(mux *http.ServeMux, service *templates.Service) {
 				if (input.Html == nil && input.Title == nil) || (input.Html != nil && *input.Html == "") {
 					return problemError(422, "validation_failed")
 				}
-				t, err = service.PatchTemplate(r.Context(), domain, id, input.Html, input.Title)
+				t, err = service.UpdateTemplate(r.Context(), domain, id, input.Html, input.Title)
 			case http.MethodDelete:
 				t, err = service.DeleteTemplate(r.Context(), domain, id)
 			default:

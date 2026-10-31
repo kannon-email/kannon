@@ -25,10 +25,15 @@ func TestParsingHTTPContract(t *testing.T) {
 	db, cleanup, err := credentialDB()
 	require.NoError(t, err)
 	defer func() { db.Close(); require.NoError(t, cleanup()) }()
-	h := rest.NewHandlerWithBatches(domains.NewService(sqlc.NewDomainsRepository(db)), admintoken.MustParse("secret"), db.Ping,
-		intake.NewInlineService(sqlc.NewInlineStore(db), sqlc.NewDomainsRepository(db), nil, 0),
-		stats.NewService(stats.NewInMemRepository(), stats.WithAggregatedStatsRepository(stats.NewInMemAggregatedStatsRepository())),
-		templates.NewService(sqlc.NewTemplatesRepository(db)), apikeys.NewService(sqlc.NewAPIKeysRepository(db)))
+	h := rest.NewHandler(rest.Services{
+		Domains:   domains.NewService(sqlc.NewDomainsRepository(db)),
+		Token:     admintoken.MustParse("secret"),
+		Ready:     db.Ping,
+		Inline:    intake.NewInlineService(sqlc.NewInlineStore(db), sqlc.NewDomainsRepository(db), nil, 0),
+		Stats:     stats.NewService(stats.NewInMemRepository(), stats.WithAggregatedStatsRepository(stats.NewInMemAggregatedStatsRepository())),
+		Templates: templates.NewService(sqlc.NewTemplatesRepository(db)),
+		Keys:      apikeys.NewService(sqlc.NewAPIKeysRepository(db)),
+	})
 	call := func(method, path, body, key string, status int, code string) map[string]any {
 		t.Helper()
 		r := httptest.NewRequest(method, path, strings.NewReader(body))
@@ -206,7 +211,7 @@ func (brokenBody) Read([]byte) (int, error) { return 0, errors.New("private read
 func (brokenBody) Close() error             { return nil }
 
 func TestBodyReadFailureHTTP(t *testing.T) {
-	h := rest.NewHandler(nil, admintoken.MustParse("secret"), nil)
+	h := rest.NewHandler(rest.Services{Token: admintoken.MustParse("secret")})
 	r := httptest.NewRequest(http.MethodPost, "/v1beta1/domains", nil)
 	r.Body = io.ReadCloser(brokenBody{})
 	r.Header.Set("Authorization", "Bearer secret")
@@ -221,7 +226,7 @@ func TestBodyReadFailureHTTP(t *testing.T) {
 // the recorder tests. A subsequent request must work; connection reuse is not
 // part of the API contract.
 func TestOversizedBodyHTTPServer(t *testing.T) {
-	h := rest.NewHandler(nil, admintoken.MustParse("secret"), nil)
+	h := rest.NewHandler(rest.Services{Token: admintoken.MustParse("secret")})
 	server := httptest.NewServer(h)
 	defer server.Close()
 	request, err := http.NewRequest(http.MethodPost, server.URL+"/v1beta1/domains", strings.NewReader(strings.Repeat(" ", (10<<20)+1)))
