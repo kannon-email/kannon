@@ -2,11 +2,13 @@ package apikeyshelpers
 
 import (
 	"context"
+	"math"
 	"sort"
 	"sync"
 	"time"
 
 	"github.com/kannon-email/kannon/internal/apikeys"
+	"github.com/kannon-email/kannon/internal/keyset"
 	"github.com/kannon-email/kannon/internal/values"
 )
 
@@ -135,9 +137,6 @@ func (r *InMemoryRepository) List(ctx context.Context, domain values.DomainName,
 		if filters.OnlyActive && !key.IsActiveStatus() {
 			continue
 		}
-		if page.Before != nil && (key.CreatedAt().After(*page.Before) || (key.CreatedAt().Equal(*page.Before) && key.ID().String() >= page.BeforeID)) {
-			continue
-		}
 		allKeys = append(allKeys, key)
 	}
 
@@ -162,6 +161,24 @@ func (r *InMemoryRepository) List(ctx context.Context, domain values.DomainName,
 		result = append(result, r.cloneKey(allKeys[i]))
 	}
 
+	return result, nil
+}
+
+func (r *InMemoryRepository) ListPage(ctx context.Context, domain values.DomainName, page keyset.Page[apikeys.Position]) ([]*apikeys.APIKey, error) {
+	all, err := r.List(ctx, domain, apikeys.ListFilters{}, apikeys.Pagination{Limit: math.MaxInt})
+	if err != nil {
+		return nil, err
+	}
+	result := []*apikeys.APIKey{}
+	for _, key := range all {
+		if after := page.After; after != nil && (key.CreatedAt().After(after.CreatedAt) || (key.CreatedAt().Equal(after.CreatedAt) && key.ID().String() >= after.ID)) {
+			continue
+		}
+		if len(result) == page.Limit {
+			break
+		}
+		result = append(result, key)
+	}
 	return result, nil
 }
 

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/kannon-email/kannon/internal/authz"
+	"github.com/kannon-email/kannon/internal/keyset"
 	"github.com/kannon-email/kannon/internal/values"
 )
 
@@ -151,8 +152,8 @@ func (s *Service) IssueKey(ctx context.Context, domain values.DomainName, name s
 }
 
 // ListPage lists credentials with an exclusive descending creation-time/ID boundary.
-func (s *Service) ListPage(ctx context.Context, domain values.DomainName, page Pagination) ([]*APIKey, error) {
-	return authz.Guard(ctx, authz.List, authz.APIKeys(domain), func() ([]*APIKey, error) { return s.repo.List(ctx, domain, ListFilters{}, page) })
+func (s *Service) ListPage(ctx context.Context, domain values.DomainName, page keyset.Page[Position]) ([]*APIKey, error) {
+	return authz.Guard(ctx, authz.List, authz.APIKeys(domain), func() ([]*APIKey, error) { return s.repo.ListPage(ctx, domain, page) })
 }
 
 // Authenticate resolves REST credentials independently of the requested Domain.

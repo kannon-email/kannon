@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/kannon-email/kannon/internal/keyset"
 	"github.com/kannon-email/kannon/internal/values"
 )
 
@@ -23,7 +24,8 @@ type Pagination struct {
 // canonical domain name: a query on a non-canonical spelling returns no rows rather than an error,
 // which reads as "this Domain sent nothing" — the one failure mode a reporting surface must not have.
 type Repository interface {
-	QueryEvents(context.Context, values.DomainName, EventQuery, time.Time, int32) ([]*Stat, error)
+	// QueryEvents returns retained public events newest first, strictly after page.After.
+	QueryEvents(context.Context, values.DomainName, EventQuery, keyset.Page[EventPosition]) ([]*Stat, error)
 	// Insert persists a new stat event.
 	Insert(ctx context.Context, stat *Stat) error
 

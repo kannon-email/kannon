@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/kannon-email/kannon/internal/keyset"
 	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/internal/values"
 )
@@ -121,7 +122,11 @@ func toDomainStat(row Stat) (*stats.Stat, error) {
 }
 
 // QueryEvents uses keyset pagination and never joins expiring operational history.
-func (r *StatsRepository) QueryEvents(ctx context.Context, d values.DomainName, q stats.EventQuery, after time.Time, id int32) ([]*stats.Stat, error) {
+func (r *StatsRepository) QueryEvents(ctx context.Context, d values.DomainName, q stats.EventQuery, page keyset.Page[stats.EventPosition]) ([]*stats.Stat, error) {
+	var after stats.EventPosition
+	if page.After != nil {
+		after = *page.After
+	}
 	types := []string{"accepted", "rejected", "delivered", "bounced", "failed", "opened", "clicked"}
 	if len(q.Types) > 0 {
 		types = nil
@@ -129,7 +134,7 @@ func (r *StatsRepository) QueryEvents(ctx context.Context, d values.DomainName, 
 			types = append(types, string(t))
 		}
 	}
-	rows, err := New(r.db).ListPublicEvents(ctx, ListPublicEventsParams{Domain: d.String(), Timestamp: toPgTimestamp(q.Range.Start.UTC()), Timestamp_2: toPgTimestamp(q.Range.Stop.UTC()), Column4: types, Column5: q.BatchID, Column6: id, Timestamp_3: toPgTimestamp(after.UTC()), Limit: int32(q.Limit + 1)})
+	rows, err := New(r.db).ListPublicEvents(ctx, ListPublicEventsParams{Domain: d.String(), Timestamp: toPgTimestamp(q.Range.Start.UTC()), Timestamp_2: toPgTimestamp(q.Range.Stop.UTC()), Column4: types, Column5: q.BatchID, Column6: after.ID, Timestamp_3: toPgTimestamp(after.Timestamp.UTC()), Limit: int32(page.Limit)})
 	if err != nil {
 		return nil, err
 	}

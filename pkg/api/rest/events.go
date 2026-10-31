@@ -2,6 +2,8 @@ package rest
 
 import (
 	"net/http"
+	"net/url"
+	"slices"
 	"strconv"
 
 	"github.com/kannon-email/kannon/internal/stats"
@@ -14,22 +16,30 @@ func registerEvents(mux *http.ServeMux, service *stats.Service) {
 		if err != nil {
 			return err
 		}
-		input, err := parseEventQuery(r.URL.RawQuery)
+		q, input, err := parseEventQuery(r.URL.RawQuery)
 		if err != nil {
 			return err
 		}
-		page, err := service.QueryEvents(r.Context(), d, input)
+		types := slices.Clone(input.Types)
+		slices.Sort(types)
+		page, err := readPage(q, func(p stats.EventPosition) bool {
+			return p.ID > 0 && !p.Timestamp.IsZero()
+		}, "stats-events:timestamp,id:desc", d.String(), input.Range.Start.UTC(), input.Range.Stop.UTC(), slices.Compact(types), input.BatchID)
+		if err != nil {
+			return err
+		}
+		rows, err := service.QueryEvents(r.Context(), d, input, page.keyset())
+		if err != nil {
+			return err
+		}
+		rows, next, err := writePage(page, rows, stats.EventPositionOf)
 		if err != nil {
 			return err
 		}
 
 		items := []map[string]any{}
-		for _, s := range page.Items {
+		for _, s := range rows {
 			items = append(items, eventWire(s))
-		}
-		var next *string
-		if page.NextCursor != "" {
-			next = &page.NextCursor
 		}
 		writeJSON(w, 200, map[string]any{"items": items, "next_cursor": next})
 		return nil
@@ -87,33 +97,28 @@ func eventWire(s *stats.Stat) map[string]any {
 	return v
 }
 
-func parseEventQuery(raw string) (stats.EventQuery, error) {
+// parseEventQuery reads the filters; the returned values still carry limit and cursor for readPage.
+func parseEventQuery(raw string) (url.Values, stats.EventQuery, error) {
 	q, err := parseQuery(raw, fromParameter, "to", batchIDParameter, limitParameter, cursorParameter, typeParameter)
 	if err != nil {
-		return stats.EventQuery{}, err
+		return nil, stats.EventQuery{}, err
 	}
-	input := stats.EventQuery{Limit: 100, BatchID: q.Get(batchIDParameter), Cursor: q.Get(cursorParameter)}
+	input := stats.EventQuery{BatchID: q.Get(batchIDParameter)}
 	input.Range, err = timeRange(q)
 	if err != nil {
-		return input, err
+		return nil, input, err
 	}
-	if q.Has(limitParameter) {
-		input.Limit, err = strconv.Atoi(q.Get(limitParameter))
-	}
-	if err != nil || (q.Has(batchIDParameter) && input.BatchID == "") {
-		return input, problemError(400, "invalid_query_parameter")
-	}
-	if q.Has(cursorParameter) && input.Cursor == "" {
-		return input, problemError(400, "invalid_cursor")
+	if q.Has(batchIDParameter) && input.BatchID == "" {
+		return nil, input, problemError(400, "invalid_query_parameter")
 	}
 	for _, t := range q[typeParameter] {
 		switch t {
 		case string(EventTypeValidated):
 			t = "accepted"
 		case "accepted":
-			return input, problemError(400, "invalid_query_parameter")
+			return nil, input, problemError(400, "invalid_query_parameter")
 		}
 		input.Types = append(input.Types, stats.Type(t))
 	}
-	return input, nil
+	return q, input, nil
 }

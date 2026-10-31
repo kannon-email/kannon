@@ -2,10 +2,12 @@ package templates_test
 
 import (
 	"context"
+	"sort"
 	"testing"
 	"time"
 
 	"github.com/kannon-email/kannon/internal/authz"
+	"github.com/kannon-email/kannon/internal/keyset"
 	"github.com/kannon-email/kannon/internal/templates"
 	"github.com/kannon-email/kannon/internal/values"
 	"github.com/stretchr/testify/assert"
@@ -287,6 +289,25 @@ func (r *fakeRepo) List(_ context.Context, domain values.DomainName, _ templates
 		}
 	}
 	return found, nil
+}
+
+func (r *fakeRepo) ListPage(ctx context.Context, domain values.DomainName, page keyset.Page[string]) ([]*templates.Template, error) {
+	found, err := r.List(ctx, domain, templates.Pagination{})
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(found, func(i, j int) bool { return found[i].TemplateID() < found[j].TemplateID() })
+	out := []*templates.Template{}
+	for _, t := range found {
+		if page.After != nil && t.TemplateID() <= *page.After {
+			continue
+		}
+		if len(out) == page.Limit {
+			break
+		}
+		out = append(out, t)
+	}
+	return out, nil
 }
 
 func (r *fakeRepo) Count(ctx context.Context, domain values.DomainName) (int, error) {

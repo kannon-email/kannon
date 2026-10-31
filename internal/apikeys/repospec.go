@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kannon-email/kannon/internal/keyset"
 	"github.com/kannon-email/kannon/internal/values"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -269,5 +270,38 @@ func testList(t *testing.T, repo Repository, helper RepoTestHelper) {
 		page3, err := repo.List(ctx, domain, ListFilters{}, Pagination{Limit: 2, Offset: 4})
 		require.NoError(t, err)
 		assert.Len(t, page3, 1)
+	})
+
+	t.Run("Keyset", func(t *testing.T) {
+		ctx := t.Context()
+		domain := helper.CreateDomain(t)
+
+		for i := range 5 {
+			result, err := NewAPIKey(domain, fmt.Sprintf("key-%d", i), nil)
+			require.NoError(t, err)
+			require.NoError(t, repo.Create(ctx, result.Key))
+		}
+
+		all, err := repo.List(ctx, domain, ListFilters{}, Pagination{Limit: 10})
+		require.NoError(t, err)
+		require.Len(t, all, 5)
+
+		var seen []*APIKey
+		page := keyset.Page[Position]{Limit: 2}
+		for range 3 {
+			keys, err := repo.ListPage(ctx, domain, page)
+			require.NoError(t, err)
+			require.LessOrEqual(t, len(keys), 2)
+			seen = append(seen, keys...)
+			if len(keys) == 0 {
+				break
+			}
+			last := PositionOf(keys[len(keys)-1])
+			page.After = &last
+		}
+		require.Len(t, seen, 5)
+		for i := range all {
+			assert.Equal(t, all[i].ID(), seen[i].ID())
+		}
 	})
 }

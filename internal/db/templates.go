@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/kannon-email/kannon/internal/keyset"
 	"github.com/kannon-email/kannon/internal/templates"
 	"github.com/kannon-email/kannon/internal/values"
 )
@@ -103,23 +104,27 @@ func (r *templatesRepository) FindByDomain(ctx context.Context, domain values.Do
 	return rowToTemplate(row)
 }
 
-func (r *templatesRepository) List(ctx context.Context, domain values.DomainName, page templates.Pagination) ([]*templates.Template, error) {
-	if page.Keyset {
-		rows, err := New(r.db).ListTemplatesPage(ctx, ListTemplatesPageParams{Domain: domain.String(), AfterID: page.AfterID, Take: int32(page.Take)})
+func (r *templatesRepository) ListPage(ctx context.Context, domain values.DomainName, page keyset.Page[string]) ([]*templates.Template, error) {
+	after := ""
+	if page.After != nil {
+		after = *page.After
+	}
+	rows, err := New(r.db).ListTemplatesPage(ctx, ListTemplatesPageParams{Domain: domain.String(), AfterID: after, Take: int32(page.Limit)})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*templates.Template, 0, len(rows))
+	for _, row := range rows {
+		t, err := rowToTemplate(row)
 		if err != nil {
 			return nil, err
 		}
-		out := make([]*templates.Template, 0, len(rows))
-		for _, row := range rows {
-			t, err := rowToTemplate(row)
-			if err != nil {
-				return nil, err
-			}
-			out = append(out, t)
-		}
-		return out, nil
+		out = append(out, t)
 	}
+	return out, nil
+}
 
+func (r *templatesRepository) List(ctx context.Context, domain values.DomainName, page templates.Pagination) ([]*templates.Template, error) {
 	q := New(r.db)
 	rows, err := q.GetTemplates(ctx, GetTemplatesParams{
 		Domain: domain.String(),

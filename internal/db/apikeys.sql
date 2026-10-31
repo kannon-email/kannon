@@ -33,9 +33,16 @@ SELECT *
 FROM api_keys
 WHERE domain = $1
     AND (CASE WHEN $2::boolean THEN is_active = TRUE ELSE TRUE END)
-AND (sqlc.narg(before_time)::timestamp IS NULL OR (created_at, id) < (sqlc.narg(before_time)::timestamp, sqlc.arg(before_id)::text))
 ORDER BY created_at DESC, id DESC
 LIMIT $3 OFFSET $4;
+
+-- name: ListAPIKeysPage :many
+SELECT *
+FROM api_keys
+WHERE domain = @domain
+    AND (sqlc.narg(before_time)::timestamp IS NULL OR (created_at, id) < (sqlc.narg(before_time)::timestamp, sqlc.arg(before_id)::text))
+ORDER BY created_at DESC, id DESC
+LIMIT @take;
 
 -- name: CountAPIKeysByDomain :one
 SELECT COUNT(*)

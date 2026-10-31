@@ -64,8 +64,6 @@ func errorProblem(err error) *requestError {
 		return problemError(422, "duplicate_attachment_filename")
 	case errors.Is(err, intake.ErrTooManyRecipients):
 		return problemError(422, "too_many_recipients")
-	case errors.Is(err, stats.ErrEventCursor):
-		return problemError(400, "invalid_cursor")
 	case errors.Is(err, stats.ErrEventQuery), errors.Is(err, stats.ErrAggregateQuery):
 		return problemError(400, "invalid_query_parameter")
 	case errors.As(err, &invalid):

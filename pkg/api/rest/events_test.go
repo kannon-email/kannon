@@ -14,6 +14,7 @@ import (
 	"github.com/kannon-email/kannon/internal/authz"
 	sqlc "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/domains"
+	"github.com/kannon-email/kannon/internal/keyset"
 	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/internal/tracking"
 	"github.com/kannon-email/kannon/internal/values"
@@ -50,8 +51,8 @@ func TestPersistentEvents(t *testing.T) {
 	}
 
 	ctx := authz.NewContext(t.Context(), authz.MustNewPrincipal("test", authz.MustNewGrant(authz.RoleAnalyst, authz.DomainAnchor(d))))
-	appPage, err := svc.QueryEvents(ctx, d, stats.EventQuery{Range: stats.TimeRange{Start: start, Stop: start.Add(time.Hour)}, Types: []stats.Type{stats.TypeDelivered}, Limit: 10})
-	if err != nil || len(appPage.Items) != 1 || appPage.Items[0].MessageID != "old-batch" {
+	appPage, err := svc.QueryEvents(ctx, d, stats.EventQuery{Range: stats.TimeRange{Start: start, Stop: start.Add(time.Hour)}, Types: []stats.Type{stats.TypeDelivered}}, keyset.Page[stats.EventPosition]{Limit: 10})
+	if err != nil || len(appPage) != 1 || appPage[0].MessageID != "old-batch" {
 		t.Fatal(appPage, err)
 	}
 	keys := apikeys.NewService(sqlc.NewAPIKeysRepository(db))

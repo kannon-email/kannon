@@ -187,18 +187,15 @@ SELECT id, name, domain, created_at, expires_at, is_active, deactivated_at, key_
 FROM api_keys
 WHERE domain = $1
     AND (CASE WHEN $2::boolean THEN is_active = TRUE ELSE TRUE END)
-AND ($5::timestamp IS NULL OR (created_at, id) < ($5::timestamp, $6::text))
 ORDER BY created_at DESC, id DESC
 LIMIT $3 OFFSET $4
 `
 
 type ListAPIKeysByDomainParams struct {
-	Domain     string
-	Column2    bool
-	Limit      int32
-	Offset     int32
-	BeforeTime pgtype.Timestamp
-	BeforeID   string
+	Domain  string
+	Column2 bool
+	Limit   int32
+	Offset  int32
 }
 
 func (q *Queries) ListAPIKeysByDomain(ctx context.Context, arg ListAPIKeysByDomainParams) ([]ApiKey, error) {
@@ -207,8 +204,58 @@ func (q *Queries) ListAPIKeysByDomain(ctx context.Context, arg ListAPIKeysByDoma
 		arg.Column2,
 		arg.Limit,
 		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ApiKey
+	for rows.Next() {
+		var i ApiKey
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Domain,
+			&i.CreatedAt,
+			&i.ExpiresAt,
+			&i.IsActive,
+			&i.DeactivatedAt,
+			&i.KeyHash,
+			&i.KeyPrefix,
+			&i.Roles,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAPIKeysPage = `-- name: ListAPIKeysPage :many
+SELECT id, name, domain, created_at, expires_at, is_active, deactivated_at, key_hash, key_prefix, roles
+FROM api_keys
+WHERE domain = $1
+    AND ($2::timestamp IS NULL OR (created_at, id) < ($2::timestamp, $3::text))
+ORDER BY created_at DESC, id DESC
+LIMIT $4
+`
+
+type ListAPIKeysPageParams struct {
+	Domain     string
+	BeforeTime pgtype.Timestamp
+	BeforeID   string
+	Take       int32
+}
+
+func (q *Queries) ListAPIKeysPage(ctx context.Context, arg ListAPIKeysPageParams) ([]ApiKey, error) {
+	rows, err := q.db.Query(ctx, listAPIKeysPage,
+		arg.Domain,
 		arg.BeforeTime,
 		arg.BeforeID,
+		arg.Take,
 	)
 	if err != nil {
 		return nil, err

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/kannon-email/kannon/internal/authz"
+	"github.com/kannon-email/kannon/internal/keyset"
 	"github.com/kannon-email/kannon/internal/values"
 )
 
@@ -96,9 +97,9 @@ func (s *Service) DeleteTemplate(ctx context.Context, domain values.DomainName, 
 }
 
 // ListPage lists persistent Templates in ascending opaque ID order without a total count.
-func (s *Service) ListPage(ctx context.Context, domain values.DomainName, after string, limit uint) ([]*Template, error) {
+func (s *Service) ListPage(ctx context.Context, domain values.DomainName, page keyset.Page[string]) ([]*Template, error) {
 	return authz.Guard(ctx, authz.List, authz.Templates(domain), func() ([]*Template, error) {
-		return s.repo.List(ctx, domain, Pagination{Take: limit, AfterID: after, Keyset: true})
+		return s.repo.ListPage(ctx, domain, page)
 	})
 }
 

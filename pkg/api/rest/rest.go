@@ -11,7 +11,6 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"github.com/kannon-email/kannon/internal/admintoken"
@@ -19,6 +18,7 @@ import (
 	"github.com/kannon-email/kannon/internal/authz"
 	"github.com/kannon-email/kannon/internal/domains"
 	"github.com/kannon-email/kannon/internal/intake"
+	"github.com/kannon-email/kannon/internal/keyset"
 	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/internal/templates"
 	"github.com/kannon-email/kannon/internal/tracking"
@@ -105,32 +105,31 @@ func newHandler(service *domains.Service, token admintoken.Token, ready func(con
 		if err != nil {
 			return err
 		}
-		after, limit, err := parseDomainPage(q)
+		page, err := readPage(q, func(name string) bool {
+			_, err := values.Parse(name)
+			return err == nil
+		}, "domains:name:asc")
 		if err != nil {
 			return err
 		}
-		all, err := service.ListPage(r.Context(), after, limit+1)
+		var after *values.DomainName
+		if page.after != nil {
+			name := values.MustParse(*page.after)
+			after = &name
+		}
+		rows, err := service.ListPage(r.Context(), keyset.Page[values.DomainName]{After: after, Limit: page.keyset().Limit})
 		if err != nil {
 			return err
 		}
-
+		rows, next, err := writePage(page, rows, (*domains.Domain).Domain)
+		if err != nil {
+			return err
+		}
 		items := []Domain{}
-		next := ""
-		for _, d := range all {
-			if d.Domain() <= after {
-				continue
-			}
-			if len(items) == limit {
-				next = base64.RawURLEncoding.EncodeToString([]byte("v1beta1:domains:name:" + items[len(items)-1].Domain))
-				break
-			}
+		for _, d := range rows {
 			items = append(items, domainWire(d))
 		}
-		var cursor *string
-		if next != "" {
-			cursor = &next
-		}
-		writeJSON(w, 200, DomainPage{Items: items, NextCursor: cursor})
+		writeJSON(w, 200, DomainPage{Items: items, NextCursor: next})
 		return nil
 	}))
 	protected.Handle("GET /v1beta1/domains/{domain}", handler(func(w http.ResponseWriter, r *http.Request) error {
@@ -216,24 +215,4 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	if err := json.NewEncoder(w).Encode(v); err != nil {
 		slog.Debug("cannot write REST response", "err", err)
 	}
-}
-
-func parseDomainPage(q url.Values) (string, int, error) {
-	limit, err := pageLimit(q)
-	if err != nil {
-		return "", 0, err
-	}
-	after := ""
-	if q.Has(cursorParameter) {
-		b, err := base64.RawURLEncoding.DecodeString(q.Get(cursorParameter))
-		prefix := "v1beta1:domains:name:"
-		if err != nil || !strings.HasPrefix(string(b), prefix) {
-			return "", 0, problemError(400, "invalid_cursor")
-		}
-		after = strings.TrimPrefix(string(b), prefix)
-		if _, err = values.Parse(after); err != nil {
-			return "", 0, problemError(400, "invalid_cursor")
-		}
-	}
-	return after, limit, nil
 }

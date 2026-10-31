@@ -1,14 +1,14 @@
 package stats_test
 
 import (
-	"errors"
 	"testing"
 	"time"
 
+	"github.com/kannon-email/kannon/internal/keyset"
 	"github.com/kannon-email/kannon/internal/stats"
 )
 
-func TestEventPagesBindFiltersAndExcludeTransientSignals(t *testing.T) {
+func TestEventPagesResumeAfterPositionAndExcludeTransientSignals(t *testing.T) {
 	s := newTestService()
 	ctx := authorizedCtx(t)
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -17,18 +17,21 @@ func TestEventPagesBindFiltersAndExcludeTransientSignals(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	q := stats.EventQuery{Range: stats.TimeRange{Start: now, Stop: now.Add(time.Hour)}, Limit: 1}
-	page, err := s.QueryEvents(ctx, exampleCom, q)
-	if err != nil || len(page.Items) != 1 || page.Items[0].Type != stats.TypeDelivered || page.NextCursor == "" {
-		t.Fatal(page, err)
+	q := stats.EventQuery{Range: stats.TimeRange{Start: now, Stop: now.Add(time.Hour)}}
+	page := keyset.Page[stats.EventPosition]{Limit: 1}
+	rows, err := s.QueryEvents(ctx, exampleCom, q, page)
+	if err != nil || len(rows) != 1 || rows[0].Type != stats.TypeDelivered {
+		t.Fatal(rows, err)
 	}
-	q.Cursor = page.NextCursor
-	page, err = s.QueryEvents(ctx, exampleCom, q)
-	if err != nil || len(page.Items) != 1 || page.Items[0].Type != stats.TypeAccepted || page.NextCursor != "" {
-		t.Fatal(page, err)
+	after := stats.EventPositionOf(rows[0])
+	page.After = &after
+	rows, err = s.QueryEvents(ctx, exampleCom, q, page)
+	if err != nil || len(rows) != 1 || rows[0].Type != stats.TypeAccepted {
+		t.Fatal(rows, err)
 	}
-	q.BatchID = "other"
-	if _, err := s.QueryEvents(ctx, exampleCom, q); !errors.Is(err, stats.ErrEventCursor) {
-		t.Fatal(err)
+	after = stats.EventPositionOf(rows[0])
+	rows, err = s.QueryEvents(ctx, exampleCom, q, page)
+	if err != nil || len(rows) != 0 {
+		t.Fatal(rows, err)
 	}
 }

@@ -20,10 +20,15 @@ legacy Connect authentication stays independent.
 Use direct resource responses, 201 plus Location for creation, snake_case JSON,
 10 MiB bounded strict JSON decoding, and the private return-error handler adapter for sanitized RFC 9457
 errors. Every response receives a server-generated X-Request-ID. Never render
-infrastructure errors or secrets. Domain listing uses an exclusive ascending
-name boundary and one lookahead row, with a version/collection/order-bound opaque
-cursor; changing page size is allowed. Other collections should define their own
-query-bound cursor payloads, without a generic pagination framework.
+infrastructure errors or secrets.
+
+Every list goes through `page.go`: `readPage` parses `limit` (default 100, 1..1000)
+and `cursor`, `writePage` trims the one lookahead row and encodes the next cursor.
+A cursor is base64url JSON of a scope digest and the last row's typed position.
+The scope names the collection and order plus every value that narrows it
+(Domain, parent ID, filters), so a cursor replayed elsewhere is `invalid_cursor`;
+changing page size is allowed. Application operations and repositories receive a
+`keyset.Page` of that typed position and never see cursor syntax.
 
 HTTP acceptance tests use the complete adapter. Run `go test -race
 ./pkg/api/rest ./internal/intake ./internal/stats` with Docker available. The REST
@@ -35,8 +40,6 @@ Credential routes share the API Keys application service and the existing
 the target Domain; it does not infer identity from the requested path. Missing
 legacy role metadata resolves to sender. Role metadata is fixed at issuance;
 PATCH only accepts permanent revocation. Connect authentication remains separate.
-API Key cursors bind the Domain, collection and descending created_at/ID order,
-with an exclusive boundary and one lookahead row.
 
 `TestPersistentCredentialJourney` exercises real PostgreSQL through HTTP and the
 existing API Keys service. It defaults to the Docker harness. For a disposable,
@@ -78,9 +81,9 @@ applies. It never reads an unbounded body into memory.
 
 Parse RawQuery once. Shared name/scalar validation rejects malformed encoding,
 unknown names and repeated scalars; only event `type` may repeat. Name checks
-are deterministic and precede multiplicity checks. Operation parsers retain
-collection-specific cursor formats and bindings. Event limit range and business
-validation remain behind the application's authorization Guard.
+are deterministic and precede multiplicity checks. Page size and cursor are
+adapter syntax, checked before authorization for every list, events included;
+event filter validation remains behind the application's authorization Guard.
 
 Two deliberate history-query corrections return 400: malformed percent encoding
 or semicolon queries are now rejected (rather than silently discarded by

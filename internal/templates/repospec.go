@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/kannon-email/kannon/internal/keyset"
 	"github.com/kannon-email/kannon/internal/values"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -208,5 +209,38 @@ func testListAndCount(t *testing.T, repo Repository, helper RepoTestHelper) {
 		page3, err := repo.List(ctx, domain, Pagination{Skip: 4, Take: 2})
 		require.NoError(t, err)
 		assert.Len(t, page3, 1)
+	})
+
+	t.Run("Keyset", func(t *testing.T) {
+		ctx := t.Context()
+		domain := helper.CreateDomain(t)
+
+		for i := range 5 {
+			tpl, err := NewPersistent(domain, "<p>x</p>", fmt.Sprintf("t-%d", i))
+			require.NoError(t, err)
+			require.NoError(t, repo.Create(ctx, tpl))
+		}
+		transient, err := NewTransient(domain, "<p>once</p>")
+		require.NoError(t, err)
+		require.NoError(t, repo.Create(ctx, transient))
+
+		var ids []string
+		page := keyset.Page[string]{Limit: 2}
+		for range 4 {
+			listed, err := repo.ListPage(ctx, domain, page)
+			require.NoError(t, err)
+			require.LessOrEqual(t, len(listed), 2)
+			if len(listed) == 0 {
+				break
+			}
+			for _, tpl := range listed {
+				assert.Equal(t, TypePersistent, tpl.Type())
+				ids = append(ids, tpl.TemplateID())
+			}
+			last := listed[len(listed)-1].TemplateID()
+			page.After = &last
+		}
+		assert.Len(t, ids, 5)
+		assert.IsIncreasing(t, ids)
 	})
 }

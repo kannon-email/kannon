@@ -5,7 +5,6 @@ import (
 	"net/url"
 	"slices"
 	"sort"
-	"strconv"
 	"time"
 
 	"github.com/kannon-email/kannon/internal/stats"
@@ -42,17 +41,6 @@ func parseQuery(raw string, allowed ...string) (url.Values, error) {
 		}
 	}
 	return q, nil
-}
-
-func pageLimit(q url.Values) (int, error) {
-	if !q.Has(limitParameter) {
-		return 100, nil
-	}
-	n, err := strconv.Atoi(q.Get(limitParameter))
-	if err != nil || n < 1 || n > 1000 {
-		return 0, problemError(400, "invalid_query_parameter")
-	}
-	return n, nil
 }
 
 func timeRange(q url.Values) (stats.TimeRange, error) {

@@ -14,6 +14,8 @@ import (
 	"github.com/kannon-email/kannon/internal/apikeys"
 	"github.com/kannon-email/kannon/internal/domains"
 	"github.com/kannon-email/kannon/internal/intake"
+	"github.com/kannon-email/kannon/internal/keyset"
+	"github.com/kannon-email/kannon/internal/values"
 	"github.com/kannon-email/kannon/pkg/api/rest"
 )
 
@@ -23,7 +25,7 @@ type failingDomainRepository struct {
 	err error
 }
 
-func (r failingDomainRepository) ListPage(context.Context, string, int) ([]*domains.Domain, error) {
+func (r failingDomainRepository) ListPage(context.Context, keyset.Page[values.DomainName]) ([]*domains.Domain, error) {
 	return nil, r.err
 }
 
