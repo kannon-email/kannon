@@ -55,18 +55,7 @@ func eventWire(s *stats.Stat) map[string]any {
 		data["detail"] = o.Msg()
 		data["permanent"] = o.Permanent()
 	case stats.TypeOpened, stats.TypeClicked:
-		mode := s.TrackingMode
-		// Legacy rows predate retained modes. The reserved identity namespace is authoritative;
-		// request detail proves Full; otherwise use the least revealing identified shape.
-		if tracking.IsPseudonym(s.Email, s.Domain.String()) {
-			mode = tracking.ModePseudonymous
-		}
-		if mode == "" {
-			mode = tracking.ModeIdentified
-			if o.IP() != "" || o.UserAgent() != "" {
-				mode = tracking.ModeFull
-			}
-		}
+		mode := s.EngagementTrackingMode()
 		v["tracking_mode"] = mode
 		if mode == tracking.ModePseudonymous {
 			delete(v, "email")

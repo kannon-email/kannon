@@ -82,3 +82,20 @@ var DisplayName = map[Type]string{
 	TypeOpened:    "Opened",
 	TypeUnknown:   "Unknown",
 }
+
+// EngagementTrackingMode is the Mode an open or click is reported under. Legacy
+// rows predate retained modes: the reserved identity namespace is
+// authoritative; request detail proves Full; otherwise the least revealing
+// identified shape is assumed.
+func (s *Stat) EngagementTrackingMode() tracking.Mode {
+	if tracking.IsPseudonym(s.Email, s.Domain.String()) {
+		return tracking.ModePseudonymous
+	}
+	if s.TrackingMode != "" {
+		return s.TrackingMode
+	}
+	if s.Outcome.IP() != "" || s.Outcome.UserAgent() != "" {
+		return tracking.ModeFull
+	}
+	return tracking.ModeIdentified
+}
