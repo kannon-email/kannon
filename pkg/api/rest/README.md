@@ -25,8 +25,9 @@ name boundary and one lookahead row, with a version/collection/order-bound opaqu
 cursor; changing page size is allowed. Other collections should define their own
 query-bound cursor payloads, without a generic pagination framework.
 
-HTTP acceptance tests use the complete adapter. Run `go test -race -short
-./pkg/api/rest` without Docker; omit `-short` to run the PostgreSQL Domain journey.
+HTTP acceptance tests use the complete adapter. Run `go test -race
+./pkg/api/rest ./internal/intake ./internal/stats` with Docker available. The REST
+short suite is not Docker-free (the Delivery lifecycle test still uses PostgreSQL).
 Application authorization matrices remain in `internal/domains`.
 
 Credential routes share the API Keys application service and the existing
@@ -67,3 +68,31 @@ whole-hour Go `group_by` duration, return at most 1,000 complete buckets anchore
 at `from`, and zero-fill all public event counts. Zero does not prove collection
 uptime. No Batch filter is supported. `TestPersistentAggregateSeries` covers the
 HTTP and application seams with the same disposable database setting above.
+
+Request parsing uses private value/error functions. `decodeBody` reads at most
+10 MiB plus one sentinel byte, checks explicit nulls, and strictly decodes one
+JSON value without a ResponseWriter. The size includes trailing whitespace.
+Unlike MaxBytesReader, this reader does not request that net/http close an
+oversized request's connection; normal server body draining/connection policy
+applies. It never reads an unbounded body into memory.
+
+Parse RawQuery once. Shared name/scalar validation rejects malformed encoding,
+unknown names and repeated scalars; only event `type` may repeat. Name checks
+are deterministic and precede multiplicity checks. Operation parsers retain
+collection-specific cursor formats and bindings. Event limit range and business
+validation remain behind the application's authorization Guard.
+
+Two deliberate history-query corrections return 400: malformed percent encoding
+or semicolon queries are now rejected (rather than silently discarded by
+URL.Query), and unknown names use `unknown_query_parameter`, including detail
+routes, consistently with the other operations.
+
+Batch input reuses generated DTOs, with a strict content-union adapter and an
+attachment presence check. `content_base64` now accepts only JSON strings as
+specified by OpenAPI; numeric arrays previously accepted by Go's byte decoder
+return 400 `malformed_request`. Missing content returns 422; an empty string is
+valid, and invalid base64 remains 400. Template creation intentionally uses
+TemplatePatch as a presence adapter so omitted title differs from empty title.
+Missing recipient email still reaches intake as an inline refusal. Explicit null
+anywhere remains a whole-request 422 with an escaped JSON pointer. Maps, tracking
+and attachments retain their prior application shapes for idempotency replay.

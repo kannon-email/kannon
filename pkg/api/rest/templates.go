@@ -4,10 +4,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
-	"strconv"
+	"net/url"
 
 	"github.com/kannon-email/kannon/internal/templates"
-	"github.com/kannon-email/kannon/internal/values"
 )
 
 func templateWire(t *templates.Template) Template {
@@ -26,15 +25,15 @@ type templateCursor struct {
 
 func registerTemplates(mux *http.ServeMux, service *templates.Service) {
 	mux.Handle("POST /v1beta1/domains/{domain}/templates", handler(func(w http.ResponseWriter, r *http.Request) error {
-		if err := query(r, false); err != nil {
+		if _, err := parseQuery(r.URL.RawQuery); err != nil {
 			return err
 		}
-		domain, err := values.Parse(r.PathValue(domainParameter))
+		domain, err := parseDomainPath(r)
 		if err != nil {
-			return problemError(400, "malformed_request")
+			return err
 		}
-		var input TemplatePatch
-		if err := decode(w, r, &input); err != nil {
+		input, err := decodeBody[TemplatePatch](r.Body)
+		if err != nil {
 			return err
 		}
 		if input.Html == nil || *input.Html == "" || input.Title == nil {
@@ -50,20 +49,20 @@ func registerTemplates(mux *http.ServeMux, service *templates.Service) {
 	}))
 	for _, method := range []string{"GET", http.MethodPatch, http.MethodDelete} {
 		mux.Handle(method+" /v1beta1/domains/{domain}/templates/{template_id}", handler(func(w http.ResponseWriter, r *http.Request) error {
-			if err := query(r, false); err != nil {
+			if _, err := parseQuery(r.URL.RawQuery); err != nil {
 				return err
 			}
-			domain, err := values.Parse(r.PathValue(domainParameter))
+			domain, err := parseDomainPath(r)
 			if err != nil {
-				return problemError(400, "malformed_request")
+				return err
 			}
 			id := r.PathValue("template_id")
 			var t *templates.Template
 			switch r.Method {
 			case http.MethodPatch:
-				var input TemplatePatch
-				if err := decode(w, r, &input); err != nil {
-					return err
+				input, decodeErr := decodeBody[TemplatePatch](r.Body)
+				if decodeErr != nil {
+					return decodeErr
 				}
 				if (input.Html == nil && input.Title == nil) || (input.Html != nil && *input.Html == "") {
 					return problemError(422, "validation_failed")
@@ -86,29 +85,17 @@ func registerTemplates(mux *http.ServeMux, service *templates.Service) {
 		}))
 	}
 	mux.Handle("GET /v1beta1/domains/{domain}/templates", handler(func(w http.ResponseWriter, r *http.Request) error {
-		if err := query(r, true); err != nil {
+		q, err := parseQuery(r.URL.RawQuery, limitParameter, cursorParameter)
+		if err != nil {
 			return err
 		}
-		domain, err := values.Parse(r.PathValue(domainParameter))
+		domain, err := parseDomainPath(r)
 		if err != nil {
-			return problemError(400, "malformed_request")
+			return err
 		}
-		limit := 100
-		if r.URL.Query().Has(limitParameter) {
-			limit, err = strconv.Atoi(r.URL.Query().Get(limitParameter))
-			if err != nil || limit < 1 || limit > 1000 {
-				return problemError(400, "invalid_query_parameter")
-			}
-		}
-		const collection = "v1beta1:templates:persistent:id:asc"
-		after := ""
-		if r.URL.Query().Has(cursorParameter) {
-			raw, e := base64.RawURLEncoding.DecodeString(r.URL.Query().Get(cursorParameter))
-			var c templateCursor
-			if e != nil || json.Unmarshal(raw, &c) != nil || c.Collection != collection || c.Domain != domain.String() || c.ID == "" {
-				return problemError(400, "invalid_cursor")
-			}
-			after = c.ID
+		after, limit, err := parseTemplatePage(q, domain.String())
+		if err != nil {
+			return err
 		}
 		items, err := service.ListPage(r.Context(), domain, after, uint(limit+1))
 		if err != nil {
@@ -116,7 +103,7 @@ func registerTemplates(mux *http.ServeMux, service *templates.Service) {
 		}
 		result := TemplateSummaryPage{Items: []TemplateSummary{}}
 		if len(items) > limit {
-			raw, err := json.Marshal(templateCursor{Collection: collection, Domain: domain.String(), ID: items[limit-1].TemplateID()})
+			raw, err := json.Marshal(templateCursor{Collection: templateCollection, Domain: domain.String(), ID: items[limit-1].TemplateID()})
 			if err != nil {
 				return err
 			}
@@ -131,3 +118,22 @@ func registerTemplates(mux *http.ServeMux, service *templates.Service) {
 		return nil
 	}))
 }
+
+func parseTemplatePage(q url.Values, domain string) (string, int, error) {
+	limit, err := pageLimit(q)
+	if err != nil {
+		return "", 0, err
+	}
+	after := ""
+	if q.Has(cursorParameter) {
+		raw, e := base64.RawURLEncoding.DecodeString(q.Get(cursorParameter))
+		var c templateCursor
+		if e != nil || json.Unmarshal(raw, &c) != nil || c.Collection != templateCollection || c.Domain != domain || c.ID == "" {
+			return "", 0, problemError(400, "invalid_cursor")
+		}
+		after = c.ID
+	}
+	return after, limit, nil
+}
+
+const templateCollection = "v1beta1:templates:persistent:id:asc"

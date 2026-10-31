@@ -2,60 +2,21 @@ package rest
 
 import (
 	"net/http"
-	"net/url"
 	"strconv"
-	"time"
 
 	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/internal/tracking"
-	"github.com/kannon-email/kannon/internal/values"
 )
 
 func registerEvents(mux *http.ServeMux, service *stats.Service) {
 	mux.Handle("GET /v1beta1/domains/{domain}/stats/events", handler(func(w http.ResponseWriter, r *http.Request) error {
-		d, err := values.Parse(r.PathValue(domainParameter))
+		d, err := parseDomainPath(r)
 		if err != nil {
-			return problemError(400, "malformed_request")
+			return err
 		}
-		q, err := url.ParseQuery(r.URL.RawQuery)
+		input, err := parseEventQuery(r.URL.RawQuery)
 		if err != nil {
-			return problemError(400, "invalid_query_parameter")
-		}
-		for k, v := range q {
-			switch k {
-			case fromParameter, "to", batchIDParameter, limitParameter, cursorParameter, typeParameter:
-			default:
-				return problemError(400, "unknown_query_parameter")
-			}
-			if k != typeParameter && len(v) != 1 {
-				return problemError(400, "invalid_query_parameter")
-			}
-		}
-		input := stats.EventQuery{Limit: 100, BatchID: q.Get(batchIDParameter), Cursor: q.Get(cursorParameter)}
-		input.Range.Start, err = time.Parse(time.RFC3339Nano, q.Get(fromParameter))
-		if err == nil {
-			input.Range.Stop, err = time.Parse(time.RFC3339Nano, q.Get("to"))
-		}
-		if err != nil {
-			return problemError(400, "invalid_query_parameter")
-		}
-		if q.Has(limitParameter) {
-			input.Limit, err = strconv.Atoi(q.Get(limitParameter))
-		}
-		if err != nil || (q.Has(batchIDParameter) && input.BatchID == "") {
-			return problemError(400, "invalid_query_parameter")
-		}
-		if q.Has(cursorParameter) && input.Cursor == "" {
-			return problemError(400, "invalid_cursor")
-		}
-		for _, t := range q[typeParameter] {
-			switch t {
-			case string(EventTypeValidated):
-				t = "accepted"
-			case "accepted":
-				return problemError(400, "invalid_query_parameter")
-			}
-			input.Types = append(input.Types, stats.Type(t))
+			return err
 		}
 		page, err := service.QueryEvents(r.Context(), d, input)
 		if err != nil {
@@ -124,4 +85,35 @@ func eventWire(s *stats.Stat) map[string]any {
 		}
 	}
 	return v
+}
+
+func parseEventQuery(raw string) (stats.EventQuery, error) {
+	q, err := parseQuery(raw, fromParameter, "to", batchIDParameter, limitParameter, cursorParameter, typeParameter)
+	if err != nil {
+		return stats.EventQuery{}, err
+	}
+	input := stats.EventQuery{Limit: 100, BatchID: q.Get(batchIDParameter), Cursor: q.Get(cursorParameter)}
+	input.Range, err = timeRange(q)
+	if err != nil {
+		return input, err
+	}
+	if q.Has(limitParameter) {
+		input.Limit, err = strconv.Atoi(q.Get(limitParameter))
+	}
+	if err != nil || (q.Has(batchIDParameter) && input.BatchID == "") {
+		return input, problemError(400, "invalid_query_parameter")
+	}
+	if q.Has(cursorParameter) && input.Cursor == "" {
+		return input, problemError(400, "invalid_cursor")
+	}
+	for _, t := range q[typeParameter] {
+		switch t {
+		case string(EventTypeValidated):
+			t = "accepted"
+		case "accepted":
+			return input, problemError(400, "invalid_query_parameter")
+		}
+		input.Types = append(input.Types, stats.Type(t))
+	}
+	return input, nil
 }
