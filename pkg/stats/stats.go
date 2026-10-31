@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"golang.org/x/sync/errgroup"
 
 	sq "github.com/kannon-email/kannon/internal/db"
@@ -23,20 +24,27 @@ import (
 
 type Config struct {
 	Retention time.Duration `mapstructure:"retention"`
+	// AggregatedRetention bounds the hourly per-Domain counters. A key of its own rather than
+	// Retention: the counters hold no Recipient, and are the only record of anonymous engagement.
+	AggregatedRetention time.Duration `mapstructure:"aggregated_retention"`
 }
 
 func (c *Config) setDefaults() {
 	if c.Retention <= 0 {
 		c.Retention = 8760 * time.Hour // 1 year
 	}
+	if c.AggregatedRetention <= 0 {
+		c.AggregatedRetention = 8760 * time.Hour // 1 year
+	}
 }
 
 type statsHandler struct {
-	js        jetstream.JetStream
-	service   *stats.Service
-	q         *sq.Queries
-	retention time.Duration
-	counter   stats.AggregatedEventCounter
+	js                  jetstream.JetStream
+	service             *stats.Service
+	q                   *sq.Queries
+	retention           time.Duration
+	aggregatedRetention time.Duration
+	counter             stats.AggregatedEventCounter
 }
 
 // New constructs the stats runnable, loading its slice of configuration from
@@ -56,6 +64,9 @@ func New(cnt *container.Container) container.Runnable {
 func run(ctx context.Context, cnt *container.Container, cfg Config) error {
 	q := cnt.Queries()
 	js := cnt.NatsJetStream()
+	if err := stats.ConfigureStream(ctx, js); err != nil {
+		return fmt.Errorf("cannot configure stats stream: %w", err)
+	}
 
 	db := cnt.DB()
 	repo := sq.NewStatsRepository(db)
@@ -63,11 +74,12 @@ func run(ctx context.Context, cnt *container.Container, cfg Config) error {
 	service := stats.NewService(repo, stats.WithAggregatedStatsRepository(aggregatedRepo))
 
 	h := statsHandler{
-		js:        js,
-		service:   service,
-		q:         q,
-		retention: cfg.Retention,
-		counter:   aggregatedRepo,
+		js:                  js,
+		service:             service,
+		q:                   q,
+		retention:           cfg.Retention,
+		aggregatedRetention: cfg.AggregatedRetention,
+		counter:             aggregatedRepo,
 	}
 
 	eg, ctx := errgroup.WithContext(ctx)
@@ -98,7 +110,25 @@ func (h *statsHandler) cleanupCycle(ctx context.Context) error {
 	if err := h.q.CleanupBatchHistory(ctx, time.Now()); err != nil {
 		return err
 	}
+	if err := h.q.CleanupMailerBatches(ctx, time.Now()); err != nil {
+		return err
+	}
+	if err := h.q.CleanupBatchReceipts(ctx, time.Now()); err != nil {
+		return err
+	}
 	deletedStats, err := h.service.Cleanup(ctx, h.retention)
+	if err != nil {
+		return err
+	}
+
+	// The counters are hourly UTC buckets in a timestamp column, so the cutoff is given in UTC.
+	before := time.Now().UTC().Add(-h.aggregatedRetention)
+	deletedAggregated, err := h.q.DeleteAggregatedStatsOlderThan(ctx, pgtype.Timestamp{Time: before, Valid: true})
+	if err != nil {
+		return err
+	}
+
+	deletedMarkers, err := h.q.PruneCountedStatEvents(ctx, time.Now())
 	if err != nil {
 		return err
 	}
@@ -108,8 +138,9 @@ func (h *statsHandler) cleanupCycle(ctx context.Context) error {
 		return err
 	}
 
-	if deletedStats > 0 || deletedKeys > 0 {
-		slog.Info(fmt.Sprintf("stats cleanup: deleted %d stats and %d expired keys", deletedStats, deletedKeys))
+	if deletedStats > 0 || deletedAggregated > 0 || deletedMarkers > 0 || deletedKeys > 0 {
+		slog.Info(fmt.Sprintf("stats cleanup: deleted %d stats, %d aggregated counters, %d counting markers and %d expired keys",
+			deletedStats, deletedAggregated, deletedMarkers, deletedKeys))
 	}
 
 	return nil
@@ -124,7 +155,7 @@ func (h *statsHandler) handleAggregatedStats(ctx context.Context) error {
 
 // consumeStats owns the shared consumer lifecycle; each durable retains its own handler.
 func (h *statsHandler) consumeStats(ctx context.Context, name string, handle func(context.Context, jetstream.Msg) error) error {
-	con := utils.MustGetPullSubscriber(ctx, h.js, "kannon-stats", "kannon.stats.*", name)
+	con := utils.MustGetPullSubscriber(ctx, h.js, stats.StreamName, stats.StreamSubjects, name)
 	c, err := con.Consume(func(msg jetstream.Msg) {
 		if err := handle(ctx, msg); err != nil {
 			slog.Error("Cannot handle stats msg", "consumer", name, "err", err)

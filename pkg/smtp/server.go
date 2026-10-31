@@ -9,6 +9,7 @@ import (
 
 	"github.com/emersion/go-smtp"
 	"github.com/kannon-email/kannon/internal/returnpath"
+	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/x/config"
 	"github.com/kannon-email/kannon/x/container"
 	"github.com/nats-io/nats.go"
@@ -24,6 +25,10 @@ func New(cnt *container.Container) container.Runnable {
 	return container.Runnable{
 		Name: "smtp",
 		Run: func(ctx context.Context) error {
+			// Asynchronous bounces are published on the stats stream.
+			if err := stats.ConfigureStream(ctx, cnt.NatsJetStream()); err != nil {
+				return fmt.Errorf("cannot configure stats stream: %w", err)
+			}
 			return run(ctx, cnt.Nats(), cfg, rp)
 		},
 	}

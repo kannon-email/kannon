@@ -51,6 +51,18 @@ func (r *AggregatedStatsRepository) Query(ctx context.Context, domain values.Dom
 	return result, nil
 }
 
+// storedSecondLayout is the fixed-width prefix of the RFC3339Nano stored_at a marker is written with:
+// its UTC second, which sorts as time where the whole string does not.
+const storedSecondLayout = "2006-01-02T15:04:05"
+
+// PruneCountedStatEvents deletes the counting markers of events stored more than
+// stats.CountedEventRetention before now, which the stats stream can no longer redeliver. The
+// comparison is by whole second: a marker stored in the cutoff second is kept until the next run.
+func (q *Queries) PruneCountedStatEvents(ctx context.Context, now time.Time) (int64, error) {
+	before := now.Add(-stats.CountedEventRetention).UTC().Format(storedSecondLayout)
+	return q.DeleteCountedStatEventsBefore(ctx, before)
+}
+
 // Count commits the deduplication marker and hourly increment in one SQL statement.
 // A counter write failure rolls back its marker too, making redelivery retryable.
 func (r *AggregatedStatsRepository) Count(ctx context.Context, id stats.StoredEventID, domain values.DomainName, timestamp time.Time, statType stats.Type) error {

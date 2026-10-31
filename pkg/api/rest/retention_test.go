@@ -133,3 +133,56 @@ func TestHistoryExpiresAtThirtyDays(t *testing.T) {
 	require.True(t, replayed)
 	require.Equal(t, pending.ID, replay.ID)
 }
+
+func TestIdempotencyReceiptExpiresAtNinetyDays(t *testing.T) {
+	db, purge, err := credentialDB()
+	require.NoError(t, err)
+	defer func() {
+		if err := purge(); err != nil {
+			t.Error(err)
+		}
+	}()
+	ctx := authz.NewContext(t.Context(), authz.MustNewPrincipal("admin", authz.MustNewGrant(authz.RoleAdmin, authz.RootAnchor())))
+	domain := values.MustParse("example.com")
+	_, err = domains.NewService(sqlc.NewDomainsRepository(db)).CreateDomain(ctx, domain)
+	require.NoError(t, err)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	svc := intake.NewInlineService(sqlc.NewInlineStore(db, func() time.Time { return now }), sqlc.NewDomainsRepository(db), nil, 0, 0)
+	svc.Now = func() time.Time { return now }
+	req := intake.InlineRequest{Sender: batch.Sender{Email: "from@example.com"}, Subject: "Hello", HTML: "Hello", Recipients: []intake.InlineRecipient{{Email: "to@example.com"}}}
+	completed, _, _, err := svc.Create(ctx, domain, "completed", req)
+	require.NoError(t, err)
+	pending, _, _, err := svc.Create(ctx, domain, "pending", req)
+	require.NoError(t, err)
+	require.NoError(t, sqlc.NewStatsRepository(db).Insert(ctx, stats.NewStat("to@example.com", completed.ID, domain, now, stats.Delivered())))
+	require.NoError(t, sqlc.NewDeliveryRepository(db, delivery.DefaultBackoff, delivery.DefaultRetryWindow).Clean(ctx, batch.ID(completed.ID), "to@example.com"))
+	b, err := svc.ReadBatch(ctx, domain, completed.ID)
+	require.NoError(t, err)
+	require.NotNil(t, b.CompletedAt)
+	replays := func(key string) (*intake.InlineReceipt, bool) {
+		t.Helper()
+		r, _, replayed, err := svc.Create(ctx, domain, key, req)
+		require.NoError(t, err)
+		return r, replayed
+	}
+	cleanup := func() {
+		t.Helper()
+		require.NoError(t, sqlc.New(db).CleanupBatchHistory(ctx, now))
+		require.NoError(t, sqlc.New(db).CleanupBatchReceipts(ctx, now))
+	}
+
+	now = b.CompletedAt.Add(intake.ReceiptRetention - time.Microsecond)
+	cleanup()
+	r, replayed := replays("completed")
+	require.True(t, replayed, "the key still deduplicates once history is gone")
+	require.Equal(t, completed.ID, r.ID)
+
+	now = now.Add(time.Microsecond)
+	cleanup()
+	r, replayed = replays("completed")
+	require.False(t, replayed, "after the receipt expires the key creates a new Batch")
+	require.NotEqual(t, completed.ID, r.ID)
+	r, replayed = replays("pending")
+	require.True(t, replayed, "an unfinished Batch keeps its receipt")
+	require.Equal(t, pending.ID, r.ID)
+}

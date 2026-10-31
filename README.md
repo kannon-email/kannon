@@ -214,23 +214,24 @@ A process with nothing enabled refuses to boot rather than exit as if it had don
 
 **Per-component options**, under their own section:
 
-| YAML key              | Type     | Default        | Description                                     |
-| --------------------- | -------- | -------------- | ----------------------------------------------- |
-| `api.port`            | int      | 50051          | API listen port                                 |
-| `api.max_payload`     | size     | 500Ki          | Max Batch content (HTML + base64 attachments); larger is refused with `message_too_large`. Set to ~70% of the NATS server's `max_payload` |
-| `sender.hostname`     | string   | (required)     | Hostname announced for outgoing mail            |
-| `sender.max_jobs`     | int      | 10             | Max parallel sending jobs                       |
-| `sender.demo_sender`  | bool     | false          | Enable demo sender mode for testing             |
-| `smtp.address`        | string   | `:25`          | Inbound SMTP server listen address              |
-| `smtp.domain`         | string   | localhost      | Inbound SMTP server domain                      |
-| `smtp.read_timeout`   | duration | 10s            | SMTP read timeout                               |
-| `smtp.write_timeout`  | duration | 10s            | SMTP write timeout                              |
-| `smtp.max_payload`    | size     | 1Mi            | Max SMTP message size                           |
-| `smtp.max_recipients` | int      | 50             | Max recipients per inbound SMTP message         |
-| `tracker.port`        | int      | 8080           | Open/click tracking HTTP server port            |
-| `stats.retention`     | duration | 8760h (1 year) | How long raw per-Delivery stats are kept        |
-| `audit.enabled`       | bool     | false          | Record every authorization decision (see below) |
-| `audit.retention`     | duration | 720h (30 days) | How long an Audit Record is kept                |
+| YAML key                     | Type     | Default        | Description                                      |
+| ---------------------------- | -------- | -------------- | ------------------------------------------------ |
+| `api.port`                   | int      | 50051          | API listen port                                  |
+| `api.max_payload`            | size     | 500Ki          | Max Batch content (HTML + base64 attachments); larger is refused with `message_too_large`. Set to ~70% of the NATS server's `max_payload` |
+| `sender.hostname`            | string   | (required)     | Hostname announced for outgoing mail             |
+| `sender.max_jobs`            | int      | 10             | Max parallel sending jobs                        |
+| `sender.demo_sender`         | bool     | false          | Enable demo sender mode for testing              |
+| `smtp.address`               | string   | `:25`          | Inbound SMTP server listen address               |
+| `smtp.domain`                | string   | localhost      | Inbound SMTP server domain                       |
+| `smtp.read_timeout`          | duration | 10s            | SMTP read timeout                                |
+| `smtp.write_timeout`         | duration | 10s            | SMTP write timeout                               |
+| `smtp.max_payload`           | size     | 1Mi            | Max SMTP message size                            |
+| `smtp.max_recipients`        | int      | 50             | Max recipients per inbound SMTP message          |
+| `tracker.port`               | int      | 8080           | Open/click tracking HTTP server port             |
+| `stats.retention`            | duration | 8760h (1 year) | How long raw per-Delivery stats are kept         |
+| `stats.aggregated_retention` | duration | 8760h (1 year) | How long the hourly per-Domain counters are kept |
+| `audit.enabled`              | bool     | false          | Record every authorization decision (see below)  |
+| `audit.retention`            | duration | 720h (30 days) | How long an Audit Record is kept                 |
 
 A *size* is written as a Kubernetes quantity: `5Mi`, `500Ki`, `1Gi` (powers of 1024), `5M`, `500k`, `1G` (powers of 1000), or a bare number of bytes.
 
@@ -283,11 +284,11 @@ Kannon requires a PostgreSQL database, migrated with [dbmate](https://github.com
 
 - **domains**: Registered sender Domains (domain name + DKIM keypair + Tracking Policy ceiling)
 - **api_keys**: API Keys for authentication (multiple keys per Domain; hashed at rest, expirable, revocable)
-- **messages**: One row per **Batch** — subject, Sender, template reference, attachments, custom headers, Tracking Policy (legacy table name; the entity is a Batch)
+- **messages**: One row per **Batch** — subject, Sender, template reference, attachments, custom headers, Tracking Policy (legacy table name; the entity is a Batch). A REST Batch is deleted with its history, 30 days after it completes; a Mailer API Batch, which has no history, 30 days after intake once none of its Deliveries is left in the Pool
 - **sending_pool_emails**: The Pool — one row per **Delivery** (recipient, scheduled time, retry count, per-recipient fields, frozen Tracking Policy). Rows are deleted on terminal outcomes
 - **templates**: Persistent and Transient Templates owned by a Domain
 - **stats**: Per-Delivery outcome events (Validated / Rejected / Delivered / Bounced / Opened / Clicked), pruned by `stats.retention`
-- **aggregated_stats**: Per-Domain hourly event counters, never pruned — the only record of events collected in anonymous tracking mode
+- **aggregated_stats**: Per-Domain hourly event counters, pruned by `stats.aggregated_retention` — the only record of events collected in anonymous tracking mode
 - **stats_keys**: Signing keys for tracking tokens
 - **audit_records**: One row per authorization decision — written only when `audit.enabled`, never read by Kannon, pruned by `audit.retention`
 

@@ -249,7 +249,7 @@ type parseFunc func(ctx context.Context, e stats.Event) error
 // handleMsg is the one place the Dispatcher decodes a stat message, so the
 // handlers above work in domain types and the proto stays at this edge.
 func (d *disp) handleMsg(ctx context.Context, sbj, subName string, parse parseFunc) error {
-	con := utils.MustGetPullSubscriber(ctx, d.js, "kannon-stats", sbj, subName)
+	con := utils.MustGetPullSubscriber(ctx, d.js, stats.StreamName, sbj, subName)
 	c, err := con.Consume(func(msg jetstream.Msg) {
 		d.handleWithAck(ctx, msg, func(ctx context.Context, msg jetstream.Msg) error {
 			event, err := statspb.UnmarshalEvent(msg.Data())

@@ -93,6 +93,7 @@ type Message struct {
 	Attachments Attachments
 	Headers     Headers
 	Tracking    tracking.Policy
+	CreatedAt   pgtype.Timestamptz
 }
 
 type SendingPoolEmail struct {

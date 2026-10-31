@@ -358,7 +358,8 @@ CREATE TABLE public.messages (
     domain character varying(254) NOT NULL,
     attachments jsonb,
     headers jsonb DEFAULT '{}'::jsonb NOT NULL,
-    tracking jsonb DEFAULT '{}'::jsonb NOT NULL
+    tracking jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 
@@ -751,6 +752,13 @@ CREATE UNIQUE INDEX "VerificationToken_token_key" ON public."VerificationToken" 
 
 
 --
+-- Name: aggregated_stats_timestamp_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX aggregated_stats_timestamp_idx ON public.aggregated_stats USING btree ("timestamp");
+
+
+--
 -- Name: api_keys_domain_created_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -800,6 +808,13 @@ CREATE INDEX batch_history_order ON public.batch_intake_receipts USING btree (do
 
 
 --
+-- Name: counted_stat_events_stored_second_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX counted_stat_events_stored_second_idx ON public.counted_stat_events USING btree ("left"(stored_at, 19) COLLATE "C");
+
+
+--
 -- Name: delivery_history_order; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -832,6 +847,13 @@ CREATE INDEX domain_user_domain_idx ON public.domain_user USING btree (domain);
 --
 
 CREATE INDEX domains_domain_idx ON public.domains USING btree (domain);
+
+
+--
+-- Name: messages_created_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX messages_created_at_idx ON public.messages USING btree (created_at);
 
 
 --
@@ -1042,4 +1064,7 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20261030231457'),
     ('20261030231941'),
     ('20261030232432'),
-    ('20261031075047');
+    ('20261031075047'),
+    ('20261031174350'),
+    ('20261031174606'),
+    ('20261031175305');

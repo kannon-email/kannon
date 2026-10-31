@@ -1,6 +1,10 @@
 package tracker
 
 import (
+	"context"
+	"fmt"
+
+	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/x/config"
 	"github.com/kannon-email/kannon/x/container"
 )
@@ -24,6 +28,12 @@ func New(cnt *container.Container) container.Runnable {
 	srv := NewServer(cnt, cfg)
 	return container.Runnable{
 		Name: "tracker",
-		Run:  srv.Run,
+		Run: func(ctx context.Context) error {
+			// Opens and clicks are published on the stats stream.
+			if err := stats.ConfigureStream(ctx, cnt.NatsJetStream()); err != nil {
+				return fmt.Errorf("cannot configure stats stream: %w", err)
+			}
+			return srv.Run(ctx)
+		},
 	}
 }

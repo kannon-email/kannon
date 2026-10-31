@@ -10,6 +10,14 @@ WHERE domain = @domain
 AND timestamp >= @start AND timestamp < @stop
 ORDER BY timestamp ASC, type;
 
+-- name: DeleteAggregatedStatsOlderThan :execrows
+DELETE FROM aggregated_stats WHERE timestamp < @before;
+
+-- name: DeleteCountedStatEventsBefore :execrows
+-- Compares the UTC second, the fixed-width prefix of stored_at, under the C
+-- collation counted_stat_events_stored_second_idx is built with.
+DELETE FROM counted_stat_events WHERE left(stored_at, 19) COLLATE "C" < @before_second::text;
+
 -- name: CountAggregatedEvent :exec
 WITH first_delivery AS (
     INSERT INTO counted_stat_events (stream, stored_at, sequence)

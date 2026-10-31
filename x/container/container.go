@@ -380,9 +380,14 @@ func (c *Container) Sender() smtp.Sender {
 }
 
 // provisionEmbeddedJetStreams creates the JetStream streams Kannon's runnables
-// expect (kannon-sending, kannon-stats, kannon-bounce). Called once when the
-// container connects to its embedded NATS server; idempotent against an
-// existing stream.
+// expect before any of them has configured it. Called once when the container
+// connects to its embedded NATS server; idempotent against an existing stream.
+//
+// Only kannon-sending is here, so that the sender can subscribe before the
+// dispatcher has configured it. kannon-stats and kannon-audit are deliberately
+// absent: each is configured, with its age limit, by every process using it
+// (stats.ConfigureStream, audit.ConfigureStream), and a stream created here
+// would be a second, unbounded definition.
 func provisionEmbeddedJetStreams(nc *nats.Conn) error {
 	js, err := nc.JetStream()
 	if err != nil {
@@ -394,8 +399,6 @@ func provisionEmbeddedJetStreams(nc *nats.Conn) error {
 		subjects []string
 	}{
 		{name: "kannon-sending", subjects: []string{"kannon.sending"}},
-		{name: "kannon-stats", subjects: []string{"kannon.stats.*"}},
-		{name: "kannon-bounce", subjects: []string{"kannon.bounce"}},
 	}
 
 	for _, s := range streams {

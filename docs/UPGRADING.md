@@ -5,6 +5,56 @@ releases that change behaviour of an installation already in production appear
 here; everything else is in [`CHANGELOG.md`](../CHANGELOG.md), which is
 generated from commits.
 
+## Unreleased — Retention for every table and stream
+
+### What changes
+
+The stats worker's cleanup cycle now bounds every table that used to grow
+without limit:
+
+- **Mailer API Batches.** A Batch accepted by the Mailer API, and the Transient
+  Template it created, are deleted 30 days after intake once none of its
+  Deliveries is left in the Pool. Such a Batch has no history and records no
+  completion time, so the clock starts at intake; nothing reads the row once
+  its Pool is empty. The migration adds `messages.created_at` and sets it to
+  the migration time on existing rows, so Batches accepted before the upgrade
+  are deleted 30 days after it. Stats rows are untouched and keep their own
+  `stats.retention`.
+- **Aggregated counters.** `aggregated_stats` rows older than the new
+  `stats.aggregated_retention` (default `8760h`, one year) are deleted. They
+  are the only record of anonymous engagement, so **set a longer value before
+  upgrading** if you need counters older than a year; they cannot be rebuilt
+  once deleted. The key is separate from `stats.retention`, which keeps
+  governing per-Delivery stats.
+- **Idempotency receipts.** A REST Batch's `batch_intake_receipts` row, until
+  now kept forever, is deleted 90 days after the Batch completed (its history
+  has gone at 30). From then on its `Idempotency-Key` no longer deduplicates:
+  a client reusing the key with the same content creates a new Batch instead of
+  replaying the old one. Receipts of Batches that have not completed are kept.
+- **Counting markers.** `counted_stat_events`, the aggregate counter's
+  deduplication markers, are deleted 8 days after their event was stored: the
+  `kannon-stats` max age below, after which the event cannot be redelivered,
+  plus a day of margin for clock skew. Do not restore a `kannon-stats` backup
+  older than that, or its events are counted again. For the same reason, do
+  not raise the stream's max age by hand: the markers would expire while their
+  events can still be redelivered (every process resets it to 7 days at
+  startup anyway).
+
+And the JetStream streams:
+
+- **`kannon-stats`** is now configured in code with a 7-day max age (limits
+  policy, file storage, discard-old) by every process that publishes or
+  consumes stat events — stats, dispatcher, sender, validator, tracker and
+  smtp. Until now the sender alone set it, with a 24-hour max age, and embedded
+  NATS created it with none. A consumer that is down can now catch up on a
+  week of events; size the NATS store for a week of stat events. A stream you
+  created by hand is updated to this configuration at startup, and a process
+  refuses to start if the update is impossible — for instance a stream with
+  memory storage, whose storage type cannot be changed: delete it first.
+- **`kannon-bounce`** is no longer created. Nothing ever published to or
+  consumed it; an existing one is empty and can be deleted with
+  `nats stream rm kannon-bounce`.
+
 ## Unreleased — Signed bounce return paths
 
 ### What changes
@@ -53,11 +103,12 @@ The storage timestamp comes from each message’s metadata, so sequence reuse af
 stream recreation does not depend on a worker’s stale stream snapshot. Keep
 this table with the aggregate counters when backing up or restoring the database.
 
-The `kannon-stats` stream has no configured age limit, so its replay window is
-unbounded. Markers consequently do not expire with `stats.retention`; storage
-grows with the number of counted events. Deleting markers allows retained
-messages to count again. Safe cleanup needs a guaranteed replay cutoff, including
-any stream backups that could be restored; none is configured automatically.
+Markers do not expire with `stats.retention`: deleting one allows its message
+to count again, so a marker must outlive every possible replay of it. Since the
+`kannon-stats` stream got a 7-day max age (see *Retention for every table and
+stream* above), the stats worker deletes markers 8 days after their message was
+stored. Restoring a stream backup older than that would replay messages whose
+markers are gone, and count them again.
 
 Existing counters are preserved. Previously counted messages have no markers,
 so replaying pre-upgrade history can still add to those existing counters. The
