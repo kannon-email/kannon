@@ -13,6 +13,7 @@ import (
 	"github.com/kannon-email/kannon/internal/runner"
 	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/internal/tests"
+	"github.com/kannon-email/kannon/internal/values"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -44,17 +45,21 @@ func TestMain(m *testing.M) {
 	})
 }
 
-const testRetention = 365 * 24 * time.Hour
+const (
+	testRetention           = 365 * 24 * time.Hour
+	testAggregatedRetention = 2 * 365 * 24 * time.Hour
+)
 
 func newTestHandler() statsHandler {
 	repo := sq.NewStatsRepository(db)
 	service := stats.NewService(repo,
 		stats.WithAggregatedStatsRepository(sq.NewAggregatedStatsRepository(db)))
 	return statsHandler{
-		service:   service,
-		q:         q,
-		retention: testRetention,
-		counter:   sq.NewAggregatedStatsRepository(db),
+		service:             service,
+		q:                   q,
+		retention:           testRetention,
+		aggregatedRetention: testAggregatedRetention,
+		counter:             sq.NewAggregatedStatsRepository(db),
 	}
 }
 
@@ -251,10 +256,32 @@ func TestCleanupCycle_DeletesDrainedMailerBatches(t *testing.T) {
 	assert.True(t, exists("templates", "template_id", "tpl-rest"))
 }
 
+func TestCleanupCycle_DeletesOldAggregatedStats(t *testing.T) {
+	cleanDB(t)
+
+	ctx := t.Context()
+	repo := sq.NewAggregatedStatsRepository(db)
+	domain := values.MustParse("test.com")
+	now := time.Now().UTC()
+	expired := now.Add(-testAggregatedRetention - time.Hour)
+	// Older than stats.retention, which must not govern the counters.
+	kept := now.Add(-testRetention - time.Hour)
+	require.NoError(t, repo.Increment(ctx, domain, expired, stats.TypeDelivered))
+	require.NoError(t, repo.Increment(ctx, domain, kept, stats.TypeDelivered))
+
+	h := newTestHandler()
+	require.NoError(t, runner.Run(ctx, h.cleanupCycle, runner.MaxLoop(1)))
+
+	rows, err := repo.Query(ctx, domain, stats.TimeRange{Start: expired.Add(-time.Hour), Stop: now})
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, kept.Truncate(time.Hour), rows[0].Timestamp.Truncate(time.Hour))
+}
+
 func cleanDB(t *testing.T) {
 	t.Helper()
 	ctx := t.Context()
-	for _, table := range []string{"stats", "stats_keys", "sending_pool_emails", "batch_intake_receipts", "messages", "templates"} {
+	for _, table := range []string{"stats", "stats_keys", "aggregated_stats", "sending_pool_emails", "batch_intake_receipts", "messages", "templates"} {
 		_, err := db.Exec(ctx, "DELETE FROM "+table)
 		require.NoError(t, err)
 	}

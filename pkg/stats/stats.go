@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"golang.org/x/sync/errgroup"
 
 	sq "github.com/kannon-email/kannon/internal/db"
@@ -23,20 +24,27 @@ import (
 
 type Config struct {
 	Retention time.Duration `mapstructure:"retention"`
+	// AggregatedRetention bounds the hourly per-Domain counters. A key of its own rather than
+	// Retention: the counters hold no Recipient, and are the only record of anonymous engagement.
+	AggregatedRetention time.Duration `mapstructure:"aggregated_retention"`
 }
 
 func (c *Config) setDefaults() {
 	if c.Retention <= 0 {
 		c.Retention = 8760 * time.Hour // 1 year
 	}
+	if c.AggregatedRetention <= 0 {
+		c.AggregatedRetention = 8760 * time.Hour // 1 year
+	}
 }
 
 type statsHandler struct {
-	js        jetstream.JetStream
-	service   *stats.Service
-	q         *sq.Queries
-	retention time.Duration
-	counter   stats.AggregatedEventCounter
+	js                  jetstream.JetStream
+	service             *stats.Service
+	q                   *sq.Queries
+	retention           time.Duration
+	aggregatedRetention time.Duration
+	counter             stats.AggregatedEventCounter
 }
 
 // New constructs the stats runnable, loading its slice of configuration from
@@ -63,11 +71,12 @@ func run(ctx context.Context, cnt *container.Container, cfg Config) error {
 	service := stats.NewService(repo, stats.WithAggregatedStatsRepository(aggregatedRepo))
 
 	h := statsHandler{
-		js:        js,
-		service:   service,
-		q:         q,
-		retention: cfg.Retention,
-		counter:   aggregatedRepo,
+		js:                  js,
+		service:             service,
+		q:                   q,
+		retention:           cfg.Retention,
+		aggregatedRetention: cfg.AggregatedRetention,
+		counter:             aggregatedRepo,
 	}
 
 	eg, ctx := errgroup.WithContext(ctx)
@@ -106,13 +115,20 @@ func (h *statsHandler) cleanupCycle(ctx context.Context) error {
 		return err
 	}
 
+	// The counters are hourly UTC buckets in a timestamp column, so the cutoff is given in UTC.
+	before := time.Now().UTC().Add(-h.aggregatedRetention)
+	deletedAggregated, err := h.q.DeleteAggregatedStatsOlderThan(ctx, pgtype.Timestamp{Time: before, Valid: true})
+	if err != nil {
+		return err
+	}
+
 	deletedKeys, err := h.q.DeleteExpiredStatsKeys(ctx)
 	if err != nil {
 		return err
 	}
 
-	if deletedStats > 0 || deletedKeys > 0 {
-		slog.Info(fmt.Sprintf("stats cleanup: deleted %d stats and %d expired keys", deletedStats, deletedKeys))
+	if deletedStats > 0 || deletedAggregated > 0 || deletedKeys > 0 {
+		slog.Info(fmt.Sprintf("stats cleanup: deleted %d stats, %d aggregated counters and %d expired keys", deletedStats, deletedAggregated, deletedKeys))
 	}
 
 	return nil

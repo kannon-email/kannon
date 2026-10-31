@@ -218,7 +218,7 @@ Notes:
 - **Created** is implicit — there is no `created` stat event today. The Delivery row simply exists in the Pool from the moment **Mailer API** writes it.
 - The `Validated → Validated` self-loop (transient error) is internal mechanics: the **Pool** row is rescheduled, not re-stated. Surfaced here only to explain why Errored exists at all.
 - A Delivery may legitimately reach `Delivered` and *then* `Bounced` — e.g. accepted by a relay that later rejects asynchronously. The latest event wins.
-- The `aggregated_stats` table stores Domain-level event occurrence counters, including anonymous engagement. It has no Batch dimension; retained per-Delivery events cannot reconstruct complete per-Batch aggregates.
+- The `aggregated_stats` table stores Domain-level event occurrence counters, including anonymous engagement. It has no Batch dimension; retained per-Delivery events cannot reconstruct complete per-Batch aggregates. Counters are kept for `stats.aggregated_retention` (one year by default), independently of `stats.retention`.
 
 ### Internal mechanics (not domain)
 

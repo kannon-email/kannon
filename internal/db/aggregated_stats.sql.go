@@ -45,6 +45,18 @@ func (q *Queries) CountAggregatedEvent(ctx context.Context, arg CountAggregatedE
 	return err
 }
 
+const deleteAggregatedStatsOlderThan = `-- name: DeleteAggregatedStatsOlderThan :execrows
+DELETE FROM aggregated_stats WHERE timestamp < $1
+`
+
+func (q *Queries) DeleteAggregatedStatsOlderThan(ctx context.Context, before pgtype.Timestamp) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteAggregatedStatsOlderThan, before)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const incrementAggregatedStat = `-- name: IncrementAggregatedStat :exec
 INSERT INTO aggregated_stats (domain, timestamp, type, count)
 VALUES ($1, $2, $3, 1)
