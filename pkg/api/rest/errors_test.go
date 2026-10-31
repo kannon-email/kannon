@@ -21,6 +21,8 @@ import (
 	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/internal/templates"
 	"github.com/kannon-email/kannon/pkg/api/connecterr"
+	"github.com/kannon-email/kannon/internal/keyset"
+	"github.com/kannon-email/kannon/internal/values"
 	"github.com/kannon-email/kannon/pkg/api/rest"
 )
 
@@ -30,7 +32,7 @@ type failingDomainRepository struct {
 	err error
 }
 
-func (r failingDomainRepository) ListPage(context.Context, string, int) ([]*domains.Domain, error) {
+func (r failingDomainRepository) ListPage(context.Context, keyset.Page[values.DomainName]) ([]*domains.Domain, error) {
 	return nil, r.err
 }
 
@@ -95,7 +97,6 @@ func TestApplicationErrorResponses(t *testing.T) {
 		{"attachment names", intake.ErrDuplicateAttachmentFilename, 422, "duplicate_attachment_filename", "", connect.CodeInvalidArgument},
 		{"recipient limit", intake.ErrTooManyRecipients, 422, "too_many_recipients", "", connect.CodeInvalidArgument},
 		{"wrapped validation cause", apperr.Wrap(apperr.Invalid, "validation_failed", errors.New("private cause")), 422, "validation_failed", "", connect.CodeInvalidArgument},
-		{"event cursor", stats.ErrEventCursor, 400, "invalid_cursor", "", connect.CodeInvalidArgument},
 		{"event query", stats.ErrEventQuery, 400, "invalid_query_parameter", "", connect.CodeInvalidArgument},
 		{"aggregate query", stats.ErrAggregateQuery, 400, "invalid_query_parameter", "", connect.CodeInvalidArgument},
 	} {

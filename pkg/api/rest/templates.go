@@ -1,10 +1,7 @@
 package rest
 
 import (
-	"encoding/base64"
-	"encoding/json"
 	"net/http"
-	"net/url"
 
 	"github.com/kannon-email/kannon/internal/templates"
 )
@@ -15,12 +12,6 @@ func templateWire(t *templates.Template) Template {
 		lifetime = TemplateLifetimeTransient
 	}
 	return Template{Id: t.TemplateID(), Domain: t.DomainName().String(), Title: t.Title(), Html: t.Html(), Lifetime: lifetime}
-}
-
-type templateCursor struct {
-	Collection string
-	Domain     string
-	ID         string
 }
 
 func registerTemplates(mux *http.ServeMux, service *templates.Service) {
@@ -93,24 +84,19 @@ func registerTemplates(mux *http.ServeMux, service *templates.Service) {
 		if err != nil {
 			return err
 		}
-		after, limit, err := parseTemplatePage(q, domain.String())
+		page, err := readPage(q, func(id string) bool { return id != "" }, "templates:persistent:id:asc", domain.String())
 		if err != nil {
 			return err
 		}
-		items, err := service.ListPage(r.Context(), domain, after, uint(limit+1))
+		items, err := service.ListPage(r.Context(), domain, page.keyset())
 		if err != nil {
 			return err
 		}
-		result := TemplateSummaryPage{Items: []TemplateSummary{}}
-		if len(items) > limit {
-			raw, err := json.Marshal(templateCursor{Collection: templateCollection, Domain: domain.String(), ID: items[limit-1].TemplateID()})
-			if err != nil {
-				return err
-			}
-			cursor := base64.RawURLEncoding.EncodeToString(raw)
-			result.NextCursor = &cursor
-			items = items[:limit]
+		items, next, err := writePage(page, items, (*templates.Template).TemplateID)
+		if err != nil {
+			return err
 		}
+		result := TemplateSummaryPage{Items: []TemplateSummary{}, NextCursor: next}
 		for _, t := range items {
 			result.Items = append(result.Items, TemplateSummary{Id: t.TemplateID(), Domain: t.DomainName().String(), Title: t.Title(), Lifetime: TemplateSummaryLifetimePersistent})
 		}
@@ -118,22 +104,3 @@ func registerTemplates(mux *http.ServeMux, service *templates.Service) {
 		return nil
 	}))
 }
-
-func parseTemplatePage(q url.Values, domain string) (string, int, error) {
-	limit, err := pageLimit(q)
-	if err != nil {
-		return "", 0, err
-	}
-	after := ""
-	if q.Has(cursorParameter) {
-		raw, e := base64.RawURLEncoding.DecodeString(q.Get(cursorParameter))
-		var c templateCursor
-		if e != nil || json.Unmarshal(raw, &c) != nil || c.Collection != templateCollection || c.Domain != domain || c.ID == "" {
-			return "", 0, problemError(400, "invalid_cursor")
-		}
-		after = c.ID
-	}
-	return after, limit, nil
-}
-
-const templateCollection = "v1beta1:templates:persistent:id:asc"

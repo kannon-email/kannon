@@ -7,6 +7,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/kannon-email/kannon/internal/intake"
+	"github.com/kannon-email/kannon/internal/keyset"
 	"github.com/kannon-email/kannon/internal/values"
 	"time"
 )
@@ -21,8 +22,12 @@ func (s *inlineStore) ReadBatch(ctx context.Context, d values.DomainName, id str
 	}
 	return batchHistoryFromRow(row)
 }
-func (s *inlineStore) ListBatches(ctx context.Context, d values.DomainName, q intake.HistoryQuery) ([]intake.BatchHistory, error) {
-	rows, err := New(s.pool).ListInlineBatches(ctx, ListInlineBatchesParams{Domain: d.String(), Column2: q.AfterID, CreatedAt: timestamptz(q.AfterTime), Limit: int32(q.Limit), Column5: s.historyCutoff()})
+func (s *inlineStore) ListBatches(ctx context.Context, d values.DomainName, page keyset.Page[intake.BatchPosition]) ([]intake.BatchHistory, error) {
+	var after intake.BatchPosition
+	if page.After != nil {
+		after = *page.After
+	}
+	rows, err := New(s.pool).ListInlineBatches(ctx, ListInlineBatchesParams{Domain: d.String(), Column2: after.ID, CreatedAt: timestamptz(after.CreatedAt), Limit: int32(page.Limit), Column5: s.historyCutoff()})
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +58,7 @@ func batchHistoryFromRow(row ReadInlineBatchRow) (*intake.BatchHistory, error) {
 	b.OneClickUnsubscribe = fromSQLCUnsubscribe(row.Headers)
 	return b, nil
 }
-func (s *inlineStore) ListDeliveries(ctx context.Context, d values.DomainName, id string, q intake.HistoryQuery) ([]intake.DeliveryHistory, error) {
+func (s *inlineStore) ListDeliveries(ctx context.Context, d values.DomainName, id string, status intake.DeliveryStatus, page keyset.Page[string]) ([]intake.DeliveryHistory, error) {
 	visible, err := New(s.pool).InlineBatchVisible(ctx, InlineBatchVisibleParams{Domain: d.String(), BatchID: id, Column3: s.historyCutoff()})
 	if err != nil {
 		return nil, err
@@ -61,7 +66,11 @@ func (s *inlineStore) ListDeliveries(ctx context.Context, d values.DomainName, i
 	if !visible {
 		return nil, intake.ErrBatchNotFound
 	}
-	rows, err := New(s.pool).ListInlineDeliveries(ctx, ListInlineDeliveriesParams{Domain: d.String(), BatchID: id, ID: q.AfterID, Column4: string(q.Status), Limit: int32(q.Limit)})
+	after := ""
+	if page.After != nil {
+		after = *page.After
+	}
+	rows, err := New(s.pool).ListInlineDeliveries(ctx, ListInlineDeliveriesParams{Domain: d.String(), BatchID: id, ID: after, Column4: string(status), Limit: int32(page.Limit)})
 	if err != nil {
 		return nil, err
 	}

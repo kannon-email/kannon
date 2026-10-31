@@ -8,6 +8,7 @@ import (
 	"github.com/kannon-email/kannon/internal/delivery"
 	"github.com/kannon-email/kannon/internal/domains"
 	"github.com/kannon-email/kannon/internal/intake"
+	"github.com/kannon-email/kannon/internal/keyset"
 	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/internal/templates"
 	"github.com/kannon-email/kannon/internal/values"
@@ -66,7 +67,7 @@ func TestHistoryExpiresAtThirtyDays(t *testing.T) {
 	b, err := svc.ReadBatch(ctx, domain, receipt.ID)
 	require.NoError(t, err)
 	require.NotNil(t, b.CompletedAt)
-	list, err := svc.ListDeliveries(ctx, domain, receipt.ID, intake.HistoryQuery{Limit: 10})
+	list, err := svc.ListDeliveries(ctx, domain, receipt.ID, "", keyset.Page[string]{Limit: 10})
 	require.NoError(t, err)
 	h := rest.NewHandlerWithBatches(ds, admintoken.MustParse("secret"), db.Ping, svc, nil, nil)
 	read := func(path string, status int) {
@@ -124,7 +125,7 @@ func TestHistoryExpiresAtThirtyDays(t *testing.T) {
 		return r, e
 	}()
 	require.ErrorIs(t, err, intake.ErrIdempotencyConflict)
-	batches, err := svc.ListBatches(ctx, domain, intake.HistoryQuery{Limit: 100})
+	batches, err := svc.ListBatches(ctx, domain, keyset.Page[intake.BatchPosition]{Limit: 100})
 	require.NoError(t, err)
 	require.Len(t, batches, 3)
 	replay, _, replayed, err := svc.Create(ctx, domain, "pending", req)

@@ -5,13 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"github.com/kannon-email/kannon/internal/authz"
-	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/kannon-email/kannon/internal/apikeys"
+	"github.com/kannon-email/kannon/internal/keyset"
 	"github.com/kannon-email/kannon/internal/values"
 )
 
@@ -149,17 +149,31 @@ func (r *apiKeysRepository) List(ctx context.Context, domain values.DomainName, 
 	q := New(r.db)
 
 	rows, err := q.ListAPIKeysByDomain(ctx, ListAPIKeysByDomainParams{
-		Domain:     domain.String(),
-		Column2:    filters.OnlyActive,
-		Limit:      int32(page.Limit),
-		Offset:     int32(page.Offset),
-		BeforeTime: pgtype.Timestamp{Time: beforeTime(page.Before), Valid: page.Before != nil},
-		BeforeID:   page.BeforeID,
+		Domain:  domain.String(),
+		Column2: filters.OnlyActive,
+		Limit:   int32(page.Limit),
+		Offset:  int32(page.Offset),
 	})
 	if err != nil {
 		return nil, err
 	}
+	return rowsToAPIKeys(rows)
+}
 
+func (r *apiKeysRepository) ListPage(ctx context.Context, domain values.DomainName, page keyset.Page[apikeys.Position]) ([]*apikeys.APIKey, error) {
+	params := ListAPIKeysPageParams{Domain: domain.String(), Take: int32(page.Limit)}
+	if page.After != nil {
+		params.BeforeTime = pgtype.Timestamp{Time: page.After.CreatedAt, Valid: true}
+		params.BeforeID = page.After.ID
+	}
+	rows, err := New(r.db).ListAPIKeysPage(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	return rowsToAPIKeys(rows)
+}
+
+func rowsToAPIKeys(rows []ApiKey) ([]*apikeys.APIKey, error) {
 	keys := make([]*apikeys.APIKey, len(rows))
 	for i, row := range rows {
 		key, err := rowToAPIKey(row)
@@ -232,12 +246,6 @@ func roleStrings(roles []authz.RoleName) []string {
 		result[i] = string(r)
 	}
 	return result
-}
-func beforeTime(t *time.Time) time.Time {
-	if t == nil {
-		return time.Time{}
-	}
-	return *t
 }
 
 // FindByKeyHash resolves a Bearer credential independently of its request target.

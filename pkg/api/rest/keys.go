@@ -1,12 +1,8 @@
 package rest
 
 import (
-	"encoding/base64"
-	"encoding/json"
 	"net/http"
-	"net/url"
 	"strings"
-	"time"
 
 	"github.com/kannon-email/kannon/internal/apikeys"
 	"github.com/kannon-email/kannon/internal/authz"
@@ -24,13 +20,6 @@ func keyWire(k *apikeys.APIKey) APIKey {
 		status = APIKeyStatusExpired
 	}
 	return APIKey{Id: k.ID().String(), Domain: k.Domain(), Name: k.Name(), Prefix: k.KeyPrefix(), Roles: roles, Status: status, CreatedAt: k.CreatedAt().UTC(), ExpiresAt: k.ExpiresAt(), RevokedAt: k.DeactivatedAt()}
-}
-
-type keyCursor struct {
-	Collection string
-	Domain     string
-	Time       time.Time
-	ID         string
 }
 
 func registerKeys(mux *http.ServeMux, service *apikeys.Service) {
@@ -102,47 +91,25 @@ func registerKeys(mux *http.ServeMux, service *apikeys.Service) {
 		if err != nil {
 			return err
 		}
-		page, limit, err := parseKeyPage(q, domain.String())
+		page, err := readPage(q, func(p apikeys.Position) bool {
+			return !p.CreatedAt.IsZero() && strings.TrimSpace(p.ID) != ""
+		}, "api-keys:created_at,id:desc", domain.String())
 		if err != nil {
 			return err
 		}
-		keys, err := service.ListPage(r.Context(), domain, page)
+		keys, err := service.ListPage(r.Context(), domain, page.keyset())
 		if err != nil {
 			return err
 		}
-		result := APIKeyPage{Items: []APIKey{}}
-		if len(keys) > limit {
-			last := keys[limit-1]
-			raw, err := json.Marshal(keyCursor{Collection: "v1beta1:api-keys:created_at,id:desc", Domain: domain.String(), Time: last.CreatedAt(), ID: last.ID().String()})
-			if err != nil {
-				return err
-			}
-			c := base64.RawURLEncoding.EncodeToString(raw)
-			result.NextCursor = &c
-			keys = keys[:limit]
+		keys, next, err := writePage(page, keys, apikeys.PositionOf)
+		if err != nil {
+			return err
 		}
+		result := APIKeyPage{Items: []APIKey{}, NextCursor: next}
 		for _, k := range keys {
 			result.Items = append(result.Items, keyWire(k))
 		}
 		writeJSON(w, 200, result)
 		return nil
 	}))
-}
-
-func parseKeyPage(q url.Values, domain string) (apikeys.Pagination, int, error) {
-	limit, err := pageLimit(q)
-	if err != nil {
-		return apikeys.Pagination{}, 0, err
-	}
-	page := apikeys.Pagination{Limit: limit + 1}
-	if q.Has(cursorParameter) {
-		raw, e := base64.RawURLEncoding.DecodeString(q.Get(cursorParameter))
-		var c keyCursor
-		if e != nil || json.Unmarshal(raw, &c) != nil || c.Collection != "v1beta1:api-keys:created_at,id:desc" || c.Domain != domain || c.Time.IsZero() || strings.TrimSpace(c.ID) == "" {
-			return apikeys.Pagination{}, 0, problemError(400, "invalid_cursor")
-		}
-		page.Before = &c.Time
-		page.BeforeID = c.ID
-	}
-	return page, limit, nil
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/kannon-email/kannon/internal/delivery"
 	"github.com/kannon-email/kannon/internal/domains"
 	"github.com/kannon-email/kannon/internal/intake"
+	"github.com/kannon-email/kannon/internal/keyset"
 	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/internal/values"
 	"github.com/kannon-email/kannon/pkg/api/rest"
@@ -238,7 +239,7 @@ func TestDeliverySurvivesPoolAndLateBounce(t *testing.T) {
 	if _, err := svc.ReadBatch(sender, name, receipt.ID); err == nil {
 		t.Fatal("sender read batch")
 	}
-	if _, err := svc.ListBatches(sender, name, intake.HistoryQuery{Limit: 100}); err == nil {
+	if _, err := svc.ListBatches(sender, name, keyset.Page[intake.BatchPosition]{Limit: 100}); err == nil {
 		t.Fatal("sender listed batches")
 	}
 	if _, err := svc.GetDelivery(sender, name, receipt.ID, id); err == nil {

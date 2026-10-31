@@ -187,12 +187,12 @@ func TestParsingHTTPContract(t *testing.T) {
 	require.Len(t, next["items"], 2)
 	call("GET", manyPath+"?status=pending&cursor="+cursor, "", "", 400, "invalid_cursor")
 	call("GET", batchPath+"/deliveries?cursor="+cursor, "", "", 400, "invalid_cursor")
-	// Event limit ranges still follow authorization, unlike lexical query errors.
-	denied := httptest.NewRequest(http.MethodGet, domain+"/stats/events?"+span+"&limit=0", nil)
-	denied.Header.Set("Authorization", "Bearer "+fmt.Sprint(key["secret"]))
-	deniedResponse := httptest.NewRecorder()
-	h.ServeHTTP(deniedResponse, denied)
-	require.Equal(t, 403, deniedResponse.Code)
+	// Page size is adapter syntax for every list, so it is refused before authorization.
+	outOfRange := httptest.NewRequest(http.MethodGet, domain+"/stats/events?"+span+"&limit=0", nil)
+	outOfRange.Header.Set("Authorization", "Bearer "+fmt.Sprint(key["secret"]))
+	outOfRangeResponse := httptest.NewRecorder()
+	h.ServeHTTP(outOfRangeResponse, outOfRange)
+	require.Equal(t, 400, outOfRangeResponse.Code)
 	// Authentication still precedes malformed body parsing.
 	r := httptest.NewRequest(http.MethodPost, domain+"/batches", strings.NewReader("{"))
 	w := httptest.NewRecorder()

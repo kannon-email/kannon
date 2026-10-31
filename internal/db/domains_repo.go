@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/kannon-email/kannon/internal/domains"
+	"github.com/kannon-email/kannon/internal/keyset"
 	"github.com/kannon-email/kannon/internal/tracking"
 	"github.com/kannon-email/kannon/internal/values"
 )
@@ -111,8 +112,12 @@ func rowToDomain(row Domain) (*domains.Domain, error) {
 }
 
 // ListPage uses the unique Domain name as an exclusive keyset boundary.
-func (r *domainsRepository) ListPage(ctx context.Context, after string, limit int) ([]*domains.Domain, error) {
-	rows, err := r.db.Query(ctx, `SELECT id, domain, dkim_private_key, dkim_public_key, created_at, tracking FROM domains WHERE domain > $1 ORDER BY domain LIMIT $2`, after, limit)
+func (r *domainsRepository) ListPage(ctx context.Context, page keyset.Page[values.DomainName]) ([]*domains.Domain, error) {
+	after := ""
+	if page.After != nil {
+		after = page.After.String()
+	}
+	rows, err := r.db.Query(ctx, `SELECT id, domain, dkim_private_key, dkim_public_key, created_at, tracking FROM domains WHERE domain > $1 ORDER BY domain LIMIT $2`, after, page.Limit)
 	if err != nil {
 		return nil, err
 	}

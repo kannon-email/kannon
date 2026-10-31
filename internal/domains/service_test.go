@@ -2,11 +2,13 @@ package domains_test
 
 import (
 	"context"
+	"sort"
 	"testing"
 	"time"
 
 	"github.com/kannon-email/kannon/internal/authz"
 	"github.com/kannon-email/kannon/internal/domains"
+	"github.com/kannon-email/kannon/internal/keyset"
 	"github.com/kannon-email/kannon/internal/tracking"
 	"github.com/kannon-email/kannon/internal/values"
 	"github.com/stretchr/testify/assert"
@@ -223,6 +225,21 @@ func (r *fakeRepo) List(_ context.Context) ([]*domains.Domain, error) {
 	return all, nil
 }
 
-func (r *fakeRepo) ListPage(ctx context.Context, after string, limit int) ([]*domains.Domain, error) {
-	return r.List(ctx)
+func (r *fakeRepo) ListPage(ctx context.Context, page keyset.Page[values.DomainName]) ([]*domains.Domain, error) {
+	all, err := r.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(all, func(i, j int) bool { return all[i].Domain() < all[j].Domain() })
+	out := []*domains.Domain{}
+	for _, d := range all {
+		if page.After != nil && d.Domain() <= page.After.String() {
+			continue
+		}
+		if len(out) == page.Limit {
+			break
+		}
+		out = append(out, d)
+	}
+	return out, nil
 }
