@@ -64,9 +64,9 @@ CREATE FUNCTION public.initialize_delivery_history() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
- SELECT original_scheduled_time INTO NEW.scheduled_at FROM sending_pool_emails WHERE message_id=NEW.batch_id AND email=NEW.email;
- NEW.scheduled_at := COALESCE(NEW.scheduled_at,now());
- IF NEW.scheduled_at > now() THEN NEW.status := 'scheduled'; END IF;
+ SELECT scheduled_at, created_at INTO STRICT NEW.scheduled_at, NEW.updated_at
+ FROM batch_intake_receipts WHERE batch_id=NEW.batch_id;
+ NEW.status := CASE WHEN NEW.scheduled_at > NEW.updated_at THEN 'scheduled' ELSE 'pending' END;
  RETURN NEW;
 END $$;
 
@@ -1041,4 +1041,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20261030231407'),
     ('20261030231457'),
     ('20261030231941'),
-    ('20261030232432');
+    ('20261030232432'),
+    ('20261031075047');
