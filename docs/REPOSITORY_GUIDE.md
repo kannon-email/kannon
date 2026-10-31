@@ -229,14 +229,25 @@ var db *pgxpool.Pool
 var q *Queries
 
 func TestMain(m *testing.M) {
-    db, purge, err = tests.TestPostgresInit(schema.Schema)
-    q = New(db)
+    // tests.Main runs under dockertest.Wrap: containers are removed even on
+    // SIGINT/SIGTERM, and leftovers of runs killed by -test.timeout are swept.
+    // Return instead of calling os.Exit, which would skip that cleanup.
+    tests.Main(func() int {
+        db, purge, err = tests.TestPostgresInit(schema.Schema)
+        if err != nil {
+            return 1
+        }
+        q = New(db)
 
-    code := m.Run()
-    purge()
-    os.Exit(code)
+        code := m.Run()
+        purge()
+        return code
+    })
 }
 ```
+
+Packages that start containers inside tests rather than in `TestMain` still
+need `func TestMain(m *testing.M) { tests.Main(m.Run) }`.
 
 **See:** `internal/db/db_test.go`
 

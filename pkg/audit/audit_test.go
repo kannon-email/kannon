@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -27,23 +26,25 @@ import (
 var db *pgxpool.Pool
 
 func TestMain(m *testing.M) {
-	var purge tests.PurgeFunc
-	var err error
+	tests.Main(func() int {
+		var purge tests.PurgeFunc
+		var err error
 
-	db, purge, err = tests.TestPostgresInit(schema.Schema)
-	if err != nil {
-		slog.Error("Could not start resource", "err", err)
-		os.Exit(1)
-	}
+		db, purge, err = tests.TestPostgresInit(schema.Schema)
+		if err != nil {
+			slog.Error("Could not start resource", "err", err)
+			return 1
+		}
 
-	code := m.Run()
+		code := m.Run()
 
-	if err := purge(); err != nil {
-		slog.Error("Could not purge resource", "err", err)
-		os.Exit(1)
-	}
+		if err := purge(); err != nil {
+			slog.Error("Could not purge resource", "err", err)
+			return 1
+		}
 
-	os.Exit(code)
+		return code
+	})
 }
 
 const testRetention = 720 * time.Hour

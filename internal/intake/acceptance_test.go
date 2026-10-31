@@ -24,6 +24,10 @@ type decisions []authz.Decision
 
 func (d *decisions) Record(v authz.Decision) { *d = append(*d, v) }
 
+func TestMain(m *testing.M) {
+	tests.Main(m.Run)
+}
+
 func TestAcceptance(t *testing.T) {
 	pool, purge, err := tests.TestPostgresInit(schema.Schema)
 	require.NoError(t, err)

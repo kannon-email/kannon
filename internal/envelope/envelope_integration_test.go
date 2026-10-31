@@ -6,7 +6,6 @@ import (
 	"io"
 	"log/slog"
 	"net/mail"
-	"os"
 	"strings"
 	"testing"
 
@@ -41,30 +40,32 @@ var adminAPI adminv1connect.ApiHandler
 var claimer pool.Claimer
 
 func TestMain(m *testing.M) {
-	var purge tests.PurgeFunc
-	var err error
+	tests.Main(func() int {
+		var purge tests.PurgeFunc
+		var err error
 
-	db, purge, err = tests.TestPostgresInit(schema.Schema)
-	if err != nil {
-		slog.Error("Could not start resource", "err", err)
-		os.Exit(1)
-	}
+		db, purge, err = tests.TestPostgresInit(schema.Schema)
+		if err != nil {
+			slog.Error("Could not start resource", "err", err)
+			return 1
+		}
 
-	q = sqlc.New(db)
+		q = sqlc.New(db)
 
-	eb = envelope.NewBuilder(q, statssec.NewStatsService(q), returnpath.MustParse(strings.Repeat("s", returnpath.MinSecretLength)))
-	ma = mailapi.NewMailerAPIV1(db, delivery.DefaultBackoff, delivery.DefaultRetryWindow)
-	adminAPI = adminapi.CreateAdminAPIService(db)
-	claimer = pool.NewClaimer(sqlc.NewDeliveryRepository(db, delivery.DefaultBackoff, delivery.DefaultRetryWindow))
+		eb = envelope.NewBuilder(q, statssec.NewStatsService(q), returnpath.MustParse(strings.Repeat("s", returnpath.MinSecretLength)))
+		ma = mailapi.NewMailerAPIV1(db, delivery.DefaultBackoff, delivery.DefaultRetryWindow)
+		adminAPI = adminapi.CreateAdminAPIService(db)
+		claimer = pool.NewClaimer(sqlc.NewDeliveryRepository(db, delivery.DefaultBackoff, delivery.DefaultRetryWindow))
 
-	code := m.Run()
+		code := m.Run()
 
-	if err := purge(); err != nil {
-		slog.Error("Could not purge resource", "err", err)
-		os.Exit(1)
-	}
+		if err := purge(); err != nil {
+			slog.Error("Could not purge resource", "err", err)
+			return 1
+		}
 
-	os.Exit(code)
+		return code
+	})
 }
 
 func TestPrepareMail(t *testing.T) {

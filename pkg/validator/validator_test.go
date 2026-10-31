@@ -3,7 +3,6 @@ package validator_test
 import (
 	"encoding/base64"
 	"log/slog"
-	"os"
 	"testing"
 
 	"connectrpc.com/connect"
@@ -35,31 +34,32 @@ var ts mailerv1connect.MailerHandler
 var adminAPI adminv1connect.ApiHandler
 
 func TestMain(m *testing.M) {
-	var purge tests.PurgeFunc
-	var err error
+	tests.Main(func() int {
+		var purge tests.PurgeFunc
+		var err error
 
-	db, purge, err = tests.TestPostgresInit(schema.Schema)
-	if err != nil {
-		slog.Error("Could not start resource", "err", err)
-		os.Exit(1)
-	}
+		db, purge, err = tests.TestPostgresInit(schema.Schema)
+		if err != nil {
+			slog.Error("Could not start resource", "err", err)
+			return 1
+		}
 
-	q = sqlc.New(db)
-	claimer := pool.NewClaimer(sqlc.NewDeliveryRepository(db, delivery.DefaultBackoff, delivery.DefaultRetryWindow))
-	vt = validator.NewValidator(claimer, &mp)
+		q = sqlc.New(db)
+		claimer := pool.NewClaimer(sqlc.NewDeliveryRepository(db, delivery.DefaultBackoff, delivery.DefaultRetryWindow))
+		vt = validator.NewValidator(claimer, &mp)
 
-	ts = mailapi.NewMailerAPIV1(db, delivery.DefaultBackoff, delivery.DefaultRetryWindow)
-	adminAPI = adminapi.CreateAdminAPIService(db)
+		ts = mailapi.NewMailerAPIV1(db, delivery.DefaultBackoff, delivery.DefaultRetryWindow)
+		adminAPI = adminapi.CreateAdminAPIService(db)
 
-	code := m.Run()
+		code := m.Run()
 
-	// You can't defer this because os.Exit doesn't care for defer
-	if err := purge(); err != nil {
-		slog.Error("Could not purge resource", "err", err)
-		os.Exit(1)
-	}
+		if err := purge(); err != nil {
+			slog.Error("Could not purge resource", "err", err)
+			return 1
+		}
 
-	os.Exit(code)
+		return code
+	})
 }
 
 func TestLoop(t *testing.T) {

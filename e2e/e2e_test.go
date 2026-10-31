@@ -40,6 +40,10 @@ import (
 	"github.com/spf13/viper"
 )
 
+func TestMain(m *testing.M) {
+	tests.Main(m.Run)
+}
+
 // TestE2EEmailSending tests the entire email sending pipeline with real infrastructure
 func TestE2EEmailSending(t *testing.T) {
 	if testing.Short() {

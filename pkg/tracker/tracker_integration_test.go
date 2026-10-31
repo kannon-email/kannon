@@ -25,6 +25,10 @@ import (
 	trackingtypes "github.com/kannon-email/kannon/proto/kannon/tracking/types"
 )
 
+func TestMain(m *testing.M) {
+	tests.Main(m.Run)
+}
+
 // TestTrackerIntegration exercises real signed tokens through the HTTP handlers
 // and statssec backed by Postgres. A stub deciding which tokens are acceptable
 // could not distinguish forged tokens from legitimate ones. Only this group

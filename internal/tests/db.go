@@ -15,6 +15,14 @@ import (
 
 type PurgeFunc func() error
 
+// Main runs a package's TestMain body under dockertest.Wrap and exits with
+// its status. Containers are then removed even when the run is interrupted
+// (SIGINT/SIGTERM), and containers left behind by earlier runs that the
+// -test.timeout killed are swept. Containers must be created inside run.
+func Main(run func() int) {
+	os.Exit(dockertest.Wrap(context.Background(), run).Run())
+}
+
 func TestPostgresInit(schema string) (*pgxpool.Pool, PurgeFunc, error) {
 	if url := os.Getenv("KANNON_TEST_DATABASE_URL"); url != "" {
 		return localPostgres(url, schema)

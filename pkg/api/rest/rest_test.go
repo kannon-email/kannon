@@ -18,6 +18,10 @@ import (
 	"testing"
 )
 
+func TestMain(m *testing.M) {
+	tests.Main(m.Run)
+}
+
 func TestPublicReadiness(t *testing.T) {
 	for _, ready := range []bool{true, false} {
 		h := rest.NewHandler(rest.Services{Token: admintoken.MustParse("secret"), Ready: func(context.Context) error {
