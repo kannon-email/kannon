@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/kannon-email/kannon/internal/domains"
@@ -30,6 +31,10 @@ func (r *domainsRepository) Create(ctx context.Context, d *domains.Domain) error
 		DkimPublicKey:  d.DkimPublicKey(),
 	})
 	if err != nil {
+		var pg *pgconn.PgError
+		if errors.As(err, &pg) && pg.Code == "23505" && pg.ConstraintName == "domains_domain_key" {
+			return domains.ErrDomainAlreadyExists
+		}
 		return err
 	}
 	loaded, err := rowToDomain(row)

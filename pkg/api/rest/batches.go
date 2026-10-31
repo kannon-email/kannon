@@ -13,14 +13,13 @@ import (
 
 func registerBatches(mux *http.ServeMux, service *intake.InlineService) {
 	registerBatchHistory(mux, service)
-	mux.HandleFunc("POST /v1beta1/domains/{domain}/batches", func(w http.ResponseWriter, r *http.Request) {
-		if !query(w, r, false) {
-			return
+	mux.Handle("POST /v1beta1/domains/{domain}/batches", handler(func(w http.ResponseWriter, r *http.Request) error {
+		if err := query(r, false); err != nil {
+			return err
 		}
 		domain, err := values.Parse(r.PathValue(domainParameter))
 		if err != nil {
-			WriteProblem(w, r, 400, "malformed_request")
-			return
+			return problemError(400, "malformed_request")
 		}
 		// A strict supported subset ensures optional extensions cannot be silently
 		// discarded, including unknown members inside the generated content union.
@@ -49,14 +48,13 @@ func registerBatches(mux *http.ServeMux, service *intake.InlineService) {
 				Email    *string           `json:"email"`
 			} `json:"recipients"`
 		}
-		if !decode(w, r, &input) {
-			return
+		if err := decode(w, r, &input); err != nil {
+			return err
 		}
 		validHTML := input.Content.Type == "html" && input.Content.HTML != nil && *input.Content.HTML != "" && input.Content.TemplateID == nil
 		validTemplate := input.Content.Type == "template" && input.Content.TemplateID != nil && *input.Content.TemplateID != "" && input.Content.HTML == nil
 		if !validHTML && !validTemplate {
-			WriteProblem(w, r, 422, "validation_failed")
-			return
+			return problemError(422, "validation_failed")
 		}
 		p := intake.InlineRequest{ScheduledAt: input.ScheduledAt, Sender: batch.Sender{Email: string(input.From.Email)}, Subject: input.Subject, GlobalFields: input.GlobalFields}
 		p.Tracking = input.Tracking
@@ -70,8 +68,7 @@ func registerBatches(mux *http.ServeMux, service *intake.InlineService) {
 		}
 		if input.OneClickUnsubscribe != nil {
 			if input.OneClickUnsubscribe.URLTemplate == nil || *input.OneClickUnsubscribe.URLTemplate == "" {
-				WriteProblem(w, r, 422, "validation_failed")
-				return
+				return problemError(422, "validation_failed")
 			}
 			p.OneClickUnsubscribe.URLTemplate = *input.OneClickUnsubscribe.URLTemplate
 		}
@@ -83,8 +80,7 @@ func registerBatches(mux *http.ServeMux, service *intake.InlineService) {
 		}
 		for _, a := range input.Attachments {
 			if a.Content == nil {
-				WriteProblem(w, r, 422, "validation_failed")
-				return
+				return problemError(422, "validation_failed")
 			}
 			p.Attachments = append(p.Attachments, intake.Attachment{Filename: a.Filename, Content: *a.Content})
 		}
@@ -100,8 +96,7 @@ func registerBatches(mux *http.ServeMux, service *intake.InlineService) {
 		}
 		keys := r.Header.Values("Idempotency-Key")
 		if len(keys) != 1 || keys[0] == "" {
-			WriteProblem(w, r, 400, "malformed_request")
-			return
+			return problemError(400, "malformed_request")
 		}
 		receipt, refusals, replay, err := service.Create(r.Context(), domain, keys[0], p)
 		rejected := []RecipientRejection{}
@@ -116,37 +111,21 @@ func registerBatches(mux *http.ServeMux, service *intake.InlineService) {
 			rejected = append(rejected, RecipientRejection{Index: v.Index, Code: v.Code, Pointer: fmt.Sprintf("/recipients/%d/%s", v.Index, field), Detail: "Recipient refused: " + v.Code})
 		}
 		if err != nil {
-			var invalid *intake.InvalidRequest
-			switch {
-			case errors.Is(err, intake.ErrIdempotencyConflict):
-				WriteProblem(w, r, 409, "idempotency_conflict")
-			case errors.Is(err, intake.ErrIdempotencyInProgress):
-				w.Header().Set("Retry-After", "1")
-				WriteProblem(w, r, 409, "idempotency_in_progress")
-			case errors.Is(err, intake.ErrScheduledAtNotFuture):
-				WriteProblem(w, r, 422, "scheduled_at_not_future")
-			case errors.Is(err, intake.ErrDuplicateAttachmentFilename):
-				WriteProblem(w, r, 422, "duplicate_attachment_filename")
-			case errors.Is(err, intake.ErrTooManyRecipients):
-				WriteProblem(w, r, 422, "too_many_recipients")
-			case errors.Is(err, intake.ErrNoRecipientsAccepted):
+			if errors.Is(err, intake.ErrNoRecipientsAccepted) {
 				fields := make([]FieldError, 0, len(rejected))
 				for _, v := range rejected {
 					fields = append(fields, FieldError{Code: v.Code, Pointer: v.Pointer, Detail: v.Detail})
 				}
-				writeProblemFields(w, 422, "no_recipients_accepted", fields)
-			case errors.As(err, &invalid):
-				WriteProblem(w, r, 422, "validation_failed")
-			default:
-				writeError(w, r, err)
+				return &requestError{status: 422, code: "no_recipients_accepted", fields: fields}
 			}
-			return
+			return err
 		}
 		if replay {
 			writeJSON(w, 200, BatchReplay{Id: receipt.ID, Domain: receipt.Domain, CreatedAt: receipt.CreatedAt, ScheduledAt: receipt.ScheduledAt, AcceptedCount: receipt.AcceptedCount, RejectedCount: receipt.RejectedCount})
-			return
+			return nil
 		}
 		w.Header().Set("Location", "/v1beta1/domains/"+receipt.Domain+"/batches/"+receipt.ID)
 		writeJSON(w, 201, BatchCreated{Id: receipt.ID, Domain: receipt.Domain, CreatedAt: receipt.CreatedAt, ScheduledAt: receipt.ScheduledAt, AcceptedCount: receipt.AcceptedCount, RejectedCount: receipt.RejectedCount, RejectedRecipients: rejected, From: input.From, Subject: input.Subject, Status: BatchCreatedStatusPending, DeliveryCounts: DeliveryCounts{Pending: receipt.AcceptedCount}})
-	})
+		return nil
+	}))
 }

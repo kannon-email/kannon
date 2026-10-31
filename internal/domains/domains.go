@@ -14,7 +14,8 @@ import (
 
 // Domain errors.
 var (
-	ErrDomainNotFound = errors.New("domain not found")
+	ErrDomainAlreadyExists = errors.New("domain already exists")
+	ErrDomainNotFound      = errors.New("domain not found")
 )
 
 // Domain is the SenderDomain entity: a sender-tenant identified by its domain

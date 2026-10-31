@@ -18,7 +18,7 @@ The credential slice should extend authentication here for Domain API Keys;
 legacy Connect authentication stays independent.
 
 Use direct resource responses, 201 plus Location for creation, snake_case JSON,
-10 MiB bounded strict JSON decoding, and `WriteProblem` for sanitized RFC 9457
+10 MiB bounded strict JSON decoding, and the private return-error handler adapter for sanitized RFC 9457
 errors. Every response receives a server-generated X-Request-ID. Never render
 infrastructure errors or secrets. Domain listing uses an exclusive ascending
 name boundary and one lookahead row, with a version/collection/order-bound opaque

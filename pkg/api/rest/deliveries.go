@@ -1,30 +1,23 @@
 package rest
 
 import (
-	"errors"
 	"github.com/kannon-email/kannon/internal/intake"
 	"github.com/kannon-email/kannon/internal/values"
 	"net/http"
 )
 
 func registerDeliveries(mux *http.ServeMux, service *intake.InlineService) {
-	mux.HandleFunc("GET /v1beta1/domains/{domain}/batches/{batch_id}/deliveries/{delivery_id}", func(w http.ResponseWriter, r *http.Request) {
-		if !query(w, r, false) {
-			return
+	mux.Handle("GET /v1beta1/domains/{domain}/batches/{batch_id}/deliveries/{delivery_id}", handler(func(w http.ResponseWriter, r *http.Request) error {
+		if err := query(r, false); err != nil {
+			return err
 		}
 		domain, err := values.Parse(r.PathValue(domainParameter))
 		if err != nil {
-			WriteProblem(w, r, 400, "malformed_request")
-			return
+			return problemError(400, "malformed_request")
 		}
 		d, err := service.GetDelivery(r.Context(), domain, r.PathValue(batchIDParameter), r.PathValue("delivery_id"))
-		if errors.Is(err, intake.ErrDeliveryNotFound) {
-			WriteProblem(w, r, 404, "not_found")
-			return
-		}
 		if err != nil {
-			writeError(w, r, err)
-			return
+			return err
 		}
 		out := Delivery{Id: d.ID, BatchId: d.BatchID, Domain: d.Domain, Email: d.Email, Status: DeliveryStatus(d.Status), CreatedAt: d.CreatedAt, ScheduledAt: d.ScheduledAt, UpdatedAt: d.UpdatedAt, AttemptCount: d.AttemptCount, Tracking: TrackingPolicy{Opens: TrackingMode(d.Tracking.Opens), Links: TrackingMode(d.Tracking.Links)}}
 		if d.ErrorCode != "" {
@@ -34,5 +27,6 @@ func registerDeliveries(mux *http.ServeMux, service *intake.InlineService) {
 			}{d.ErrorCode, d.ErrorDetail}
 		}
 		writeJSON(w, 200, out)
-	})
+		return nil
+	}))
 }

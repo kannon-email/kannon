@@ -13,7 +13,7 @@ import (
 type Repository interface {
 	ListPage(context.Context, string, int) ([]*Domain, error)
 	// Create persists a new Domain. The DKIM key pair must already be
-	// populated by New.
+	// populated by New. Returns ErrDomainAlreadyExists for a duplicate name.
 	Create(ctx context.Context, d *Domain) error
 
 	// SetTrackingPolicy replaces the Domain's Tracking Policy and returns the updated Domain. A
