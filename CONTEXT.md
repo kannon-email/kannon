@@ -28,6 +28,14 @@ _Avoid_: treating `template_type` as a source-format axis (HTML/MJML/etc.); that
 One Recipient's slot in a Batch. Persistent record carrying lifecycle state, retry count, scheduled time, and per-recipient personalisation fields. The unit Validator and Dispatcher operate on.
 _Avoid_: SendingPoolEmail, PoolEmail, Email (when meaning the row, not the address)
 
+**Intake**:
+The step that turns one send request into a Batch and its Deliveries, or refuses it. Intake authorizes the caller for the Domain and Sender, decides each Recipient on its own (an invalid or duplicate address, a Tracking Mode above the Domain's ceiling, an unresolvable One-Click Unsubscribe or placeholder is refused; the rest are accepted), freezes the content and the effective Tracking Policy, and persists Batch and Deliveries in one transaction under an idempotency key. A Recipient refused at intake never becomes a Delivery: the refusal is reported in the send response and nowhere else. The legacy Mailer API and the REST `POST .../batches` operation are two intakes with explicitly different rules (field substitution, past schedules, empty Batches), not one with flags.
+_Avoid_: Submission, Ingestion, Enqueue (intake decides and persists; it does not hand anything to a queue)
+
+**Batch History**:
+What a Domain can read back about a Batch after intake: its frozen content and acceptance counts, each Delivery's current outcome, and the derived Batch status — Pending until any Delivery moves, Processing while some are in flight, Completed once none has attempts left (which is not the same as all delivered). History expires 30 days after completion (ADR 0015); a later bounce does not restart that clock. It is the public, retained view of Deliveries, independent of the worker Pool rows that are deleted on terminal outcomes.
+_Avoid_: Report, Log, Audit (an audit record is an authorization decision, ADR 0010), Status Page
+
 **Retry Budget**:
 How long Kannon keeps trying to get a Delivery out, counted from the moment its Batch asked for it to be sent. A Delivery is retried for as long as the next retry would still fall inside the window, and always gets at least one attempt however late it is offered one.
 
