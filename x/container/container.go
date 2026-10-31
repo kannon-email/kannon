@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"math"
 	"os"
 	"sync"
 	"time"
@@ -29,7 +28,6 @@ type Container struct {
 
 	dbURL           string
 	natsURL         string
-	natsMaxPayload  int
 	useEmbeddedNats bool
 	backoff         delivery.BackoffPolicy
 	retryWindow     time.Duration
@@ -66,7 +64,6 @@ func New(ctx context.Context, cfg config.RootConfig) *Container {
 		ctx:                ctx,
 		dbURL:              cfg.DatabaseURL,
 		natsURL:            cfg.NatsURL,
-		natsMaxPayload:     cfg.NatsMaxPayload,
 		useEmbeddedNats:    cfg.UseEmbeddedNats,
 		backoff:            delivery.DefaultBackoff,
 		retryWindow:        delivery.DefaultRetryWindow,
@@ -172,9 +169,6 @@ func (c *Container) startEmbeddedNatsServer(context.Context) (*server.Server, er
 		Port:      -1, // Random available port
 		JetStream: true,
 		StoreDir:  "", // Use temp directory for storage
-		// Clamped rather than wrapped: the server refuses anything above its max_pending
-		// itself, with an error naming the setting.
-		MaxPayload: int32(min(c.NatsMaxPayload(), math.MaxInt32)),
 	}
 
 	ns, err := server.NewServer(opts)
@@ -343,18 +337,6 @@ func (c *Container) jetStream(nc *nats.Conn) (jetstream.JetStream, error) {
 	})
 
 	return js, nil
-}
-
-// NatsMaxPayload is the largest message the NATS server carries, in bytes, as the
-// operator restated it in `nats_max_payload`; the NATS default when they did not.
-// Read from configuration rather than from the connection, so that the API, which
-// connects to NATS only for the opt-in audit trail, can bound a Batch's content
-// without a new network requirement (#443).
-func (c *Container) NatsMaxPayload() int {
-	if c.natsMaxPayload <= 0 {
-		return server.MAX_PAYLOAD_SIZE
-	}
-	return c.natsMaxPayload
 }
 
 // BackoffPolicy returns the canonical retry backoff policy for this Container.

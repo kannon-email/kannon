@@ -33,14 +33,14 @@ type Service struct {
 	store       Store
 	backoff     delivery.BackoffPolicy
 	retryWindow time.Duration
-	// envelopeMaxBytes is the largest Envelope the transport carries; zero leaves the size unchecked.
-	envelopeMaxBytes int
+	// maxPayload bounds a Batch's content in bytes; zero leaves it unchecked.
+	maxPayload int
 }
 
 // New wires intake with the same retry policy used when Deliveries are loaded, and the largest
-// Envelope the transport carries, which bounds the size of a Batch's content.
-func New(store Store, backoff delivery.BackoffPolicy, retryWindow time.Duration, envelopeMaxBytes int) *Service {
-	return &Service{store: store, backoff: backoff, retryWindow: retryWindow, envelopeMaxBytes: envelopeMaxBytes}
+// content, in bytes, a Batch may carry.
+func New(store Store, backoff delivery.BackoffPolicy, retryWindow time.Duration, maxPayload int) *Service {
+	return &Service{store: store, backoff: backoff, retryWindow: retryWindow, maxPayload: maxPayload}
 }
 
 // Request states a Batch in domain values. HTML being non-nil selects inline
@@ -144,7 +144,7 @@ func (s *Service) accept(ctx context.Context, domain *domains.Domain, p Request)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create template %w", err)
 	}
-	if err := checkMessageSize(s.envelopeMaxBytes, tpl.Html(), p.Attachments); err != nil {
+	if err := checkMessageSize(s.maxPayload, tpl.Html(), p.Attachments); err != nil {
 		return nil, err
 	}
 	for i, emails := range [][]string{p.Headers.To, p.Headers.Cc} {

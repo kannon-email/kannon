@@ -107,12 +107,12 @@ type InlineService struct {
 	domains     domains.Repository
 	backoff     delivery.BackoffPolicy
 	retryWindow time.Duration
-	// envelopeMaxBytes is the largest Envelope the transport carries; zero leaves the size unchecked.
-	envelopeMaxBytes int
+	// maxPayload bounds a Batch's content in bytes; zero leaves it unchecked.
+	maxPayload int
 }
 
-func NewInlineService(store InlineStore, domains domains.Repository, backoff delivery.BackoffPolicy, retryWindow time.Duration, envelopeMaxBytes int) *InlineService {
-	return &InlineService{store: store, domains: domains, backoff: backoff, retryWindow: retryWindow, envelopeMaxBytes: envelopeMaxBytes}
+func NewInlineService(store InlineStore, domains domains.Repository, backoff delivery.BackoffPolicy, retryWindow time.Duration, maxPayload int) *InlineService {
+	return &InlineService{store: store, domains: domains, backoff: backoff, retryWindow: retryWindow, maxPayload: maxPayload}
 }
 
 // Create authorizes, then accepts a REST Batch once per Domain/key pair. Request
@@ -228,7 +228,7 @@ func (s *InlineService) buildWork(ctx context.Context, domain values.DomainName,
 		}
 		html = source.Html()
 	}
-	if err := checkMessageSize(s.envelopeMaxBytes, html, attachments); err != nil {
+	if err := checkMessageSize(s.maxPayload, html, attachments); err != nil {
 		return nil, nil, err
 	}
 	tpl, err := templates.NewTransient(domain, html)

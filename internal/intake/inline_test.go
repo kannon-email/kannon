@@ -392,14 +392,14 @@ func TestInlineCreate(t *testing.T) {
 	})
 }
 
-// The cap is 70% of the largest Envelope the transport carries: with 1000, 700 bytes of HTML
-// plus base64 attachments. A referenced Template's HTML counts like inline HTML.
+// The payload is the HTML plus each attachment as base64; a referenced Template's HTML counts
+// like inline HTML.
 func TestInlineCreateRefusesMessageTooLarge(t *testing.T) {
 	ctx := authz.NewContext(t.Context(), authz.MustNewPrincipal("key", authz.MustNewGrant(authz.RoleSender, authz.DomainAnchor(inlineDomain))))
 	source, err := templates.NewPersistent(inlineDomain, "<p>Dear {{ name }}</p>", "Source")
 	require.NoError(t, err)
 	store := &memoryInlineStore{templates: map[string]*templates.Template{"tpl": source}}
-	s := NewInlineService(store, memoryDomains{domain: domains.Load(domains.LoadParams{Domain: inlineDomain})}, nil, 0, 1000)
+	s := NewInlineService(store, memoryDomains{domain: domains.Load(domains.LoadParams{Domain: inlineDomain})}, nil, 0, 700)
 
 	// 507 raw bytes encode to 676; with the 23-byte inline body that is 699.
 	p := inlineRequest()

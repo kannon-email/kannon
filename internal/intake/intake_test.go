@@ -136,10 +136,10 @@ func TestSenderRefusalDescribesApplicationDecision(t *testing.T) {
 	require.Equal(t, authz.Denied, audit[0].Outcome)
 }
 
-// The Envelope travels as one NATS message, so intake refuses a Batch that could not fit
-// rather than accepting work the Dispatcher can never hand on. The cap is 70% of the largest
-// Envelope the transport carries; with 1000 it is 700 bytes of HTML plus base64 attachments.
-func TestIntakeRefusesMessageTooLargeForTheEnvelope(t *testing.T) {
+// The Envelope travels as one NATS message, so intake refuses a Batch over the configured
+// payload rather than accepting work the Dispatcher can never hand on. The payload is the HTML
+// plus each attachment as base64.
+func TestIntakeRefusesMessageTooLarge(t *testing.T) {
 	name := values.MustParse("example.com")
 	domain := domains.Load(domains.LoadParams{Domain: name})
 	ctx := authz.NewContext(t.Context(), authz.MustNewPrincipal("key", authz.MustNewGrant(authz.RoleSender, authz.DomainAnchor(name))))
@@ -151,13 +151,13 @@ func TestIntakeRefusesMessageTooLargeForTheEnvelope(t *testing.T) {
 		}
 	}
 
-	// 519 raw bytes encode to 692; with the 8-byte body that is 700, exactly the cap.
+	// 519 raw bytes encode to 692; with the 8-byte body that is 700, exactly the limit.
 	store := &capturedStore{}
-	_, err := intake.New(store, nil, 0, 1000).Accept(ctx, domain, request(519))
+	_, err := intake.New(store, nil, 0, 700).Accept(ctx, domain, request(519))
 	require.NoError(t, err)
 	require.Len(t, store.deliveries, 1)
 
-	// 522 raw bytes encode to 696; with the body that is 704, past the cap.
-	_, err = intake.New(unavailableStore{}, nil, 0, 1000).Accept(ctx, domain, request(522))
+	// 522 raw bytes encode to 696; with the body that is 704, past the limit.
+	_, err = intake.New(unavailableStore{}, nil, 0, 700).Accept(ctx, domain, request(522))
 	require.ErrorIs(t, err, intake.ErrMessageTooLarge)
 }
