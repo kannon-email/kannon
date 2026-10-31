@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/kannon-email/kannon/internal/apperr"
 	"github.com/kannon-email/kannon/internal/authz"
 	"slices"
 	"time"
@@ -15,7 +16,7 @@ import (
 
 // Domain errors
 var (
-	ErrKeyNotFound      = errors.New("api key not found")
+	ErrKeyNotFound      = apperr.New(apperr.NotFound, "not_found", "api key not found")
 	ErrKeyInactive      = errors.New("api key is inactive")
 	ErrKeyExpired       = errors.New("api key has expired")
 	ErrInvalidKey       = errors.New("invalid api key format")

@@ -3,6 +3,7 @@ package intake
 import (
 	"context"
 	"errors"
+	"github.com/kannon-email/kannon/internal/apperr"
 	"github.com/kannon-email/kannon/internal/authz"
 	"github.com/kannon-email/kannon/internal/tracking"
 	"github.com/kannon-email/kannon/internal/values"
@@ -10,8 +11,8 @@ import (
 )
 
 var (
-	ErrDeliveryNotFound = errors.New("delivery not found")
-	ErrBatchNotFound    = errors.New("batch not found")
+	ErrDeliveryNotFound = apperr.New(apperr.NotFound, "not_found", "delivery not found")
+	ErrBatchNotFound    = apperr.New(apperr.NotFound, "not_found", "batch not found")
 )
 
 // DeliveryHistory is the durable accepted Delivery, independent of the worker Pool.

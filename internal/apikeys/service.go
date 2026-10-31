@@ -2,7 +2,7 @@ package apikeys
 
 import (
 	"context"
-	"errors"
+	"github.com/kannon-email/kannon/internal/apperr"
 	"strings"
 	"time"
 
@@ -115,9 +115,9 @@ func resourceOf(ref KeyRef) authz.Resource {
 }
 
 // ErrInvalidRoles and ErrExpiryNotFuture identify invalid issuance input.
-var ErrInvalidRoles = errors.New("invalid roles")
-var ErrExpiryNotFuture = errors.New("expiry must be future")
-var ErrInvalidName = errors.New("invalid key name")
+var ErrInvalidRoles = apperr.New(apperr.Invalid, "validation_failed", "invalid roles")
+var ErrExpiryNotFuture = apperr.New(apperr.Invalid, "expiry_not_future", "expiry must be future")
+var ErrInvalidName = apperr.New(apperr.Invalid, "validation_failed", "invalid key name")
 
 // IssueKey creates immutable Domain authority after checking administration permission.
 func (s *Service) IssueKey(ctx context.Context, domain values.DomainName, name string, roles []authz.RoleName, expires *time.Time) (*CreateResult, error) {

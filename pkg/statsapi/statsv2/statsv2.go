@@ -5,9 +5,9 @@ import (
 	"errors"
 
 	"connectrpc.com/connect"
-	"github.com/kannon-email/kannon/internal/authzconnect"
 	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/internal/values"
+	"github.com/kannon-email/kannon/pkg/api/connecterr"
 	"github.com/kannon-email/kannon/proto/kannon/stats/apiv2"
 	statsv2connect "github.com/kannon-email/kannon/proto/kannon/stats/apiv2/apiv2connect"
 	"github.com/kannon-email/kannon/proto/kannon/stats/types"
@@ -40,11 +40,11 @@ func (s *statsAPIConnectAdapter) GetAggregatedStats(ctx context.Context, req *co
 	}
 
 	// The counters are guarded on the Domain's AggregatedStats, so this error may be
-	// a refusal rather than a fault; authzconnect.Error is what keeps it from being
+	// a refusal rather than a fault; connecterr.Error is what keeps it from being
 	// reported as one.
 	results, err := s.service.QueryAggregatedStats(ctx, domain, timeRange)
 	if err != nil {
-		return nil, authzconnect.Error(err, connect.CodeInternal)
+		return nil, connecterr.Error(err)
 	}
 
 	pbStats := make([]*types.StatsAggregated, 0, len(results))

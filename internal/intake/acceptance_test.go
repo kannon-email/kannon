@@ -7,6 +7,7 @@ import (
 	"time"
 
 	schema "github.com/kannon-email/kannon/db"
+	"github.com/kannon-email/kannon/internal/apperr"
 	"github.com/kannon-email/kannon/internal/authz"
 	"github.com/kannon-email/kannon/internal/batch"
 	sqlc "github.com/kannon-email/kannon/internal/db"
@@ -104,8 +105,9 @@ func TestAcceptance(t *testing.T) {
 			p := request()
 			change(&p)
 			result, err := s.Accept(ctx, domain, p)
-			var invalid *intake.InvalidRequest
-			require.ErrorAs(t, err, &invalid)
+			refusal, ok := apperr.As(err)
+			require.True(t, ok)
+			require.Equal(t, apperr.Invalid, refusal.Kind)
 			require.Nil(t, result)
 			require.Equal(t, before, counts())
 			require.Equal(t, authz.Allowed, audit[len(audit)-1].Outcome)
