@@ -130,7 +130,7 @@ func TestPersistentTemplateJourney(t *testing.T) {
 	application := templates.NewService(sqlc.NewTemplatesRepository(db))
 	ctx := authz.NewContext(context.Background(), authz.MustNewPrincipal("domain-admin", authz.MustNewGrant(authz.RoleAdmin, authz.DomainAnchor(domain))))
 	html := "<p>Changed</p>"
-	patched, err := application.PatchTemplate(ctx, domain, resource.Id, &html, nil)
+	patched, err := application.UpdateTemplate(ctx, domain, resource.Id, &html, nil)
 	if err != nil || patched.Title() != "Updated" || patched.Html() != html {
 		t.Fatal(patched, err)
 	}

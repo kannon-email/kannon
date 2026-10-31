@@ -30,7 +30,7 @@ func (s *adminAPIService) UpdateTemplate(ctx context.Context, req *pb.UpdateTemp
 		return nil, err
 	}
 
-	updated, err := s.templates.UpdateTemplate(ctx, domain, req.TemplateId, req.Html, req.Title)
+	updated, err := s.templates.UpdateTemplate(ctx, domain, req.TemplateId, &req.Html, &req.Title)
 	if err != nil {
 		return nil, err
 	}
