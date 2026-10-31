@@ -2,7 +2,6 @@ package intake
 
 import (
 	"context"
-	"errors"
 	"github.com/kannon-email/kannon/internal/apperr"
 	"github.com/kannon-email/kannon/internal/authz"
 	"github.com/kannon-email/kannon/internal/tracking"

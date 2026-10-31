@@ -18,11 +18,11 @@ import (
 	"github.com/kannon-email/kannon/internal/authz"
 	"github.com/kannon-email/kannon/internal/domains"
 	"github.com/kannon-email/kannon/internal/intake"
+	"github.com/kannon-email/kannon/internal/keyset"
 	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/internal/templates"
-	"github.com/kannon-email/kannon/pkg/api/connecterr"
-	"github.com/kannon-email/kannon/internal/keyset"
 	"github.com/kannon-email/kannon/internal/values"
+	"github.com/kannon-email/kannon/pkg/api/connecterr"
 	"github.com/kannon-email/kannon/pkg/api/rest"
 )
 
