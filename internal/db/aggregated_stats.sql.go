@@ -57,6 +57,20 @@ func (q *Queries) DeleteAggregatedStatsOlderThan(ctx context.Context, before pgt
 	return result.RowsAffected(), nil
 }
 
+const deleteCountedStatEventsBefore = `-- name: DeleteCountedStatEventsBefore :execrows
+DELETE FROM counted_stat_events WHERE left(stored_at, 19) COLLATE "C" < $1::text
+`
+
+// Compares the UTC second, the fixed-width prefix of stored_at, under the C
+// collation counted_stat_events_stored_second_idx is built with.
+func (q *Queries) DeleteCountedStatEventsBefore(ctx context.Context, beforeSecond string) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteCountedStatEventsBefore, beforeSecond)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const incrementAggregatedStat = `-- name: IncrementAggregatedStat :exec
 INSERT INTO aggregated_stats (domain, timestamp, type, count)
 VALUES ($1, $2, $3, 1)

@@ -305,10 +305,66 @@ func TestCleanupCycle_DeletesExpiredIntakeReceipts(t *testing.T) {
 	assert.Equal(t, []string{"open", "recent"}, keys)
 }
 
+func TestCleanupCycle_PrunesCountedStatEvents(t *testing.T) {
+	cleanDB(t)
+
+	ctx := t.Context()
+	repo := sq.NewAggregatedStatsRepository(db)
+	domain := values.MustParse("test.com")
+	now := time.Now()
+	expired := stats.StoredEventID{Stream: stats.StreamName, StoredAt: now.Add(-stats.CountedEventRetention - time.Hour), Sequence: 1}
+	live := stats.StoredEventID{Stream: stats.StreamName, StoredAt: now.Add(-stats.CountedEventRetention + time.Hour), Sequence: 2}
+	require.NoError(t, repo.Count(ctx, expired, domain, now, stats.TypeOpened))
+	require.NoError(t, repo.Count(ctx, live, domain, now, stats.TypeOpened))
+
+	h := newTestHandler()
+	require.NoError(t, runner.Run(ctx, h.cleanupCycle, runner.MaxLoop(1)))
+
+	assert.Equal(t, []int64{2}, countedSequences(t))
+	// The live marker still deduplicates a redelivery.
+	require.NoError(t, repo.Count(ctx, live, domain, now, stats.TypeOpened))
+	assert.Equal(t, int64(2), aggregatedCount(t, domain.String(), stats.TypeOpened))
+}
+
+// stored_at is RFC3339Nano text, whose trailing fractional zeros are trimmed: as text,
+// "10:00:00.5Z" sorts before "10:00:00Z". The prune must compare instants, never delete a marker
+// stored after the cutoff, and only ever keep one stored before it for less than a second.
+func TestPruneCountedStatEvents_ComparesInstantsNotText(t *testing.T) {
+	cleanDB(t)
+
+	ctx := t.Context()
+	repo := sq.NewAggregatedStatsRepository(db)
+	domain := values.MustParse("test.com")
+	cutoff := time.Date(2026, 10, 1, 10, 0, 0, 0, time.UTC)
+	for i, at := range []time.Time{
+		cutoff.Add(-500 * time.Millisecond), // 09:59:59.5Z, before the cutoff second
+		cutoff,                              // 10:00:00Z
+		cutoff.Add(500 * time.Millisecond),  // 10:00:00.5Z, after the cutoff
+		cutoff.Add(time.Hour),
+	} {
+		id := stats.StoredEventID{Stream: stats.StreamName, StoredAt: at, Sequence: uint64(i + 1)}
+		require.NoError(t, repo.Count(ctx, id, domain, at, stats.TypeOpened))
+	}
+
+	deleted, err := q.PruneCountedStatEvents(ctx, cutoff.Add(stats.CountedEventRetention))
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), deleted)
+	assert.Equal(t, []int64{2, 3, 4}, countedSequences(t))
+}
+
+func countedSequences(t *testing.T) []int64 {
+	t.Helper()
+	rows, err := db.Query(t.Context(), "SELECT sequence::bigint FROM counted_stat_events ORDER BY sequence")
+	require.NoError(t, err)
+	seqs, err := pgx.CollectRows(rows, pgx.RowTo[int64])
+	require.NoError(t, err)
+	return seqs
+}
+
 func cleanDB(t *testing.T) {
 	t.Helper()
 	ctx := t.Context()
-	for _, table := range []string{"stats", "stats_keys", "aggregated_stats", "sending_pool_emails", "batch_intake_receipts", "messages", "templates"} {
+	for _, table := range []string{"stats", "stats_keys", "aggregated_stats", "counted_stat_events", "sending_pool_emails", "batch_intake_receipts", "messages", "templates"} {
 		_, err := db.Exec(ctx, "DELETE FROM "+table)
 		require.NoError(t, err)
 	}

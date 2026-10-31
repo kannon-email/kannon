@@ -31,6 +31,14 @@ without limit:
   has gone at 30). From then on its `Idempotency-Key` no longer deduplicates:
   a client reusing the key with the same content creates a new Batch instead of
   replaying the old one. Receipts of Batches that have not completed are kept.
+- **Counting markers.** `counted_stat_events`, the aggregate counter's
+  deduplication markers, are deleted 8 days after their event was stored: the
+  `kannon-stats` max age below, after which the event cannot be redelivered,
+  plus a day of margin for clock skew. Do not restore a `kannon-stats` backup
+  older than that, or its events are counted again. For the same reason, do
+  not raise the stream's max age by hand: the markers would expire while their
+  events can still be redelivered (every process resets it to 7 days at
+  startup anyway).
 
 And the JetStream streams:
 
@@ -95,11 +103,12 @@ The storage timestamp comes from each message’s metadata, so sequence reuse af
 stream recreation does not depend on a worker’s stale stream snapshot. Keep
 this table with the aggregate counters when backing up or restoring the database.
 
-The `kannon-stats` stream has no configured age limit, so its replay window is
-unbounded. Markers consequently do not expire with `stats.retention`; storage
-grows with the number of counted events. Deleting markers allows retained
-messages to count again. Safe cleanup needs a guaranteed replay cutoff, including
-any stream backups that could be restored; none is configured automatically.
+Markers do not expire with `stats.retention`: deleting one allows its message
+to count again, so a marker must outlive every possible replay of it. Since the
+`kannon-stats` stream got a 7-day max age (see *Retention for every table and
+stream* above), the stats worker deletes markers 8 days after their message was
+stored. Restoring a stream backup older than that would replay messages whose
+markers are gone, and count them again.
 
 Existing counters are preserved. Previously counted messages have no markers,
 so replaying pre-upgrade history can still add to those existing counters. The
