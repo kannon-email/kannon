@@ -37,24 +37,11 @@ func parseQuery(raw string, allowed ...string) (url.Values, error) {
 		}
 	}
 	for _, name := range names {
-		if name != typeParameter {
-			if _, _, err := scalar(q, name); err != nil {
-				return nil, err
-			}
+		if name != typeParameter && len(q[name]) != 1 {
+			return nil, problemError(400, "invalid_query_parameter")
 		}
 	}
 	return q, nil
-}
-
-func scalar(q url.Values, name string) (string, bool, error) {
-	v, present := q[name]
-	if !present {
-		return "", false, nil
-	}
-	if len(v) != 1 {
-		return "", true, problemError(400, "invalid_query_parameter")
-	}
-	return v[0], true, nil
 }
 
 func pageLimit(q url.Values) (int, error) {
