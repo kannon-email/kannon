@@ -16,11 +16,12 @@ var (
 
 // DeliveryHistory is the durable accepted Delivery, independent of the worker Pool.
 type DeliveryHistory struct {
-	ID, BatchID, Domain, Email, Status string
-	CreatedAt, ScheduledAt, UpdatedAt  time.Time
-	AttemptCount                       int
-	Tracking                           tracking.Policy
-	ErrorCode, ErrorDetail             string
+	ID, BatchID, Domain, Email        string
+	Status                            DeliveryStatus
+	CreatedAt, ScheduledAt, UpdatedAt time.Time
+	AttemptCount                      int
+	Tracking                          tracking.Policy
+	ErrorCode, ErrorDetail            string
 }
 
 // DeliveryReader scopes every lookup to both its Domain and Batch.

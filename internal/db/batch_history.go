@@ -12,7 +12,7 @@ import (
 )
 
 func (s *inlineStore) ReadBatch(ctx context.Context, d values.DomainName, id string) (*intake.BatchHistory, error) {
-	row, err := New(s.pool).ReadInlineBatch(ctx, ReadInlineBatchParams{Domain: d.String(), BatchID: id, Column3: timestamptz(s.now())})
+	row, err := New(s.pool).ReadInlineBatch(ctx, ReadInlineBatchParams{Domain: d.String(), BatchID: id, Column3: s.historyCutoff()})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, intake.ErrBatchNotFound
 	}
@@ -22,7 +22,7 @@ func (s *inlineStore) ReadBatch(ctx context.Context, d values.DomainName, id str
 	return batchHistoryFromRow(row)
 }
 func (s *inlineStore) ListBatches(ctx context.Context, d values.DomainName, q intake.HistoryQuery) ([]intake.BatchHistory, error) {
-	rows, err := New(s.pool).ListInlineBatches(ctx, ListInlineBatchesParams{Domain: d.String(), Column2: q.AfterID, CreatedAt: timestamptz(q.AfterTime), Limit: int32(q.Limit), Column5: timestamptz(s.now())})
+	rows, err := New(s.pool).ListInlineBatches(ctx, ListInlineBatchesParams{Domain: d.String(), Column2: q.AfterID, CreatedAt: timestamptz(q.AfterTime), Limit: int32(q.Limit), Column5: s.historyCutoff()})
 	if err != nil {
 		return nil, err
 	}
@@ -49,29 +49,31 @@ func batchHistoryFromRow(row ReadInlineBatchRow) (*intake.BatchHistory, error) {
 	if err := json.Unmarshal(row.Counts, &b.Counts); err != nil {
 		return nil, err
 	}
-	headers, err := json.Marshal(row.Headers)
-	if err != nil {
-		return nil, err
-	}
-	b.Headers = headers
+	b.Headers = fromSQLCHeaders(row.Headers)
+	b.OneClickUnsubscribe = fromSQLCUnsubscribe(row.Headers)
 	return b, nil
 }
 func (s *inlineStore) ListDeliveries(ctx context.Context, d values.DomainName, id string, q intake.HistoryQuery) ([]intake.DeliveryHistory, error) {
-	visible, err := New(s.pool).InlineBatchVisible(ctx, InlineBatchVisibleParams{Domain: d.String(), BatchID: id, Column3: timestamptz(s.now())})
+	visible, err := New(s.pool).InlineBatchVisible(ctx, InlineBatchVisibleParams{Domain: d.String(), BatchID: id, Column3: s.historyCutoff()})
 	if err != nil {
 		return nil, err
 	}
 	if !visible {
 		return nil, intake.ErrBatchNotFound
 	}
-	rows, err := New(s.pool).ListInlineDeliveries(ctx, ListInlineDeliveriesParams{Domain: d.String(), BatchID: id, ID: q.AfterID, Column4: q.Status, Limit: int32(q.Limit)})
+	rows, err := New(s.pool).ListInlineDeliveries(ctx, ListInlineDeliveriesParams{Domain: d.String(), BatchID: id, ID: q.AfterID, Column4: string(q.Status), Limit: int32(q.Limit)})
 	if err != nil {
 		return nil, err
 	}
 	out := []intake.DeliveryHistory{}
 	for _, row := range rows {
-		out = append(out, intake.DeliveryHistory{ID: row.ID, BatchID: row.BatchID, Domain: row.Domain, Email: row.Email, Status: row.Status, CreatedAt: row.CreatedAt.Time, ScheduledAt: row.ScheduledAt.Time, UpdatedAt: row.UpdatedAt.Time})
+		out = append(out, intake.DeliveryHistory{ID: row.ID, BatchID: row.BatchID, Domain: row.Domain, Email: row.Email, Status: intake.DeliveryStatus(row.Status), CreatedAt: row.CreatedAt.Time, ScheduledAt: row.ScheduledAt.Time, UpdatedAt: row.UpdatedAt.Time})
 	}
 	return out, nil
+}
+
+// historyCutoff hides Batches completed longer than intake.HistoryRetention ago.
+func (s *inlineStore) historyCutoff() pgtype.Timestamptz {
+	return timestamptz(intake.HistoryCutoff(s.now()))
 }
 func timestamptz(t time.Time) pgtype.Timestamptz { return pgtype.Timestamptz{Time: t, Valid: true} }

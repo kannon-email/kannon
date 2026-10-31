@@ -17,21 +17,13 @@ type historyCursor struct {
 }
 
 func batchSummary(b intake.BatchHistory) BatchSummary {
-	counts := DeliveryCounts{Pending: b.Counts["pending"], Scheduled: b.Counts["scheduled"], Sending: b.Counts["sending"], Delivered: b.Counts["delivered"], Rejected: b.Counts["rejected"], Bounced: b.Counts["bounced"], Failed: b.Counts["failed"]}
-	status := BatchSummaryStatus("pending")
-	var expires *time.Time
-	if b.CompletedAt != nil {
-		status = "completed"
-		t := b.CompletedAt.Add(30 * 24 * time.Hour)
-		expires = &t
-	} else if counts.Sending > 0 || counts.Delivered+counts.Rejected+counts.Bounced+counts.Failed > 0 {
-		status = "processing"
-	}
+	c := b.Counts
+	counts := DeliveryCounts{Pending: c[intake.DeliveryPending], Scheduled: c[intake.DeliveryScheduled], Sending: c[intake.DeliverySending], Delivered: c[intake.DeliveryDelivered], Rejected: c[intake.DeliveryRejected], Bounced: c[intake.DeliveryBounced], Failed: c[intake.DeliveryFailed]}
 	from := From{Email: openapi_types.Email(b.Sender.Email)}
 	if b.Sender.Alias != "" {
 		from.Name = &b.Sender.Alias
 	}
-	return BatchSummary{Id: b.ID, Domain: b.Domain, From: from, Subject: b.Subject, CreatedAt: b.CreatedAt, ScheduledAt: b.ScheduledAt, CompletedAt: b.CompletedAt, ExpiresAt: expires, AcceptedCount: b.AcceptedCount, RejectedCount: b.RejectedCount, DeliveryCounts: counts, Status: status}
+	return BatchSummary{Id: b.ID, Domain: b.Domain, From: from, Subject: b.Subject, CreatedAt: b.CreatedAt, ScheduledAt: b.ScheduledAt, CompletedAt: b.CompletedAt, ExpiresAt: b.ExpiresAt(), AcceptedCount: b.AcceptedCount, RejectedCount: b.RejectedCount, DeliveryCounts: counts, Status: BatchSummaryStatus(b.Status())}
 }
 func registerBatchHistory(mux *http.ServeMux, s *intake.InlineService) {
 	mux.Handle("GET /v1beta1/domains/{domain}/batches/{batch_id}", handler(func(w http.ResponseWriter, r *http.Request) error {
@@ -48,23 +40,13 @@ func registerBatchHistory(mux *http.ServeMux, s *intake.InlineService) {
 		if e != nil {
 			return e
 		}
-		var headers struct {
-			To          []string `json:"to"`
-			Cc          []string `json:"cc"`
-			Unsubscribe *struct {
-				URLTemplate string `json:"url_template"`
-			} `json:"one_click_unsubscribe"`
-		}
-		if err := json.Unmarshal(b.Headers, &headers); err != nil {
-			return err
-		}
 		a := batchSummary(*b)
 		out := Batch{Id: a.Id, Domain: a.Domain, From: a.From, Subject: a.Subject, CreatedAt: a.CreatedAt, ScheduledAt: a.ScheduledAt, CompletedAt: a.CompletedAt, ExpiresAt: a.ExpiresAt, AcceptedCount: a.AcceptedCount, RejectedCount: a.RejectedCount, DeliveryCounts: a.DeliveryCounts, Status: BatchStatus(a.Status), Tracking: TrackingPolicy{Opens: TrackingMode(b.Tracking.Opens), Links: TrackingMode(b.Tracking.Links)}, Attachments: []AttachmentMetadata{}}
-		if len(headers.To)+len(headers.Cc) > 0 {
-			out.Headers = &Headers{To: &headers.To, Cc: &headers.Cc}
+		if h := b.Headers; len(h.To)+len(h.Cc) > 0 {
+			out.Headers = &Headers{To: &h.To, Cc: &h.Cc}
 		}
-		if headers.Unsubscribe != nil {
-			out.OneClickUnsubscribe = &Unsubscribe{UrlTemplate: headers.Unsubscribe.URLTemplate}
+		if !b.OneClickUnsubscribe.IsZero() {
+			out.OneClickUnsubscribe = &Unsubscribe{UrlTemplate: b.OneClickUnsubscribe.URLTemplate}
 		}
 		if b.SourceTemplateID != "" {
 			out.Content.SourceTemplateId = &b.SourceTemplateID
@@ -148,15 +130,14 @@ func parseDeliveryHistoryQuery(raw, domain, batchID string) (intake.HistoryQuery
 	if err != nil {
 		return intake.HistoryQuery{}, "", err
 	}
-	status := v.Get(statusKey)
+	var status intake.DeliveryStatus
 	if v.Has(statusKey) {
-		switch status {
-		case "pending", "scheduled", "sending", "delivered", "rejected", "bounced", "failed":
-		default:
+		var ok bool
+		if status, ok = intake.ParseDeliveryStatus(v.Get(statusKey)); !ok {
 			return intake.HistoryQuery{}, "", problemError(400, "invalid_query_parameter")
 		}
 	}
-	scope := domain + ":" + batchID + ":true:" + status
+	scope := domain + ":" + batchID + ":true:" + string(status)
 	q, err := historyPage(v, scope, false)
 	q.Status = status
 	return q, scope, err
