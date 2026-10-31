@@ -57,6 +57,19 @@ func (q *Queries) CleanupExpiredMailerBatches(ctx context.Context, dollar_1 pgty
 	return err
 }
 
+const deleteExpiredBatchReceipts = `-- name: DeleteExpiredBatchReceipts :exec
+DELETE FROM batch_intake_receipts r WHERE r.completed_at <= $1::timestamptz
+ AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.message_id=r.batch_id)
+ AND NOT EXISTS (SELECT 1 FROM delivery_intake_facts f WHERE f.batch_id=r.batch_id)
+`
+
+// Only once the history the receipt names is gone, so no Delivery fact is left
+// pointing at it.
+func (q *Queries) DeleteExpiredBatchReceipts(ctx context.Context, dollar_1 pgtype.Timestamptz) error {
+	_, err := q.db.Exec(ctx, deleteExpiredBatchReceipts, dollar_1)
+	return err
+}
+
 const getInlineDelivery = `-- name: GetInlineDelivery :one
 SELECT f.id,f.batch_id,r.domain,f.email,f.status,r.created_at,f.scheduled_at,f.updated_at,f.attempt_count,f.tracking,f.error_code,f.error_detail FROM delivery_intake_facts f JOIN batch_intake_receipts r ON r.batch_id=f.batch_id WHERE r.domain=$1 AND f.batch_id=$2 AND f.id=$3 AND (r.completed_at IS NULL OR r.completed_at > $4::timestamptz)
 `

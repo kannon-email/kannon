@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	schema "github.com/kannon-email/kannon/db"
@@ -276,6 +277,32 @@ func TestCleanupCycle_DeletesOldAggregatedStats(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	assert.Equal(t, kept.Truncate(time.Hour), rows[0].Timestamp.Truncate(time.Hour))
+}
+
+func TestCleanupCycle_DeletesExpiredIntakeReceipts(t *testing.T) {
+	cleanDB(t)
+
+	ctx := t.Context()
+	receipt := func(key string, completedAt *time.Time) {
+		t.Helper()
+		_, err := db.Exec(ctx, `INSERT INTO batch_intake_receipts (domain, idempotency_key, fingerprint, batch_id, created_at, accepted_count, rejected_count, scheduled_at, completed_at)
+			VALUES ('test.com', $1, 'fp', $1, now() - interval '1 year', 1, 0, now() - interval '1 year', $2)`, key, completedAt)
+		require.NoError(t, err)
+	}
+	expired := time.Now().Add(-intake.ReceiptRetention - time.Hour)
+	recent := time.Now().Add(-intake.ReceiptRetention + time.Hour)
+	receipt("expired", &expired)
+	receipt("recent", &recent)
+	receipt("open", nil)
+
+	h := newTestHandler()
+	require.NoError(t, runner.Run(ctx, h.cleanupCycle, runner.MaxLoop(1)))
+
+	rows, err := db.Query(ctx, "SELECT idempotency_key FROM batch_intake_receipts ORDER BY idempotency_key")
+	require.NoError(t, err)
+	keys, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	require.NoError(t, err)
+	assert.Equal(t, []string{"open", "recent"}, keys)
 }
 
 func cleanDB(t *testing.T) {

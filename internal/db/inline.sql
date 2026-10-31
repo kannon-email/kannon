@@ -43,6 +43,13 @@ WITH expired AS MATERIALIZED (
  DELETE FROM templates t WHERE t.type='transient' AND t.template_id IN (SELECT template_id FROM removed)
  AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.template_id=t.template_id AND m.message_id NOT IN (SELECT message_id FROM expired));
 
+-- name: DeleteExpiredBatchReceipts :exec
+-- Only once the history the receipt names is gone, so no Delivery fact is left
+-- pointing at it.
+DELETE FROM batch_intake_receipts r WHERE r.completed_at <= $1::timestamptz
+ AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.message_id=r.batch_id)
+ AND NOT EXISTS (SELECT 1 FROM delivery_intake_facts f WHERE f.batch_id=r.batch_id);
+
 -- name: ListInlineDeliveries :many
 SELECT f.id,f.batch_id,r.domain,f.email,f.status,r.created_at,f.scheduled_at,f.updated_at FROM delivery_intake_facts f JOIN batch_intake_receipts r ON r.batch_id=f.batch_id WHERE r.domain=$1 AND f.batch_id=$2 AND f.id>$3 AND ($4='' OR f.status=$4) ORDER BY f.id LIMIT $5;
 

@@ -110,6 +110,9 @@ func (h *statsHandler) cleanupCycle(ctx context.Context) error {
 	if err := h.q.CleanupMailerBatches(ctx, time.Now()); err != nil {
 		return err
 	}
+	if err := h.q.CleanupBatchReceipts(ctx, time.Now()); err != nil {
+		return err
+	}
 	deletedStats, err := h.service.Cleanup(ctx, h.retention)
 	if err != nil {
 		return err
