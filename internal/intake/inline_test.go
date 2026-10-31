@@ -265,7 +265,7 @@ func TestInlineCreate(t *testing.T) {
 		source, err := templates.NewPersistent(inlineDomain, "<p>Dear {{ name }}</p>", "Source")
 		require.NoError(t, err)
 		store := &memoryInlineStore{templates: map[string]*templates.Template{"tpl": source}}
-		s := NewInlineService(store, memoryDomains{domain: domains.Load(domains.LoadParams{Domain: inlineDomain, Tracking: ceiling})}, nil, 0)
+		s := NewInlineService(store, memoryDomains{domain: domains.Load(domains.LoadParams{Domain: inlineDomain, Tracking: ceiling})}, nil, 0, 0)
 		s.Now = func() time.Time { return now.Add(500 * time.Nanosecond) }
 		return s, store
 	}
@@ -390,4 +390,30 @@ func TestInlineCreate(t *testing.T) {
 		require.ErrorIs(t, err, authz.ErrForbidden)
 		require.Zero(t, store.builds)
 	})
+}
+
+// The cap is 70% of the largest Envelope the transport carries: with 1000, 700 bytes of HTML
+// plus base64 attachments. A referenced Template's HTML counts like inline HTML.
+func TestInlineCreateRefusesMessageTooLarge(t *testing.T) {
+	ctx := authz.NewContext(t.Context(), authz.MustNewPrincipal("key", authz.MustNewGrant(authz.RoleSender, authz.DomainAnchor(inlineDomain))))
+	source, err := templates.NewPersistent(inlineDomain, "<p>Dear {{ name }}</p>", "Source")
+	require.NoError(t, err)
+	store := &memoryInlineStore{templates: map[string]*templates.Template{"tpl": source}}
+	s := NewInlineService(store, memoryDomains{domain: domains.Load(domains.LoadParams{Domain: inlineDomain})}, nil, 0, 1000)
+
+	// 507 raw bytes encode to 676; with the 23-byte inline body that is 699.
+	p := inlineRequest()
+	p.Attachments = []Attachment{{Filename: "a.pdf", Content: make([]byte, 507)}}
+	receipt, _, _, err := s.Create(ctx, inlineDomain, "fits", p)
+	require.NoError(t, err)
+	require.Equal(t, 1, receipt.AcceptedCount)
+
+	// 510 raw bytes encode to 680, which fits alone; the Template's 22 bytes make it 702.
+	p = inlineRequest()
+	p.HTML, p.TemplateID = "", "tpl"
+	p.Attachments = []Attachment{{Filename: "a.pdf", Content: make([]byte, 510)}}
+	receipt, _, _, err = s.Create(ctx, inlineDomain, "too-large", p)
+	require.ErrorIs(t, err, ErrMessageTooLarge)
+	require.Nil(t, receipt)
+	require.Len(t, store.works, 1)
 }

@@ -31,7 +31,7 @@ func TestDeniedIntakeDoesNotReachStorage(t *testing.T) {
 	require.NoError(t, err)
 	domain := domains.Load(domains.LoadParams{Domain: name})
 	ctx := authz.NewContext(t.Context(), authz.MustNewPrincipal("revoked"))
-	s := intake.New(unavailableStore{}, nil, 0)
+	s := intake.New(unavailableStore{}, nil, 0, 0)
 	for _, p := range []intake.Request{
 		{HTML: new("<p>Hello</p>")},
 		{TemplateID: "persistent@example.com", GlobalFields: map[string]string{"name": "Alice"}},
@@ -73,7 +73,7 @@ func TestIntakeWiresRetryBudget(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			store := &capturedStore{}
-			s := intake.New(store, tc.backoff, tc.window)
+			s := intake.New(store, tc.backoff, tc.window, 0)
 			_, err := s.Accept(ctx, domain, intake.Request{HTML: new("Hello"), Subject: "Hello", Sender: batch.Sender{Email: "sender@example.com"}, ScheduledTime: &scheduled, Recipients: []intake.Recipient{{Recipient: batch.Recipient{Email: "recipient@example.com"}}}})
 			require.NoError(t, err)
 			require.Len(t, store.deliveries, 1)
@@ -90,7 +90,7 @@ func TestIntakeRequiresAuthorityOnPersistenceDomain(t *testing.T) {
 	principal := authz.MustNewPrincipal("key", authz.MustNewGrant(authz.RoleSender, authz.DomainAnchor(source)))
 	var audit decisions
 	ctx := authz.WithRecorder(authz.NewContext(t.Context(), principal), &audit)
-	s := intake.New(unavailableStore{}, nil, 0)
+	s := intake.New(unavailableStore{}, nil, 0, 0)
 	for _, p := range []intake.Request{{HTML: new("Hello")}, {TemplateID: "existing"}} {
 		p.Sender = batch.Sender{Email: "sender@a.example"}
 		p.Subject = "Hello"
@@ -109,7 +109,7 @@ func TestIntakeRejectsUnrelatedSenderDespiteAuthority(t *testing.T) {
 		authz.MustNewGrant(authz.RoleSender, authz.DomainAnchor(values.MustParse("a.example"))))
 	var audit decisions
 	ctx := authz.WithRecorder(authz.NewContext(t.Context(), principal), &audit)
-	s := intake.New(unavailableStore{}, nil, 0)
+	s := intake.New(unavailableStore{}, nil, 0, 0)
 	_, err := s.Accept(ctx, domain, intake.Request{HTML: new("Hello"), Subject: "Hello", Sender: batch.Sender{Email: "sender@a.example"}})
 	require.ErrorIs(t, err, authz.ErrForbidden)
 	require.Len(t, audit, 1)
@@ -124,7 +124,7 @@ func TestSenderRefusalDescribesApplicationDecision(t *testing.T) {
 	ctx := authz.NewContext(t.Context(), authz.MustNewPrincipal("key", authz.MustNewGrant(authz.RoleSender, authz.DomainAnchor(name))))
 	var audit decisions
 	ctx = authz.WithRecorder(ctx, &audit)
-	_, err := intake.New(unavailableStore{}, nil, 0).Accept(ctx, domain, intake.Request{
+	_, err := intake.New(unavailableStore{}, nil, 0, 0).Accept(ctx, domain, intake.Request{
 		Sender: batch.Sender{Email: "sender@other.example"}, HTML: new("Hello"),
 	})
 	var refusal *intake.SenderNotAuthorized
@@ -134,4 +134,30 @@ func TestSenderRefusalDescribesApplicationDecision(t *testing.T) {
 	require.ErrorIs(t, err, authz.ErrForbidden)
 	require.Len(t, audit, 1)
 	require.Equal(t, authz.Denied, audit[0].Outcome)
+}
+
+// The Envelope travels as one NATS message, so intake refuses a Batch that could not fit
+// rather than accepting work the Dispatcher can never hand on. The cap is 70% of the largest
+// Envelope the transport carries; with 1000 it is 700 bytes of HTML plus base64 attachments.
+func TestIntakeRefusesMessageTooLargeForTheEnvelope(t *testing.T) {
+	name := values.MustParse("example.com")
+	domain := domains.Load(domains.LoadParams{Domain: name})
+	ctx := authz.NewContext(t.Context(), authz.MustNewPrincipal("key", authz.MustNewGrant(authz.RoleSender, authz.DomainAnchor(name))))
+	request := func(attachment int) intake.Request {
+		return intake.Request{
+			HTML: new("Hello!!!"), Subject: "Hello", Sender: batch.Sender{Email: "sender@example.com"},
+			Recipients:  []intake.Recipient{{Recipient: batch.Recipient{Email: "recipient@example.com"}}},
+			Attachments: batch.Attachments{"a.pdf": make([]byte, attachment)},
+		}
+	}
+
+	// 519 raw bytes encode to 692; with the 8-byte body that is 700, exactly the cap.
+	store := &capturedStore{}
+	_, err := intake.New(store, nil, 0, 1000).Accept(ctx, domain, request(519))
+	require.NoError(t, err)
+	require.Len(t, store.deliveries, 1)
+
+	// 522 raw bytes encode to 696; with the body that is 704, past the cap.
+	_, err = intake.New(unavailableStore{}, nil, 0, 1000).Accept(ctx, domain, request(522))
+	require.ErrorIs(t, err, intake.ErrMessageTooLarge)
 }

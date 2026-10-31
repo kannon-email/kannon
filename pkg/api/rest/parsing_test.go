@@ -29,7 +29,7 @@ func TestParsingHTTPContract(t *testing.T) {
 		Domains:   domains.NewService(sqlc.NewDomainsRepository(db)),
 		Token:     admintoken.MustParse("secret"),
 		Ready:     db.Ping,
-		Inline:    intake.NewInlineService(sqlc.NewInlineStore(db), sqlc.NewDomainsRepository(db), nil, 0),
+		Inline:    intake.NewInlineService(sqlc.NewInlineStore(db), sqlc.NewDomainsRepository(db), nil, 0, 0),
 		Stats:     stats.NewService(stats.NewInMemRepository(), stats.WithAggregatedStatsRepository(stats.NewInMemAggregatedStatsRepository())),
 		Templates: templates.NewService(sqlc.NewTemplatesRepository(db)),
 		Keys:      apikeys.NewService(sqlc.NewAPIKeysRepository(db)),

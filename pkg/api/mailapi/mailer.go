@@ -195,12 +195,14 @@ func sendError(err error) error {
 	return connecterr.Error(err)
 }
 
-func NewMailerAPIV1(db *pgxpool.Pool, backoff delivery.BackoffPolicy, retryWindow time.Duration) mailerv1connect.MailerHandler {
+// NewMailerAPIV1 wires the legacy send API. envelopeMaxBytes is the largest Envelope the
+// transport carries, which bounds the size of a Batch's content.
+func NewMailerAPIV1(db *pgxpool.Pool, backoff delivery.BackoffPolicy, retryWindow time.Duration, envelopeMaxBytes int) mailerv1connect.MailerHandler {
 	domainsCli := sqlc.NewDomainsRepository(db)
 	apiKeysRepo := sqlc.NewAPIKeysRepository(db)
 	apiKeysService := apikeys.NewService(apiKeysRepo)
 	return &mailAPIService{
 		domains: domainsCli, apiKeys: apiKeysService,
-		intake: intake.New(sqlc.NewIntakeStore(db), backoff, retryWindow),
+		intake: intake.New(sqlc.NewIntakeStore(db), backoff, retryWindow, envelopeMaxBytes),
 	}
 }

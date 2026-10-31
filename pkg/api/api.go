@@ -106,7 +106,7 @@ func run(ctx context.Context, config Config, cnt *container.Container) error {
 	recorder := startAuditRecording(ctx, cnt)
 
 	adminAPIService := adminapi.CreateAdminAPIService(db)
-	mailAPIService := mailapi.NewMailerAPIV1(db, cnt.BackoffPolicy(), cnt.RetryWindow())
+	mailAPIService := mailapi.NewMailerAPIV1(db, cnt.BackoffPolicy(), cnt.RetryWindow(), cnt.NatsMaxPayload())
 	statsAPIService := statsv1.NewStatsAPIService(statsService)
 	statsV2APIService := statsv2.NewStatsAPIService(statsService)
 	hzAPIService := hzapi.CreateHZAPIService(cnt)
@@ -128,7 +128,7 @@ func run(ctx context.Context, config Config, cnt *container.Container) error {
 		},
 		Keys:      apikeys.NewService(sq.NewAPIKeysRepository(db)),
 		Templates: templates.NewService(sq.NewTemplatesRepository(db)),
-		Inline:    intake.NewInlineService(sq.NewInlineStore(db), sq.NewDomainsRepository(db), cnt.BackoffPolicy(), cnt.RetryWindow()),
+		Inline:    intake.NewInlineService(sq.NewInlineStore(db), sq.NewDomainsRepository(db), cnt.BackoffPolicy(), cnt.RetryWindow(), cnt.NatsMaxPayload()),
 		Stats:     statsService,
 	}))
 }

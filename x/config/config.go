@@ -36,10 +36,15 @@ const defaultConfigName = ".kannon"
 // RootConfig is the configuration belonging to no single runnable: the two
 // connections every Kannon process may make, and how loudly it logs.
 type RootConfig struct {
-	DatabaseURL     string `mapstructure:"database_url"`
-	NatsURL         string `mapstructure:"nats_url"`
-	UseEmbeddedNats bool   `mapstructure:"use_embedded_nats"`
-	Debug           bool   `mapstructure:"debug"`
+	DatabaseURL string `mapstructure:"database_url"`
+	NatsURL     string `mapstructure:"nats_url"`
+	// NatsMaxPayload restates the NATS server's max_payload, in bytes: the largest
+	// message, and so the largest Envelope, it carries. The API bounds a Batch's
+	// content by it. Zero means the NATS default of 1MiB. An embedded server is
+	// started with it, so the two cannot disagree there.
+	NatsMaxPayload  int  `mapstructure:"nats_max_payload"`
+	UseEmbeddedNats bool `mapstructure:"use_embedded_nats"`
+	Debug           bool `mapstructure:"debug"`
 }
 
 // Prepare points viper at the configuration file. Called before any command runs,

@@ -210,6 +210,7 @@ A process with nothing enabled refuses to boot rather than exit as if it had don
 | `database_url`      | string | (required) | PostgreSQL connection string                                       |
 | `nats_url`          | string | (required) | NATS server URL — not needed when NATS is embedded                 |
 | `use_embedded_nats` | bool   | false      | Run an in-process NATS server. `kannon standalone` forces this on  |
+| `nats_max_payload`  | int    | 1048576    | The NATS server's `max_payload` in bytes; set it when you raise it on the server. A Batch whose HTML plus base64 attachments exceed 70% of it is refused at intake with `message_too_large`. The embedded server uses it as its limit |
 | `debug`             | bool   | false      | Enable debug logging                                               |
 
 **Per-component options**, under their own section:
