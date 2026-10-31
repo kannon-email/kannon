@@ -47,30 +47,28 @@ type Services struct {
 
 // NewHandler returns the versioned REST handler for the supplied services.
 func NewHandler(s Services) http.Handler {
-	service, token, ready, keys := s.Domains, s.Token, s.Ready, s.Keys
-	events, content, inline := s.Stats, s.Templates, s.Inline
 	mux := http.NewServeMux()
 	mux.Handle("GET /v1beta1/health", handler(func(w http.ResponseWriter, r *http.Request) error {
-		if ready == nil || ready(r.Context()) != nil {
+		if s.Ready == nil || s.Ready(r.Context()) != nil {
 			return problemError(503, "service_unavailable")
 		}
 		writeJSON(w, 200, map[string]string{statusKey: "ready"})
 		return nil
 	}))
 	protected := http.NewServeMux()
-	if inline != nil {
-		registerBatches(protected, inline)
-		registerDeliveries(protected, inline)
+	if s.Inline != nil {
+		registerBatches(protected, s.Inline)
+		registerDeliveries(protected, s.Inline)
 	}
-	if events != nil {
-		registerEvents(protected, events)
-		registerAggregated(protected, events)
+	if s.Stats != nil {
+		registerEvents(protected, s.Stats)
+		registerAggregated(protected, s.Stats)
 	}
-	if content != nil {
-		registerTemplates(protected, content)
+	if s.Templates != nil {
+		registerTemplates(protected, s.Templates)
 	}
-	if keys != nil {
-		registerKeys(protected, keys)
+	if s.Keys != nil {
+		registerKeys(protected, s.Keys)
 	}
 	protected.Handle("POST /v1beta1/domains", handler(func(w http.ResponseWriter, r *http.Request) error {
 		if _, err := parseQuery(r.URL.RawQuery); err != nil {
@@ -84,7 +82,7 @@ func NewHandler(s Services) http.Handler {
 		if err != nil {
 			return problemError(422, "validation_failed")
 		}
-		d, err := service.CreateDomain(r.Context(), name)
+		d, err := s.Domains.CreateDomain(r.Context(), name)
 		if err != nil {
 			return err
 		}
@@ -109,7 +107,7 @@ func NewHandler(s Services) http.Handler {
 			name := values.MustParse(*page.after)
 			after = &name
 		}
-		rows, err := service.ListPage(r.Context(), keyset.Page[values.DomainName]{After: after, Limit: page.keyset().Limit})
+		rows, err := s.Domains.ListPage(r.Context(), keyset.Page[values.DomainName]{After: after, Limit: page.keyset().Limit})
 		if err != nil {
 			return err
 		}
@@ -132,7 +130,7 @@ func NewHandler(s Services) http.Handler {
 		if err != nil {
 			return err
 		}
-		d, err := service.GetDomain(r.Context(), name)
+		d, err := s.Domains.GetDomain(r.Context(), name)
 		if err != nil {
 			return err
 		}
@@ -157,7 +155,7 @@ func NewHandler(s Services) http.Handler {
 		if !ok || !ok2 {
 			return problemError(422, "validation_failed")
 		}
-		d, err := service.SetTrackingPolicy(r.Context(), name, p)
+		d, err := s.Domains.SetTrackingPolicy(r.Context(), name, p)
 		if err != nil {
 			return err
 		}
@@ -169,9 +167,9 @@ func NewHandler(s Services) http.Handler {
 		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
 			return problemError(401, "unauthenticated")
 		}
-		p, err := token.Authenticate(parts[1])
-		if err != nil && keys != nil {
-			p, err = keys.Authenticate(r.Context(), parts[1])
+		p, err := s.Token.Authenticate(parts[1])
+		if err != nil && s.Keys != nil {
+			p, err = s.Keys.Authenticate(r.Context(), parts[1])
 			if err != nil && !errors.Is(err, apikeys.ErrKeyNotFound) {
 				return err
 			}
