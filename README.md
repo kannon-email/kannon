@@ -280,7 +280,7 @@ Kannon requires a PostgreSQL database, migrated with [dbmate](https://github.com
 
 - **domains**: Registered sender Domains (domain name + DKIM keypair + Tracking Policy ceiling)
 - **api_keys**: API Keys for authentication (multiple keys per Domain; hashed at rest, expirable, revocable)
-- **messages**: One row per **Batch** — subject, Sender, template reference, attachments, custom headers, Tracking Policy (legacy table name; the entity is a Batch)
+- **messages**: One row per **Batch** — subject, Sender, template reference, attachments, custom headers, Tracking Policy (legacy table name; the entity is a Batch). A REST Batch is deleted with its history, 30 days after it completes; a Mailer API Batch, which has no history, 30 days after intake once none of its Deliveries is left in the Pool
 - **sending_pool_emails**: The Pool — one row per **Delivery** (recipient, scheduled time, retry count, per-recipient fields, frozen Tracking Policy). Rows are deleted on terminal outcomes
 - **templates**: Persistent and Transient Templates owned by a Domain
 - **stats**: Per-Delivery outcome events (Validated / Rejected / Delivered / Bounced / Opened / Clicked), pruned by `stats.retention`

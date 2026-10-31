@@ -30,7 +30,7 @@ func (q *Queries) CleanPool(ctx context.Context, arg CleanPoolParams) error {
 const createMessage = `-- name: CreateMessage :one
 INSERT INTO messages
     (message_id, subject, sender_email, sender_alias, template_id, domain, attachments, headers, tracking) VALUES
-    ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING message_id, subject, sender_email, sender_alias, template_id, domain, attachments, headers, tracking
+    ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING message_id, subject, sender_email, sender_alias, template_id, domain, attachments, headers, tracking, created_at
 `
 
 type CreateMessageParams struct {
@@ -68,6 +68,7 @@ func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (M
 		&i.Attachments,
 		&i.Headers,
 		&i.Tracking,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -84,7 +85,7 @@ type CreatePoolParams struct {
 }
 
 const getMessage = `-- name: GetMessage :one
-SELECT message_id, subject, sender_email, sender_alias, template_id, domain, attachments, headers, tracking FROM messages WHERE message_id = $1
+SELECT message_id, subject, sender_email, sender_alias, template_id, domain, attachments, headers, tracking, created_at FROM messages WHERE message_id = $1
 `
 
 func (q *Queries) GetMessage(ctx context.Context, messageID string) (Message, error) {
@@ -100,6 +101,7 @@ func (q *Queries) GetMessage(ctx context.Context, messageID string) (Message, er
 		&i.Attachments,
 		&i.Headers,
 		&i.Tracking,
+		&i.CreatedAt,
 	)
 	return i, err
 }
