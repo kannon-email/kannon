@@ -2,13 +2,62 @@ package intake
 
 import (
 	"context"
-	"encoding/json"
 	"github.com/kannon-email/kannon/internal/authz"
 	"github.com/kannon-email/kannon/internal/batch"
 	"github.com/kannon-email/kannon/internal/tracking"
 	"github.com/kannon-email/kannon/internal/values"
 	"time"
 )
+
+// HistoryRetention is how long a completed Batch and its Deliveries stay
+// readable before cleanup removes them (ADR 0015).
+const HistoryRetention = 30 * 24 * time.Hour
+
+// HistoryCutoff is the earliest completion time still retained at now.
+func HistoryCutoff(now time.Time) time.Time { return now.Add(-HistoryRetention) }
+
+// BatchStatus summarizes where a Batch is in its lifecycle.
+type BatchStatus string
+
+const (
+	BatchPending    BatchStatus = "pending"
+	BatchProcessing BatchStatus = "processing"
+	BatchCompleted  BatchStatus = "completed"
+)
+
+// DeliveryStatus is the current state of one accepted Delivery.
+type DeliveryStatus string
+
+const (
+	DeliveryPending   DeliveryStatus = "pending"
+	DeliveryScheduled DeliveryStatus = "scheduled"
+	DeliverySending   DeliveryStatus = "sending"
+	DeliveryDelivered DeliveryStatus = "delivered"
+	DeliveryRejected  DeliveryStatus = "rejected"
+	DeliveryBounced   DeliveryStatus = "bounced"
+	DeliveryFailed    DeliveryStatus = "failed"
+)
+
+// ParseDeliveryStatus accepts only the known Delivery states.
+func ParseDeliveryStatus(s string) (DeliveryStatus, bool) {
+	switch v := DeliveryStatus(s); v {
+	case DeliveryPending, DeliveryScheduled, DeliverySending, DeliveryDelivered, DeliveryRejected, DeliveryBounced, DeliveryFailed:
+		return v, true
+	}
+	return "", false
+}
+
+// Final reports whether the Delivery has reached an outcome.
+func (s DeliveryStatus) Final() bool {
+	switch s {
+	case DeliveryDelivered, DeliveryRejected, DeliveryBounced, DeliveryFailed:
+		return true
+	}
+	return false
+}
+
+// DeliveryCounts is the number of a Batch's Deliveries in each status.
+type DeliveryCounts map[DeliveryStatus]int
 
 // BatchHistory combines immutable acceptance data with current outcome counts.
 type BatchHistory struct {
@@ -18,10 +67,34 @@ type BatchHistory struct {
 	CreatedAt, ScheduledAt       time.Time
 	CompletedAt                  *time.Time
 	AcceptedCount, RejectedCount int
-	Counts                       map[string]int
+	Counts                       DeliveryCounts
 	Tracking                     tracking.Policy
 	Attachments                  []AttachmentMetadata
-	Headers                      json.RawMessage
+	Headers                      batch.Headers
+	OneClickUnsubscribe          batch.OneClickUnsubscribe
+}
+
+// Status is Completed once every Delivery has an outcome, Processing once any
+// Delivery is sending or finished, and Pending before that.
+func (b BatchHistory) Status() BatchStatus {
+	if b.CompletedAt != nil {
+		return BatchCompleted
+	}
+	for s, n := range b.Counts {
+		if n > 0 && (s == DeliverySending || s.Final()) {
+			return BatchProcessing
+		}
+	}
+	return BatchPending
+}
+
+// ExpiresAt is when a completed Batch leaves history; nil while it is open.
+func (b BatchHistory) ExpiresAt() *time.Time {
+	if b.CompletedAt == nil {
+		return nil
+	}
+	t := b.CompletedAt.Add(HistoryRetention)
+	return &t
 }
 
 // HistoryQuery is a bounded keyset read, independent of transport cursors.
@@ -29,7 +102,7 @@ type HistoryQuery struct {
 	Limit     int
 	AfterID   string
 	AfterTime time.Time
-	Status    string
+	Status    DeliveryStatus
 }
 type BatchReader interface {
 	ReadBatch(context.Context, values.DomainName, string) (*BatchHistory, error)

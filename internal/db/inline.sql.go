@@ -12,8 +12,82 @@ import (
 	tracking "github.com/kannon-email/kannon/internal/tracking"
 )
 
+const cleanupExpiredBatchHistory = `-- name: CleanupExpiredBatchHistory :exec
+WITH expired AS MATERIALIZED (
+ SELECT r.batch_id,m.template_id FROM batch_intake_receipts r
+ JOIN messages m ON m.message_id=r.batch_id
+ WHERE r.completed_at <= $1::timestamptz
+ AND NOT EXISTS (SELECT 1 FROM delivery_intake_facts f WHERE f.batch_id=r.batch_id AND f.outcome_at IS NULL)
+ AND NOT EXISTS (SELECT 1 FROM sending_pool_emails p WHERE p.message_id=r.batch_id)
+ ORDER BY r.batch_id FOR UPDATE OF r,m
+ ), facts AS (DELETE FROM delivery_intake_facts WHERE batch_id IN (SELECT batch_id FROM expired)),
+ snapshots AS (DELETE FROM batch_content_snapshots WHERE batch_id IN (SELECT batch_id FROM expired)),
+ receipts AS (UPDATE batch_intake_receipts SET attachments='[]' WHERE batch_id IN (SELECT batch_id FROM expired)),
+ removed AS (DELETE FROM messages WHERE message_id IN (SELECT batch_id FROM expired) RETURNING template_id)
+ DELETE FROM templates t WHERE t.type='transient' AND t.template_id IN (SELECT template_id FROM removed)
+ AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.template_id=t.template_id AND m.message_id NOT IN (SELECT batch_id FROM expired))
+`
+
+// One statement keeps ownership checks and deletion atomic. Lock receipts in
+// the same order used by completion so concurrent outcomes cannot race cleanup.
+func (q *Queries) CleanupExpiredBatchHistory(ctx context.Context, dollar_1 pgtype.Timestamptz) error {
+	_, err := q.db.Exec(ctx, cleanupExpiredBatchHistory, dollar_1)
+	return err
+}
+
+const getInlineDelivery = `-- name: GetInlineDelivery :one
+SELECT f.id,f.batch_id,r.domain,f.email,f.status,r.created_at,f.scheduled_at,f.updated_at,f.attempt_count,f.tracking,f.error_code,f.error_detail FROM delivery_intake_facts f JOIN batch_intake_receipts r ON r.batch_id=f.batch_id WHERE r.domain=$1 AND f.batch_id=$2 AND f.id=$3 AND (r.completed_at IS NULL OR r.completed_at > $4::timestamptz)
+`
+
+type GetInlineDeliveryParams struct {
+	Domain  string
+	BatchID string
+	ID      string
+	Column4 pgtype.Timestamptz
+}
+
+type GetInlineDeliveryRow struct {
+	ID           string
+	BatchID      string
+	Domain       string
+	Email        string
+	Status       string
+	CreatedAt    pgtype.Timestamptz
+	ScheduledAt  pgtype.Timestamptz
+	UpdatedAt    pgtype.Timestamptz
+	AttemptCount int32
+	Tracking     tracking.Policy
+	ErrorCode    string
+	ErrorDetail  string
+}
+
+func (q *Queries) GetInlineDelivery(ctx context.Context, arg GetInlineDeliveryParams) (GetInlineDeliveryRow, error) {
+	row := q.db.QueryRow(ctx, getInlineDelivery,
+		arg.Domain,
+		arg.BatchID,
+		arg.ID,
+		arg.Column4,
+	)
+	var i GetInlineDeliveryRow
+	err := row.Scan(
+		&i.ID,
+		&i.BatchID,
+		&i.Domain,
+		&i.Email,
+		&i.Status,
+		&i.CreatedAt,
+		&i.ScheduledAt,
+		&i.UpdatedAt,
+		&i.AttemptCount,
+		&i.Tracking,
+		&i.ErrorCode,
+		&i.ErrorDetail,
+	)
+	return i, err
+}
+
 const inlineBatchVisible = `-- name: InlineBatchVisible :one
-SELECT EXISTS(SELECT 1 FROM batch_intake_receipts r JOIN messages m ON m.message_id=r.batch_id WHERE r.domain=$1 AND r.batch_id=$2 AND (r.completed_at IS NULL OR r.completed_at > $3::timestamptz - interval '720 hours'))
+SELECT EXISTS(SELECT 1 FROM batch_intake_receipts r JOIN messages m ON m.message_id=r.batch_id WHERE r.domain=$1 AND r.batch_id=$2 AND (r.completed_at IS NULL OR r.completed_at > $3::timestamptz))
 `
 
 type InlineBatchVisibleParams struct {
@@ -37,7 +111,7 @@ type InsertInlineDeliveryParams struct {
 	ID       string
 	BatchID  string
 	Email    string
-	Tracking []byte
+	Tracking tracking.Policy
 }
 
 func (q *Queries) InsertInlineDelivery(ctx context.Context, arg InsertInlineDeliveryParams) error {
@@ -97,7 +171,7 @@ func (q *Queries) InsertInlineSnapshot(ctx context.Context, arg InsertInlineSnap
 }
 
 const listInlineBatches = `-- name: ListInlineBatches :many
-SELECT r.batch_id,r.domain,r.created_at,r.scheduled_at,r.completed_at,r.accepted_count,r.rejected_count,m.subject,m.sender_email,m.sender_alias,c.html,c.source_template_id,m.tracking,r.attachments,m.headers,COALESCE((SELECT jsonb_object_agg(status,n) FROM (SELECT status,count(*) n FROM delivery_intake_facts WHERE batch_id=r.batch_id GROUP BY status) counts),'{}'::jsonb)::jsonb AS counts FROM batch_intake_receipts r JOIN messages m ON m.message_id=r.batch_id JOIN batch_content_snapshots c ON c.batch_id=r.batch_id WHERE r.domain=$1 AND (r.completed_at IS NULL OR r.completed_at > $5::timestamptz - interval '720 hours') AND ($2='' OR (r.created_at,r.batch_id)<($3,$2)) ORDER BY r.created_at DESC,r.batch_id DESC LIMIT $4
+SELECT r.batch_id,r.domain,r.created_at,r.scheduled_at,r.completed_at,r.accepted_count,r.rejected_count,m.subject,m.sender_email,m.sender_alias,c.html,c.source_template_id,m.tracking,r.attachments,m.headers,COALESCE((SELECT jsonb_object_agg(status,n) FROM (SELECT status,count(*) n FROM delivery_intake_facts WHERE batch_id=r.batch_id GROUP BY status) counts),'{}'::jsonb)::jsonb AS counts FROM batch_intake_receipts r JOIN messages m ON m.message_id=r.batch_id JOIN batch_content_snapshots c ON c.batch_id=r.batch_id WHERE r.domain=$1 AND (r.completed_at IS NULL OR r.completed_at > $5::timestamptz) AND ($2='' OR (r.created_at,r.batch_id)<($3,$2)) ORDER BY r.created_at DESC,r.batch_id DESC LIMIT $4
 `
 
 type ListInlineBatchesParams struct {
@@ -292,7 +366,7 @@ func (q *Queries) LockInlineKey(ctx context.Context, hashtextextended string) (b
 }
 
 const readInlineBatch = `-- name: ReadInlineBatch :one
-SELECT r.batch_id,r.domain,r.created_at,r.scheduled_at,r.completed_at,r.accepted_count,r.rejected_count,m.subject,m.sender_email,m.sender_alias,c.html,c.source_template_id,m.tracking,r.attachments,m.headers,COALESCE((SELECT jsonb_object_agg(status,n) FROM (SELECT status,count(*) n FROM delivery_intake_facts WHERE batch_id=r.batch_id GROUP BY status) counts),'{}'::jsonb)::jsonb AS counts FROM batch_intake_receipts r JOIN messages m ON m.message_id=r.batch_id JOIN batch_content_snapshots c ON c.batch_id=r.batch_id WHERE r.domain=$1 AND r.batch_id=$2 AND (r.completed_at IS NULL OR r.completed_at > $3::timestamptz - interval '720 hours')
+SELECT r.batch_id,r.domain,r.created_at,r.scheduled_at,r.completed_at,r.accepted_count,r.rejected_count,m.subject,m.sender_email,m.sender_alias,c.html,c.source_template_id,m.tracking,r.attachments,m.headers,COALESCE((SELECT jsonb_object_agg(status,n) FROM (SELECT status,count(*) n FROM delivery_intake_facts WHERE batch_id=r.batch_id GROUP BY status) counts),'{}'::jsonb)::jsonb AS counts FROM batch_intake_receipts r JOIN messages m ON m.message_id=r.batch_id JOIN batch_content_snapshots c ON c.batch_id=r.batch_id WHERE r.domain=$1 AND r.batch_id=$2 AND (r.completed_at IS NULL OR r.completed_at > $3::timestamptz)
 `
 
 type ReadInlineBatchParams struct {

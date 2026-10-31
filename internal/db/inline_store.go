@@ -85,11 +85,7 @@ func (s *inlineStore) CreateInline(ctx context.Context, domain values.DomainName
 		return nil, false, err
 	}
 	for _, d := range work.Deliveries {
-		policy, err := json.Marshal(d.TrackingPolicy())
-		if err != nil {
-			return nil, false, err
-		}
-		err = New(tx).InsertInlineDelivery(ctx, InsertInlineDeliveryParams{ID: batch.NewID(r.Domain).String(), BatchID: r.ID, Email: d.Email(), Tracking: policy})
+		err = New(tx).InsertInlineDelivery(ctx, InsertInlineDeliveryParams{ID: batch.NewID(r.Domain).String(), BatchID: r.ID, Email: d.Email(), Tracking: d.TrackingPolicy()})
 		if err != nil {
 			return nil, false, err
 		}
