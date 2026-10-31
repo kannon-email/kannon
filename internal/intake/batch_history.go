@@ -17,6 +17,14 @@ const HistoryRetention = 30 * 24 * time.Hour
 // HistoryCutoff is the earliest completion time still retained at now.
 func HistoryCutoff(now time.Time) time.Time { return now.Add(-HistoryRetention) }
 
+// ReceiptRetention is how long a completed Batch's idempotency receipt outlives
+// it. Until then its key replays the Batch; afterwards the key is free again and
+// reusing it creates a new Batch.
+const ReceiptRetention = 90 * 24 * time.Hour
+
+// ReceiptCutoff is the earliest completion time whose receipt is still retained at now.
+func ReceiptCutoff(now time.Time) time.Time { return now.Add(-ReceiptRetention) }
+
 // BatchStatus summarizes where a Batch is in its lifecycle.
 type BatchStatus string
 

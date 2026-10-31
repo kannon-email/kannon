@@ -33,7 +33,7 @@ The step that turns one send request into a Batch and its Deliveries, or refuses
 _Avoid_: Submission, Ingestion, Enqueue (intake decides and persists; it does not hand anything to a queue)
 
 **Batch History**:
-What a Domain can read back about a Batch after intake: its frozen content and acceptance counts, each Delivery's current outcome, and the derived Batch status — Pending until any Delivery moves, Processing while some are in flight, Completed once none has attempts left (which is not the same as all delivered). History expires 30 days after completion (ADR 0015); a later bounce does not restart that clock. It is the public, retained view of Deliveries, independent of the worker Pool rows that are deleted on terminal outcomes.
+What a Domain can read back about a Batch after intake: its frozen content and acceptance counts, each Delivery's current outcome, and the derived Batch status — Pending until any Delivery moves, Processing while some are in flight, Completed once none has attempts left (which is not the same as all delivered). History expires 30 days after completion (ADR 0015); a later bounce does not restart that clock. The idempotency receipt outlives it until 90 days after completion; from then on the key no longer deduplicates, and reusing it creates a new Batch. It is the public, retained view of Deliveries, independent of the worker Pool rows that are deleted on terminal outcomes.
 _Avoid_: Report, Log, Audit (an audit record is an authorization decision, ADR 0010), Status Page
 
 **Retry Budget**:

@@ -26,6 +26,11 @@ without limit:
   upgrading** if you need counters older than a year; they cannot be rebuilt
   once deleted. The key is separate from `stats.retention`, which keeps
   governing per-Delivery stats.
+- **Idempotency receipts.** A REST Batch's `batch_intake_receipts` row, until
+  now kept forever, is deleted 90 days after the Batch completed (its history
+  has gone at 30). From then on its `Idempotency-Key` no longer deduplicates:
+  a client reusing the key with the same content creates a new Batch instead of
+  replaying the old one. Receipts of Batches that have not completed are kept.
 
 ## Unreleased — Signed bounce return paths
 
