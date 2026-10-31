@@ -18,7 +18,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/kannon-email/kannon/internal/admintoken"
 	"github.com/kannon-email/kannon/internal/apikeys"
 	"github.com/kannon-email/kannon/internal/authz"
@@ -63,13 +62,13 @@ func newHandler(service *domains.Service, token admintoken.Token, ready func(con
 		keys = credentials[0]
 	}
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /v1beta1/health", func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("GET /v1beta1/health", handler(func(w http.ResponseWriter, r *http.Request) error {
 		if ready == nil || ready(r.Context()) != nil {
-			WriteProblem(w, r, 503, "service_unavailable")
-			return
+			return problemError(503, "service_unavailable")
 		}
 		writeJSON(w, 200, map[string]string{statusKey: "ready"})
-	})
+		return nil
+	}))
 	protected := http.NewServeMux()
 	if inline != nil {
 		registerBatches(protected, inline)
@@ -85,37 +84,35 @@ func newHandler(service *domains.Service, token admintoken.Token, ready func(con
 	if keys != nil {
 		registerKeys(protected, keys)
 	}
-	protected.HandleFunc("POST /v1beta1/domains", func(w http.ResponseWriter, r *http.Request) {
-		if !query(w, r, false) {
-			return
+	protected.Handle("POST /v1beta1/domains", handler(func(w http.ResponseWriter, r *http.Request) error {
+		if err := query(r, false); err != nil {
+			return err
 		}
 		var input DomainCreate
-		if !decode(w, r, &input) {
-			return
+		if err := decode(w, r, &input); err != nil {
+			return err
 		}
 		name, err := values.Parse(input.Domain)
 		if err != nil {
-			WriteProblem(w, r, 422, "validation_failed")
-			return
+			return problemError(422, "validation_failed")
 		}
 		d, err := service.CreateDomain(r.Context(), name)
 		if err != nil {
-			writeError(w, r, err)
-			return
+			return err
 		}
 		w.Header().Set("Location", "/v1beta1/domains/"+d.Domain())
 		writeJSON(w, 201, domainWire(d))
-	})
-	protected.HandleFunc("GET /v1beta1/domains", func(w http.ResponseWriter, r *http.Request) {
-		if !query(w, r, true) {
-			return
+		return nil
+	}))
+	protected.Handle("GET /v1beta1/domains", handler(func(w http.ResponseWriter, r *http.Request) error {
+		if err := query(r, true); err != nil {
+			return err
 		}
 		limit := 100
 		if r.URL.Query().Has(limitParameter) {
 			n, err := strconv.Atoi(r.URL.Query().Get(limitParameter))
 			if err != nil || n < 1 || n > 1000 {
-				WriteProblem(w, r, 400, "invalid_query_parameter")
-				return
+				return problemError(400, "invalid_query_parameter")
 			}
 			limit = n
 		}
@@ -124,19 +121,16 @@ func newHandler(service *domains.Service, token admintoken.Token, ready func(con
 			b, err := base64.RawURLEncoding.DecodeString(r.URL.Query().Get(cursorParameter))
 			prefix := "v1beta1:domains:name:"
 			if err != nil || !strings.HasPrefix(string(b), prefix) {
-				WriteProblem(w, r, 400, "invalid_cursor")
-				return
+				return problemError(400, "invalid_cursor")
 			}
 			after = strings.TrimPrefix(string(b), prefix)
 			if _, err = values.Parse(after); err != nil {
-				WriteProblem(w, r, 400, "invalid_cursor")
-				return
+				return problemError(400, "invalid_cursor")
 			}
 		}
 		all, err := service.ListPage(r.Context(), after, limit+1)
 		if err != nil {
-			writeError(w, r, err)
-			return
+			return err
 		}
 
 		items := []Domain{}
@@ -156,75 +150,69 @@ func newHandler(service *domains.Service, token admintoken.Token, ready func(con
 			cursor = &next
 		}
 		writeJSON(w, 200, DomainPage{Items: items, NextCursor: cursor})
-	})
-	protected.HandleFunc("GET /v1beta1/domains/{domain}", func(w http.ResponseWriter, r *http.Request) {
-		if !query(w, r, false) {
-			return
+		return nil
+	}))
+	protected.Handle("GET /v1beta1/domains/{domain}", handler(func(w http.ResponseWriter, r *http.Request) error {
+		if err := query(r, false); err != nil {
+			return err
 		}
 		name, err := values.Parse(r.PathValue(domainParameter))
 		if err != nil {
-			WriteProblem(w, r, 400, "malformed_request")
-			return
+			return problemError(400, "malformed_request")
 		}
 		d, err := service.GetDomain(r.Context(), name)
 		if err != nil {
-			writeError(w, r, err)
-			return
+			return err
 		}
 		writeJSON(w, 200, domainWire(d))
-	})
-	protected.HandleFunc("PATCH /v1beta1/domains/{domain}", func(w http.ResponseWriter, r *http.Request) {
-		if !query(w, r, false) {
-			return
+		return nil
+	}))
+	protected.Handle("PATCH /v1beta1/domains/{domain}", handler(func(w http.ResponseWriter, r *http.Request) error {
+		if err := query(r, false); err != nil {
+			return err
 		}
 		name, err := values.Parse(r.PathValue(domainParameter))
 		if err != nil {
-			WriteProblem(w, r, 400, "malformed_request")
-			return
+			return problemError(400, "malformed_request")
 		}
 		var input DomainPatch
-		if !decode(w, r, &input) {
-			return
+		if err := decode(w, r, &input); err != nil {
+			return err
 		}
 		p := tracking.Policy{Opens: tracking.Mode(input.Tracking.Opens), Links: tracking.Mode(input.Tracking.Links)}
 		_, ok := p.Opens.Rank()
 		_, ok2 := p.Links.Rank()
 		if !ok || !ok2 {
-			WriteProblem(w, r, 422, "validation_failed")
-			return
+			return problemError(422, "validation_failed")
 		}
 		d, err := service.SetTrackingPolicy(r.Context(), name, p)
 		if err != nil {
-			writeError(w, r, err)
-			return
+			return err
 		}
 		writeJSON(w, 200, domainWire(d))
-	})
-	mux.Handle("/v1beta1/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		return nil
+	}))
+	mux.Handle("/v1beta1/", handler(func(w http.ResponseWriter, r *http.Request) error {
 		parts := strings.Split(r.Header.Get("Authorization"), " ")
 		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-			w.Header().Set("WWW-Authenticate", "Bearer")
-			WriteProblem(w, r, 401, "unauthenticated")
-			return
+			return problemError(401, "unauthenticated")
 		}
 		p, err := token.Authenticate(parts[1])
 		if err != nil && keys != nil {
 			p, err = keys.Authenticate(r.Context(), parts[1])
 		}
 		if err != nil {
-			w.Header().Set("WWW-Authenticate", "Bearer")
-			WriteProblem(w, r, 401, "unauthenticated")
-			return
+			return problemError(401, "unauthenticated")
 		}
 		if raw := r.Header.Get("X-Kannon-Attribution"); raw != "" {
 			a, err := authz.ParseAttribution(raw)
 			if err != nil {
-				WriteProblem(w, r, 400, "invalid_attribution")
-				return
+				return problemError(400, "invalid_attribution")
 			}
 			p = p.WithAttribution(a)
 		}
 		protected.ServeHTTP(w, r.WithContext(authz.NewContext(r.Context(), p)))
+		return nil
 	}))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := make([]byte, 16)
@@ -246,60 +234,21 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	}
 }
 
-// WriteProblem writes a sanitized RFC 9457 response with a stable machine code.
-func WriteProblem(w http.ResponseWriter, r *http.Request, status int, code string) {
-	var fields []FieldError
-	if status == 422 {
-		fields = []FieldError{{Code: code, Pointer: "", Detail: "Request content is invalid"}}
-	}
-	writeProblemFields(w, status, code, fields)
-}
-func writeProblemFields(w http.ResponseWriter, status int, code string, fields []FieldError) {
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(status)
-	p := Problem{Type: "urn:kannon:problem:" + code, Title: http.StatusText(status), Status: status, Code: code, RequestId: w.Header().Get("X-Request-ID")}
-	if len(fields) > 0 {
-		p.Errors = &fields
-	}
-	if err := json.NewEncoder(w).Encode(p); err != nil {
-		slog.Debug("cannot write Problem Details", "err", err)
-	}
-}
-
-func writeError(w http.ResponseWriter, r *http.Request, err error) {
-	var pg *pgconn.PgError
-	switch {
-	case errors.Is(err, authz.ErrForbidden), errors.Is(err, authz.ErrNoPrincipal):
-		WriteProblem(w, r, 403, "forbidden")
-	case errors.Is(err, apikeys.ErrInvalidRoles), errors.Is(err, apikeys.ErrInvalidName):
-		WriteProblem(w, r, 422, "validation_failed")
-	case errors.Is(err, apikeys.ErrExpiryNotFuture):
-		WriteProblem(w, r, 422, "expiry_not_future")
-	case errors.Is(err, templates.ErrTemplateNotFound), errors.Is(err, apikeys.ErrKeyNotFound), errors.Is(err, domains.ErrDomainNotFound):
-		WriteProblem(w, r, 404, "not_found")
-	case errors.As(err, &pg) && pg.Code == "23505":
-		WriteProblem(w, r, 409, "domain_already_exists")
-	default:
-		WriteProblem(w, r, 500, "internal_error")
-	}
-}
-func decode(w http.ResponseWriter, r *http.Request, v any) bool {
+func decode(w http.ResponseWriter, r *http.Request, v any) error {
 	r.Body = http.MaxBytesReader(w, r.Body, 10<<20)
 	raw, readErr := io.ReadAll(r.Body)
 	if readErr != nil {
 		var tooLarge *http.MaxBytesError
 		if errors.As(readErr, &tooLarge) {
-			WriteProblem(w, r, 413, "request_body_too_large")
+			return problemError(413, "request_body_too_large")
 		} else {
-			WriteProblem(w, r, 400, "malformed_request")
+			return problemError(400, "malformed_request")
 		}
-		return false
 	}
 	var tree any
 	if json.Unmarshal(raw, &tree) == nil {
 		if pointer, found := nullPointer(tree, ""); found {
-			writeProblemFields(w, 422, "validation_failed", []FieldError{{Code: "validation_failed", Pointer: pointer, Detail: "Null is not allowed"}})
-			return false
+			return &requestError{status: 422, code: "validation_failed", fields: []FieldError{{Code: "validation_failed", Pointer: pointer, Detail: "Null is not allowed"}}}
 		}
 	}
 	d := json.NewDecoder(strings.NewReader(string(raw)))
@@ -309,34 +258,30 @@ func decode(w http.ResponseWriter, r *http.Request, v any) bool {
 		var tail any
 		err = d.Decode(&tail)
 		if err == io.EOF {
-			return true
+			return nil
 		}
 	}
 	var tooLarge *http.MaxBytesError
 	if errors.As(err, &tooLarge) {
-		WriteProblem(w, r, 413, "request_body_too_large")
+		return problemError(413, "request_body_too_large")
 	} else {
-		WriteProblem(w, r, 400, "malformed_request")
+		return problemError(400, "malformed_request")
 	}
-	return false
 }
-func query(w http.ResponseWriter, r *http.Request, list bool) bool {
+func query(r *http.Request, list bool) error {
 	q, err := url.ParseQuery(r.URL.RawQuery)
 	if err != nil {
-		WriteProblem(w, r, 400, "invalid_query_parameter")
-		return false
+		return problemError(400, "invalid_query_parameter")
 	}
 	for k, v := range q {
 		if !list || (k != limitParameter && k != cursorParameter) {
-			WriteProblem(w, r, 400, "unknown_query_parameter")
-			return false
+			return problemError(400, "unknown_query_parameter")
 		}
 		if len(v) != 1 {
-			WriteProblem(w, r, 400, "invalid_query_parameter")
-			return false
+			return problemError(400, "invalid_query_parameter")
 		}
 	}
-	return true
+	return nil
 }
 
 // Request schemas contain no nullable inputs. Check presence before decoding into

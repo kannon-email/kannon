@@ -67,6 +67,9 @@ func TestAuthenticationAndInvalidRequests(t *testing.T) {
 			if w.Code != tc.status || !strings.Contains(w.Body.String(), `"code":"`+tc.code+`"`) {
 				t.Fatalf("%d %s", w.Code, w.Body)
 			}
+			if tc.status == 401 && w.Header().Get("WWW-Authenticate") != "Bearer" {
+				t.Fatal("missing Bearer challenge")
+			}
 		})
 	}
 }
@@ -103,7 +106,10 @@ func TestPersistentDomainJourney(t *testing.T) {
 	for _, name := range []string{"b.example.com", "a.example.com"} {
 		call("POST", "/v1beta1/domains", `{"domain":"`+name+`"}`, 201)
 	}
-	call("POST", "/v1beta1/domains", `{"domain":"a.example.com"}`, 409)
+	duplicate := call("POST", "/v1beta1/domains", `{"domain":"a.example.com"}`, 409)
+	if !strings.Contains(duplicate, `"code":"domain_already_exists"`) {
+		t.Fatalf("unexpected duplicate error: %s", duplicate)
+	}
 	var page struct {
 		Items      []struct{ Domain string }
 		NextCursor string `json:"next_cursor"`
