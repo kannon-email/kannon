@@ -46,8 +46,11 @@ func setupTestInfrastructure(ctx context.Context) (*TestInfrastructure, error) {
 	if err != nil {
 		return infra, fmt.Errorf("could not connect to docker: %w", err)
 	}
+	// ctx is usually t.Context(), which is canceled before t.Cleanup runs:
+	// removing the containers with it would fail and leak them. Closing the
+	// pool removes every container it started.
 	infra.cleanup = append(infra.cleanup, func() error {
-		return pool.Close(ctx)
+		return pool.Close(context.WithoutCancel(ctx))
 	})
 
 	// Start PostgreSQL
@@ -55,18 +58,12 @@ func setupTestInfrastructure(ctx context.Context) (*TestInfrastructure, error) {
 	if err != nil {
 		return infra, err
 	}
-	infra.cleanup = append(infra.cleanup, func() error {
-		return pgRes.Close(ctx)
-	})
 
 	// Start NATS
 	natsRes, err := createNats(ctx, pool)
 	if err != nil {
 		return infra, fmt.Errorf("could not start nats: %w", err)
 	}
-	infra.cleanup = append(infra.cleanup, func() error {
-		return natsRes.Close(ctx)
-	})
 
 	// Get connection URLs
 	dbURL := fmt.Sprintf("postgresql://test:test@localhost:%s/test?sslmode=disable", pgRes.GetPort("5432/tcp"))

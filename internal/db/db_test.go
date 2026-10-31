@@ -3,7 +3,6 @@ package sqlc
 import (
 	"fmt"
 	"log/slog"
-	"os"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -18,26 +17,27 @@ var db *pgxpool.Pool
 var q *Queries
 
 func TestMain(m *testing.M) {
-	var purge tests.PurgeFunc
-	var err error
+	tests.Main(func() int {
+		var purge tests.PurgeFunc
+		var err error
 
-	db, purge, err = tests.TestPostgresInit(schema.Schema)
-	if err != nil {
-		slog.Error("Could not start resource", "err", err)
-		os.Exit(1)
-	}
+		db, purge, err = tests.TestPostgresInit(schema.Schema)
+		if err != nil {
+			slog.Error("Could not start resource", "err", err)
+			return 1
+		}
 
-	q = New(db)
+		q = New(db)
 
-	code := m.Run()
+		code := m.Run()
 
-	// You can't defer this because os.Exit doesn't care for defer
-	if err := purge(); err != nil {
-		slog.Error("Could not purge resource", "err", err)
-		os.Exit(1)
-	}
+		if err := purge(); err != nil {
+			slog.Error("Could not purge resource", "err", err)
+			return 1
+		}
 
-	os.Exit(code)
+		return code
+	})
 }
 
 func TestDomains(t *testing.T) {

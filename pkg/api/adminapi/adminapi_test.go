@@ -3,7 +3,6 @@ package adminapi_test
 import (
 	"context"
 	"log/slog"
-	"os"
 	"testing"
 
 	"connectrpc.com/connect"
@@ -22,26 +21,27 @@ var db *pgxpool.Pool
 var testservice adminv1connect.ApiHandler
 
 func TestMain(m *testing.M) {
-	var purge tests.PurgeFunc
-	var err error
+	tests.Main(func() int {
+		var purge tests.PurgeFunc
+		var err error
 
-	db, purge, err = tests.TestPostgresInit(schema.Schema)
-	if err != nil {
-		slog.Error("Could not start resource", "err", err)
-		os.Exit(1)
-	}
+		db, purge, err = tests.TestPostgresInit(schema.Schema)
+		if err != nil {
+			slog.Error("Could not start resource", "err", err)
+			return 1
+		}
 
-	testservice = adminapi.CreateAdminAPIService(db)
+		testservice = adminapi.CreateAdminAPIService(db)
 
-	code := m.Run()
+		code := m.Run()
 
-	// You can't defer this because os.Exit doesn't care for defer
-	if err := purge(); err != nil {
-		slog.Error("Could not purge resource", "err", err)
-		os.Exit(1)
-	}
+		if err := purge(); err != nil {
+			slog.Error("Could not purge resource", "err", err)
+			return 1
+		}
 
-	os.Exit(code)
+		return code
+	})
 }
 
 // adminCtx is what makes the tests in this package reach the handler at all: they hold the handler

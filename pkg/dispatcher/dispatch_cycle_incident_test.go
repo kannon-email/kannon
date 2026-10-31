@@ -28,7 +28,6 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -54,23 +53,25 @@ import (
 var testDB *pgxpool.Pool
 
 func TestMain(m *testing.M) {
-	var purge tests.PurgeFunc
-	var err error
+	tests.Main(func() int {
+		var purge tests.PurgeFunc
+		var err error
 
-	testDB, purge, err = tests.TestPostgresInit(schema.Schema)
-	if err != nil {
-		slog.Error("could not start test postgres", "err", err)
-		os.Exit(1)
-	}
+		testDB, purge, err = tests.TestPostgresInit(schema.Schema)
+		if err != nil {
+			slog.Error("could not start test postgres", "err", err)
+			return 1
+		}
 
-	code := m.Run()
+		code := m.Run()
 
-	if err := purge(); err != nil {
-		slog.Error("could not purge test postgres", "err", err)
-		os.Exit(1)
-	}
+		if err := purge(); err != nil {
+			slog.Error("could not purge test postgres", "err", err)
+			return 1
+		}
 
-	os.Exit(code)
+		return code
+	})
 }
 
 // gateSource simulates the production DB latency spike inside Build.
