@@ -92,6 +92,8 @@ type InlineWork struct {
 // build is invoked only for a fresh key, inside the acceptance transaction.
 type InlineStore interface {
 	BatchReader
+	// GetDelivery scopes the lookup to both its Domain and Batch.
+	GetDelivery(ctx context.Context, domain values.DomainName, batchID, id string) (*DeliveryHistory, error)
 	FindByDomain(context.Context, values.DomainName, string) (*templates.Template, error)
 	CreateInline(context.Context, values.DomainName, string, string, func() (*InlineWork, error)) (*InlineReceipt, bool, error)
 }
