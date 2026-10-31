@@ -3,6 +3,7 @@ package domains
 import (
 	"context"
 
+	"github.com/kannon-email/kannon/internal/keyset"
 	"github.com/kannon-email/kannon/internal/tracking"
 	"github.com/kannon-email/kannon/internal/values"
 )
@@ -11,8 +12,10 @@ import (
 // values.DomainName, so a query cannot be reached with a name that was never canonicalised: two
 // spellings of one mail domain would otherwise be two Domains, each with its own DKIM keypair.
 type Repository interface {
+	// ListPage returns Domains in ascending name order, strictly after page.After.
+	ListPage(ctx context.Context, page keyset.Page[values.DomainName]) ([]*Domain, error)
 	// Create persists a new Domain. The DKIM key pair must already be
-	// populated by New.
+	// populated by New. Returns ErrDomainAlreadyExists for a duplicate name.
 	Create(ctx context.Context, d *Domain) error
 
 	// SetTrackingPolicy replaces the Domain's Tracking Policy and returns the updated Domain. A

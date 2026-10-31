@@ -9,14 +9,20 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/kannon-email/kannon/internal/admintoken"
+	"github.com/kannon-email/kannon/internal/apikeys"
 	"github.com/kannon-email/kannon/internal/audit"
 	"github.com/kannon-email/kannon/internal/authz"
 	"github.com/kannon-email/kannon/internal/authzconnect"
 	sq "github.com/kannon-email/kannon/internal/db"
+	"github.com/kannon-email/kannon/internal/domains"
+	"github.com/kannon-email/kannon/internal/intake"
 	"github.com/kannon-email/kannon/internal/stats"
+	"github.com/kannon-email/kannon/internal/templates"
 	"github.com/kannon-email/kannon/pkg/api/adminapi"
 	"github.com/kannon-email/kannon/pkg/api/hzapi"
 	"github.com/kannon-email/kannon/pkg/api/mailapi"
+	"github.com/kannon-email/kannon/pkg/api/rest"
+	"github.com/kannon-email/kannon/pkg/hz"
 	"github.com/kannon-email/kannon/pkg/statsapi/statsv1"
 	"github.com/kannon-email/kannon/pkg/statsapi/statsv2"
 	adminv1connect "github.com/kannon-email/kannon/proto/kannon/admin/apiv1/apiv1connect"
@@ -109,7 +115,22 @@ func run(ctx context.Context, config Config, cnt *container.Container) error {
 	// this point asks the configuration layer what authority a request has.
 	adminAuth := authzconnect.AdminTokenHandlerOptions(adminToken)
 
-	return startAPIServer(ctx, port, adminAuth, recorder, adminAPIService, mailAPIService, statsAPIService, statsV2APIService, hzAPIService)
+	return startAPIServer(ctx, port, adminAuth, recorder, adminAPIService, mailAPIService, statsAPIService, statsV2APIService, hzAPIService, rest.NewHandler(rest.Services{
+		Domains: domains.NewService(sq.NewDomainsRepository(db)),
+		Token:   adminToken,
+		Ready: func(ctx context.Context) error {
+			for _, err := range hz.NewHZ(cnt).HZ(ctx) {
+				if err != nil {
+					return err
+				}
+			}
+			return nil
+		},
+		Keys:      apikeys.NewService(sq.NewAPIKeysRepository(db)),
+		Templates: templates.NewService(sq.NewTemplatesRepository(db)),
+		Inline:    intake.NewInlineService(sq.NewInlineStore(db), sq.NewDomainsRepository(db), cnt.BackoffPolicy(), cnt.RetryWindow()),
+		Stats:     statsService,
+	}))
 }
 
 // startAuditRecording resolves the Recorder every authorization decision on this process reports to,
@@ -194,7 +215,7 @@ func withRecorder(r authz.Recorder, next http.Handler) http.Handler {
 // startAPIServer mounts every handler. adminAuth authenticates the three surfaces that answer to
 // the operator's admin token. The mailer handler must never get it — it authenticates its own
 // sender credential — and neither must health, which discloses nothing and is polled unauthenticated.
-func startAPIServer(ctx context.Context, port uint, adminAuth []connect.HandlerOption, recorder authz.Recorder, adminServer adminv1connect.ApiHandler, mailerServer mailerv1connect.MailerHandler, statsServer statsv1connect.StatsApiV1Handler, statsV2Server statsv2connect.StatsApiV2Handler, hzServer adminv1connect.HZServiceHandler) error {
+func startAPIServer(ctx context.Context, port uint, adminAuth []connect.HandlerOption, recorder authz.Recorder, adminServer adminv1connect.ApiHandler, mailerServer mailerv1connect.MailerHandler, statsServer statsv1connect.StatsApiV1Handler, statsV2Server statsv2connect.StatsApiV2Handler, hzServer adminv1connect.HZServiceHandler, restHandlers ...http.Handler) error {
 	addr := fmt.Sprintf("0.0.0.0:%d", port)
 	mux := http.NewServeMux()
 
@@ -209,6 +230,9 @@ func startAPIServer(ctx context.Context, port uint, adminAuth []connect.HandlerO
 	mux.Handle(statsPath, statsHandler)
 	mux.Handle(statsV2Path, statsV2Handler)
 	mux.Handle(hzPath, hzHandler)
+	for _, handler := range restHandlers {
+		mux.Handle("/v1beta1/", handler)
+	}
 
 	protocols := new(http.Protocols)
 	protocols.SetHTTP1(true)

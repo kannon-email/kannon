@@ -4,8 +4,8 @@
 package templates
 
 import (
-	"errors"
 	"fmt"
+	"github.com/kannon-email/kannon/internal/apperr"
 	"strings"
 	"time"
 
@@ -15,7 +15,7 @@ import (
 
 // Domain errors.
 var (
-	ErrTemplateNotFound = errors.New("template not found")
+	ErrTemplateNotFound = apperr.New(apperr.NotFound, "not_found", "template not found")
 )
 
 // Type is the lifecycle classification of a Template: a persistent one is authored once and

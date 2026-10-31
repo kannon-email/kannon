@@ -19,7 +19,10 @@ const (
 	// RoleSender is what an API Key resolves to: on(batches, create), anchored on the
 	// key's own Domain. The rule pins the kind and the Anchor the place, so such a key
 	// can only send for its Domain — not read it, rewrite its Templates or mint a key.
-	RoleSender RoleName = "sender"
+	RoleSender        RoleName = "sender"
+	RoleBatchReader   RoleName = "batch-reader"
+	RoleAnalyst       RoleName = "analyst"
+	RoleMetricsReader RoleName = "metrics-reader"
 )
 
 // anchorScope is the kind of Anchor a Role's typed rules were written against. The zero
@@ -156,6 +159,9 @@ type role struct {
 // Role's meaning is settled at review time and applies at once to credentials issued long
 // before. Seeded with the two Roles anything can issue today; the rest is ADR 0008's.
 var catalogue = buildCatalogue(
+	role{name: RoleBatchReader, scope: scopeDomain, rules: []rule{on(childKind{segBatches}, Read, List)}},
+	role{name: RoleAnalyst, scope: scopeDomain, rules: []rule{on(childKind{segStats}, Read, List)}},
+	role{name: RoleMetricsReader, scope: scopeDomain, rules: []rule{on(childKind{segStats, segAggregated}, Read, List)}},
 	role{
 		name:  RoleAdmin,
 		scope: scopeAny,

@@ -1,7 +1,7 @@
 \restrict dbmate
 
--- Dumped from database version 17.6 (Homebrew)
--- Dumped by pg_dump version 17.6 (Homebrew)
+-- Dumped from database version 18.6 (Homebrew)
+-- Dumped by pg_dump version 18.6 (Homebrew)
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -37,6 +37,75 @@ CREATE TYPE public.template_type AS ENUM (
     'transient',
     'template'
 );
+
+
+--
+-- Name: complete_batch_history(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.complete_batch_history() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+ -- Serialize terminal transitions for one Batch, including concurrent final outcomes.
+ PERFORM 1 FROM batch_intake_receipts WHERE batch_id=NEW.batch_id FOR UPDATE;
+ UPDATE batch_intake_receipts r SET completed_at=clock_timestamp()
+ WHERE r.batch_id=NEW.batch_id AND r.completed_at IS NULL
+ AND NOT EXISTS (SELECT 1 FROM delivery_intake_facts f WHERE f.batch_id=r.batch_id AND f.outcome_at IS NULL);
+ RETURN NEW;
+END $$;
+
+
+--
+-- Name: initialize_delivery_history(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.initialize_delivery_history() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+ SELECT scheduled_at, created_at INTO STRICT NEW.scheduled_at, NEW.updated_at
+ FROM batch_intake_receipts WHERE batch_id=NEW.batch_id;
+ NEW.status := CASE WHEN NEW.scheduled_at > NEW.updated_at THEN 'scheduled' ELSE 'pending' END;
+ RETURN NEW;
+END $$;
+
+
+--
+-- Name: update_delivery_history_outcome(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.update_delivery_history_outcome() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+ IF NEW.type::text NOT IN ('delivered','rejected','bounced','failed') THEN RETURN NEW; END IF;
+ UPDATE delivery_intake_facts f SET status=NEW.type::text,
+ outcome_at=NEW.timestamp, updated_at=GREATEST(f.updated_at,NEW.timestamp),
+ error_code=CASE WHEN NEW.type::text='delivered' THEN '' ELSE NEW.type::text END,
+ error_detail=CASE WHEN NEW.type::text='delivered' THEN '' ELSE COALESCE(NEW.data->'rejected'->>'reason',NEW.data->'failed'->>'reason',NEW.data->'bounced'->>'msg','') END
+ FROM batch_intake_receipts r
+ WHERE f.batch_id=r.batch_id AND r.domain=NEW.domain AND f.batch_id=NEW.message_id AND f.email=NEW.email
+ AND (f.outcome_at IS NULL OR NEW.timestamp>f.outcome_at)
+ AND NOT (f.status='bounced' AND NEW.type::text='delivered');
+ RETURN NEW;
+END $$;
+
+
+--
+-- Name: update_delivery_history_pool(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.update_delivery_history_pool() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+ UPDATE delivery_intake_facts SET
+ status=CASE NEW.status::text WHEN 'sending' THEN 'sending' WHEN 'scheduled' THEN 'scheduled' ELSE 'pending' END,
+ attempt_count=NEW.send_attempts_cnt + CASE WHEN NEW.status::text='sending' THEN 1 ELSE 0 END, updated_at=now()
+ WHERE batch_id=NEW.message_id AND email=NEW.email AND outcome_at IS NULL;
+ RETURN NEW;
+END $$;
 
 
 SET default_tablespace = '';
@@ -136,7 +205,8 @@ CREATE TABLE public.api_keys (
     is_active boolean DEFAULT true NOT NULL,
     deactivated_at timestamp without time zone,
     key_hash character varying(64) NOT NULL,
-    key_prefix character varying(10) NOT NULL
+    key_prefix character varying(10) NOT NULL,
+    roles text[]
 );
 
 
@@ -156,14 +226,33 @@ CREATE TABLE public.audit_records (
 
 
 --
--- Name: domain_template; Type: TABLE; Schema: public; Owner: -
+-- Name: batch_content_snapshots; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.domain_template (
-    name text NOT NULL,
+CREATE TABLE public.batch_content_snapshots (
+    batch_id text NOT NULL,
+    html text NOT NULL,
+    source_template_id text DEFAULT ''::text NOT NULL
+);
+
+
+--
+-- Name: batch_intake_receipts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.batch_intake_receipts (
+    scheduled_at timestamp with time zone NOT NULL,
+    attachments jsonb DEFAULT '[]'::jsonb NOT NULL,
     domain text NOT NULL,
-    "templateId" text NOT NULL,
-    source jsonb NOT NULL
+    idempotency_key text NOT NULL,
+    fingerprint text NOT NULL,
+    batch_id text NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    accepted_count integer NOT NULL,
+    rejected_count integer NOT NULL,
+    completed_at timestamp with time zone,
+    CONSTRAINT batch_intake_receipts_accepted_count_check CHECK ((accepted_count > 0)),
+    CONSTRAINT batch_intake_receipts_rejected_count_check CHECK ((rejected_count >= 0))
 );
 
 
@@ -176,6 +265,38 @@ CREATE TABLE public.counted_stat_events (
     stored_at text NOT NULL,
     sequence numeric(20,0) NOT NULL,
     CONSTRAINT counted_stat_events_sequence_check CHECK ((sequence > (0)::numeric))
+);
+
+
+--
+-- Name: delivery_intake_facts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.delivery_intake_facts (
+    id text NOT NULL,
+    batch_id text NOT NULL,
+    email text NOT NULL,
+    tracking jsonb NOT NULL,
+    status text DEFAULT 'pending'::text NOT NULL,
+    scheduled_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    attempt_count integer DEFAULT 0 NOT NULL,
+    outcome_at timestamp with time zone,
+    error_code text DEFAULT ''::text NOT NULL,
+    error_detail text DEFAULT ''::text NOT NULL,
+    CONSTRAINT delivery_intake_facts_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'scheduled'::text, 'sending'::text, 'delivered'::text, 'rejected'::text, 'bounced'::text, 'failed'::text])))
+);
+
+
+--
+-- Name: domain_template; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.domain_template (
+    name text NOT NULL,
+    domain text NOT NULL,
+    "templateId" text NOT NULL,
+    source jsonb NOT NULL
 );
 
 
@@ -467,11 +588,27 @@ ALTER TABLE ONLY public.audit_records
 
 
 --
--- Name: domain_template domain_template_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: batch_content_snapshots batch_content_snapshots_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.domain_template
-    ADD CONSTRAINT domain_template_pkey PRIMARY KEY ("templateId");
+ALTER TABLE ONLY public.batch_content_snapshots
+    ADD CONSTRAINT batch_content_snapshots_pkey PRIMARY KEY (batch_id);
+
+
+--
+-- Name: batch_intake_receipts batch_intake_receipts_batch_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.batch_intake_receipts
+    ADD CONSTRAINT batch_intake_receipts_batch_id_key UNIQUE (batch_id);
+
+
+--
+-- Name: batch_intake_receipts batch_intake_receipts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.batch_intake_receipts
+    ADD CONSTRAINT batch_intake_receipts_pkey PRIMARY KEY (domain, idempotency_key);
 
 
 --
@@ -480,6 +617,30 @@ ALTER TABLE ONLY public.domain_template
 
 ALTER TABLE ONLY public.counted_stat_events
     ADD CONSTRAINT counted_stat_events_pkey PRIMARY KEY (stream, stored_at, sequence);
+
+
+--
+-- Name: delivery_intake_facts delivery_intake_facts_batch_id_email_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.delivery_intake_facts
+    ADD CONSTRAINT delivery_intake_facts_batch_id_email_key UNIQUE (batch_id, email);
+
+
+--
+-- Name: delivery_intake_facts delivery_intake_facts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.delivery_intake_facts
+    ADD CONSTRAINT delivery_intake_facts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: domain_template domain_template_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.domain_template
+    ADD CONSTRAINT domain_template_pkey PRIMARY KEY ("templateId");
 
 
 --
@@ -590,6 +751,13 @@ CREATE UNIQUE INDEX "VerificationToken_token_key" ON public."VerificationToken" 
 
 
 --
+-- Name: api_keys_domain_created_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX api_keys_domain_created_id_idx ON public.api_keys USING btree (domain, created_at DESC, id DESC);
+
+
+--
 -- Name: api_keys_domain_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -615,6 +783,27 @@ CREATE INDEX api_keys_key_hash_active_idx ON public.api_keys USING btree (key_ha
 --
 
 CREATE INDEX audit_records_occurred_at_idx ON public.audit_records USING btree (occurred_at);
+
+
+--
+-- Name: batch_history_expiration; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX batch_history_expiration ON public.batch_intake_receipts USING btree (completed_at) WHERE (completed_at IS NOT NULL);
+
+
+--
+-- Name: batch_history_order; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX batch_history_order ON public.batch_intake_receipts USING btree (domain, created_at DESC, batch_id DESC);
+
+
+--
+-- Name: delivery_history_order; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX delivery_history_order ON public.delivery_intake_facts USING btree (batch_id, id);
 
 
 --
@@ -663,14 +852,14 @@ CREATE INDEX messages_message_id_idx ON public.messages USING btree (message_id)
 -- Name: sending_pool_emails_status_claimed_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX sending_pool_emails_status_claimed_at_idx ON public.sending_pool_emails USING btree (status, claimed_at) WHERE ((status)::text = ANY ((ARRAY['sending'::character varying, 'validating'::character varying])::text[]));
+CREATE INDEX sending_pool_emails_status_claimed_at_idx ON public.sending_pool_emails USING btree (status, claimed_at) WHERE ((status)::text = ANY (ARRAY[('sending'::character varying)::text, ('validating'::character varying)::text]));
 
 
 --
 -- Name: sending_pool_emails_status_scheduled_time_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX sending_pool_emails_status_scheduled_time_idx ON public.sending_pool_emails USING btree (status, scheduled_time) WHERE ((status)::text = ANY ((ARRAY['to_validate'::character varying, 'scheduled'::character varying])::text[]));
+CREATE INDEX sending_pool_emails_status_scheduled_time_idx ON public.sending_pool_emails USING btree (status, scheduled_time) WHERE ((status)::text = ANY (ARRAY[('to_validate'::character varying)::text, ('scheduled'::character varying)::text]));
 
 
 --
@@ -730,6 +919,34 @@ CREATE UNIQUE INDEX unique_emails_message_id_idx ON public.sending_pool_emails U
 
 
 --
+-- Name: delivery_intake_facts complete_batch_history; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER complete_batch_history AFTER UPDATE ON public.delivery_intake_facts FOR EACH ROW EXECUTE FUNCTION public.complete_batch_history();
+
+
+--
+-- Name: delivery_intake_facts initialize_delivery_history; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER initialize_delivery_history BEFORE INSERT ON public.delivery_intake_facts FOR EACH ROW EXECUTE FUNCTION public.initialize_delivery_history();
+
+
+--
+-- Name: stats update_delivery_history_outcome; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER update_delivery_history_outcome AFTER INSERT ON public.stats FOR EACH ROW EXECUTE FUNCTION public.update_delivery_history_outcome();
+
+
+--
+-- Name: sending_pool_emails update_delivery_history_pool; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER update_delivery_history_pool AFTER UPDATE ON public.sending_pool_emails FOR EACH ROW EXECUTE FUNCTION public.update_delivery_history_pool();
+
+
+--
 -- Name: Account Account_userId_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -751,6 +968,22 @@ ALTER TABLE ONLY public."Session"
 
 ALTER TABLE ONLY public.api_keys
     ADD CONSTRAINT api_keys_domain_fkey FOREIGN KEY (domain) REFERENCES public.domains(domain) ON DELETE CASCADE;
+
+
+--
+-- Name: batch_content_snapshots batch_content_snapshots_batch_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.batch_content_snapshots
+    ADD CONSTRAINT batch_content_snapshots_batch_id_fkey FOREIGN KEY (batch_id) REFERENCES public.messages(message_id);
+
+
+--
+-- Name: delivery_intake_facts delivery_intake_facts_batch_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.delivery_intake_facts
+    ADD CONSTRAINT delivery_intake_facts_batch_id_fkey FOREIGN KEY (batch_id) REFERENCES public.batch_intake_receipts(batch_id);
 
 
 --
@@ -801,4 +1034,12 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20260803094036'),
     ('20260804082406'),
     ('20260804135145'),
-    ('20261029221540');
+    ('20261029221540'),
+    ('20261030225738'),
+    ('20261030230324'),
+    ('20261030231401'),
+    ('20261030231407'),
+    ('20261030231457'),
+    ('20261030231941'),
+    ('20261030232432'),
+    ('20261031075047');

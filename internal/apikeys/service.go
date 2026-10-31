@@ -2,9 +2,12 @@ package apikeys
 
 import (
 	"context"
+	"github.com/kannon-email/kannon/internal/apperr"
+	"strings"
 	"time"
 
 	"github.com/kannon-email/kannon/internal/authz"
+	"github.com/kannon-email/kannon/internal/keyset"
 	"github.com/kannon-email/kannon/internal/values"
 )
 
@@ -110,4 +113,58 @@ func (s *Service) ValidateForAuth(ctx context.Context, domain values.DomainName,
 // from them structurally and never from a joined string.
 func resourceOf(ref KeyRef) authz.Resource {
 	return authz.APIKey(ref.DomainName(), ref.KeyID().String())
+}
+
+// ErrInvalidRoles and ErrExpiryNotFuture identify invalid issuance input.
+var ErrInvalidRoles = apperr.New(apperr.Invalid, "validation_failed", "invalid roles")
+var ErrExpiryNotFuture = apperr.New(apperr.Invalid, "expiry_not_future", "expiry must be future")
+var ErrInvalidName = apperr.New(apperr.Invalid, "validation_failed", "invalid key name")
+
+// IssueKey creates immutable Domain authority after checking administration permission.
+func (s *Service) IssueKey(ctx context.Context, domain values.DomainName, name string, roles []authz.RoleName, expires *time.Time) (*CreateResult, error) {
+	return authz.Guard(ctx, authz.Create, authz.APIKeys(domain), func() (*CreateResult, error) {
+		if len(roles) == 0 || len(roles) > 5 {
+			return nil, ErrInvalidRoles
+		}
+		seen := map[authz.RoleName]bool{}
+		for _, r := range roles {
+			if _, err := authz.ParseRoleName(string(r)); err != nil || seen[r] {
+				return nil, ErrInvalidRoles
+			}
+			seen[r] = true
+		}
+		if expires != nil && !expires.After(time.Now()) {
+			return nil, ErrExpiryNotFuture
+		}
+		if strings.TrimSpace(name) == "" || len(name) > 100 {
+			return nil, ErrInvalidName
+		}
+		result, err := NewAPIKey(domain, name, expires)
+		if err != nil {
+			return nil, err
+		}
+		result.Key.roles = append([]authz.RoleName(nil), roles...)
+		if err = s.repo.Create(ctx, result.Key); err != nil {
+			return nil, err
+		}
+		return result, nil
+	})
+}
+
+// ListPage lists credentials with an exclusive descending creation-time/ID boundary.
+func (s *Service) ListPage(ctx context.Context, domain values.DomainName, page keyset.Page[Position]) ([]*APIKey, error) {
+	return authz.Guard(ctx, authz.List, authz.APIKeys(domain), func() ([]*APIKey, error) { return s.repo.ListPage(ctx, domain, page) })
+}
+
+// Authenticate resolves REST credentials independently of the requested Domain.
+// Legacy transports continue using ValidateForAuth with their explicit Domain.
+func (s *Service) Authenticate(ctx context.Context, secret string) (authz.Principal, error) {
+	key, err := s.repo.FindByKeyHash(ctx, HashKey(secret))
+	if err != nil {
+		return authz.Principal{}, err
+	}
+	if !key.IsValid() {
+		return authz.Principal{}, ErrKeyNotFound
+	}
+	return key.Principal()
 }

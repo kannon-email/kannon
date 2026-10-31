@@ -2,10 +2,12 @@ package templates_test
 
 import (
 	"context"
+	"sort"
 	"testing"
 	"time"
 
 	"github.com/kannon-email/kannon/internal/authz"
+	"github.com/kannon-email/kannon/internal/keyset"
 	"github.com/kannon-email/kannon/internal/templates"
 	"github.com/kannon-email/kannon/internal/values"
 	"github.com/stretchr/testify/assert"
@@ -76,7 +78,7 @@ func TestServiceAuthorization(t *testing.T) {
 		{
 			name: "UpdateTemplate",
 			call: func(ctx context.Context, s *templates.Service) error {
-				_, err := s.UpdateTemplate(ctx, homeDomain, seededID, "<p>new</p>", "new")
+				_, err := s.UpdateTemplate(ctx, homeDomain, seededID, new("<p>new</p>"), new("new"))
 				return err
 			},
 			allow: []authz.Principal{rootAdmin, everyDomainAdmin, homeDomainAdmin},
@@ -148,7 +150,7 @@ func TestDomainScopedOperationsCannotReachAnotherDomainsTemplate(t *testing.T) {
 		repo := seededRepo()
 		service := templates.NewService(repo)
 
-		_, err := service.UpdateTemplate(ctx, otherDomain, seededID, "<p>owned</p>", "owned")
+		_, err := service.UpdateTemplate(ctx, otherDomain, seededID, new("<p>owned</p>"), new("owned"))
 		assert.ErrorIs(t, err, templates.ErrTemplateNotFound)
 
 		// And the refusal was not just in the answer: the row is untouched.
@@ -188,7 +190,7 @@ func TestServiceOperationsProduceWhatTheyUsedTo(t *testing.T) {
 	assert.Len(t, listed, 2)
 	assert.Equal(t, 2, total)
 
-	updated, err := service.UpdateTemplate(ctx, homeDomain, seededID, "<p>edited</p>", "edited")
+	updated, err := service.UpdateTemplate(ctx, homeDomain, seededID, new("<p>edited</p>"), new("edited"))
 	require.NoError(t, err)
 	assert.Equal(t, "<p>edited</p>", updated.Html())
 	assert.Equal(t, "edited", updated.Title())
@@ -287,6 +289,25 @@ func (r *fakeRepo) List(_ context.Context, domain values.DomainName, _ templates
 		}
 	}
 	return found, nil
+}
+
+func (r *fakeRepo) ListPage(ctx context.Context, domain values.DomainName, page keyset.Page[string]) ([]*templates.Template, error) {
+	found, err := r.List(ctx, domain, templates.Pagination{})
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(found, func(i, j int) bool { return found[i].TemplateID() < found[j].TemplateID() })
+	out := []*templates.Template{}
+	for _, t := range found {
+		if page.After != nil && t.TemplateID() <= *page.After {
+			continue
+		}
+		if len(out) == page.Limit {
+			break
+		}
+		out = append(out, t)
+	}
+	return out, nil
 }
 
 func (r *fakeRepo) Count(ctx context.Context, domain values.DomainName) (int, error) {

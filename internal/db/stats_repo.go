@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/kannon-email/kannon/internal/keyset"
 	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/internal/values"
 )
@@ -22,13 +23,15 @@ func NewStatsRepository(db *pgxpool.Pool) *StatsRepository {
 
 func (r *StatsRepository) Insert(ctx context.Context, stat *stats.Stat) error {
 	q := New(r.db)
+	data := StatsDataFromOutcome(stat.Outcome)
+	data.TrackingMode = stat.TrackingMode
 	return q.InsertStat(ctx, InsertStatParams{
 		Email:     stat.Email,
 		MessageID: stat.MessageID,
 		Type:      StatsType(stat.Type),
 		Timestamp: toPgTimestamp(stat.Timestamp),
 		Domain:    stat.Domain.String(),
-		Data:      StatsDataFromOutcome(stat.Outcome),
+		Data:      data,
 	})
 }
 
@@ -116,4 +119,33 @@ func toDomainStat(row Stat) (*stats.Stat, error) {
 		row.Timestamp.Time,
 		row.Data.Outcome(),
 	), nil
+}
+
+// QueryEvents uses keyset pagination and never joins expiring operational history.
+func (r *StatsRepository) QueryEvents(ctx context.Context, d values.DomainName, q stats.EventQuery, page keyset.Page[stats.EventPosition]) ([]*stats.Stat, error) {
+	var after stats.EventPosition
+	if page.After != nil {
+		after = *page.After
+	}
+	types := []string{"accepted", "rejected", "delivered", "bounced", "failed", "opened", "clicked"}
+	if len(q.Types) > 0 {
+		types = nil
+		for _, t := range q.Types {
+			types = append(types, string(t))
+		}
+	}
+	rows, err := New(r.db).ListPublicEvents(ctx, ListPublicEventsParams{Domain: d.String(), Timestamp: toPgTimestamp(q.Range.Start.UTC()), Timestamp_2: toPgTimestamp(q.Range.Stop.UTC()), Column4: types, Column5: q.BatchID, Column6: after.ID, Timestamp_3: toPgTimestamp(after.Timestamp.UTC()), Limit: int32(page.Limit)})
+	if err != nil {
+		return nil, err
+	}
+	result := []*stats.Stat{}
+	for _, row := range rows {
+		s, err := toDomainStat(row)
+		if err != nil {
+			return nil, err
+		}
+		s.TrackingMode = row.Data.TrackingMode
+		result = append(result, s)
+	}
+	return result, nil
 }

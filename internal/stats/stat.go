@@ -3,6 +3,7 @@ package stats
 import (
 	"time"
 
+	"github.com/kannon-email/kannon/internal/tracking"
 	"github.com/kannon-email/kannon/internal/values"
 )
 
@@ -31,13 +32,14 @@ const (
 // two columns disagree — one written by an older build, say — keeps reporting
 // whatever its type column says rather than being silently reinterpreted.
 type Stat struct {
-	ID        int32
-	Type      Type
-	Email     string
-	MessageID string
-	Domain    values.DomainName
-	Timestamp time.Time
-	Outcome   Outcome
+	TrackingMode tracking.Mode
+	ID           int32
+	Type         Type
+	Email        string
+	MessageID    string
+	Domain       values.DomainName
+	Timestamp    time.Time
+	Outcome      Outcome
 }
 
 // NewStat creates a new Stat from an incoming stats event, typing the row off
@@ -79,4 +81,21 @@ var DisplayName = map[Type]string{
 	TypeFailed:    "Failed",
 	TypeOpened:    "Opened",
 	TypeUnknown:   "Unknown",
+}
+
+// EngagementTrackingMode is the Mode an open or click is reported under. Legacy
+// rows predate retained modes: the reserved identity namespace is
+// authoritative; request detail proves Full; otherwise the least revealing
+// identified shape is assumed.
+func (s *Stat) EngagementTrackingMode() tracking.Mode {
+	if tracking.IsPseudonym(s.Email, s.Domain.String()) {
+		return tracking.ModePseudonymous
+	}
+	if s.TrackingMode != "" {
+		return s.TrackingMode
+	}
+	if s.Outcome.IP() != "" || s.Outcome.UserAgent() != "" {
+		return tracking.ModeFull
+	}
+	return tracking.ModeIdentified
 }

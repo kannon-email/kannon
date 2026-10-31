@@ -35,6 +35,8 @@ jobs:
         uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+      - name: Check REST contract generation and dependency direction
+        run: scripts/check-rest-contract.sh
       - name: Test
         run: make test
 

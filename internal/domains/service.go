@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/kannon-email/kannon/internal/authz"
+	"github.com/kannon-email/kannon/internal/keyset"
 	"github.com/kannon-email/kannon/internal/tracking"
 	"github.com/kannon-email/kannon/internal/values"
 )
@@ -58,5 +59,13 @@ func (s *Service) GetDomain(ctx context.Context, name values.DomainName) (*Domai
 func (s *Service) SetTrackingPolicy(ctx context.Context, name values.DomainName, p tracking.Policy) (*Domain, error) {
 	return authz.Guard(ctx, authz.Update, authz.Domain(name), func() (*Domain, error) {
 		return s.repo.SetTrackingPolicy(ctx, name, p)
+	})
+}
+
+// ListPage lists Domains in ascending name order after an exclusive boundary.
+// No count or cursor session is stored.
+func (s *Service) ListPage(ctx context.Context, page keyset.Page[values.DomainName]) ([]*Domain, error) {
+	return authz.Guard(ctx, authz.List, authz.Domains(), func() ([]*Domain, error) {
+		return s.repo.ListPage(ctx, page)
 	})
 }

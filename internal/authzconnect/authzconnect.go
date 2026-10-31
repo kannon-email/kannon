@@ -1,12 +1,11 @@
 // Package authzconnect is where the authority model meets Connect: it reads the credential a
-// request carries, puts the Principal that credential resolves to into the request's context, and
-// turns a refusal into the status code a caller receives. Its own package so that internal/authz
-// cannot import a transport and its decision stays pure.
+// request carries and puts the Principal that credential resolves to into the request's context;
+// pkg/api/connecterr turns a refusal into the status code a caller receives. Its own package so
+// that internal/authz cannot import a transport and its decision stays pure.
 package authzconnect
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 
 	"connectrpc.com/connect"
@@ -122,20 +121,4 @@ func sendAdminTokenInterceptor(token string) connect.Interceptor {
 			return next(ctx, req)
 		}
 	})
-}
-
-// Error renders a service-layer error as the Connect error a caller receives: both authorization
-// sentinels become CodePermissionDenied, anything else the caller's own fallback. The two are
-// logged apart — a credential that may not, versus nothing having authenticated the request.
-func Error(err error, fallback connect.Code) *connect.Error {
-	switch {
-	case errors.Is(err, authz.ErrNoPrincipal):
-		slog.Warn("authorization refused: nothing authenticated this request", "err", err)
-		return connect.NewError(connect.CodePermissionDenied, err)
-	case errors.Is(err, authz.ErrForbidden):
-		slog.Warn("authorization refused: this Principal may not do this", "err", err)
-		return connect.NewError(connect.CodePermissionDenied, err)
-	default:
-		return connect.NewError(fallback, err)
-	}
 }

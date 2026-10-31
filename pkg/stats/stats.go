@@ -95,6 +95,9 @@ func (h *statsHandler) handleStats(ctx context.Context) error {
 }
 
 func (h *statsHandler) cleanupCycle(ctx context.Context) error {
+	if err := h.q.CleanupBatchHistory(ctx, time.Now()); err != nil {
+		return err
+	}
 	deletedStats, err := h.service.Cleanup(ctx, h.retention)
 	if err != nil {
 		return err
@@ -202,6 +205,7 @@ func (h *statsHandler) handleStatsMsg(ctx context.Context, msg jetstream.Msg) er
 	}
 
 	stat := stats.NewStat(event.Email, event.MessageID, domain, event.Timestamp, event.Outcome)
+	stat.TrackingMode = event.TrackingMode
 	mode := event.TrackingMode
 
 	if mode == tracking.ModeAnonymous {

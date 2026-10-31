@@ -6,9 +6,11 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/kannon-email/kannon/internal/domains"
+	"github.com/kannon-email/kannon/internal/keyset"
 	"github.com/kannon-email/kannon/internal/tracking"
 	"github.com/kannon-email/kannon/internal/values"
 )
@@ -30,6 +32,10 @@ func (r *domainsRepository) Create(ctx context.Context, d *domains.Domain) error
 		DkimPublicKey:  d.DkimPublicKey(),
 	})
 	if err != nil {
+		var pg *pgconn.PgError
+		if errors.As(err, &pg) && pg.Code == "23505" && pg.ConstraintName == "domains_domain_key" {
+			return domains.ErrDomainAlreadyExists
+		}
 		return err
 	}
 	loaded, err := rowToDomain(row)
@@ -103,4 +109,30 @@ func rowToDomain(row Domain) (*domains.Domain, error) {
 		// enforcement point rather than on the column default and the write path both holding.
 		Tracking: row.Tracking.Normalized(),
 	}), nil
+}
+
+// ListPage uses the unique Domain name as an exclusive keyset boundary.
+func (r *domainsRepository) ListPage(ctx context.Context, page keyset.Page[values.DomainName]) ([]*domains.Domain, error) {
+	after := ""
+	if page.After != nil {
+		after = page.After.String()
+	}
+	rows, err := r.db.Query(ctx, `SELECT id, domain, dkim_private_key, dkim_public_key, created_at, tracking FROM domains WHERE domain > $1 ORDER BY domain LIMIT $2`, after, page.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []*domains.Domain{}
+	for rows.Next() {
+		var row Domain
+		if err := rows.Scan(&row.ID, &row.Domain, &row.DkimPrivateKey, &row.DkimPublicKey, &row.CreatedAt, &row.Tracking); err != nil {
+			return nil, err
+		}
+		d, err := rowToDomain(row)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, d)
+	}
+	return out, rows.Err()
 }

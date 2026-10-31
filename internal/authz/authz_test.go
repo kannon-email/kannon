@@ -308,8 +308,8 @@ func TestAMalformedResourceIsCoveredByNothing(t *testing.T) {
 	})
 }
 
-func TestCatalogueHoldsExactlyAdminAndSender(t *testing.T) {
-	assert.Equal(t, []authz.RoleName{authz.RoleAdmin, authz.RoleSender}, authz.RoleNames())
+func TestCatalogueHoldsFiveRESTRoles(t *testing.T) {
+	assert.Equal(t, []authz.RoleName{authz.RoleAdmin, authz.RoleAnalyst, authz.RoleBatchReader, authz.RoleMetricsReader, authz.RoleSender}, authz.RoleNames())
 }
 
 // admin holds attribute and sender does not (ADR 0008): the credential that administers Kannon is
@@ -372,4 +372,28 @@ func TestRequireReportsForbidden(t *testing.T) {
 
 	require.NoError(t, authz.Require(owner, authz.Update, authz.Domain(example)))
 	assert.ErrorIs(t, authz.Require(owner, authz.Update, authz.Domain(other)), authz.ErrForbidden)
+}
+
+// REST reader roles expose only their stated resources and compose on one credential.
+func TestRESTReaderAuthority(t *testing.T) {
+	for _, tc := range []struct {
+		role                     authz.RoleName
+		batches, events, metrics bool
+	}{
+		{authz.RoleBatchReader, true, false, false},
+		{authz.RoleAnalyst, false, true, true},
+		{authz.RoleMetricsReader, false, false, true},
+	} {
+		t.Run(string(tc.role), func(t *testing.T) {
+			p := principalWith(authz.MustNewGrant(tc.role, authz.DomainAnchor(example)))
+			assert.Equal(t, tc.batches, authz.Can(p, authz.Read, authz.Batches(example)))
+			assert.Equal(t, tc.batches, authz.Can(p, authz.List, authz.Batches(example)))
+			assert.Equal(t, tc.events, authz.Can(p, authz.Read, authz.Stats(example)))
+			assert.Equal(t, tc.metrics, authz.Can(p, authz.Read, authz.AggregatedStats(example)))
+			assert.False(t, authz.Can(p, authz.Create, authz.Batches(example)))
+			assert.False(t, authz.Can(p, authz.Read, authz.APIKeys(example)))
+			assert.False(t, authz.Can(p, authz.Read, authz.Batches(other)))
+			assert.False(t, authz.Can(p, authz.Read, authz.Stats(other)))
+		})
+	}
 }

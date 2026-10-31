@@ -136,6 +136,45 @@ func (q *Queries) GetTemplates(ctx context.Context, arg GetTemplatesParams) ([]T
 	return items, nil
 }
 
+const listTemplatesPage = `-- name: ListTemplatesPage :many
+SELECT id, template_id, html, domain, type, title, created_at, updated_at FROM templates WHERE domain = $1 AND type = 'template' AND template_id > $2 ORDER BY template_id LIMIT $3
+`
+
+type ListTemplatesPageParams struct {
+	Domain  string
+	AfterID string
+	Take    int32
+}
+
+func (q *Queries) ListTemplatesPage(ctx context.Context, arg ListTemplatesPageParams) ([]Template, error) {
+	rows, err := q.db.Query(ctx, listTemplatesPage, arg.Domain, arg.AfterID, arg.Take)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Template
+	for rows.Next() {
+		var i Template
+		if err := rows.Scan(
+			&i.ID,
+			&i.TemplateID,
+			&i.Html,
+			&i.Domain,
+			&i.Type,
+			&i.Title,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateTemplate = `-- name: UpdateTemplate :one
 UPDATE templates SET
 	html = $2,

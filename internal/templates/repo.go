@@ -3,10 +3,11 @@ package templates
 import (
 	"context"
 
+	"github.com/kannon-email/kannon/internal/keyset"
 	"github.com/kannon-email/kannon/internal/values"
 )
 
-// Pagination contains pagination parameters for listing.
+// Pagination is the offset window legacy gRPC listings expose.
 type Pagination struct {
 	Skip uint
 	Take uint
@@ -43,6 +44,10 @@ type Repository interface {
 	// List returns persistent templates for a domain with pagination.
 	// Transient templates are excluded.
 	List(ctx context.Context, domain values.DomainName, page Pagination) ([]*Template, error)
+
+	// ListPage returns persistent templates in ascending template ID order, strictly after
+	// page.After. Transient templates are excluded.
+	ListPage(ctx context.Context, domain values.DomainName, page keyset.Page[string]) ([]*Template, error)
 
 	// Count returns the total number of persistent templates for a domain.
 	Count(ctx context.Context, domain values.DomainName) (int, error)

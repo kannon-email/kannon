@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/kannon-email/kannon/internal/authz"
+	"github.com/kannon-email/kannon/internal/keyset"
 	"github.com/kannon-email/kannon/internal/values"
 )
 
@@ -67,17 +68,22 @@ func (s *Service) GetTemplate(ctx context.Context, domain values.DomainName, tem
 	})
 }
 
-// UpdateTemplate overwrites a Template's body and title. The domain-scoped load first is the
-// point: Repository.Update addresses a Template by identifier alone, so without it the guard
-// would check the Domain the caller named while the write landed on whatever row bore that id.
-func (s *Service) UpdateTemplate(ctx context.Context, domain values.DomainName, templateID, html, title string) (*Template, error) {
+// UpdateTemplate changes a Template's body and title, leaving a nil field as it was; the legacy
+// API supplies both. The domain-scoped load first is the point: Repository.Update addresses a
+// Template by identifier alone, so without it the guard would check the Domain the caller named
+// while the write landed on whatever row bore that id.
+func (s *Service) UpdateTemplate(ctx context.Context, domain values.DomainName, templateID string, html, title *string) (*Template, error) {
 	return authz.Guard(ctx, authz.Update, authz.Template(domain, templateID), func() (*Template, error) {
 		if _, err := s.repo.FindByDomain(ctx, domain, templateID); err != nil {
 			return nil, err
 		}
 		return s.repo.Update(ctx, templateID, func(t *Template) error {
-			t.SetHTML(html)
-			t.SetTitle(title)
+			if html != nil {
+				t.SetHTML(*html)
+			}
+			if title != nil {
+				t.SetTitle(*title)
+			}
 			return nil
 		})
 	})
@@ -92,5 +98,12 @@ func (s *Service) DeleteTemplate(ctx context.Context, domain values.DomainName, 
 			return nil, err
 		}
 		return s.repo.Delete(ctx, templateID)
+	})
+}
+
+// ListPage lists persistent Templates in ascending opaque ID order without a total count.
+func (s *Service) ListPage(ctx context.Context, domain values.DomainName, page keyset.Page[string]) ([]*Template, error) {
+	return authz.Guard(ctx, authz.List, authz.Templates(domain), func() ([]*Template, error) {
+		return s.repo.ListPage(ctx, domain, page)
 	})
 }

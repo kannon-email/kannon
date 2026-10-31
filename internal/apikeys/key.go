@@ -6,6 +6,9 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/kannon-email/kannon/internal/apperr"
+	"github.com/kannon-email/kannon/internal/authz"
+	"slices"
 	"time"
 
 	"github.com/kannon-email/kannon/internal/values"
@@ -13,7 +16,7 @@ import (
 
 // Domain errors
 var (
-	ErrKeyNotFound      = errors.New("api key not found")
+	ErrKeyNotFound      = apperr.New(apperr.NotFound, "not_found", "api key not found")
 	ErrKeyInactive      = errors.New("api key is inactive")
 	ErrKeyExpired       = errors.New("api key has expired")
 	ErrInvalidKey       = errors.New("invalid api key format")
@@ -39,6 +42,7 @@ func HashKey(plaintext string) string {
 
 // APIKey represents a domain API key in the system
 type APIKey struct {
+	roles         []authz.RoleName
 	id            ID
 	keyHash       string
 	keyPrefix     string
@@ -143,6 +147,7 @@ func NewAPIKey(domain values.DomainName, name string, expiresAt *time.Time) (*Cr
 
 // LoadAPIKeyParams contains all parameters needed to load an APIKey from storage
 type LoadAPIKeyParams struct {
+	Roles         []authz.RoleName
 	ID            ID
 	KeyHash       string
 	KeyPrefix     string
@@ -158,6 +163,7 @@ type LoadAPIKeyParams struct {
 func LoadAPIKey(p LoadAPIKeyParams) *APIKey {
 	return &APIKey{
 		id:            p.ID,
+		roles:         slices.Clone(p.Roles),
 		keyHash:       p.KeyHash,
 		keyPrefix:     p.KeyPrefix,
 		name:          p.Name,
@@ -227,4 +233,12 @@ func validateExpiresAt(expiresAt *time.Time) error {
 		return errors.New("expiration time must be in the future")
 	}
 	return nil
+}
+
+// Roles returns immutable authority; absent legacy metadata means sender.
+func (k *APIKey) Roles() []authz.RoleName {
+	if len(k.roles) == 0 {
+		return []authz.RoleName{authz.RoleSender}
+	}
+	return slices.Clone(k.roles)
 }
