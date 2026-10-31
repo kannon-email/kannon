@@ -41,6 +41,10 @@ func New(cnt *container.Container) container.Runnable {
 	return container.Runnable{
 		Name: "validator",
 		Run: func(ctx context.Context) error {
+			// Accepted and Rejected are published on the stats stream.
+			if err := stats.ConfigureStream(ctx, cnt.NatsJetStream()); err != nil {
+				return fmt.Errorf("cannot configure stats stream: %w", err)
+			}
 			claimer := pool.NewClaimer(sqlc.NewDeliveryRepository(cnt.DB(), cnt.BackoffPolicy(), cnt.RetryWindow()))
 
 			v := Validator{

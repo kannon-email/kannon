@@ -298,30 +298,20 @@ Kannon uses NATS JetStream for reliable, decoupled messaging between its modules
 | kannon.stats.clicked   | Link clicked in email          | Tracker              | Stats               |
 | kannon.audit.allowed   | An authorization decision that permitted an operation | API | Audit |
 | kannon.audit.denied    | An authorization decision that refused one, including a request nothing authenticated. The outcome is in the subject so refusals can be alerted on without querying the table | API | Audit |
-| kannon.bounce          | Stream declared in `x/container`, but nothing publishes or consumes it | — | — |
 
-### Example NATS JetStream Configuration
+### Stream Configuration
 
-```yaml
-streams:
-  - name: kannon_sending
-    subjects: ["kannon.sending"]
-    retention: limits
-    max_msgs: 100000
-    max_age: 72h
-  - name: kannon_stats
-    subjects: ["kannon.stats.*"]
-    retention: limits
-    max_msgs: 100000
-    max_age: 168h
-  - name: kannon_bounce
-    subjects: ["kannon.bounce"]
-    retention: limits
-    max_msgs: 10000
-    max_age: 168h
-```
+Every stream is configured in code through `utils.ConfigureStream`, by the processes that use it, so there is nothing to create by hand. A stream that already exists is updated to this configuration at startup.
 
-`kannon-audit` is deliberately absent from this list and from `provisionEmbeddedJetStreams`: its configuration lives in exactly one function, `audit.ConfigureStream`, called at startup by both the API and the audit worker so that neither depends on the other's boot order. Its `max_age` is 7 days — a buffer for a worker that is down, kept far below `audit.retention` so there are not two archives with two expiries.
+| Stream         | Subjects         | Max age | Configured by |
+| -------------- | ---------------- | ------- | ------------- |
+| kannon-sending | `kannon.sending` | 24h     | Dispatcher (`configureSendingStream`) |
+| kannon-stats   | `kannon.stats.*` | 7 days  | `stats.ConfigureStream`, called by every process that publishes or consumes stat events: Stats, Dispatcher, SMTPSender, Validator, Tracker and SMTP Server |
+| kannon-audit   | `kannon.audit.*` | 7 days  | `audit.ConfigureStream`, called by the API and the audit worker |
+
+All three use the limits retention policy, file storage and discard-old. A max age is a buffer for a consumer that is down, kept far below the retention of the table the consumer writes, so there are not two archives with two expiries. The stats stream's max age (`stats.StreamMaxAge`) is also the longest a stored stat event can be redelivered.
+
+`provisionEmbeddedJetStreams` pre-creates only `kannon-sending` under embedded NATS, so that the SMTPSender can subscribe before the Dispatcher has configured it; the Dispatcher then applies the limits. `kannon-stats` and `kannon-audit` are deliberately absent from it: a stream created there would be a second, unbounded definition of what their `ConfigureStream` holds.
 
 ### Module Interactions with NATS
 

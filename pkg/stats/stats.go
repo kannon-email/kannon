@@ -64,6 +64,9 @@ func New(cnt *container.Container) container.Runnable {
 func run(ctx context.Context, cnt *container.Container, cfg Config) error {
 	q := cnt.Queries()
 	js := cnt.NatsJetStream()
+	if err := stats.ConfigureStream(ctx, js); err != nil {
+		return fmt.Errorf("cannot configure stats stream: %w", err)
+	}
 
 	db := cnt.DB()
 	repo := sq.NewStatsRepository(db)
@@ -146,7 +149,7 @@ func (h *statsHandler) handleAggregatedStats(ctx context.Context) error {
 
 // consumeStats owns the shared consumer lifecycle; each durable retains its own handler.
 func (h *statsHandler) consumeStats(ctx context.Context, name string, handle func(context.Context, jetstream.Msg) error) error {
-	con := utils.MustGetPullSubscriber(ctx, h.js, "kannon-stats", "kannon.stats.*", name)
+	con := utils.MustGetPullSubscriber(ctx, h.js, stats.StreamName, stats.StreamSubjects, name)
 	c, err := con.Consume(func(msg jetstream.Msg) {
 		if err := handle(ctx, msg); err != nil {
 			slog.Error("Cannot handle stats msg", "consumer", name, "err", err)
