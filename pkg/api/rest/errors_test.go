@@ -96,6 +96,7 @@ func TestApplicationErrorResponses(t *testing.T) {
 		{"schedule", intake.ErrScheduledAtNotFuture, 422, "scheduled_at_not_future", "", connect.CodeInvalidArgument},
 		{"attachment names", intake.ErrDuplicateAttachmentFilename, 422, "duplicate_attachment_filename", "", connect.CodeInvalidArgument},
 		{"recipient limit", intake.ErrTooManyRecipients, 422, "too_many_recipients", "", connect.CodeInvalidArgument},
+		{"message size", intake.ErrMessageTooLarge, 422, "message_too_large", "", connect.CodeInvalidArgument},
 		{"wrapped validation cause", apperr.Wrap(apperr.Invalid, "validation_failed", errors.New("private cause")), 422, "validation_failed", "", connect.CodeInvalidArgument},
 		{"event query", stats.ErrEventQuery, 400, "invalid_query_parameter", "", connect.CodeInvalidArgument},
 		{"aggregate query", stats.ErrAggregateQuery, 400, "invalid_query_parameter", "", connect.CodeInvalidArgument},

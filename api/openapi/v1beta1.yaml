@@ -2273,6 +2273,7 @@ x-error-codes:
   no_recipients_accepted: 422
   too_many_recipients: 422
   duplicate_attachment_filename: 422
+  message_too_large: 422
   scheduled_at_not_future: 422
   expiry_not_future: 422
   rate_limited: 429

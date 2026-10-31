@@ -217,6 +217,7 @@ A process with nothing enabled refuses to boot rather than exit as if it had don
 | YAML key                     | Type     | Default        | Description                                      |
 | ---------------------------- | -------- | -------------- | ------------------------------------------------ |
 | `api.port`                   | int      | 50051          | API listen port                                  |
+| `api.max_payload`            | size     | 500Ki          | Max Batch content (HTML + base64 attachments); larger is refused with `message_too_large`. Set to ~70% of the NATS server's `max_payload` |
 | `sender.hostname`            | string   | (required)     | Hostname announced for outgoing mail             |
 | `sender.max_jobs`            | int      | 10             | Max parallel sending jobs                        |
 | `sender.demo_sender`         | bool     | false          | Enable demo sender mode for testing              |
@@ -224,13 +225,15 @@ A process with nothing enabled refuses to boot rather than exit as if it had don
 | `smtp.domain`                | string   | localhost      | Inbound SMTP server domain                       |
 | `smtp.read_timeout`          | duration | 10s            | SMTP read timeout                                |
 | `smtp.write_timeout`         | duration | 10s            | SMTP write timeout                               |
-| `smtp.max_payload`           | int      | 1048576        | Max SMTP message size, in bytes                  |
+| `smtp.max_payload`           | size     | 1Mi            | Max SMTP message size                            |
 | `smtp.max_recipients`        | int      | 50             | Max recipients per inbound SMTP message          |
 | `tracker.port`               | int      | 8080           | Open/click tracking HTTP server port             |
 | `stats.retention`            | duration | 8760h (1 year) | How long raw per-Delivery stats are kept         |
 | `stats.aggregated_retention` | duration | 8760h (1 year) | How long the hourly per-Domain counters are kept |
 | `audit.enabled`              | bool     | false          | Record every authorization decision (see below)  |
 | `audit.retention`            | duration | 720h (30 days) | How long an Audit Record is kept                 |
+
+A *size* is written as a Kubernetes quantity: `5Mi`, `500Ki`, `1Gi` (powers of 1024), `5M`, `500k`, `1G` (powers of 1000), or a bare number of bytes.
 
 **Access control**:
 

@@ -176,11 +176,16 @@ func resolve(raw string, opts Options) (value string, isRef bool, err error) {
 // replaces the whole DecodeHook chain rather than appending to it: passing the
 // env hook alone would silently break time.Duration fields — stats.retention,
 // audit.retention, every smtp timeout — and comma-separated slices.
+//
+// TextUnmarshallerHookFunc is not one of viper's defaults. It lets a field type read its own
+// written form — a size such as `5Mi` — and runs after the env hook, so a reference resolves to
+// the text the type then reads.
 func DecoderOption(opts Options) viper.DecoderConfigOption {
 	return viper.DecodeHook(mapstructure.ComposeDecodeHookFunc(
 		Hook(opts),
 		mapstructure.StringToTimeDurationHookFunc(),
 		stringToWeakSliceHookFunc(","),
+		mapstructure.TextUnmarshallerHookFunc(),
 	))
 }
 

@@ -41,7 +41,7 @@ func TestAcceptance(t *testing.T) {
 	principal := authz.MustNewPrincipal("key", authz.MustNewGrant(authz.RoleSender, authz.DomainAnchor(name)))
 	var audit decisions
 	ctx := authz.WithRecorder(authz.NewContext(t.Context(), principal), &audit)
-	s := intake.New(sqlc.NewIntakeStore(pool), delivery.DefaultBackoff, delivery.DefaultRetryWindow)
+	s := intake.New(sqlc.NewIntakeStore(pool), delivery.DefaultBackoff, delivery.DefaultRetryWindow, 0)
 	tplRepo := sqlc.NewTemplatesRepository(pool)
 	original, err := templates.NewPersistent(name, "<p>{{ name }}</p>", "Original")
 	require.NoError(t, err)

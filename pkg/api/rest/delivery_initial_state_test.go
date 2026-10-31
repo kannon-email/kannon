@@ -40,7 +40,7 @@ func TestDeliveryInitialStateUsesAcceptanceClock(t *testing.T) {
 			}
 			t.Run(label, func(t *testing.T) {
 				now := time.Date(year, 1, 1, 0, 0, 0, 0, time.UTC)
-				svc := intake.NewInlineService(sqlc.NewInlineStore(db, func() time.Time { return now }), sqlc.NewDomainsRepository(db), nil, 0)
+				svc := intake.NewInlineService(sqlc.NewInlineStore(db, func() time.Time { return now }), sqlc.NewDomainsRepository(db), nil, 0, 0)
 				svc.Now = func() time.Time { return now }
 				req := intake.InlineRequest{Sender: batch.Sender{Email: "from@example.com"}, Subject: "Hello", HTML: "Hello", Recipients: []intake.InlineRecipient{{Email: "to@example.com"}}}
 				wantStatus := rest.DeliveryStatus("pending")

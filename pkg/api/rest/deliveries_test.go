@@ -38,7 +38,7 @@ func TestDeliverySurvivesPoolAndLateBounce(t *testing.T) {
 	if _, err := ds.CreateDomain(ctx, name); err != nil {
 		t.Fatal(err)
 	}
-	svc := intake.NewInlineService(sqlc.NewInlineStore(db), sqlc.NewDomainsRepository(db), nil, 0)
+	svc := intake.NewInlineService(sqlc.NewInlineStore(db), sqlc.NewDomainsRepository(db), nil, 0, 0)
 	receipt, _, _, err := svc.Create(ctx, name, "history", intake.InlineRequest{Sender: batch.Sender{Email: "from@example.com"}, Subject: "Hello", HTML: "Hello", Recipients: []intake.InlineRecipient{{Email: "to@example.com"}, {Email: "refused"}}})
 	if err != nil {
 		t.Fatal(err)

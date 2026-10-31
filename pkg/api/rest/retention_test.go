@@ -34,7 +34,7 @@ func TestHistoryExpiresAtThirtyDays(t *testing.T) {
 	_, err = ds.CreateDomain(ctx, domain)
 	require.NoError(t, err)
 	now := time.Now().UTC().Truncate(time.Microsecond)
-	svc := intake.NewInlineService(sqlc.NewInlineStore(db, func() time.Time { return now }), sqlc.NewDomainsRepository(db), nil, 0)
+	svc := intake.NewInlineService(sqlc.NewInlineStore(db, func() time.Time { return now }), sqlc.NewDomainsRepository(db), nil, 0, 0)
 	svc.Now = func() time.Time { return now }
 	req := intake.InlineRequest{Sender: batch.Sender{Email: "from@example.com"}, Subject: "Hello", HTML: "Hello", Recipients: []intake.InlineRecipient{{Email: "to@example.com"}}, Attachments: []intake.Attachment{{Filename: "note.txt", Content: []byte("owned attachment")}}}
 	receipt, _, _, err := svc.Create(ctx, domain, "retention", req)
@@ -147,7 +147,7 @@ func TestIdempotencyReceiptExpiresAtNinetyDays(t *testing.T) {
 	_, err = domains.NewService(sqlc.NewDomainsRepository(db)).CreateDomain(ctx, domain)
 	require.NoError(t, err)
 	now := time.Now().UTC().Truncate(time.Microsecond)
-	svc := intake.NewInlineService(sqlc.NewInlineStore(db, func() time.Time { return now }), sqlc.NewDomainsRepository(db), nil, 0)
+	svc := intake.NewInlineService(sqlc.NewInlineStore(db, func() time.Time { return now }), sqlc.NewDomainsRepository(db), nil, 0, 0)
 	svc.Now = func() time.Time { return now }
 	req := intake.InlineRequest{Sender: batch.Sender{Email: "from@example.com"}, Subject: "Hello", HTML: "Hello", Recipients: []intake.InlineRecipient{{Email: "to@example.com"}}}
 	completed, _, _, err := svc.Create(ctx, domain, "completed", req)
