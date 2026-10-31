@@ -358,7 +358,8 @@ CREATE TABLE public.messages (
     domain character varying(254) NOT NULL,
     attachments jsonb,
     headers jsonb DEFAULT '{}'::jsonb NOT NULL,
-    tracking jsonb DEFAULT '{}'::jsonb NOT NULL
+    tracking jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 
@@ -835,6 +836,13 @@ CREATE INDEX domains_domain_idx ON public.domains USING btree (domain);
 
 
 --
+-- Name: messages_created_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX messages_created_at_idx ON public.messages USING btree (created_at);
+
+
+--
 -- Name: messages_domain_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1042,4 +1050,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20261030231457'),
     ('20261030231941'),
     ('20261030232432'),
-    ('20261031075047');
+    ('20261031075047'),
+    ('20261031174350');

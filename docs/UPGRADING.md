@@ -5,6 +5,22 @@ releases that change behaviour of an installation already in production appear
 here; everything else is in [`CHANGELOG.md`](../CHANGELOG.md), which is
 generated from commits.
 
+## Unreleased — Retention for every table and stream
+
+### What changes
+
+The stats worker's cleanup cycle now bounds every table that used to grow
+without limit:
+
+- **Mailer API Batches.** A Batch accepted by the Mailer API, and the Transient
+  Template it created, are deleted 30 days after intake once none of its
+  Deliveries is left in the Pool. Such a Batch has no history and records no
+  completion time, so the clock starts at intake; nothing reads the row once
+  its Pool is empty. The migration adds `messages.created_at` and sets it to
+  the migration time on existing rows, so Batches accepted before the upgrade
+  are deleted 30 days after it. Stats rows are untouched and keep their own
+  `stats.retention`.
+
 ## Unreleased — Signed bounce return paths
 
 ### What changes

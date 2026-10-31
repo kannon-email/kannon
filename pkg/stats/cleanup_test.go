@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	schema "github.com/kannon-email/kannon/db"
 	sq "github.com/kannon-email/kannon/internal/db"
+	"github.com/kannon-email/kannon/internal/intake"
 	"github.com/kannon-email/kannon/internal/runner"
 	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/internal/tests"
@@ -192,11 +193,69 @@ func TestCleanupCycle_NoRowsToDelete(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestCleanupCycle_DeletesDrainedMailerBatches(t *testing.T) {
+	cleanDB(t)
+
+	ctx := t.Context()
+	old := time.Now().Add(-intake.HistoryRetention - time.Hour)
+	recent := time.Now().Add(-intake.HistoryRetention + time.Hour)
+
+	exec := func(sql string, args ...any) {
+		t.Helper()
+		_, err := db.Exec(ctx, sql, args...)
+		require.NoError(t, err)
+	}
+	template := func(id, kind string) {
+		exec("INSERT INTO templates (template_id, html, domain, type) VALUES ($1, 'html', 'test.com', $2)", id, kind)
+	}
+	message := func(id, templateID string, createdAt time.Time) {
+		exec(`INSERT INTO messages (message_id, subject, sender_email, sender_alias, template_id, domain, created_at)
+			VALUES ($1, 'subject', 'from@test.com', 'From', $2, 'test.com', $3)`, id, templateID, createdAt)
+	}
+
+	template("tpl-drained", "transient")
+	message("drained", "tpl-drained", old)
+	template("tpl-shared", "transient")
+	message("drained-shared", "tpl-shared", old)
+	message("recent-shared", "tpl-shared", recent)
+	template("tpl-persistent", "template")
+	message("drained-persistent", "tpl-persistent", old)
+	template("tpl-pending", "transient")
+	message("pending", "tpl-pending", old)
+	exec(`INSERT INTO sending_pool_emails (email, status, original_scheduled_time, message_id, domain)
+		VALUES ('to@test.com', 'scheduled', now(), 'pending', 'test.com')`)
+	template("tpl-rest", "transient")
+	message("rest", "tpl-rest", old)
+	exec(`INSERT INTO batch_intake_receipts (domain, idempotency_key, fingerprint, batch_id, created_at, accepted_count, rejected_count, scheduled_at)
+		VALUES ('test.com', 'key', 'fp', 'rest', $1, 1, 0, $1)`, old)
+
+	h := newTestHandler()
+	require.NoError(t, runner.Run(ctx, h.cleanupCycle, runner.MaxLoop(1)))
+
+	exists := func(table, column, id string) bool {
+		t.Helper()
+		var n int
+		require.NoError(t, db.QueryRow(ctx, "SELECT COUNT(*) FROM "+table+" WHERE "+column+" = $1", id).Scan(&n))
+		return n > 0
+	}
+	assert.False(t, exists("messages", "message_id", "drained"))
+	assert.False(t, exists("templates", "template_id", "tpl-drained"))
+	assert.False(t, exists("messages", "message_id", "drained-shared"))
+	assert.True(t, exists("messages", "message_id", "recent-shared"), "a Batch inside the window is kept")
+	assert.True(t, exists("templates", "template_id", "tpl-shared"), "a Template another Batch uses is kept")
+	assert.False(t, exists("messages", "message_id", "drained-persistent"))
+	assert.True(t, exists("templates", "template_id", "tpl-persistent"), "a persistent Template is not the Batch's to delete")
+	assert.True(t, exists("messages", "message_id", "pending"), "a Batch with Deliveries in the Pool is kept")
+	assert.True(t, exists("templates", "template_id", "tpl-pending"))
+	assert.True(t, exists("messages", "message_id", "rest"), "a REST Batch expires through its receipt")
+	assert.True(t, exists("templates", "template_id", "tpl-rest"))
+}
+
 func cleanDB(t *testing.T) {
 	t.Helper()
 	ctx := t.Context()
-	_, err := db.Exec(ctx, "DELETE FROM stats")
-	require.NoError(t, err)
-	_, err = db.Exec(ctx, "DELETE FROM stats_keys")
-	require.NoError(t, err)
+	for _, table := range []string{"stats", "stats_keys", "sending_pool_emails", "batch_intake_receipts", "messages", "templates"} {
+		_, err := db.Exec(ctx, "DELETE FROM "+table)
+		require.NoError(t, err)
+	}
 }
