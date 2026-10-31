@@ -32,6 +32,21 @@ without limit:
   a client reusing the key with the same content creates a new Batch instead of
   replaying the old one. Receipts of Batches that have not completed are kept.
 
+And the JetStream streams:
+
+- **`kannon-stats`** is now configured in code with a 7-day max age (limits
+  policy, file storage, discard-old) by every process that publishes or
+  consumes stat events — stats, dispatcher, sender, validator, tracker and
+  smtp. Until now the sender alone set it, with a 24-hour max age, and embedded
+  NATS created it with none. A consumer that is down can now catch up on a
+  week of events; size the NATS store for a week of stat events. A stream you
+  created by hand is updated to this configuration at startup, and a process
+  refuses to start if the update is impossible — for instance a stream with
+  memory storage, whose storage type cannot be changed: delete it first.
+- **`kannon-bounce`** is no longer created. Nothing ever published to or
+  consumed it; an existing one is empty and can be deleted with
+  `nats stream rm kannon-bounce`.
+
 ## Unreleased — Signed bounce return paths
 
 ### What changes

@@ -12,6 +12,7 @@ import (
 	"github.com/kannon-email/kannon/internal/pool"
 	"github.com/kannon-email/kannon/internal/returnpath"
 	"github.com/kannon-email/kannon/internal/runner"
+	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/internal/statssec"
 	"github.com/kannon-email/kannon/internal/utils"
 	"github.com/kannon-email/kannon/x/container"
@@ -41,6 +42,10 @@ func run(ctx context.Context, cnt *container.Container, rp returnpath.Signer) er
 	js := cnt.NatsJetStream()
 	if err := configureSendingStream(ctx, js); err != nil {
 		return fmt.Errorf("cannot configure sending stream: %w", err)
+	}
+	// Publishes failures and consumes outcomes on the stats stream.
+	if err := stats.ConfigureStream(ctx, js); err != nil {
+		return fmt.Errorf("cannot configure stats stream: %w", err)
 	}
 
 	d := disp{
