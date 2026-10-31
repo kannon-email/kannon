@@ -39,11 +39,11 @@ type Config struct {
 	// attachment as base64. Each Envelope travels as one NATS message, so set it to about 70% of
 	// the NATS server's max_payload, leaving room for the headers, DKIM signature and tracking
 	// links building adds.
-	MaxPayload int `mapstructure:"max_payload"`
+	MaxPayload config.ByteSize `mapstructure:"max_payload"`
 }
 
 // defaultMaxPayload is 500KiB, under 70% of the 1MiB max_payload a NATS server has by default.
-const defaultMaxPayload = 500 * 1024
+const defaultMaxPayload config.ByteSize = 500 << 10
 
 func (c *Config) setDefaults() {
 	if c.Port == 0 {
@@ -117,7 +117,7 @@ func run(ctx context.Context, config Config, cnt *container.Container) error {
 	recorder := startAuditRecording(ctx, cnt)
 
 	adminAPIService := adminapi.CreateAdminAPIService(db)
-	mailAPIService := mailapi.NewMailerAPIV1(db, cnt.BackoffPolicy(), cnt.RetryWindow(), config.MaxPayload)
+	mailAPIService := mailapi.NewMailerAPIV1(db, cnt.BackoffPolicy(), cnt.RetryWindow(), int(config.MaxPayload))
 	statsAPIService := statsv1.NewStatsAPIService(statsService)
 	statsV2APIService := statsv2.NewStatsAPIService(statsService)
 	hzAPIService := hzapi.CreateHZAPIService(cnt)
@@ -139,7 +139,7 @@ func run(ctx context.Context, config Config, cnt *container.Container) error {
 		},
 		Keys:      apikeys.NewService(sq.NewAPIKeysRepository(db)),
 		Templates: templates.NewService(sq.NewTemplatesRepository(db)),
-		Inline:    intake.NewInlineService(sq.NewInlineStore(db), sq.NewDomainsRepository(db), cnt.BackoffPolicy(), cnt.RetryWindow(), config.MaxPayload),
+		Inline:    intake.NewInlineService(sq.NewInlineStore(db), sq.NewDomainsRepository(db), cnt.BackoffPolicy(), cnt.RetryWindow(), int(config.MaxPayload)),
 		Stats:     statsService,
 	}))
 }

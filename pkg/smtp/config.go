@@ -1,14 +1,18 @@
 package smtp
 
-import "time"
+import (
+	"time"
+
+	"github.com/kannon-email/kannon/x/config"
+)
 
 type Config struct {
-	Address         string        `mapstructure:"address"`
-	Domain          string        `mapstructure:"domain"`
-	ReadTimeout     time.Duration `mapstructure:"read_timeout"`
-	WriteTimeout    time.Duration `mapstructure:"write_timeout"`
-	MaxPayloadBytes uint          `mapstructure:"max_payload"`
-	MaxRecipients   uint          `mapstructure:"max_recipients"`
+	Address         string          `mapstructure:"address"`
+	Domain          string          `mapstructure:"domain"`
+	ReadTimeout     time.Duration   `mapstructure:"read_timeout"`
+	WriteTimeout    time.Duration   `mapstructure:"write_timeout"`
+	MaxPayloadBytes config.ByteSize `mapstructure:"max_payload"`
+	MaxRecipients   uint            `mapstructure:"max_recipients"`
 }
 
 func (c *Config) setDefaults() {
@@ -24,8 +28,8 @@ func (c *Config) setDefaults() {
 	if c.WriteTimeout <= 0 {
 		c.WriteTimeout = 10 * time.Second
 	}
-	if c.MaxPayloadBytes == 0 {
-		c.MaxPayloadBytes = 1024 * 1024
+	if c.MaxPayloadBytes <= 0 {
+		c.MaxPayloadBytes = 1 << 20
 	}
 	if c.MaxRecipients == 0 {
 		c.MaxRecipients = 50
