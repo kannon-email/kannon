@@ -752,6 +752,13 @@ CREATE UNIQUE INDEX "VerificationToken_token_key" ON public."VerificationToken" 
 
 
 --
+-- Name: aggregated_stats_timestamp_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX aggregated_stats_timestamp_idx ON public.aggregated_stats USING btree ("timestamp");
+
+
+--
 -- Name: api_keys_domain_created_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1051,4 +1058,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20261030231941'),
     ('20261030232432'),
     ('20261031075047'),
-    ('20261031174350');
+    ('20261031174350'),
+    ('20261031174606');

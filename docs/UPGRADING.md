@@ -20,6 +20,12 @@ without limit:
   the migration time on existing rows, so Batches accepted before the upgrade
   are deleted 30 days after it. Stats rows are untouched and keep their own
   `stats.retention`.
+- **Aggregated counters.** `aggregated_stats` rows older than the new
+  `stats.aggregated_retention` (default `8760h`, one year) are deleted. They
+  are the only record of anonymous engagement, so **set a longer value before
+  upgrading** if you need counters older than a year; they cannot be rebuilt
+  once deleted. The key is separate from `stats.retention`, which keeps
+  governing per-Delivery stats.
 
 ## Unreleased — Signed bounce return paths
 

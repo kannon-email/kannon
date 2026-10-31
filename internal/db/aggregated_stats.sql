@@ -10,6 +10,9 @@ WHERE domain = @domain
 AND timestamp >= @start AND timestamp < @stop
 ORDER BY timestamp ASC, type;
 
+-- name: DeleteAggregatedStatsOlderThan :execrows
+DELETE FROM aggregated_stats WHERE timestamp < @before;
+
 -- name: CountAggregatedEvent :exec
 WITH first_delivery AS (
     INSERT INTO counted_stat_events (stream, stored_at, sequence)
