@@ -52,7 +52,7 @@ func TestPersistentAggregateSeries(t *testing.T) {
 		t.Fatal(buckets, err)
 	}
 	keys := apikeys.NewService(sqlc.NewAPIKeysRepository(db))
-	h := rest.NewHandlerWithStats(domains.NewService(sqlc.NewDomainsRepository(db)), admintoken.MustParse("secret"), db.Ping, svc, keys)
+	h := rest.NewHandler(rest.Services{Domains: domains.NewService(sqlc.NewDomainsRepository(db)), Token: admintoken.MustParse("secret"), Ready: db.Ping, Stats: svc, Keys: keys})
 	call := func(token, method, path, body string, status int) string {
 		t.Helper()
 		r := httptest.NewRequest(method, path, strings.NewReader(body))

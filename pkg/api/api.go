@@ -115,14 +115,22 @@ func run(ctx context.Context, config Config, cnt *container.Container) error {
 	// this point asks the configuration layer what authority a request has.
 	adminAuth := authzconnect.AdminTokenHandlerOptions(adminToken)
 
-	return startAPIServer(ctx, port, adminAuth, recorder, adminAPIService, mailAPIService, statsAPIService, statsV2APIService, hzAPIService, rest.NewHandlerWithBatches(domains.NewService(sq.NewDomainsRepository(db)), adminToken, func(ctx context.Context) error {
-		for _, err := range hz.NewHZ(cnt).HZ(ctx) {
-			if err != nil {
-				return err
+	return startAPIServer(ctx, port, adminAuth, recorder, adminAPIService, mailAPIService, statsAPIService, statsV2APIService, hzAPIService, rest.NewHandler(rest.Services{
+		Domains: domains.NewService(sq.NewDomainsRepository(db)),
+		Token:   adminToken,
+		Ready: func(ctx context.Context) error {
+			for _, err := range hz.NewHZ(cnt).HZ(ctx) {
+				if err != nil {
+					return err
+				}
 			}
-		}
-		return nil
-	}, intake.NewInlineService(sq.NewInlineStore(db), sq.NewDomainsRepository(db), cnt.BackoffPolicy(), cnt.RetryWindow()), statsService, templates.NewService(sq.NewTemplatesRepository(db)), apikeys.NewService(sq.NewAPIKeysRepository(db))))
+			return nil
+		},
+		Keys:      apikeys.NewService(sq.NewAPIKeysRepository(db)),
+		Templates: templates.NewService(sq.NewTemplatesRepository(db)),
+		Inline:    intake.NewInlineService(sq.NewInlineStore(db), sq.NewDomainsRepository(db), cnt.BackoffPolicy(), cnt.RetryWindow()),
+		Stats:     statsService,
+	}))
 }
 
 // startAuditRecording resolves the Recorder every authorization decision on this process reports to,

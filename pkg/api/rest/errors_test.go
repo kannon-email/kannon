@@ -48,7 +48,7 @@ func TestCredentialLookupFailure(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			keys := apikeys.NewService(failingKeyRepository{err: tc.err})
-			h := rest.NewHandler(domains.NewService(failingDomainRepository{}), admintoken.MustParse("secret"), nil, keys)
+			h := rest.NewHandler(rest.Services{Domains: domains.NewService(failingDomainRepository{}), Token: admintoken.MustParse("secret"), Keys: keys})
 			r := httptest.NewRequest(http.MethodGet, "/v1beta1/domains", nil)
 			r.Header.Set("Authorization", "Bearer k_unknown")
 			w := httptest.NewRecorder()
@@ -73,7 +73,7 @@ func TestApplicationErrorResponses(t *testing.T) {
 		{"permanent receipt", intake.ErrIdempotencyConflict, 409, "idempotency_conflict", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			h := rest.NewHandler(domains.NewService(failingDomainRepository{err: tc.err}), admintoken.MustParse("secret"), nil)
+			h := rest.NewHandler(rest.Services{Domains: domains.NewService(failingDomainRepository{err: tc.err}), Token: admintoken.MustParse("secret")})
 			r := httptest.NewRequest(http.MethodGet, "/v1beta1/domains", nil)
 			r.Header.Set("Authorization", "Bearer secret")
 			w := httptest.NewRecorder()

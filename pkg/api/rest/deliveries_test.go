@@ -47,7 +47,7 @@ func TestDeliverySurvivesPoolAndLateBounce(t *testing.T) {
 	if err := db.QueryRow(ctx, `SELECT id FROM delivery_intake_facts WHERE batch_id=$1`, receipt.ID).Scan(&id); err != nil {
 		t.Fatal(err)
 	}
-	h := rest.NewHandlerWithBatches(ds, admintoken.MustParse("secret"), db.Ping, svc, nil, nil)
+	h := rest.NewHandler(rest.Services{Domains: ds, Token: admintoken.MustParse("secret"), Ready: db.Ping, Inline: svc})
 	read := func(domain, bid string, status int) rest.Delivery {
 		t.Helper()
 		r := httptest.NewRequest(http.MethodGet, "/v1beta1/domains/"+domain+"/batches/"+bid+"/deliveries/"+id, nil)

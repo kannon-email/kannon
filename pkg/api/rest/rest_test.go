@@ -20,12 +20,12 @@ import (
 
 func TestPublicReadiness(t *testing.T) {
 	for _, ready := range []bool{true, false} {
-		h := rest.NewHandler(nil, admintoken.MustParse("secret"), func(context.Context) error {
+		h := rest.NewHandler(rest.Services{Token: admintoken.MustParse("secret"), Ready: func(context.Context) error {
 			if !ready {
 				return errors.New("postgres password secret")
 			}
 			return nil
-		})
+		}})
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/v1beta1/health", nil))
 		want := 200
@@ -45,7 +45,7 @@ func TestPublicReadiness(t *testing.T) {
 }
 
 func TestAuthenticationAndInvalidRequests(t *testing.T) {
-	h := rest.NewHandler(nil, admintoken.MustParse("secret"), nil)
+	h := rest.NewHandler(rest.Services{Token: admintoken.MustParse("secret")})
 	for _, tc := range []struct {
 		method, path, body, token, code string
 		status                          int
@@ -88,7 +88,7 @@ func TestPersistentDomainJourney(t *testing.T) {
 			t.Error(err)
 		}
 	}()
-	h := rest.NewHandler(domains.NewService(sqlc.NewDomainsRepository(db)), admintoken.MustParse("secret"), db.Ping)
+	h := rest.NewHandler(rest.Services{Domains: domains.NewService(sqlc.NewDomainsRepository(db)), Token: admintoken.MustParse("secret"), Ready: db.Ping})
 	call := func(method, path, body string, status int) string {
 		t.Helper()
 		r := httptest.NewRequest(method, path, strings.NewReader(body))

@@ -30,7 +30,7 @@ func TestPersistentTemplateJourney(t *testing.T) {
 		}
 	}()
 	defer db.Close()
-	h := rest.NewHandlerWithTemplates(domains.NewService(sqlc.NewDomainsRepository(db)), admintoken.MustParse("secret"), db.Ping, apikeys.NewService(sqlc.NewAPIKeysRepository(db)), templates.NewService(sqlc.NewTemplatesRepository(db)))
+	h := rest.NewHandler(rest.Services{Domains: domains.NewService(sqlc.NewDomainsRepository(db)), Token: admintoken.MustParse("secret"), Ready: db.Ping, Keys: apikeys.NewService(sqlc.NewAPIKeysRepository(db)), Templates: templates.NewService(sqlc.NewTemplatesRepository(db))})
 	call := func(token, method, path, body string, status int) *httptest.ResponseRecorder {
 		t.Helper()
 		r := httptest.NewRequest(method, path, strings.NewReader(body))
