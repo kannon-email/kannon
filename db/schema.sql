@@ -808,6 +808,13 @@ CREATE INDEX batch_history_order ON public.batch_intake_receipts USING btree (do
 
 
 --
+-- Name: counted_stat_events_stored_second_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX counted_stat_events_stored_second_idx ON public.counted_stat_events USING btree ("left"(stored_at, 19) COLLATE "C");
+
+
+--
 -- Name: delivery_history_order; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1059,4 +1066,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20261030232432'),
     ('20261031075047'),
     ('20261031174350'),
-    ('20261031174606');
+    ('20261031174606'),
+    ('20261031175305');

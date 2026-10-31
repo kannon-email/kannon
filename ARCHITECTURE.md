@@ -309,7 +309,7 @@ Every stream is configured in code through `utils.ConfigureStream`, by the proce
 | kannon-stats   | `kannon.stats.*` | 7 days  | `stats.ConfigureStream`, called by every process that publishes or consumes stat events: Stats, Dispatcher, SMTPSender, Validator, Tracker and SMTP Server |
 | kannon-audit   | `kannon.audit.*` | 7 days  | `audit.ConfigureStream`, called by the API and the audit worker |
 
-All three use the limits retention policy, file storage and discard-old. A max age is a buffer for a consumer that is down, kept far below the retention of the table the consumer writes, so there are not two archives with two expiries. The stats stream's max age (`stats.StreamMaxAge`) is also the longest a stored stat event can be redelivered.
+All three use the limits retention policy, file storage and discard-old. A max age is a buffer for a consumer that is down, kept far below the retention of the table the consumer writes, so there are not two archives with two expiries. The stats stream's max age (`stats.StreamMaxAge`) is also the longest a stored stat event can be redelivered, which is what lets the aggregate counter's deduplication markers (`counted_stat_events`) be pruned a day after it (`stats.CountedEventRetention`).
 
 `provisionEmbeddedJetStreams` pre-creates only `kannon-sending` under embedded NATS, so that the SMTPSender can subscribe before the Dispatcher has configured it; the Dispatcher then applies the limits. `kannon-stats` and `kannon-audit` are deliberately absent from it: a stream created there would be a second, unbounded definition of what their `ConfigureStream` holds.
 

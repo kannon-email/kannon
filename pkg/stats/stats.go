@@ -128,13 +128,19 @@ func (h *statsHandler) cleanupCycle(ctx context.Context) error {
 		return err
 	}
 
+	deletedMarkers, err := h.q.PruneCountedStatEvents(ctx, time.Now())
+	if err != nil {
+		return err
+	}
+
 	deletedKeys, err := h.q.DeleteExpiredStatsKeys(ctx)
 	if err != nil {
 		return err
 	}
 
-	if deletedStats > 0 || deletedAggregated > 0 || deletedKeys > 0 {
-		slog.Info(fmt.Sprintf("stats cleanup: deleted %d stats, %d aggregated counters and %d expired keys", deletedStats, deletedAggregated, deletedKeys))
+	if deletedStats > 0 || deletedAggregated > 0 || deletedMarkers > 0 || deletedKeys > 0 {
+		slog.Info(fmt.Sprintf("stats cleanup: deleted %d stats, %d aggregated counters, %d counting markers and %d expired keys",
+			deletedStats, deletedAggregated, deletedMarkers, deletedKeys))
 	}
 
 	return nil

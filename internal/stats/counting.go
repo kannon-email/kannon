@@ -20,6 +20,12 @@ type StoredEventID struct {
 	Sequence uint64
 }
 
+// CountedEventRetention is how long a counting marker is kept after the event it names was stored:
+// the stats stream's max age, after which the event can no longer be redelivered, plus a day. The
+// margin covers the stored time being stamped by the NATS server's clock and the cutoff computed on
+// the worker's, so a skew between them cannot drop a marker while its event is still redeliverable.
+const CountedEventRetention = StreamMaxAge + 24*time.Hour
+
 // ErrInvalidStoredEventID prevents counting without a stable delivery identity.
 var ErrInvalidStoredEventID = errors.New("invalid stored stat event identity")
 
@@ -35,7 +41,7 @@ func (id StoredEventID) Validate() error {
 // Domain's UTC hourly counter once. A duplicate succeeds without incrementing;
 // a failed write leaves the event retryable. Distinct stored events always count
 // independently, even if their complete payloads match. Implementations retain
-// markers for the entire replay window (currently unbounded for kannon-stats).
+// markers for CountedEventRetention, which outlasts the stream's replay window.
 // This is a trusted worker write, with the same authority as InsertStat.
 type AggregatedEventCounter interface {
 	Count(ctx context.Context, id StoredEventID, domain values.DomainName, timestamp time.Time, statType Type) error

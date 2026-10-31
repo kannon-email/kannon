@@ -17,7 +17,7 @@ const (
 
 // StreamMaxAge is how long a stat event stays on the stream: a buffer for consumers that are down
 // over a weekend, not an archive — the database is. It is also the longest a stored event can still
-// be redelivered.
+// be redelivered, which is what bounds how long a counting marker is kept (CountedEventRetention).
 const StreamMaxAge = 7 * 24 * time.Hour
 
 // ConfigureStream ensures the stats stream exists. The one place this stream's configuration is
