@@ -164,21 +164,21 @@ PRs are squash-merged, therefore **the PR title is the commit message that ends 
 
 ## Continuous Integration (CI)
 
-- All PRs are automatically tested via GitHub Actions.
+- PRs with code or configuration changes are automatically tested via GitHub Actions.
+- Changes limited to Markdown (`**/*.md`) and `docs/**` skip the main CI pipeline on PRs and pushes to `main`. Mixed documentation/code changes still run the full pipeline, and `v*` tags always run it. PR title validation and release automation remain active.
+- Do not require path-filtered CI checks in branch protection: GitHub leaves checks pending when their workflow is skipped.
 - PRs must pass all tests and linters before merging.
 
 ### CI Workflows
 
 The project uses several GitHub Actions workflows:
 
-- **`ci.yaml`**: Main CI pipeline that runs on all PRs and pushes to `main`
+- **`ci.yaml`**: Main CI pipeline for PRs targeting `main`, pushes to `main`, and `v*` tags (with the documentation exclusions above)
   - **Unit Tests**: Runs `make test` with Go module caching for faster builds
   - **E2E Tests**: Runs `make test-e2e` in a separate job
-  - **Lint**: Runs non-mutating `make lint` (golangci-lint and deadcode) using the tooling pinned in `mise.toml`; required before Docker builds
-  - **Docker Build**: Builds and pushes Docker images with layer caching (only on `main` and tags)
+  - **Lint**: Runs cached golangci-lint (version kept in sync with `mise.toml`) and `make deadcode` once; required before Docker builds
+  - **Docker Build**: Builds Docker images with layer caching on PRs; authenticates and pushes only on `main` and tags
   - Includes concurrency management to cancel outdated builds
-
-- **`golang.yaml`**: Runs `golangci-lint` on all PRs with Go module caching
 
 - **`pr-title.yaml`**: Validates that the PR title (and the single commit of one-commit PRs) is a Conventional Commit, since that title becomes the squashed commit on `main`
 
@@ -191,6 +191,9 @@ The project uses several GitHub Actions workflows:
 ### Build Optimization
 
 - **Go module caching**: CI workflows cache `~/go/pkg/mod` and `~/.cache/go-build` to speed up builds
+- **Lint caching**: The golangci-lint action caches analysis results; lint and deadcode run only in the main pipeline
+- **Go version**: Test and lint jobs read the version from `go.mod`
+- **Timeouts**: Each CI job has a 15-minute limit to bound stalled runs
 - **Docker layer caching**: Docker builds use GitHub Actions cache for faster image builds
 - **Concurrency control**: Outdated builds are automatically cancelled when new commits are pushed
 
