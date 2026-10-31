@@ -2,14 +2,14 @@ package stats
 
 import (
 	"context"
-	"errors"
+	"github.com/kannon-email/kannon/internal/apperr"
 	"time"
 
 	"github.com/kannon-email/kannon/internal/authz"
 	"github.com/kannon-email/kannon/internal/values"
 )
 
-var ErrAggregateQuery = errors.New("invalid aggregate query")
+var ErrAggregateQuery = apperr.New(apperr.Malformed, "invalid_query_parameter", "invalid aggregate query")
 
 // AggregateBucket counts event occurrences in a complete half-open interval.
 type AggregateBucket struct {

@@ -6,12 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/kannon-email/kannon/internal/apikeys"
-	"github.com/kannon-email/kannon/internal/authz"
-	"github.com/kannon-email/kannon/internal/domains"
-	"github.com/kannon-email/kannon/internal/intake"
-	"github.com/kannon-email/kannon/internal/stats"
-	"github.com/kannon-email/kannon/internal/templates"
+	"github.com/kannon-email/kannon/internal/apperr"
 )
 
 // handler owns error responses. Operations write success only and must return
@@ -38,41 +33,26 @@ func problemError(status int, code string) *requestError {
 	return &requestError{status: status, code: code}
 }
 
+// statuses maps each application Kind to its REST status; the Code travels unchanged.
+var statuses = map[apperr.Kind]int{
+	apperr.Malformed: http.StatusBadRequest,
+	apperr.Invalid:   http.StatusUnprocessableEntity,
+	apperr.NotFound:  http.StatusNotFound,
+	apperr.Conflict:  http.StatusConflict,
+	apperr.Forbidden: http.StatusForbidden,
+}
+
 func errorProblem(err error) *requestError {
 	var request *requestError
-	var invalid *intake.InvalidRequest
-	switch {
-	case errors.As(err, &request):
+	if errors.As(err, &request) {
 		return request
-	case errors.Is(err, authz.ErrForbidden), errors.Is(err, authz.ErrNoPrincipal):
-		return problemError(403, "forbidden")
-	case errors.Is(err, apikeys.ErrInvalidRoles), errors.Is(err, apikeys.ErrInvalidName):
-		return problemError(422, "validation_failed")
-	case errors.Is(err, apikeys.ErrExpiryNotFuture):
-		return problemError(422, "expiry_not_future")
-	case errors.Is(err, templates.ErrTemplateNotFound), errors.Is(err, apikeys.ErrKeyNotFound), errors.Is(err, domains.ErrDomainNotFound), errors.Is(err, intake.ErrDeliveryNotFound), errors.Is(err, intake.ErrBatchNotFound):
-		return problemError(404, "not_found")
-	case errors.Is(err, domains.ErrDomainAlreadyExists):
-		return problemError(409, "domain_already_exists")
-	case errors.Is(err, intake.ErrIdempotencyConflict):
-		return problemError(409, "idempotency_conflict")
-	case errors.Is(err, intake.ErrIdempotencyInProgress):
-		return problemError(409, "idempotency_in_progress")
-	case errors.Is(err, intake.ErrScheduledAtNotFuture):
-		return problemError(422, "scheduled_at_not_future")
-	case errors.Is(err, intake.ErrDuplicateAttachmentFilename):
-		return problemError(422, "duplicate_attachment_filename")
-	case errors.Is(err, intake.ErrTooManyRecipients):
-		return problemError(422, "too_many_recipients")
-	case errors.Is(err, stats.ErrEventCursor):
-		return problemError(400, "invalid_cursor")
-	case errors.Is(err, stats.ErrEventQuery), errors.Is(err, stats.ErrAggregateQuery):
-		return problemError(400, "invalid_query_parameter")
-	case errors.As(err, &invalid):
-		return problemError(422, "validation_failed")
-	default:
-		return problemError(500, "internal_error")
 	}
+	if e, ok := apperr.As(err); ok {
+		if status, ok := statuses[e.Kind]; ok {
+			return problemError(status, e.Code)
+		}
+	}
+	return problemError(http.StatusInternalServerError, "internal_error")
 }
 
 func writeError(w http.ResponseWriter, err error) {

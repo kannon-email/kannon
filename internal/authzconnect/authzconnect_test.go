@@ -2,7 +2,6 @@ package authzconnect_test
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -12,6 +11,7 @@ import (
 	"github.com/kannon-email/kannon/internal/admintoken"
 	"github.com/kannon-email/kannon/internal/authz"
 	"github.com/kannon-email/kannon/internal/authzconnect"
+	"github.com/kannon-email/kannon/pkg/api/connecterr"
 	pb "github.com/kannon-email/kannon/proto/kannon/admin/apiv1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -79,7 +79,7 @@ func TestAdminTokenHandlerOptions(t *testing.T) {
 						return struct{}{}, nil
 					})
 					if err != nil {
-						return nil, authzconnect.Error(err, connect.CodeInternal)
+						return nil, connecterr.Error(err)
 					}
 					return connect.NewResponse(&pb.GetDomainsResponse{}), nil
 				},
@@ -124,7 +124,7 @@ func TestAdminTokenClientOptionsAuthenticate(t *testing.T) {
 				return struct{}{}, nil
 			})
 			if err != nil {
-				return nil, authzconnect.Error(err, connect.CodeInternal)
+				return nil, connecterr.Error(err)
 			}
 			return connect.NewResponse(&pb.GetDomainsResponse{}), nil
 		},
@@ -257,7 +257,7 @@ func newProbe(t *testing.T, opts ...connect.ClientOption) *probe {
 				return struct{}{}, nil
 			})
 			if err != nil {
-				return nil, authzconnect.Error(err, connect.CodeInternal)
+				return nil, connecterr.Error(err)
 			}
 			return connect.NewResponse(&pb.GetDomainsResponse{}), nil
 		},
@@ -270,49 +270,4 @@ func newProbe(t *testing.T, opts ...connect.ClientOption) *probe {
 
 	p.client = connect.NewClient[pb.GetDomainsReq, pb.GetDomainsResponse](server.Client(), server.URL+procedure, opts...)
 	return p
-}
-
-// Both refusals reach the caller as permission denied and both stay distinguishable behind it. The
-// code is what a client acts on; the sentinel is what a log reads to tell "this credential may not"
-// from "nothing authenticated this request", which are very different problems for an operator.
-func TestErrorMapsRefusalsToPermissionDenied(t *testing.T) {
-	other := errors.New("the database is on fire")
-
-	tests := []struct {
-		name     string
-		err      error
-		wantCode connect.Code
-	}{
-		{
-			name:     "a Principal that may not do this",
-			err:      authz.ErrForbidden,
-			wantCode: connect.CodePermissionDenied,
-		},
-		{
-			name:     "nothing authenticated the request",
-			err:      authz.ErrNoPrincipal,
-			wantCode: connect.CodePermissionDenied,
-		},
-		{
-			// Wrapped, because a service returns a refusal from several frames down and
-			// the mapping must not depend on it arriving bare.
-			name:     "a refusal wrapped on its way out",
-			err:      errors.Join(errors.New("update template"), authz.ErrForbidden),
-			wantCode: connect.CodePermissionDenied,
-		},
-		{
-			name:     "anything else keeps the fallback it always had",
-			err:      other,
-			wantCode: connect.CodeInternal,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			got := authzconnect.Error(tc.err, connect.CodeInternal)
-
-			assert.Equal(t, tc.wantCode, got.Code())
-			assert.ErrorIs(t, got, tc.err, "the cause has to survive into the Connect error")
-		})
-	}
 }

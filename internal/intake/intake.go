@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/kannon-email/kannon/internal/apperr"
 	"log/slog"
 	"strings"
 	"time"
@@ -71,12 +72,9 @@ type RejectedRecipient struct {
 	Reason RejectionReason
 }
 
-// InvalidRequest distinguishes request faults from persistence failures.
-type InvalidRequest struct{ Err error }
-
-func (e *InvalidRequest) Error() string { return e.Err.Error() }
-func (e *InvalidRequest) Unwrap() error { return e.Err }
-func invalid(err error) error           { return &InvalidRequest{Err: err} }
+// invalid distinguishes request faults from persistence failures. The cause stays
+// in the message for logs and the legacy API; its public code never names it.
+func invalid(err error) error { return apperr.Wrap(apperr.Invalid, "validation_failed", err) }
 
 // SenderNotAuthorized describes a refused sending operation without requiring a
 // transport to re-evaluate the sender relationship. It retains the Guard error

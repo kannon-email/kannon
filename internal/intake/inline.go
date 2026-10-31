@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"github.com/kannon-email/kannon/internal/apperr"
 	"net/mail"
 	"strings"
 	"time"
@@ -22,12 +23,12 @@ import (
 )
 
 var (
-	ErrScheduledAtNotFuture        = errors.New("scheduled_at_not_future")
-	ErrDuplicateAttachmentFilename = errors.New("duplicate_attachment_filename")
-	ErrTooManyRecipients           = errors.New("too_many_recipients")
-	ErrIdempotencyConflict         = errors.New("idempotency_conflict")
-	ErrIdempotencyInProgress       = errors.New("idempotency_in_progress")
-	ErrNoRecipientsAccepted        = errors.New("no_recipients_accepted")
+	ErrScheduledAtNotFuture        = apperr.New(apperr.Invalid, "scheduled_at_not_future", "")
+	ErrDuplicateAttachmentFilename = apperr.New(apperr.Invalid, "duplicate_attachment_filename", "")
+	ErrTooManyRecipients           = apperr.New(apperr.Invalid, "too_many_recipients", "")
+	ErrIdempotencyConflict         = apperr.New(apperr.Conflict, "idempotency_conflict", "")
+	ErrIdempotencyInProgress       = apperr.New(apperr.Conflict, "idempotency_in_progress", "")
+	ErrNoRecipientsAccepted        = apperr.New(apperr.Invalid, "no_recipients_accepted", "")
 )
 
 // Attachment is one named file supplied with a Batch.

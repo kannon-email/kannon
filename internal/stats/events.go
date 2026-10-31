@@ -5,7 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
+	"github.com/kannon-email/kannon/internal/apperr"
 	"slices"
 	"sort"
 	"time"
@@ -14,8 +14,8 @@ import (
 	"github.com/kannon-email/kannon/internal/values"
 )
 
-var ErrEventQuery = errors.New("invalid event query")
-var ErrEventCursor = errors.New("invalid event cursor")
+var ErrEventQuery = apperr.New(apperr.Malformed, "invalid_query_parameter", "invalid event query")
+var ErrEventCursor = apperr.New(apperr.Malformed, "invalid_cursor", "invalid event cursor")
 
 // EventQuery selects retained public outcomes with a half-open interval.
 type EventQuery struct {

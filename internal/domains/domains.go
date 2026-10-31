@@ -4,7 +4,7 @@
 package domains
 
 import (
-	"errors"
+	"github.com/kannon-email/kannon/internal/apperr"
 	"time"
 
 	"github.com/kannon-email/kannon/internal/dkim"
@@ -14,8 +14,8 @@ import (
 
 // Domain errors.
 var (
-	ErrDomainAlreadyExists = errors.New("domain already exists")
-	ErrDomainNotFound      = errors.New("domain not found")
+	ErrDomainAlreadyExists = apperr.New(apperr.Conflict, "domain_already_exists", "domain already exists")
+	ErrDomainNotFound      = apperr.New(apperr.NotFound, "not_found", "domain not found")
 )
 
 // Domain is the SenderDomain entity: a sender-tenant identified by its domain

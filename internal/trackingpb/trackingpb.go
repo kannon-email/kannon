@@ -5,8 +5,8 @@
 package trackingpb
 
 import (
-	"errors"
 	"fmt"
+	"github.com/kannon-email/kannon/internal/apperr"
 
 	"github.com/kannon-email/kannon/internal/tracking"
 	pb "github.com/kannon-email/kannon/proto/kannon/tracking/types"
@@ -14,7 +14,7 @@ import (
 
 // ErrUnknownMode is returned for a wire value this build does not know, which
 // normally means a client built against a newer schema.
-var ErrUnknownMode = errors.New("unknown tracking mode")
+var ErrUnknownMode = apperr.New(apperr.Invalid, "validation_failed", "unknown tracking mode")
 
 // wireModes maps every wire value this build knows to its domain Mode.
 var wireModes = map[pb.TrackingMode]tracking.Mode{

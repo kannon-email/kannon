@@ -3,14 +3,14 @@
 // with no deny rules. Can is pure; nothing here parses a path or normalises (ADR 0008).
 package authz
 
-import "errors"
+import "github.com/kannon-email/kannon/internal/apperr"
 
 // Errors returned by Require and Guard. Both surface as permission denied, but are
 // distinguished so that a log can tell "this credential may not do this" from "nothing
 // authenticated this request at all", which are very different operational problems.
 var (
-	ErrForbidden   = errors.New("forbidden")
-	ErrNoPrincipal = errors.New("no principal in context")
+	ErrForbidden   = apperr.New(apperr.Forbidden, "forbidden", "forbidden")
+	ErrNoPrincipal = apperr.New(apperr.Forbidden, "forbidden", "no principal in context")
 )
 
 // Can reports whether p may perform a on r. Role names expand into rules here, at the check,
