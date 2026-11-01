@@ -126,7 +126,7 @@ func run(ctx context.Context, config Config, cnt *container.Container) error {
 	// this point asks the configuration layer what authority a request has.
 	adminAuth := authzconnect.AdminTokenHandlerOptions(adminToken)
 
-	return startAPIServer(ctx, port, adminAuth, recorder, adminAPIService, mailAPIService, statsAPIService, statsV2APIService, hzAPIService, rest.NewHandler(rest.Services{
+	return startAPIServer(ctx, port, connectReadMaxBytes(config.MaxPayload), adminAuth, recorder, adminAPIService, mailAPIService, statsAPIService, statsV2APIService, hzAPIService, rest.NewHandler(rest.Services{
 		Domains: domains.NewService(sq.NewDomainsRepository(db)),
 		Token:   adminToken,
 		Ready: func(ctx context.Context) error {
@@ -223,27 +223,24 @@ func withRecorder(r authz.Recorder, next http.Handler) http.Handler {
 	})
 }
 
-// startAPIServer mounts every handler. adminAuth authenticates the three surfaces that answer to
-// the operator's admin token. The mailer handler must never get it — it authenticates its own
-// sender credential — and neither must health, which discloses nothing and is polled unauthenticated.
-func startAPIServer(ctx context.Context, port uint, adminAuth []connect.HandlerOption, recorder authz.Recorder, adminServer adminv1connect.ApiHandler, mailerServer mailerv1connect.MailerHandler, statsServer statsv1connect.StatsApiV1Handler, statsV2Server statsv2connect.StatsApiV2Handler, hzServer adminv1connect.HZServiceHandler, restHandlers ...http.Handler) error {
+// connectReadHeadroom is what a Connect request may carry beyond the content intake measures
+// against max_payload: Recipients and their fields, global fields, headers and framing, none of
+// which that check counts. 10MiB, the same as a REST body may be.
+const connectReadHeadroom = 10 << 20
+
+// connectReadMaxBytes bounds the Connect request a handler will read, decompressed. connect-go reads
+// and decodes the whole body before any interceptor or handler runs — before the admin token or the
+// sender credential is checked — so without it anyone can make this process allocate without limit,
+// and a gzip-compressed body gets past a proxy's cap. Derived from max_payload rather than fixed, so
+// a deployment that raises the content it accepts does not find it refused at the transport.
+func connectReadMaxBytes(maxPayload config.ByteSize) int {
+	return int(maxPayload) + connectReadHeadroom
+}
+
+// startAPIServer mounts every handler and serves them until ctx is done.
+func startAPIServer(ctx context.Context, port uint, readMaxBytes int, adminAuth []connect.HandlerOption, recorder authz.Recorder, adminServer adminv1connect.ApiHandler, mailerServer mailerv1connect.MailerHandler, statsServer statsv1connect.StatsApiV1Handler, statsV2Server statsv2connect.StatsApiV2Handler, hzServer adminv1connect.HZServiceHandler, restHandlers ...http.Handler) error {
 	addr := fmt.Sprintf("0.0.0.0:%d", port)
-	mux := http.NewServeMux()
-
-	adminPath, adminHandler := adminv1connect.NewApiHandler(adminServer, adminAuth...)
-	mailerPath, mailerHandler := mailerv1connect.NewMailerHandler(mailerServer)
-	statsPath, statsHandler := statsv1connect.NewStatsApiV1Handler(statsServer, adminAuth...)
-	statsV2Path, statsV2Handler := statsv2connect.NewStatsApiV2Handler(statsV2Server, adminAuth...)
-	hzPath, hzHandler := adminv1connect.NewHZServiceHandler(hzServer)
-
-	mux.Handle(adminPath, adminHandler)
-	mux.Handle(mailerPath, mailerHandler)
-	mux.Handle(statsPath, statsHandler)
-	mux.Handle(statsV2Path, statsV2Handler)
-	mux.Handle(hzPath, hzHandler)
-	for _, handler := range restHandlers {
-		mux.Handle("/v1beta1/", handler)
-	}
+	mux := newAPIMux(readMaxBytes, adminAuth, adminServer, mailerServer, statsServer, statsV2Server, hzServer, restHandlers...)
 
 	protocols := new(http.Protocols)
 	protocols.SetHTTP1(true)
@@ -259,4 +256,31 @@ func startAPIServer(ctx context.Context, port uint, adminAuth []connect.HandlerO
 	}
 	slog.Info("Connect API server listening on " + addr)
 	return container.ServeHTTP(ctx, server)
+}
+
+// newAPIMux routes every handler. readMaxBytes bounds every Connect handler, the unauthenticated
+// ones included. adminAuth authenticates the three surfaces that answer to the operator's admin
+// token. The mailer handler must never get it — it authenticates its own sender credential — and
+// neither must health, which discloses nothing and is polled unauthenticated.
+func newAPIMux(readMaxBytes int, adminAuth []connect.HandlerOption, adminServer adminv1connect.ApiHandler, mailerServer mailerv1connect.MailerHandler, statsServer statsv1connect.StatsApiV1Handler, statsV2Server statsv2connect.StatsApiV2Handler, hzServer adminv1connect.HZServiceHandler, restHandlers ...http.Handler) *http.ServeMux {
+	mux := http.NewServeMux()
+
+	limit := connect.WithReadMaxBytes(readMaxBytes)
+	admin := append([]connect.HandlerOption{limit}, adminAuth...)
+
+	adminPath, adminHandler := adminv1connect.NewApiHandler(adminServer, admin...)
+	mailerPath, mailerHandler := mailerv1connect.NewMailerHandler(mailerServer, limit)
+	statsPath, statsHandler := statsv1connect.NewStatsApiV1Handler(statsServer, admin...)
+	statsV2Path, statsV2Handler := statsv2connect.NewStatsApiV2Handler(statsV2Server, admin...)
+	hzPath, hzHandler := adminv1connect.NewHZServiceHandler(hzServer, limit)
+
+	mux.Handle(adminPath, adminHandler)
+	mux.Handle(mailerPath, mailerHandler)
+	mux.Handle(statsPath, statsHandler)
+	mux.Handle(statsV2Path, statsV2Handler)
+	mux.Handle(hzPath, hzHandler)
+	for _, handler := range restHandlers {
+		mux.Handle("/v1beta1/", handler)
+	}
+	return mux
 }
