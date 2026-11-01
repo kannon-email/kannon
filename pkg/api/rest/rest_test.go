@@ -48,6 +48,22 @@ func TestPublicReadiness(t *testing.T) {
 	}
 }
 
+func TestPublicContract(t *testing.T) {
+	h := rest.NewHandler(rest.Services{Token: admintoken.MustParse("secret")})
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/v1beta1/openapi.yaml", nil))
+	if w.Code != 200 || w.Header().Get("Content-Type") != "application/yaml" {
+		t.Fatalf("status %d content type %q", w.Code, w.Header().Get("Content-Type"))
+	}
+	want, err := os.ReadFile("openapi.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w.Body.String() != string(want) {
+		t.Fatal("served contract differs from openapi.yaml")
+	}
+}
+
 func TestAuthenticationAndInvalidRequests(t *testing.T) {
 	h := rest.NewHandler(rest.Services{Token: admintoken.MustParse("secret")})
 	for _, tc := range []struct {

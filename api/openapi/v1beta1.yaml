@@ -2,9 +2,8 @@ openapi: 3.1.1
 info:
   title: Kannon REST API
   version: v1beta1
-  description: APPROVED DESIGN CONTRACT; NOT YET IMPLEMENTED. Accepted in Q46. Decisions are recorded in docs/rest-api-design.md.
-    REST adapters own generated wire types; domain/application interfaces own independent types. Existing API Keys
-    remain in api_keys without data migration or reissuance.
+  description: Versioned REST contract of Kannon. Authenticate with the configured Admin Token or a Domain API Key as a
+    Bearer token. Decisions are recorded in docs/rest-api-design.md.
 servers:
 - url: /v1beta1
 security:

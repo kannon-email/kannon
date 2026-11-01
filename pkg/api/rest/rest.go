@@ -55,6 +55,7 @@ func NewHandler(s Services) http.Handler {
 		writeJSON(w, 200, map[string]string{statusKey: "ready"})
 		return nil
 	}))
+	mux.HandleFunc("GET /v1beta1/openapi.yaml", serveContract)
 	protected := http.NewServeMux()
 	if s.Inline != nil {
 		registerBatches(protected, s.Inline)
