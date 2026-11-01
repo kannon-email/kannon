@@ -20,7 +20,7 @@ package dispatcher
 //     published by later healthy cycles — zero silent loss.
 //
 // The DB latency spike is injected at the seam the builder already exposes
-// (envelope.NewBuilderWith): gateSource serves the first `free` calls
+// (envelope.NewBuilder): gateSource serves the first `free` calls
 // instantly, then blocks until its context dies.
 
 import (
@@ -204,7 +204,7 @@ func TestDispatchCycle_BudgetDeathMidPage_NoDeliveryLost(t *testing.T) {
 	pub := &recordingPublisher{}
 	d := &disp{
 		claimer: claimer,
-		eb:      envelope.NewBuilderWith(src, noopTokens{}, returnpath.MustParse(strings.Repeat("s", returnpath.MinSecretLength)), 0),
+		eb:      envelope.NewBuilder(src, noopTokens{}, returnpath.MustParse(strings.Repeat("s", returnpath.MinSecretLength)), 0),
 		pub:     pub,
 	}
 

@@ -29,13 +29,11 @@ func New(cnt *container.Container) container.Runnable {
 }
 
 func run(ctx context.Context, cnt *container.Container, rp returnpath.Signer, ready func()) error {
-	q := cnt.Queries()
-
-	ss := statssec.NewStatsService(q)
+	ss := statssec.NewStatsService(cnt.StatsKeys())
 	claimer := pool.NewClaimer(sqlc.NewDeliveryRepository(cnt.DB(), cnt.BackoffPolicy(), cnt.RetryWindow()))
 	// An Envelope travels as one NATS message, so the server's limit for one is
 	// the most content a Delivery can be built with.
-	eb := envelope.NewBuilder(q, ss, rp, int(cnt.Nats().MaxPayload()))
+	eb := envelope.NewBuilder(sqlc.NewSendingDataSource(cnt.DB()), ss, rp, int(cnt.Nats().MaxPayload()))
 
 	js := cnt.NatsJetStream()
 

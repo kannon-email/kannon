@@ -43,7 +43,7 @@ func TestDispatchCycle_MissingTemplate_ReschedulesThenPublishesOnceCreated(t *te
 	pub := &subjectPublisher{}
 	d := &disp{
 		claimer: claimer,
-		eb:      envelope.NewBuilder(q, statssec.NewStatsService(q), returnpath.MustParse(strings.Repeat("s", returnpath.MinSecretLength)), 0),
+		eb:      envelope.NewBuilder(sqlc.NewSendingDataSource(testDB), statssec.NewStatsService(statssec.NewInMemKeyRepository()), returnpath.MustParse(strings.Repeat("s", returnpath.MinSecretLength)), 0),
 		pub:     pub,
 	}
 

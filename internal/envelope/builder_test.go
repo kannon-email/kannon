@@ -145,7 +145,7 @@ func TestBuilderRendersSubjectFromAndTo(t *testing.T) {
 		SenderAlias:    "Test",
 		DkimPrivateKey: priv,
 	}}
-	b := envelope.NewBuilderWith(src, stubTokens{link: "ltok", open: "otok"}, testReturnPath, 0)
+	b := envelope.NewBuilder(src, stubTokens{link: "ltok", open: "otok"}, testReturnPath, 0)
 
 	d := mustDelivery(t, "rcpt@example.com", map[string]string{"name": "World"})
 	env, err := b.Build(t.Context(), d)
@@ -174,7 +174,7 @@ func TestBuilderSignsTheReturnPath(t *testing.T) {
 		SenderAlias:    "Test",
 		DkimPrivateKey: newDKIMKeys(t),
 	}}
-	b := envelope.NewBuilderWith(src, stubTokens{}, testReturnPath, 0)
+	b := envelope.NewBuilder(src, stubTokens{}, testReturnPath, 0)
 
 	env, err := b.Build(t.Context(), mustDelivery(t, "rcpt@example.com", nil))
 	require.NoError(t, err)
@@ -198,7 +198,7 @@ func TestBuilderInsertsTrackingPixelAndRewritesLinks(t *testing.T) {
 		SenderAlias:    "Test",
 		DkimPrivateKey: priv,
 	}}
-	b := envelope.NewBuilderWith(src, stubTokens{link: "LTOK", open: "OTOK"}, testReturnPath, 0)
+	b := envelope.NewBuilder(src, stubTokens{link: "LTOK", open: "OTOK"}, testReturnPath, 0)
 
 	d := mustDelivery(t, "rcpt@example.com", nil)
 	env, err := b.Build(t.Context(), d)
@@ -226,7 +226,7 @@ func TestBuilderHonoursFrozenTrackingPolicy(t *testing.T) {
 		SenderAlias:    "Test",
 		DkimPrivateKey: priv,
 	}}
-	b := envelope.NewBuilderWith(src, stubTokens{link: "LTOK", open: "OTOK"}, testReturnPath, 0)
+	b := envelope.NewBuilder(src, stubTokens{link: "LTOK", open: "OTOK"}, testReturnPath, 0)
 
 	cases := []struct {
 		name          string
@@ -311,7 +311,7 @@ func TestBuilderHonoursThePerLinkOptOut(t *testing.T) {
 		SenderAlias:    "Test",
 		DkimPrivateKey: priv,
 	}}
-	b := envelope.NewBuilderWith(src, stubTokens{link: "LTOK", open: "OTOK"}, testReturnPath, 0)
+	b := envelope.NewBuilder(src, stubTokens{link: "LTOK", open: "OTOK"}, testReturnPath, 0)
 
 	cases := []struct {
 		name          string
@@ -361,7 +361,7 @@ func TestBuilderMintsTokensCarryingTheFrozenMode(t *testing.T) {
 		SenderAlias:    "Test",
 		DkimPrivateKey: priv,
 	}}
-	b := envelope.NewBuilderWith(src, modeEchoTokens{}, testReturnPath, 0)
+	b := envelope.NewBuilder(src, modeEchoTokens{}, testReturnPath, 0)
 
 	d := mustDeliveryTracked(t, batch.ID("msg-1@test.com"), "rcpt@example.com", nil, tracking.Policy{
 		Opens: tracking.ModeFull,
@@ -458,7 +458,7 @@ func trackedBuilderWith(t *testing.T, tokens envelope.TokenIssuer, links ...stri
 	}
 	body.WriteString("</body></html>")
 
-	return envelope.NewBuilderWith(batchSource{data: envelope.SendingData{
+	return envelope.NewBuilder(batchSource{data: envelope.SendingData{
 		Subject:        "S",
 		HTML:           body.String(),
 		Domain:         "test.com",
@@ -569,7 +569,7 @@ func TestBuilderShouldRetryFollowsTheRetryBudget(t *testing.T) {
 		SenderAlias:    "Test",
 		DkimPrivateKey: priv,
 	}}
-	b := envelope.NewBuilderWith(src, stubTokens{}, testReturnPath, 0)
+	b := envelope.NewBuilder(src, stubTokens{}, testReturnPath, 0)
 
 	build := func(t *testing.T, attempts int) *envelope.Envelope {
 		t.Helper()
@@ -607,7 +607,7 @@ func TestBuilderCarriesTheUnsubscribeEndpoint(t *testing.T) {
 			URLTemplate: "https://sender.example/unsub?email={{ email }}",
 		},
 	}}
-	b := envelope.NewBuilderWith(src, stubTokens{link: "ltok", open: "otok"}, testReturnPath, 0)
+	b := envelope.NewBuilder(src, stubTokens{link: "ltok", open: "otok"}, testReturnPath, 0)
 
 	d := mustDelivery(t, "mario+rossi@example.com", nil)
 	env, err := b.Build(t.Context(), d)
@@ -638,7 +638,7 @@ func TestBuilderSignsAFixedHeaderSet(t *testing.T) {
 		SenderAlias:    "Test",
 		DkimPrivateKey: priv,
 	}}
-	b := envelope.NewBuilderWith(src, stubTokens{link: "ltok", open: "otok"}, testReturnPath, 0)
+	b := envelope.NewBuilder(src, stubTokens{link: "ltok", open: "otok"}, testReturnPath, 0)
 
 	// No Cc, Reply-To or unsubscribe on this message: they must still be signed.
 	d := mustDelivery(t, "rcpt@example.com", nil)
@@ -677,7 +677,7 @@ func TestBuilderRefusesContentPersonalisedPastThePayload(t *testing.T) {
 			SenderEmail:    "noreply@test.com",
 			DkimPrivateKey: priv,
 		}}
-		b := envelope.NewBuilderWith(src, stubTokens{}, testReturnPath, 1<<20)
+		b := envelope.NewBuilder(src, stubTokens{}, testReturnPath, 1<<20)
 
 		_, err := b.Build(t.Context(), mustDelivery(t, "rcpt@example.com", map[string]string{"a": strings.Repeat("x", 50_000)}))
 		require.ErrorIs(t, err, envelope.ErrContentTooLarge, "literal=%v", literal)
@@ -699,7 +699,7 @@ func TestBuilderCountsAttachmentsAgainstThePayload(t *testing.T) {
 		Attachments:    map[string][]byte{"a.pdf": make([]byte, 600)},
 	}}
 	// 600 raw bytes encode to 800, leaving 200 for the text.
-	b := envelope.NewBuilderWith(src, stubTokens{}, testReturnPath, 1000)
+	b := envelope.NewBuilder(src, stubTokens{}, testReturnPath, 1000)
 
 	_, err := b.Build(t.Context(), mustDelivery(t, "rcpt@example.com", map[string]string{"a": strings.Repeat("x", 192)}))
 	require.NoError(t, err)

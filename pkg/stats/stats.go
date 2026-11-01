@@ -12,6 +12,7 @@ import (
 	"github.com/kannon-email/kannon/internal/runner"
 	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/internal/statspb"
+	"github.com/kannon-email/kannon/internal/statssec"
 	"github.com/kannon-email/kannon/internal/tracking"
 	"github.com/kannon-email/kannon/internal/utils"
 	"github.com/kannon-email/kannon/internal/values"
@@ -45,6 +46,7 @@ type statsHandler struct {
 	js                  jetstream.JetStream
 	service             *stats.Service
 	q                   *sq.Queries
+	keys                statssec.KeyRepository
 	retention           time.Duration
 	aggregatedRetention time.Duration
 	counter             stats.AggregatedEventCounter
@@ -77,6 +79,7 @@ func run(ctx context.Context, cnt *container.Container, cfg Config, ready func()
 		js:                  js,
 		service:             service,
 		q:                   q,
+		keys:                cnt.StatsKeys(),
 		retention:           cfg.Retention,
 		aggregatedRetention: cfg.AggregatedRetention,
 		counter:             aggregatedRepo,
@@ -146,7 +149,7 @@ func (h *statsHandler) cleanupCycle(ctx context.Context) error {
 		return err
 	}
 
-	deletedKeys, err := h.q.DeleteExpiredStatsKeys(ctx)
+	deletedKeys, err := h.keys.DeleteExpired(ctx)
 	if err != nil {
 		return err
 	}
