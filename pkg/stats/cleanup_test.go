@@ -13,6 +13,7 @@ import (
 	"github.com/kannon-email/kannon/internal/intake"
 	"github.com/kannon-email/kannon/internal/runner"
 	"github.com/kannon-email/kannon/internal/stats"
+	"github.com/kannon-email/kannon/internal/statssec"
 	"github.com/kannon-email/kannon/internal/tests"
 	"github.com/kannon-email/kannon/internal/values"
 	"github.com/stretchr/testify/assert"
@@ -58,6 +59,7 @@ func newTestHandler() statsHandler {
 	return statsHandler{
 		service:             service,
 		q:                   q,
+		keys:                sq.NewStatsKeysRepository(db),
 		retention:           testRetention,
 		aggregatedRetention: testAggregatedRetention,
 		counter:             sq.NewAggregatedStatsRepository(db),
@@ -145,46 +147,22 @@ func TestCleanupCycle_DeletesExpiredStatsKeys(t *testing.T) {
 
 	ctx := t.Context()
 
-	// Insert an expired key
-	_, err := q.CreateStatsKeys(ctx, sq.CreateStatsKeysParams{
-		ID:         "expired-key",
-		PrivateKey: "priv",
-		PublicKey:  "pub",
-		ExpirationTime: pgtype.Timestamp{
-			Time:  time.Now().Add(-24 * time.Hour),
-			Valid: true,
-		},
-	})
-	require.NoError(t, err)
-
-	// Insert a valid key
-	_, err = q.CreateStatsKeys(ctx, sq.CreateStatsKeysParams{
-		ID:         "valid-key",
-		PrivateKey: "priv2",
-		PublicKey:  "pub2",
-		ExpirationTime: pgtype.Timestamp{
-			Time:  time.Now().Add(24 * time.Hour),
-			Valid: true,
-		},
-	})
-	require.NoError(t, err)
+	// What an expired key is, and that sweeping spares a valid one, is the KeyRepository's
+	// contract (RunKeyRepoSpec). Here the only question is whether the cycle sweeps at all.
+	keys := statssec.NewInMemKeyRepository()
+	require.NoError(t, keys.Create(ctx, statssec.Key{ID: "expired-key", ExpiresAt: time.Now().Add(-24 * time.Hour)}))
+	require.NoError(t, keys.Create(ctx, statssec.Key{ID: "valid-key", PublicKey: "pub2", ExpiresAt: time.Now().Add(24 * time.Hour)}))
 
 	h := newTestHandler()
+	h.keys = keys
 
-	err = runner.Run(ctx, h.cleanupCycle, runner.MaxLoop(1))
+	err := runner.Run(ctx, h.cleanupCycle, runner.MaxLoop(1))
 	require.NoError(t, err)
 
-	// Valid key should still exist
-	var validCount int
-	err = db.QueryRow(ctx, "SELECT COUNT(*) FROM stats_keys WHERE id = $1", "valid-key").Scan(&validCount)
+	assert.Equal(t, 1, keys.Len(), "the expired key should be swept and the valid one kept")
+	public, err := keys.PublicKey(ctx, "valid-key")
 	require.NoError(t, err)
-	assert.Equal(t, 1, validCount)
-
-	// Expired key should be deleted from the table
-	var expiredCount int
-	err = db.QueryRow(ctx, "SELECT COUNT(*) FROM stats_keys WHERE id = $1", "expired-key").Scan(&expiredCount)
-	require.NoError(t, err)
-	assert.Equal(t, 0, expiredCount)
+	assert.Equal(t, "pub2", public)
 }
 
 func TestCleanupCycle_NoRowsToDelete(t *testing.T) {

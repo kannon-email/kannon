@@ -25,11 +25,10 @@ func TestADispatchThatCannotBuildIsCountedAsABuildErrorAndItsSpentDeliveryAsFail
 
 	repo := sqlc.NewDeliveryRepository(testDB, delivery.DefaultBackoff, time.Nanosecond)
 	claimer := pool.NewClaimer(repo)
-	q := sqlc.New(testDB)
 	reg := prometheus.NewRegistry()
 	d := &disp{
 		claimer: claimer,
-		eb:      envelope.NewBuilder(q, statssec.NewStatsService(q), returnpath.MustParse(strings.Repeat("s", returnpath.MinSecretLength)), 0),
+		eb:      envelope.NewBuilder(sqlc.NewSendingDataSource(testDB), statssec.NewStatsService(statssec.NewInMemKeyRepository()), returnpath.MustParse(strings.Repeat("s", returnpath.MinSecretLength)), 0),
 		pub:     &subjectPublisher{},
 		flow:    mailflow.New(reg),
 	}

@@ -3,47 +3,17 @@ package statssec_test
 import (
 	"encoding/base64"
 	"encoding/json"
-	"log/slog"
 	"strings"
 	"testing"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-	schema "github.com/kannon-email/kannon/db"
-	sqlc "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/statssec"
-	"github.com/kannon-email/kannon/internal/tests"
 	"github.com/kannon-email/kannon/internal/tracking"
 	"github.com/stretchr/testify/assert"
 )
 
-var db *pgxpool.Pool
-var q *sqlc.Queries
-var s statssec.StatsService
-
-func TestMain(m *testing.M) {
-	tests.Main(func() int {
-		var purge tests.PurgeFunc
-		var err error
-
-		db, purge, err = tests.TestPostgresInit(schema.Schema)
-		if err != nil {
-			slog.Error("Could not start resource", "err", err)
-			return 1
-		}
-
-		q = sqlc.New(db)
-		s = statssec.NewStatsService(q)
-
-		code := m.Run()
-
-		if err := purge(); err != nil {
-			slog.Error("Could not purge resource", "err", err)
-			return 1
-		}
-
-		return code
-	})
-}
+// s signs against an in-memory key store: what is under test here is minting and verification,
+// and the store's own contract is checked by RunKeyRepoSpec against both implementations.
+var s = statssec.NewStatsService(statssec.NewInMemKeyRepository())
 
 func TestCreateOpenToken(t *testing.T) {
 	token, err := s.CreateOpenToken(t.Context(), "<xxxx/test@test.com>", "test@test.com", tracking.ModeIdentified)

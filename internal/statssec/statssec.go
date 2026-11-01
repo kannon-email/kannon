@@ -3,13 +3,11 @@ package statssec
 import (
 	"context"
 	"crypto/rsa"
-	"database/sql"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	sqlc "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/tracking"
 	"github.com/kannon-email/kannon/internal/utils"
 )
@@ -33,16 +31,18 @@ type StatsService interface {
 	VerifyLinkToken(ctx context.Context, token string) (*LinkClaims, error)
 }
 
-func NewStatsService(q *sqlc.Queries) StatsService {
+// NewStatsService returns the StatsService that signs with, and verifies against, the key pairs
+// keys stores. A signing key is minted on first use and whenever none would outlive a new token.
+func NewStatsService(keys KeyRepository) StatsService {
 	return &service{
-		q:   q,
-		now: time.Now,
+		keys: keys,
+		now:  time.Now,
 	}
 }
 
 type service struct {
-	q   *sqlc.Queries
-	now func() time.Time
+	keys KeyRepository
+	now  func() time.Time
 }
 
 func (s *service) CreateOpenToken(ctx context.Context, messageID string, identity string, mode tracking.Mode) (string, error) {
@@ -74,20 +74,20 @@ func (s *service) CreateLinkToken(ctx context.Context, messageID string, identit
 }
 
 func (s *service) VerifyOpenToken(ctx context.Context, token string) (*OpenClaims, error) {
-	return verifyOpenToken(ctx, token, s.q)
+	return verifyOpenToken(ctx, token, s.keys)
 }
 
 func (s *service) VerifyLinkToken(ctx context.Context, token string) (*LinkClaims, error) {
-	return verifyLinkToken(ctx, token, s.q)
+	return verifyLinkToken(ctx, token, s.keys)
 }
 
 func (s *service) getSignKeys(ctx context.Context) (*rsa.PrivateKey, string, error) {
 	privateKey, _, kid, err := s.getExistingSignKeys(ctx)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if err != nil && !errors.Is(err, ErrNoSigningKey) {
 		return nil, "", err
 	}
 
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, ErrNoSigningKey) {
 		privateKey, _, kid, err := s.generateNewKeyPairs(ctx)
 		if err != nil {
 			return nil, "", fmt.Errorf("cannot generate new keys: %w", err)
@@ -99,10 +99,7 @@ func (s *service) getSignKeys(ctx context.Context) (*rsa.PrivateKey, string, err
 }
 
 func (s *service) getExistingSignKeys(ctx context.Context) (*rsa.PrivateKey, *rsa.PublicKey, string, error) {
-	q := s.q
-
-	ts := sqlc.PgTimestampFromTime(s.now().Add(tokenExpirePeriod))
-	keys, err := q.GetValidStatsKeys(ctx, ts)
+	keys, err := s.keys.SigningKey(ctx, s.now().Add(tokenExpirePeriod))
 	if err != nil {
 		return nil, nil, "", err
 	}
@@ -121,8 +118,6 @@ func (s *service) getExistingSignKeys(ctx context.Context) (*rsa.PrivateKey, *rs
 }
 
 func (s *service) generateNewKeyPairs(ctx context.Context) (*rsa.PrivateKey, *rsa.PublicKey, string, error) {
-	q := s.q
-
 	privateKey, publicKey, err := generateKeyPair()
 	if err != nil {
 		return nil, nil, "", err
@@ -140,17 +135,15 @@ func (s *service) generateNewKeyPairs(ctx context.Context) (*rsa.PrivateKey, *rs
 
 	id := utils.NewID("key")
 
-	exp := sqlc.PgTimestampFromTime(s.now().Add(2 * tokenExpirePeriod))
-
-	netKeys, err := q.CreateStatsKeys(ctx, sqlc.CreateStatsKeysParams{
-		ID:             id,
-		PrivateKey:     pemPrivate,
-		PublicKey:      pemPublic,
-		ExpirationTime: exp,
+	err = s.keys.Create(ctx, Key{
+		ID:         id,
+		PrivateKey: pemPrivate,
+		PublicKey:  pemPublic,
+		ExpiresAt:  s.now().Add(2 * tokenExpirePeriod),
 	})
 	if err != nil {
 		return nil, nil, "", err
 	}
 
-	return privateKey, publicKey, netKeys.ID, nil
+	return privateKey, publicKey, id, nil
 }
