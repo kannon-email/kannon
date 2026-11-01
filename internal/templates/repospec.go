@@ -198,17 +198,26 @@ func testListAndCount(t *testing.T, repo Repository, helper RepoTestHelper) {
 			require.NoError(t, repo.Create(ctx, tpl))
 		}
 
+		// The offset listing pages through Templates in creation order.
+		titles := func(ts []*Template) []string {
+			out := make([]string, 0, len(ts))
+			for _, tpl := range ts {
+				out = append(out, tpl.Title())
+			}
+			return out
+		}
+
 		page1, err := repo.List(ctx, domain, Pagination{Skip: 0, Take: 2})
 		require.NoError(t, err)
-		assert.Len(t, page1, 2)
+		assert.Equal(t, []string{"t-0", "t-1"}, titles(page1))
 
 		page2, err := repo.List(ctx, domain, Pagination{Skip: 2, Take: 2})
 		require.NoError(t, err)
-		assert.Len(t, page2, 2)
+		assert.Equal(t, []string{"t-2", "t-3"}, titles(page2))
 
 		page3, err := repo.List(ctx, domain, Pagination{Skip: 4, Take: 2})
 		require.NoError(t, err)
-		assert.Len(t, page3, 1)
+		assert.Equal(t, []string{"t-4"}, titles(page3))
 	})
 
 	t.Run("Keyset", func(t *testing.T) {
