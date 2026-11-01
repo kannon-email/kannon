@@ -39,7 +39,7 @@ func TestBuilderWritesTheStatedReplyTo(t *testing.T) {
 
 	assert.Equal(t, `"The Maintainer" <maintainer@elsewhere.example>`, parsed.Header.Get("Reply-To"))
 	// Reply-To redirects replies; it does not change who the message is from.
-	assert.Equal(t, "Test <noreply@test.com>", parsed.Header.Get("From"))
+	assert.Equal(t, `"Test" <noreply@test.com>`, parsed.Header.Get("From"))
 }
 
 func TestBuilderWritesAReplyToWithoutAlias(t *testing.T) {

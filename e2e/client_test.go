@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
+	"net/mail"
 	"testing"
 	"time"
 
@@ -51,10 +52,10 @@ func (c *clientTest) Sender() *mailertypes.Sender {
 	}
 }
 
-// SenderFrom returns the RFC-5322 "Alias <addr>" rendering of Sender(),
+// SenderFrom returns the RFC 5322 `"Alias" <addr>` rendering of Sender(),
 // matching what the SMTP layer puts in the From header.
 func (c *clientTest) SenderFrom() string {
-	return fmt.Sprintf("%s <sender@%s>", defaultSenderAlias, c.domain)
+	return (&mail.Address{Name: defaultSenderAlias, Address: "sender@" + c.domain}).String()
 }
 
 // SetTrackingPolicy configures the Tracking Policy of the client's Domain
