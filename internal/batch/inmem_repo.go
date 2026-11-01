@@ -61,6 +61,7 @@ func copyBatch(b *Batch) *Batch {
 		TemplateID:          b.TemplateID(),
 		Attachments:         attachments,
 		OneClickUnsubscribe: b.OneClickUnsubscribe(),
+		ReplyTo:             b.ReplyTo(),
 		Tracking:            b.TrackingPolicy(),
 	})
 }
