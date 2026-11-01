@@ -5,6 +5,24 @@ releases that change behaviour of an installation already in production appear
 here; everything else is in [`CHANGELOG.md`](../CHANGELOG.md), which is
 generated from commits.
 
+## Unreleased — Reply-To on REST Batches
+
+### What changes
+
+A REST Batch may state `reply_to: {email, name}`, written into the `Reply-To`
+header of its messages. See the [README](../README.md#reply-to).
+
+Mail that states none changes too: **Kannon no longer writes a `Reply-To`
+equal to the Sender**. Every message, from either API, used to carry one. It
+said nothing, because a mail client with no `Reply-To` replies to `From` (RFC
+5322 §3.6.2), so replies keep going where they went before. A message now
+carries `Reply-To` only when its Batch asked for one.
+
+### What you have to do
+
+Nothing, unless something downstream of Kannon looks for a `Reply-To` header
+on every message. If so, state `reply_to` on your REST Batches.
+
 ## Unreleased — Retention for every table and stream
 
 ### What changes

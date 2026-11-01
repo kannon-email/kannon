@@ -133,6 +133,34 @@ func TestInlineBatchRetry(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, verified, 1)
 	require.NoError(t, verified[0].Err)
+	_, hasReplyTo := parsed.Header["Reply-To"]
+	require.False(t, hasReplyTo, "a Batch stating no reply_to emits no Reply-To")
+	require.NotContains(t, readBatch(fmt.Sprint(u["id"])), "reply_to")
+
+	replyTo := call(path, "reply-to", strings.TrimSuffix(body, "}")+`,"tracking":{"opens":"off","links":"off"},"reply_to":{"email":"maintainer@elsewhere.example","name":"The Maintainer"}}`, 201)
+	require.Equal(t, map[string]any{"email": "maintainer@elsewhere.example", "name": "The Maintainer"}, readBatch(fmt.Sprint(replyTo["id"]))["reply_to"])
+	rd, err := deliveryRepo.Get(t.Context(), batch.ID(fmt.Sprint(replyTo["id"])), "User+tag@example.com")
+	require.NoError(t, err)
+	replyMessage, err := envelope.NewBuilder(sqlc.New(db), nil, testReturnPath).Build(t.Context(), rd)
+	require.NoError(t, err)
+	replyParsed, err := mail.ReadMessage(strings.NewReader(string(replyMessage.Body())))
+	require.NoError(t, err)
+	require.Equal(t, `"The Maintainer" <maintainer@elsewhere.example>`, replyParsed.Header.Get("Reply-To"))
+	require.Equal(t, "<sender@example.com>", replyParsed.Header.Get("From"))
+	bare := call(path, "reply-to-bare", strings.TrimSuffix(body, "}")+`,"reply_to":{"email":"maintainer@elsewhere.example"}}`, 201)
+	require.Equal(t, map[string]any{"email": "maintainer@elsewhere.example"}, readBatch(fmt.Sprint(bare["id"]))["reply_to"])
+	// An address that does not parse fails like a from address that does not; the
+	// rest are well-formed JSON the contract refuses.
+	call(path, "reply-to-invalid", strings.TrimSuffix(body, "}")+`,"reply_to":{"email":"not-an-address"}}`, 400)
+	call(path, "reply-to-unknown", strings.TrimSuffix(body, "}")+`,"reply_to":{"email":"maintainer@elsewhere.example","to":"x"}}`, 400)
+	for key, extra := range map[string]string{
+		"reply-to-null":      `,"reply_to":null`,
+		"reply-to-no-email":  `,"reply_to":{"name":"The Maintainer"}}`,
+		"reply-to-empty":     `,"reply_to":{}}`,
+		"reply-to-injection": `,"reply_to":{"email":"maintainer@elsewhere.example","name":"M\r\nBcc: victim@example.com"}}`,
+	} {
+		require.Equal(t, "validation_failed", call(path, key, strings.TrimSuffix(body, "}")+strings.TrimSuffix(extra, "}")+"}", 422)["code"], key)
+	}
 	// Exercise REST intake through actual signed engagement tokens, with no DNS/network calls.
 	ss := statssec.NewStatsService(sqlc.New(db))
 	for _, mode := range []string{"anonymous", "pseudonymous"} {

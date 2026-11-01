@@ -103,6 +103,22 @@ func testCreate(t *testing.T, repo Repository, helper RepoTestHelper) {
 		fetched, err := repo.GetByID(ctx, b.ID())
 		require.NoError(t, err)
 		assert.True(t, fetched.OneClickUnsubscribe().IsZero())
+		assert.True(t, fetched.ReplyTo().IsZero(), "a Batch stating no Reply-To must read back as stating none")
+	})
+
+	t.Run("WithReplyTo", func(t *testing.T) {
+		ctx := t.Context()
+		domain := helper.CreateDomain(t)
+		tpl := helper.CreateTemplate(t, domain)
+
+		r := ReplyTo{Email: "maintainer@elsewhere.example", Alias: "The Maintainer"}
+		b, err := New(NewParams{Domain: domain, Subject: testSubject, Sender: Sender{Email: "noreply@" + domain, Alias: testSenderAlias}, TemplateID: tpl, ReplyTo: r})
+		require.NoError(t, err)
+		require.NoError(t, repo.Create(ctx, b))
+
+		fetched, err := repo.GetByID(ctx, b.ID())
+		require.NoError(t, err)
+		assert.Equal(t, r, fetched.ReplyTo())
 	})
 }
 

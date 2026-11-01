@@ -33,6 +33,9 @@ type SendingData struct {
 	// OneClickUnsubscribe is the sender's unsubscribe endpoint as stated for the
 	// Batch, zero when it stated none.
 	OneClickUnsubscribe batch.OneClickUnsubscribe
+	// ReplyTo is where the Batch asks replies to be sent, zero when it stated
+	// none.
+	ReplyTo batch.ReplyTo
 }
 
 // SendingDataSource looks up the rendering inputs for a Batch.
@@ -152,7 +155,7 @@ func (b *defaultBuilder) prepareMessage(ctx context.Context, d *delivery.Deliver
 	subject := render(data.Subject, fields)
 
 	sender := batch.Sender{Email: data.SenderEmail, Alias: data.SenderAlias}
-	h := buildHeaders(subject, sender, d.Email(), data.MessageID, emailMessageID, b.baseHeaders, data.Headers,
+	h := buildHeaders(subject, sender, data.ReplyTo, d.Email(), data.MessageID, emailMessageID, b.baseHeaders, data.Headers,
 		resolveUnsubscribeURL(data.OneClickUnsubscribe, fields))
 	return renderMsg(html, h, attachments)
 }
@@ -429,6 +432,7 @@ func (s sqlcSource) GetSendingData(ctx context.Context, batchID batch.ID) (Sendi
 			Cc: row.Headers.Cc,
 		},
 		OneClickUnsubscribe: unsubscribeFromRow(row.Headers),
+		ReplyTo:             replyToFromRow(row.Headers),
 	}, nil
 }
 
@@ -440,4 +444,14 @@ func unsubscribeFromRow(h sqlc.Headers) batch.OneClickUnsubscribe {
 		return batch.OneClickUnsubscribe{}
 	}
 	return batch.OneClickUnsubscribe{URLTemplate: h.OneClickUnsubscribe.URLTemplate}
+}
+
+// replyToFromRow reads the Batch's Reply-To out of the headers JSONB. A Batch
+// written before Reply-To could be stated has no such key, and is treated as
+// stating none.
+func replyToFromRow(h sqlc.Headers) batch.ReplyTo {
+	if h.ReplyTo == nil {
+		return batch.ReplyTo{}
+	}
+	return batch.ReplyTo{Email: h.ReplyTo.Email, Alias: h.ReplyTo.Alias}
 }

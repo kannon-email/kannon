@@ -176,7 +176,7 @@ func TestApprovedContract(t *testing.T) {
 			}
 		}
 	}
-	if contract.OpenAPI != "3.1.1" || operations != 21 || len(contract.Components.Schemas) != 48 {
+	if contract.OpenAPI != "3.1.1" || operations != 21 || len(contract.Components.Schemas) != 49 {
 		t.Fatalf("approved contract changed: version=%s operations=%d schemas=%d", contract.OpenAPI, operations, len(contract.Components.Schemas))
 	}
 }

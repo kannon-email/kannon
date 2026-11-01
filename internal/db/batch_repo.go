@@ -30,7 +30,7 @@ func (r *batchRepository) Create(ctx context.Context, b *batch.Batch) error {
 		TemplateID:  b.TemplateID(),
 		Domain:      b.Domain(),
 		Attachments: toSQLCAttachments(b.Attachments()),
-		Headers:     toSQLCHeaders(b.Headers(), b.OneClickUnsubscribe()),
+		Headers:     toSQLCHeaders(b.Headers(), b.OneClickUnsubscribe(), b.ReplyTo()),
 		Tracking:    b.TrackingPolicy(),
 	})
 	return err
@@ -61,6 +61,7 @@ func rowToBatch(row Message) *batch.Batch {
 		Attachments:         fromSQLCAttachments(row.Attachments),
 		Headers:             fromSQLCHeaders(row.Headers),
 		OneClickUnsubscribe: fromSQLCUnsubscribe(row.Headers),
+		ReplyTo:             fromSQLCReplyTo(row.Headers),
 		Tracking:            row.Tracking,
 	})
 }
@@ -87,13 +88,16 @@ func fromSQLCAttachments(a Attachments) batch.Attachments {
 	return out
 }
 
-// toSQLCHeaders folds both header-shaped statements of a Batch into the single
+// toSQLCHeaders folds every header-shaped statement of a Batch into the single
 // JSONB column that holds them. They are separate concepts in the domain but
 // share one column, so the mapping is the one place that knows it.
-func toSQLCHeaders(h batch.Headers, u batch.OneClickUnsubscribe) Headers {
+func toSQLCHeaders(h batch.Headers, u batch.OneClickUnsubscribe, r batch.ReplyTo) Headers {
 	out := Headers{To: h.To, Cc: h.Cc}
 	if !u.IsZero() {
 		out.OneClickUnsubscribe = &OneClickUnsubscribe{URLTemplate: u.URLTemplate}
+	}
+	if !r.IsZero() {
+		out.ReplyTo = &ReplyTo{Email: r.Email, Alias: r.Alias}
 	}
 	return out
 }
@@ -109,4 +113,13 @@ func fromSQLCUnsubscribe(h Headers) batch.OneClickUnsubscribe {
 		return batch.OneClickUnsubscribe{}
 	}
 	return batch.OneClickUnsubscribe{URLTemplate: h.OneClickUnsubscribe.URLTemplate}
+}
+
+// fromSQLCReplyTo returns the zero value for a Batch stored before the key
+// existed, which is the same thing as a Batch that states no Reply-To.
+func fromSQLCReplyTo(h Headers) batch.ReplyTo {
+	if h.ReplyTo == nil {
+		return batch.ReplyTo{}
+	}
+	return batch.ReplyTo{Email: h.ReplyTo.Email, Alias: h.ReplyTo.Alias}
 }

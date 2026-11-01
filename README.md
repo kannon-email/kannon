@@ -464,6 +464,26 @@ suppression list, and records nothing when a recipient uses it.
 State it per send: it is deliberately not a per-domain default, since an
 unsubscribe header does not belong on a password reset or a receipt.
 
+#### Reply-To
+
+A REST Batch (`POST /v1beta1/domains/{domain}/batches`) may state where replies
+should go, for mail sent from an address with no inbox behind it:
+
+```json
+{
+  "from": { "email": "noreply@yourdomain.com", "name": "Your App" },
+  "reply_to": { "email": "support@yourdomain.com", "name": "Support" }
+}
+```
+
+- It is written as given into the `Reply-To` header of every message of the
+  Batch; it is not personalised per recipient.
+- `email` is a bare address and `name` is optional. Unlike `from`, the address
+  need not belong to the sending Domain.
+- Without it no `Reply-To` header is written, and replies go to `from`. The
+  legacy Mailer API cannot state one.
+- `GET` on the Batch returns it as `reply_to`.
+
 #### Link tracking
 
 When the Tracking Policy governing a message allows link tracking, every `<a href="...">` in the HTML is rewritten into a `https://stats.<your-domain>/c/<token>` redirect that records the click and forwards the recipient to the original URL.

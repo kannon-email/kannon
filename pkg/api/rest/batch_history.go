@@ -39,6 +39,12 @@ func registerBatchHistory(mux *http.ServeMux, s *intake.InlineService) {
 		if !b.OneClickUnsubscribe.IsZero() {
 			out.OneClickUnsubscribe = &Unsubscribe{UrlTemplate: b.OneClickUnsubscribe.URLTemplate}
 		}
+		if r := b.ReplyTo; !r.IsZero() {
+			out.ReplyTo = &ReplyTo{Email: openapi_types.Email(r.Email)}
+			if r.Alias != "" {
+				out.ReplyTo.Name = &r.Alias
+			}
+		}
 		if b.SourceTemplateID != "" {
 			out.Content.SourceTemplateId = &b.SourceTemplateID
 		}

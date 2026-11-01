@@ -7,6 +7,7 @@ package batch
 import (
 	"errors"
 	"fmt"
+	"net/mail"
 	"net/url"
 	"strings"
 
@@ -76,6 +77,39 @@ func (u OneClickUnsubscribe) validate() error {
 	return nil
 }
 
+// ReplyTo is where a Batch asks replies to be sent, carried in the Reply-To
+// header (RFC 5322 §3.6.2). A sender writing from an address with no inbox
+// behind it names a mailbox that has one. Zero when the Batch states none, in
+// which case no Reply-To is emitted and replies go to the From address, which
+// is what a reader does without one.
+//
+// Like Sender it is literal: the address is written as given, never
+// personalised from a Recipient's fields.
+type ReplyTo struct {
+	Email string
+	Alias string
+}
+
+// IsZero reports whether the Batch states no Reply-To.
+func (r ReplyTo) IsZero() bool { return r.Email == "" && r.Alias == "" }
+
+// Validate requires a bare address (no display name or angle brackets in the
+// email itself) and a single-line alias, so neither can carry a header line of
+// its own into the message. A zero ReplyTo is valid: it states none.
+func (r ReplyTo) Validate() error {
+	if r.IsZero() {
+		return nil
+	}
+	if strings.ContainsAny(r.Email+r.Alias, "\r\n") {
+		return errors.New("reply-to must be a single line")
+	}
+	parsed, err := mail.ParseAddress(r.Email)
+	if err != nil || parsed.Address != r.Email {
+		return fmt.Errorf("reply-to email is not a valid address: %q", r.Email)
+	}
+	return nil
+}
+
 // Attachments maps a filename to its raw bytes.
 type Attachments map[string][]byte
 
@@ -91,6 +125,7 @@ type Batch struct {
 	attachments         Attachments
 	headers             Headers
 	oneClickUnsubscribe OneClickUnsubscribe
+	replyTo             ReplyTo
 	tracking            tracking.Policy
 }
 
@@ -105,6 +140,9 @@ type NewParams struct {
 	// OneClickUnsubscribe is the sender's own unsubscribe endpoint. Zero when
 	// the caller states none, in which case no unsubscribe header is emitted.
 	OneClickUnsubscribe OneClickUnsubscribe
+	// ReplyTo is where replies should go. Zero when the caller states none, in
+	// which case no Reply-To header is emitted.
+	ReplyTo ReplyTo
 	// Tracking is the Tracking Policy as the caller stated it for this Batch —
 	// persisted as provenance only (ADR 0003).
 	Tracking tracking.Policy
@@ -132,6 +170,9 @@ func New(p NewParams) (*Batch, error) {
 	if err := p.OneClickUnsubscribe.validate(); err != nil {
 		return nil, err
 	}
+	if err := p.ReplyTo.Validate(); err != nil {
+		return nil, err
+	}
 	return &Batch{
 		id:                  NewID(p.Domain),
 		subject:             p.Subject,
@@ -141,6 +182,7 @@ func New(p NewParams) (*Batch, error) {
 		attachments:         p.Attachments,
 		headers:             p.Headers,
 		oneClickUnsubscribe: p.OneClickUnsubscribe,
+		replyTo:             p.ReplyTo,
 		tracking:            p.Tracking,
 	}, nil
 }
@@ -155,6 +197,7 @@ type LoadParams struct {
 	Attachments         Attachments
 	Headers             Headers
 	OneClickUnsubscribe OneClickUnsubscribe
+	ReplyTo             ReplyTo
 	Tracking            tracking.Policy
 }
 
@@ -169,6 +212,7 @@ func Load(p LoadParams) *Batch {
 		attachments:         p.Attachments,
 		headers:             p.Headers,
 		oneClickUnsubscribe: p.OneClickUnsubscribe,
+		replyTo:             p.ReplyTo,
 		tracking:            p.Tracking,
 	}
 }
@@ -186,6 +230,9 @@ func (b *Batch) Headers() Headers         { return b.headers }
 // OneClickUnsubscribe is the sender's unsubscribe endpoint for this Batch, zero
 // when none was stated.
 func (b *Batch) OneClickUnsubscribe() OneClickUnsubscribe { return b.oneClickUnsubscribe }
+
+// ReplyTo is where replies to this Batch should go, zero when none was stated.
+func (b *Batch) ReplyTo() ReplyTo { return b.replyTo }
 
 // TrackingPolicy is the Tracking Policy as stated by the caller for this
 // Batch — not the resolved value that governs any Delivery. It participates

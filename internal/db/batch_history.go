@@ -56,6 +56,7 @@ func batchHistoryFromRow(row ReadInlineBatchRow) (*intake.BatchHistory, error) {
 	}
 	b.Headers = fromSQLCHeaders(row.Headers)
 	b.OneClickUnsubscribe = fromSQLCUnsubscribe(row.Headers)
+	b.ReplyTo = fromSQLCReplyTo(row.Headers)
 	return b, nil
 }
 func (s *inlineStore) ListDeliveries(ctx context.Context, d values.DomainName, id string, status intake.DeliveryStatus, page keyset.Page[string]) ([]intake.DeliveryHistory, error) {

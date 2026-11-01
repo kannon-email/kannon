@@ -115,7 +115,8 @@ Confirmed decisions:
    The payload uses `from: {email, name}` and a discriminated `content` object:
    either `{type: "html", html: ...}` or `{type: "template", template_id: ...}`.
    Recipients carry `email` and optional personalization `fields`. Scheduling,
-   tracking, attachments and one-click unsubscribe remain options of this request.
+   tracking, attachments and one-click unsubscribe remain options of this request,
+   as does `reply_to: {email, name}`, which only REST accepts.
 7. Intake accepts valid Recipients while reporting individual refusals with their
    original request index. If every Recipient is refused, the request returns an
    error and creates no Batch. A request-wide error prevents the entire send.

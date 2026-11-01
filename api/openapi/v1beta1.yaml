@@ -1028,6 +1028,20 @@ components:
       required:
       - email
       additionalProperties: false
+    ReplyTo:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          description: A bare address, without a display name; use name for that. Not restricted to the Domain.
+        name:
+          type: string
+      description: Where replies should go, emitted as the Reply-To header. Literal, not personalized. When omitted,
+        no Reply-To header is emitted and replies go to from.
+      required:
+      - email
+      additionalProperties: false
     Unsubscribe:
       type: object
       properties:
@@ -1154,6 +1168,8 @@ components:
           $ref: '#/components/schemas/TrackingOverride'
         one_click_unsubscribe:
           $ref: '#/components/schemas/Unsubscribe'
+        reply_to:
+          $ref: '#/components/schemas/ReplyTo'
       description: Maximum HTTP body 10 MiB including base64. Scheduling, tracking and personalization follow the
         documented domain rules.
       required:
@@ -1562,6 +1578,8 @@ components:
           $ref: '#/components/schemas/TrackingPolicy'
         one_click_unsubscribe:
           $ref: '#/components/schemas/Unsubscribe'
+        reply_to:
+          $ref: '#/components/schemas/ReplyTo'
         attachments:
           type: array
           items:
