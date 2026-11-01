@@ -20,6 +20,11 @@ func allocated(f func()) uint64 {
 	return after.TotalAlloc - before.TotalAlloc
 }
 
+// unrendered bounds what measuring or refusing an amplified body may allocate: far below the five
+// gigabytes rendering it would, and above what the race detector adds on top, since under -race
+// sync.Pool drops a quarter of what is put back and regexp allocates a fresh machine per match.
+const unrendered = 512 << 20
+
 // amplified is a body of well under a megabyte that renders to five gigabytes:
 // a hundred thousand placeholders against a fifty-kilobyte value.
 func amplified() (string, map[string]string) {
@@ -49,7 +54,7 @@ func TestLiteralFieldsSizeDoesNotRender(t *testing.T) {
 	var size int
 	bytes := allocated(func() { size = utils.LiteralFieldsSize(html, fields) })
 	require.Equal(t, 100_000*50_000, size)
-	require.Less(t, bytes, uint64(16<<20), "measuring must not build the rendered string")
+	require.Less(t, bytes, uint64(unrendered), "measuring must not build the rendered string")
 }
 
 func TestReplaceCustomFieldsWithinRendersLikeReplaceCustomFields(t *testing.T) {
@@ -92,7 +97,7 @@ func TestReplaceCustomFieldsWithinDoesNotRenderAnAmplification(t *testing.T) {
 	var ok bool
 	bytes := allocated(func() { _, ok = utils.ReplaceCustomFieldsWithin(html, fields, 500<<10) })
 	require.False(t, ok)
-	require.Less(t, bytes, uint64(64<<20), "refusing must not build the rendered string")
+	require.Less(t, bytes, uint64(unrendered), "refusing must not build the rendered string")
 }
 
 // `$0` expands to the whole placeholder, so a value of references multiplies

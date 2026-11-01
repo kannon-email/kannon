@@ -505,5 +505,7 @@ func TestDecideRecipientsDoesNotRenderAnAmplification(t *testing.T) {
 	_, refusals := decideRecipients(tracking.Policy{}, p.HTML, 500<<10, p)
 	runtime.ReadMemStats(&after)
 	require.Equal(t, []InlineRefusal{{Index: 0, Code: "message_too_large"}}, refusals)
-	require.Less(t, after.TotalAlloc-before.TotalAlloc, uint64(16<<20))
+	// Far below the five gigabytes a render would allocate, and above what -race adds, where
+	// sync.Pool drops a quarter of what is put back and regexp allocates a machine per match.
+	require.Less(t, after.TotalAlloc-before.TotalAlloc, uint64(512<<20))
 }
