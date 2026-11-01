@@ -2,9 +2,7 @@ package domains_test
 
 import (
 	"context"
-	"sort"
 	"testing"
-	"time"
 
 	"github.com/kannon-email/kannon/internal/authz"
 	"github.com/kannon-email/kannon/internal/domains"
@@ -132,7 +130,8 @@ func TestRefusedSetTrackingPolicyChangesNothing(t *testing.T) {
 	_, err := service.SetTrackingPolicy(ctx, homeDomain, tracking.Policy{Opens: tracking.ModeOff, Links: tracking.ModeOff})
 	assert.ErrorIs(t, err, authz.ErrForbidden)
 
-	unchanged := repo.byName[homeDomain]
+	unchanged, err := repo.InMemRepository.FindByName(context.Background(), homeDomain)
+	require.NoError(t, err)
 	assert.Equal(t, tracking.ModeIdentified, unchanged.TrackingPolicy().Opens)
 }
 
@@ -161,85 +160,48 @@ func TestServiceOperationsProduceWhatTheyUsedTo(t *testing.T) {
 	assert.Equal(t, tracking.ModeAnonymous, updated.TrackingPolicy().Opens)
 }
 
-// fakeRepo is an in-memory Repository for these tests. It counts how many times it
-// was reached, which is what distinguishes an operation that was refused from one
-// that ran and then failed.
-type fakeRepo struct {
-	byName  map[values.DomainName]*domains.Domain
+// countingRepo is the spec-checked in-memory Repository, counting how many times it was
+// reached. The count is what distinguishes an operation that was refused from one that ran
+// and then failed.
+type countingRepo struct {
+	*domains.InMemRepository
 	reached int
 }
 
-func seededRepo() *fakeRepo {
-	return &fakeRepo{
-		byName: map[values.DomainName]*domains.Domain{
-			homeDomain: domains.Load(domains.LoadParams{
-				ID:            1,
-				Domain:        homeDomain,
-				DkimPublicKey: "seeded-public-key",
-				CreatedAt:     time.Now(),
-				Tracking:      tracking.Policy{Opens: tracking.ModeIdentified, Links: tracking.ModeIdentified},
-			}),
-		},
-	}
-}
-
-func (r *fakeRepo) Create(_ context.Context, d *domains.Domain) error {
-	r.reached++
-	r.byName[d.Name()] = d
-	return nil
-}
-
-func (r *fakeRepo) SetTrackingPolicy(_ context.Context, domain values.DomainName, p tracking.Policy) (*domains.Domain, error) {
-	r.reached++
-	d, ok := r.byName[domain]
-	if !ok {
-		return nil, domains.ErrDomainNotFound
-	}
-	updated := domains.Load(domains.LoadParams{
-		ID:             d.ID(),
-		Domain:         d.Name(),
-		DkimPrivateKey: d.DkimPrivateKey(),
-		DkimPublicKey:  d.DkimPublicKey(),
-		CreatedAt:      d.CreatedAt(),
-		Tracking:       p,
-	})
-	r.byName[domain] = updated
-	return updated, nil
-}
-
-func (r *fakeRepo) FindByName(_ context.Context, domain values.DomainName) (*domains.Domain, error) {
-	r.reached++
-	d, ok := r.byName[domain]
-	if !ok {
-		return nil, domains.ErrDomainNotFound
-	}
-	return d, nil
-}
-
-func (r *fakeRepo) List(_ context.Context) ([]*domains.Domain, error) {
-	r.reached++
-	all := make([]*domains.Domain, 0, len(r.byName))
-	for _, d := range r.byName {
-		all = append(all, d)
-	}
-	return all, nil
-}
-
-func (r *fakeRepo) ListPage(ctx context.Context, page keyset.Page[values.DomainName]) ([]*domains.Domain, error) {
-	all, err := r.List(ctx)
+// seededRepo holds homeDomain, with the identified ceiling every new Domain starts with.
+func seededRepo() *countingRepo {
+	inner := domains.NewInMemRepository()
+	d, err := domains.New(homeDomain)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
-	sort.Slice(all, func(i, j int) bool { return all[i].Domain() < all[j].Domain() })
-	out := []*domains.Domain{}
-	for _, d := range all {
-		if page.After != nil && d.Domain() <= page.After.String() {
-			continue
-		}
-		if len(out) == page.Limit {
-			break
-		}
-		out = append(out, d)
+	if err := inner.Create(context.Background(), d); err != nil {
+		panic(err)
 	}
-	return out, nil
+	return &countingRepo{InMemRepository: inner}
+}
+
+func (r *countingRepo) Create(ctx context.Context, d *domains.Domain) error {
+	r.reached++
+	return r.InMemRepository.Create(ctx, d)
+}
+
+func (r *countingRepo) SetTrackingPolicy(ctx context.Context, domain values.DomainName, p tracking.Policy) (*domains.Domain, error) {
+	r.reached++
+	return r.InMemRepository.SetTrackingPolicy(ctx, domain, p)
+}
+
+func (r *countingRepo) FindByName(ctx context.Context, domain values.DomainName) (*domains.Domain, error) {
+	r.reached++
+	return r.InMemRepository.FindByName(ctx, domain)
+}
+
+func (r *countingRepo) List(ctx context.Context) ([]*domains.Domain, error) {
+	r.reached++
+	return r.InMemRepository.List(ctx)
+}
+
+func (r *countingRepo) ListPage(ctx context.Context, page keyset.Page[values.DomainName]) ([]*domains.Domain, error) {
+	r.reached++
+	return r.InMemRepository.ListPage(ctx, page)
 }
