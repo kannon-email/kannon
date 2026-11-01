@@ -10,6 +10,11 @@ contract is never rewritten. Runtime validation must enforce the original contra
 Run `scripts/check-rest-contract.sh` to detect generation drift and application
 imports of transports. Generated models and interfaces belong only in this adapter.
 
+The adapter embeds `openapi.yaml` and serves it unauthenticated at
+`GET /v1beta1/openapi.yaml`, so documentation sites and client generators read the
+contract of the running version. The route is not one of the 21 contract operations.
+Keep `api/openapi/v1beta1.yaml` identical to it.
+
 `NewHandler` mounts the versioned routes on the existing API listener. Extend its
 protected mux for dependent resource slices. Authenticate Bearer credentials to
 an `authz.Principal`, preserve its ID, apply optional Attribution, and pass the
