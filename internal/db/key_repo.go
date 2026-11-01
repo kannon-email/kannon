@@ -27,9 +27,9 @@ func NewAPIKeysRepository(db *pgxpool.Pool) apikeys.Repository {
 func (r *apiKeysRepository) Create(ctx context.Context, key *apikeys.APIKey) error {
 	q := New(r.db)
 
-	var expiresAt pgtype.Timestamp
+	var expiresAt pgtype.Timestamptz
 	if key.ExpiresAt() != nil {
-		expiresAt = pgtype.Timestamp{Time: *key.ExpiresAt(), Valid: true}
+		expiresAt = pgtype.Timestamptz{Time: *key.ExpiresAt(), Valid: true}
 	}
 
 	_, err := q.CreateAPIKey(ctx, CreateAPIKeyParams{
@@ -80,14 +80,14 @@ func (r *apiKeysRepository) Update(ctx context.Context, ref apikeys.KeyRef, upda
 		return nil, err
 	}
 
-	var expiresAt pgtype.Timestamp
+	var expiresAt pgtype.Timestamptz
 	if key.ExpiresAt() != nil {
-		expiresAt = pgtype.Timestamp{Time: *key.ExpiresAt(), Valid: true}
+		expiresAt = pgtype.Timestamptz{Time: *key.ExpiresAt(), Valid: true}
 	}
 
-	var deactivatedAt pgtype.Timestamp
+	var deactivatedAt pgtype.Timestamptz
 	if key.DeactivatedAt() != nil {
-		deactivatedAt = pgtype.Timestamp{Time: *key.DeactivatedAt(), Valid: true}
+		deactivatedAt = pgtype.Timestamptz{Time: *key.DeactivatedAt(), Valid: true}
 	}
 
 	_, err = txq.UpdateAPIKey(ctx, UpdateAPIKeyParams{
@@ -163,7 +163,7 @@ func (r *apiKeysRepository) List(ctx context.Context, domain values.DomainName, 
 func (r *apiKeysRepository) ListPage(ctx context.Context, domain values.DomainName, page keyset.Page[apikeys.Position]) ([]*apikeys.APIKey, error) {
 	params := ListAPIKeysPageParams{Domain: domain.String(), Take: int32(page.Limit)}
 	if page.After != nil {
-		params.BeforeTime = pgtype.Timestamp{Time: page.After.CreatedAt, Valid: true}
+		params.BeforeTime = pgtype.Timestamptz{Time: page.After.CreatedAt, Valid: true}
 		params.BeforeID = page.After.ID
 	}
 	rows, err := New(r.db).ListAPIKeysPage(ctx, params)
@@ -227,14 +227,19 @@ func rowToAPIKey(row ApiKey) (*apikeys.APIKey, error) {
 		IsActive:  row.IsActive,
 	}
 
+	// pgx decodes timestamptz in the process's local zone; keys are loaded in UTC
+	// whatever zone they were stored from, as they were before the columns held
+	// a zone.
 	if row.CreatedAt.Valid {
-		params.CreatedAt = row.CreatedAt.Time
+		params.CreatedAt = row.CreatedAt.Time.UTC()
 	}
 	if row.ExpiresAt.Valid {
-		params.ExpiresAt = &row.ExpiresAt.Time
+		expiresAt := row.ExpiresAt.Time.UTC()
+		params.ExpiresAt = &expiresAt
 	}
 	if row.DeactivatedAt.Valid {
-		params.DeactivatedAt = &row.DeactivatedAt.Time
+		deactivatedAt := row.DeactivatedAt.Time.UTC()
+		params.DeactivatedAt = &deactivatedAt
 	}
 
 	return apikeys.LoadAPIKey(params), nil

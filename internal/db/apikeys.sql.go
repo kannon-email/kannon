@@ -42,7 +42,7 @@ type CreateAPIKeyParams struct {
 	KeyHash   string
 	KeyPrefix string
 	Name      string
-	ExpiresAt pgtype.Timestamp
+	ExpiresAt pgtype.Timestamptz
 	Roles     []string
 }
 
@@ -238,14 +238,14 @@ const listAPIKeysPage = `-- name: ListAPIKeysPage :many
 SELECT id, name, domain, created_at, expires_at, is_active, deactivated_at, key_hash, key_prefix, roles
 FROM api_keys
 WHERE domain = $1
-    AND ($2::timestamp IS NULL OR (created_at, id) < ($2::timestamp, $3::text))
+    AND ($2::timestamptz IS NULL OR (created_at, id) < ($2::timestamptz, $3::text))
 ORDER BY created_at DESC, id DESC
 LIMIT $4
 `
 
 type ListAPIKeysPageParams struct {
 	Domain     string
-	BeforeTime pgtype.Timestamp
+	BeforeTime pgtype.Timestamptz
 	BeforeID   string
 	Take       int32
 }
@@ -300,9 +300,9 @@ type UpdateAPIKeyParams struct {
 	ID            string
 	Domain        string
 	Name          string
-	ExpiresAt     pgtype.Timestamp
+	ExpiresAt     pgtype.Timestamptz
 	IsActive      bool
-	DeactivatedAt pgtype.Timestamp
+	DeactivatedAt pgtype.Timestamptz
 }
 
 func (q *Queries) UpdateAPIKey(ctx context.Context, arg UpdateAPIKeyParams) (ApiKey, error) {

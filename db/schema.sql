@@ -200,10 +200,10 @@ CREATE TABLE public.api_keys (
     id character varying(512) NOT NULL,
     name character varying(100) NOT NULL,
     domain character varying(512) NOT NULL,
-    created_at timestamp without time zone DEFAULT now() NOT NULL,
-    expires_at timestamp without time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    expires_at timestamp with time zone,
     is_active boolean DEFAULT true NOT NULL,
-    deactivated_at timestamp without time zone,
+    deactivated_at timestamp with time zone,
     key_hash character varying(64) NOT NULL,
     key_prefix character varying(10) NOT NULL,
     roles text[]
@@ -1067,4 +1067,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20261031075047'),
     ('20261031174350'),
     ('20261031174606'),
-    ('20261031175305');
+    ('20261031175305'),
+    ('20261101173452');
