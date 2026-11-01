@@ -217,7 +217,7 @@ A process with nothing enabled refuses to boot rather than exit as if it had don
 | YAML key                     | Type     | Default        | Description                                      |
 | ---------------------------- | -------- | -------------- | ------------------------------------------------ |
 | `api.port`                   | int      | 50051          | API listen port                                  |
-| `api.max_payload`            | size     | 500Ki          | Max Batch content (HTML + base64 attachments); larger is refused with `message_too_large`. Set to ~70% of the NATS server's `max_payload` |
+| `api.max_payload`            | size     | 500Ki          | Max Batch content (subject + HTML + base64 attachments, after field substitution); larger is refused with `message_too_large`, per Recipient when its own fields push it over. Set to ~70% of the NATS server's `max_payload` |
 | `sender.hostname`            | string   | (required)     | Hostname announced for outgoing mail             |
 | `sender.max_jobs`            | int      | 10             | Max parallel sending jobs                        |
 | `sender.demo_sender`         | bool     | false          | Enable demo sender mode for testing              |
@@ -423,7 +423,7 @@ The response reports what was actually queued, so a partial send needs no pollin
 }
 ```
 
-`reason` is a stable token — `invalid_email`, `tracking_above_ceiling`, `unsupported_tracking_mode`, `unsubscribe_url_unresolved` — and the set grows over time, so treat an unrecognised value as a refusal of unknown cause.
+`reason` is a stable token — `invalid_email`, `tracking_above_ceiling`, `unsupported_tracking_mode`, `unsubscribe_url_unresolved`, `message_too_large` — and the set grows over time, so treat an unrecognised value as a refusal of unknown cause.
 
 #### Headers
 

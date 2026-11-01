@@ -22,6 +22,7 @@ message SendHTMLReq {
   string subject = 3;
   string html = 4;
   optional google.protobuf.Timestamp scheduled_time = 5;
+  // At most 2000. More fails the call with InvalidArgument (too_many_recipients).
   repeated pkg.kannon.mailer.types.Recipient recipients = 6;
   repeated Attachment attachments = 7;
   map<string, string> global_fields = 8;
@@ -41,6 +42,7 @@ message SendTemplateReq {
   string subject = 3;
   string template_id = 4;
   optional google.protobuf.Timestamp scheduled_time = 5;
+  // At most 2000. More fails the call with InvalidArgument (too_many_recipients).
   repeated pkg.kannon.mailer.types.Recipient recipients = 6;
   repeated Attachment attachments = 7;
   map<string, string> global_fields = 8;
@@ -89,6 +91,9 @@ message RejectedRecipient {
   //                              one_click_unsubscribe.url_template unresolved,
   //                              so its unsubscribe endpoint would be advertised
   //                              as authenticated while being unreachable
+  //   message_too_large          this Recipient's fields personalise the
+  //                              Batch's content past the configured
+  //                              api.max_payload
   //
   // Treat an unrecognised value as a refusal of unknown cause: the set grows as
   // new causes are added.

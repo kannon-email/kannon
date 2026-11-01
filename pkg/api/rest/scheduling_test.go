@@ -76,7 +76,7 @@ func TestScheduledAttachments(t *testing.T) {
 
 	accepted, err := sqlc.NewDeliveryRepository(db, delivery.DefaultBackoff, delivery.DefaultRetryWindow).Get(ctx, batch.ID(receipt.ID), "to@example.com")
 	require.NoError(t, err)
-	message, err := envelope.NewBuilder(sqlc.New(db), statssec.NewStatsService(sqlc.New(db)), testReturnPath).Build(ctx, accepted)
+	message, err := envelope.NewBuilder(sqlc.New(db), statssec.NewStatsService(sqlc.New(db)), testReturnPath, 0).Build(ctx, accepted)
 	require.NoError(t, err)
 	keys, err := sqlc.NewDomainsRepository(db).FindByName(ctx, domain)
 	require.NoError(t, err)

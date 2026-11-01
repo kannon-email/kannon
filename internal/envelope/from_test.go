@@ -23,7 +23,7 @@ func buildWithSenderAlias(t *testing.T, alias string) *mail.Message {
 		SenderAlias:    alias,
 		DkimPrivateKey: newDKIMKeys(t),
 	}}
-	b := envelope.NewBuilderWith(src, stubTokens{link: "ltok", open: "otok"}, testReturnPath)
+	b := envelope.NewBuilderWith(src, stubTokens{link: "ltok", open: "otok"}, testReturnPath, 0)
 
 	env, err := b.Build(t.Context(), mustDelivery(t, "rcpt@example.com", nil))
 	require.NoError(t, err)

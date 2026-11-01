@@ -5,6 +5,36 @@ releases that change behaviour of an installation already in production appear
 here; everything else is in [`CHANGELOG.md`](../CHANGELOG.md), which is
 generated from commits.
 
+## Unreleased — Personalised content within api.max_payload
+
+### What changes
+
+`api.max_payload` now bounds a message as it will be sent, after its fields are
+substituted, and not only the body and attachments as submitted. A placeholder
+repeated through a body against a large field value used to grow at the API or
+in the Dispatcher without limit; it is now measured before it is built.
+
+- **The subject counts** toward the limit, beside the HTML and attachments.
+- **A Recipient whose fields push its message past the limit is refused alone**,
+  with the reason `message_too_large`, on both APIs. On the legacy API, global
+  fields that push the body past it fail the call with `message_too_large`, as
+  oversized content already did.
+- **The legacy Mailer API accepts at most 2000 Recipients per call**, the same
+  bound as REST. More fails the call with `InvalidArgument`
+  (`too_many_recipients`).
+- **The Dispatcher refuses to build** a Delivery queued before this release whose
+  content exceeds the NATS server's `max_payload`. It is retried, and ends as
+  Failed when its Retry Budget runs out, as a Delivery that cannot be built
+  always did.
+
+### What you have to do
+
+If a legacy client sends more than 2000 Recipients in one call, split the Batch
+over several calls.
+
+Treat `message_too_large` as a Recipient refusal reason; clients that already
+treat an unrecognised reason as a refusal of unknown cause need no change.
+
 ## Unreleased — Reply-To on REST Batches
 
 ### What changes

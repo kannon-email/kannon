@@ -3,6 +3,8 @@ package intake
 import (
 	"context"
 	"encoding/json"
+	"math"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -89,7 +91,7 @@ func requireValidationFailed(t *testing.T, err error) {
 }
 
 func TestValidateInline(t *testing.T) {
-	many := make([]InlineRecipient, maxInlineRecipients+1)
+	many := make([]InlineRecipient, maxRecipients+1)
 	for _, tc := range []struct {
 		name   string
 		key    string
@@ -228,7 +230,7 @@ func TestDecideRecipients(t *testing.T) {
 			if tc.change != nil {
 				tc.change(&p)
 			}
-			accepted, refusals := decideRecipients(tc.ceiling, p.HTML, p)
+			accepted, refusals := decideRecipients(tc.ceiling, p.HTML, math.MaxInt, p)
 			var wantRefusals []InlineRefusal
 			wantAccepted := 0
 			for i, reason := range tc.want {
@@ -249,7 +251,7 @@ func TestDecideRecipientsFreezesFieldsAndTracking(t *testing.T) {
 	p.GlobalFields = map[string]string{"name": "All", "team": "Ops"}
 	p.Tracking = tracking.Policy{Opens: tracking.ModeIdentified}
 	p.Recipients = []InlineRecipient{{Email: " Alice@EXAMPLE.com", Fields: map[string]string{"name": "Alice"}, Tracking: tracking.Policy{Opens: tracking.ModeAnonymous}}}
-	accepted, refusals := decideRecipients(tracking.Policy{Opens: tracking.ModeFull, Links: tracking.ModeAnonymous}, p.HTML, p)
+	accepted, refusals := decideRecipients(tracking.Policy{Opens: tracking.ModeFull, Links: tracking.ModeAnonymous}, p.HTML, math.MaxInt, p)
 	require.Empty(t, refusals)
 	require.Equal(t, []inlineRecipient{{
 		email:    "Alice@example.com",
@@ -345,7 +347,7 @@ func TestInlineCreate(t *testing.T) {
 			{name: "reply-to header injection", change: func(p *InlineRequest) {
 				p.ReplyTo = batch.ReplyTo{Email: "maintainer@elsewhere.example", Alias: "M\r\nBcc: victim@example.com"}
 			}, code: "validation_failed"},
-			{name: "too many recipients", change: func(p *InlineRequest) { p.Recipients = make([]InlineRecipient, maxInlineRecipients+1) }, want: ErrTooManyRecipients},
+			{name: "too many recipients", change: func(p *InlineRequest) { p.Recipients = make([]InlineRecipient, maxRecipients+1) }, want: ErrTooManyRecipients},
 			{name: "batch tracking above ceiling", change: func(p *InlineRequest) { p.Tracking = tracking.Policy{Opens: tracking.ModeFull} }, code: "validation_failed", built: true},
 			{name: "unsupported batch tracking", change: func(p *InlineRequest) { p.Tracking = tracking.Policy{Links: "telepathic"} }, code: "validation_failed", built: true},
 			{name: "schedule not in future", change: func(p *InlineRequest) { p.ScheduledAt = &now }, want: ErrScheduledAtNotFuture, built: true},
@@ -421,8 +423,8 @@ func TestInlineCreate(t *testing.T) {
 	})
 }
 
-// The payload is the HTML plus each attachment as base64; a referenced Template's HTML counts
-// like inline HTML.
+// The payload is the subject and the HTML plus each attachment as base64; a referenced
+// Template's HTML counts like inline HTML.
 func TestInlineCreateRefusesMessageTooLarge(t *testing.T) {
 	ctx := authz.NewContext(t.Context(), authz.MustNewPrincipal("key", authz.MustNewGrant(authz.RoleSender, authz.DomainAnchor(inlineDomain))))
 	source, err := templates.NewPersistent(inlineDomain, "<p>Dear {{ name }}</p>", "Source")
@@ -430,17 +432,19 @@ func TestInlineCreateRefusesMessageTooLarge(t *testing.T) {
 	store := &memoryInlineStore{templates: map[string]*templates.Template{"tpl": source}}
 	s := NewInlineService(store, memoryDomains{domain: domains.Load(domains.LoadParams{Domain: inlineDomain})}, nil, 0, 700)
 
-	// 507 raw bytes encode to 676; with the 23-byte inline body that is 699.
+	// 495 raw bytes encode to 660; with the 16-byte subject and the 23-byte inline body that
+	// is 699.
 	p := inlineRequest()
-	p.Attachments = []Attachment{{Filename: "a.pdf", Content: make([]byte, 507)}}
+	p.Attachments = []Attachment{{Filename: "a.pdf", Content: make([]byte, 495)}}
 	receipt, _, _, err := s.Create(ctx, inlineDomain, "fits", p)
 	require.NoError(t, err)
 	require.Equal(t, 1, receipt.AcceptedCount)
 
-	// 510 raw bytes encode to 680, which fits alone; the Template's 22 bytes make it 702.
+	// 498 raw bytes encode to 664, which fits beside the subject; the Template's 22 bytes make
+	// it 702.
 	p = inlineRequest()
 	p.HTML, p.TemplateID = "", "tpl"
-	p.Attachments = []Attachment{{Filename: "a.pdf", Content: make([]byte, 510)}}
+	p.Attachments = []Attachment{{Filename: "a.pdf", Content: make([]byte, 498)}}
 	receipt, _, _, err = s.Create(ctx, inlineDomain, "too-large", p)
 	require.ErrorIs(t, err, ErrMessageTooLarge)
 	require.Nil(t, receipt)
@@ -460,4 +464,48 @@ func TestInlineFingerprintOmitsAnUnstatedReplyTo(t *testing.T) {
 	raw, err = json.Marshal(p)
 	require.NoError(t, err)
 	require.Contains(t, string(raw), "ReplyTo")
+}
+
+// REST substitutes global and Recipient fields per Recipient, so a Recipient whose fields
+// personalise the content past the payload is refused alone, measured without being rendered.
+// Global fields amplifying it refuse every Recipient, and so the Batch.
+func TestInlineCreateRefusesARecipientWhoseFieldsPassThePayload(t *testing.T) {
+	ctx := authz.NewContext(t.Context(), authz.MustNewPrincipal("key", authz.MustNewGrant(authz.RoleSender, authz.DomainAnchor(inlineDomain))))
+	s := NewInlineService(&memoryInlineStore{}, memoryDomains{domain: domains.Load(domains.LoadParams{Domain: inlineDomain})}, nil, 0, 500<<10)
+	big := strings.Repeat("x", 50_000)
+
+	p := inlineRequest()
+	p.HTML = strings.Repeat("{{ a }}", 70_000)
+	p.Subject = "Hello {{ s }}"
+	p.Recipients = []InlineRecipient{
+		{Email: "body@example.com", Fields: map[string]string{"a": big, "s": ""}},
+		{Email: "fits@example.com", Fields: map[string]string{"a": "", "s": ""}},
+		{Email: "subject@example.com", Fields: map[string]string{"a": "", "s": strings.Repeat(big, 11)}},
+	}
+	receipt, refusals, _, err := s.Create(ctx, inlineDomain, "per-recipient", p)
+	require.NoError(t, err)
+	require.Equal(t, 1, receipt.AcceptedCount)
+	require.Equal(t, []InlineRefusal{{Index: 0, Code: "message_too_large"}, {Index: 2, Code: "message_too_large"}}, refusals)
+
+	p.GlobalFields = map[string]string{"a": big}
+	p.Recipients = []InlineRecipient{{Email: "alice@example.com", Fields: map[string]string{"s": ""}}}
+	_, refusals, _, err = s.Create(ctx, inlineDomain, "global", p)
+	require.ErrorIs(t, err, ErrNoRecipientsAccepted)
+	require.Equal(t, []InlineRefusal{{Index: 0, Code: "message_too_large"}}, refusals)
+}
+
+// Deciding a Recipient over an amplifying body measures it and builds nothing.
+func TestDecideRecipientsDoesNotRenderAnAmplification(t *testing.T) {
+	p := inlineRequest()
+	p.HTML = strings.Repeat("{{a}}", 100_000)
+	p.GlobalFields = map[string]string{"a": strings.Repeat("x", 50_000)}
+	var before, after runtime.MemStats
+	runtime.GC()
+	runtime.ReadMemStats(&before)
+	_, refusals := decideRecipients(tracking.Policy{}, p.HTML, 500<<10, p)
+	runtime.ReadMemStats(&after)
+	require.Equal(t, []InlineRefusal{{Index: 0, Code: "message_too_large"}}, refusals)
+	// Far below the five gigabytes a render would allocate, and above what -race adds, where
+	// sync.Pool drops a quarter of what is put back and regexp allocates a machine per match.
+	require.Less(t, after.TotalAlloc-before.TotalAlloc, uint64(512<<20))
 }
