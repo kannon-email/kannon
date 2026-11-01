@@ -2,9 +2,7 @@ package templates_test
 
 import (
 	"context"
-	"sort"
 	"testing"
-	"time"
 
 	"github.com/kannon-email/kannon/internal/authz"
 	"github.com/kannon-email/kannon/internal/keyset"
@@ -207,116 +205,65 @@ func TestServiceOperationsProduceWhatTheyUsedTo(t *testing.T) {
 	assert.ErrorIs(t, err, templates.ErrTemplateNotFound)
 }
 
-// fakeRepo is an in-memory Repository for these tests. It counts how many times it was reached,
-// which is what lets a refusal be distinguished from a failure: an operation that never touched
+// countingRepo is the spec-checked in-memory Repository, counting how many times it was reached.
+// The count is what lets a refusal be distinguished from a failure: an operation that never touched
 // the store did not happen, whatever it returned.
-type fakeRepo struct {
-	byID    map[string]*templates.Template
+type countingRepo struct {
+	*templates.InMemRepository
 	reached int
 }
 
-func seededRepo() *fakeRepo {
-	return &fakeRepo{
-		byID: map[string]*templates.Template{
-			seededID: templates.Load(templates.LoadParams{
-				TemplateID: seededID,
-				Html:       "<p>seeded</p>",
-				Title:      "seeded",
-				Domain:     homeDomain,
-				Type:       templates.TypePersistent,
-				CreatedAt:  time.Now(),
-				UpdatedAt:  time.Now(),
-			}),
-		},
+func seededRepo() *countingRepo {
+	inner := templates.NewInMemRepository()
+	seeded := templates.Load(templates.LoadParams{
+		TemplateID: seededID,
+		Html:       "<p>seeded</p>",
+		Title:      "seeded",
+		Domain:     homeDomain,
+		Type:       templates.TypePersistent,
+	})
+	if err := inner.Create(context.Background(), seeded); err != nil {
+		panic(err)
 	}
+	return &countingRepo{InMemRepository: inner}
 }
 
-func (r *fakeRepo) Create(_ context.Context, t *templates.Template) error {
+func (r *countingRepo) Create(ctx context.Context, t *templates.Template) error {
 	r.reached++
-	r.byID[t.TemplateID()] = t
-	return nil
+	return r.InMemRepository.Create(ctx, t)
 }
 
-func (r *fakeRepo) Update(_ context.Context, templateID string, fn templates.UpdateFunc) (*templates.Template, error) {
+func (r *countingRepo) Update(ctx context.Context, templateID string, fn templates.UpdateFunc) (*templates.Template, error) {
 	r.reached++
-	t, ok := r.byID[templateID]
-	if !ok {
-		return nil, templates.ErrTemplateNotFound
-	}
-	if err := fn(t); err != nil {
-		return nil, err
-	}
-	return t, nil
+	return r.InMemRepository.Update(ctx, templateID, fn)
 }
 
-func (r *fakeRepo) Delete(_ context.Context, templateID string) (*templates.Template, error) {
+func (r *countingRepo) Delete(ctx context.Context, templateID string) (*templates.Template, error) {
 	r.reached++
-	t, ok := r.byID[templateID]
-	if !ok {
-		return nil, templates.ErrTemplateNotFound
-	}
-	delete(r.byID, templateID)
-	return t, nil
+	return r.InMemRepository.Delete(ctx, templateID)
 }
 
-func (r *fakeRepo) GetByID(_ context.Context, templateID string) (*templates.Template, error) {
+func (r *countingRepo) GetByID(ctx context.Context, templateID string) (*templates.Template, error) {
 	r.reached++
-	t, ok := r.byID[templateID]
-	if !ok {
-		return nil, templates.ErrTemplateNotFound
-	}
-	return t, nil
+	return r.InMemRepository.GetByID(ctx, templateID)
 }
 
-// FindByDomain answers not-found for a Template of another Domain rather than returning it, which
-// is the behaviour the repository specification's WrongDomain case pins on the real implementation.
-// Anything looser here would make the tests above pass for the wrong reason.
-func (r *fakeRepo) FindByDomain(_ context.Context, domain values.DomainName, templateID string) (*templates.Template, error) {
+func (r *countingRepo) FindByDomain(ctx context.Context, domain values.DomainName, templateID string) (*templates.Template, error) {
 	r.reached++
-	t, ok := r.byID[templateID]
-	if !ok || t.DomainName() != domain {
-		return nil, templates.ErrTemplateNotFound
-	}
-	return t, nil
+	return r.InMemRepository.FindByDomain(ctx, domain, templateID)
 }
 
-func (r *fakeRepo) List(_ context.Context, domain values.DomainName, _ templates.Pagination) ([]*templates.Template, error) {
+func (r *countingRepo) List(ctx context.Context, domain values.DomainName, page templates.Pagination) ([]*templates.Template, error) {
 	r.reached++
-	found := make([]*templates.Template, 0, len(r.byID))
-	for _, t := range r.byID {
-		if t.DomainName() == domain && t.Type() == templates.TypePersistent {
-			found = append(found, t)
-		}
-	}
-	return found, nil
+	return r.InMemRepository.List(ctx, domain, page)
 }
 
-func (r *fakeRepo) ListPage(ctx context.Context, domain values.DomainName, page keyset.Page[string]) ([]*templates.Template, error) {
-	found, err := r.List(ctx, domain, templates.Pagination{})
-	if err != nil {
-		return nil, err
-	}
-	sort.Slice(found, func(i, j int) bool { return found[i].TemplateID() < found[j].TemplateID() })
-	out := []*templates.Template{}
-	for _, t := range found {
-		if page.After != nil && t.TemplateID() <= *page.After {
-			continue
-		}
-		if len(out) == page.Limit {
-			break
-		}
-		out = append(out, t)
-	}
-	return out, nil
-}
-
-func (r *fakeRepo) Count(ctx context.Context, domain values.DomainName) (int, error) {
+func (r *countingRepo) ListPage(ctx context.Context, domain values.DomainName, page keyset.Page[string]) ([]*templates.Template, error) {
 	r.reached++
-	found, err := r.List(ctx, domain, templates.Pagination{})
-	if err != nil {
-		return 0, err
-	}
-	// List already counted a reach; this method is one operation, not two.
-	r.reached--
-	return len(found), nil
+	return r.InMemRepository.ListPage(ctx, domain, page)
+}
+
+func (r *countingRepo) Count(ctx context.Context, domain values.DomainName) (int, error) {
+	r.reached++
+	return r.InMemRepository.Count(ctx, domain)
 }
