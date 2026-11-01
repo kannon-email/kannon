@@ -53,14 +53,17 @@ type InlineRequest struct {
 	Headers             batch.Headers
 	Tracking            tracking.Policy
 	OneClickUnsubscribe batch.OneClickUnsubscribe
-	Sender              batch.Sender
-	Subject             string
-	HTML                string
-	TemplateID          string
-	GlobalFields        map[string]string
-	Recipients          []InlineRecipient
-	ScheduledAt         *time.Time   `json:",omitempty"`
-	Attachments         []Attachment `json:",omitempty"`
+	// ReplyTo is omitted from the fingerprint when unstated, so a request that
+	// states none digests as it did before the field existed.
+	ReplyTo      batch.ReplyTo `json:",omitzero"`
+	Sender       batch.Sender
+	Subject      string
+	HTML         string
+	TemplateID   string
+	GlobalFields map[string]string
+	Recipients   []InlineRecipient
+	ScheduledAt  *time.Time   `json:",omitempty"`
+	Attachments  []Attachment `json:",omitempty"`
 }
 
 // InlineReceipt contains only accepted identity and aggregate intake facts.
@@ -177,6 +180,9 @@ func validateInline(key string, p InlineRequest) error {
 			}
 		}
 	}
+	if err := p.ReplyTo.Validate(); err != nil {
+		return invalid(err)
+	}
 	if _, reserved := p.GlobalFields["email"]; reserved {
 		return invalid(errors.New("email is reserved"))
 	}
@@ -235,7 +241,7 @@ func (s *InlineService) buildWork(ctx context.Context, domain values.DomainName,
 	if err != nil {
 		return nil, nil, invalid(err)
 	}
-	b, err := batch.New(batch.NewParams{Domain: domain.String(), Sender: p.Sender, Subject: p.Subject, TemplateID: tpl.TemplateID(), Attachments: attachments, Headers: p.Headers, Tracking: tracking.Resolve(ceiling, p.Tracking, tracking.Policy{}), OneClickUnsubscribe: p.OneClickUnsubscribe})
+	b, err := batch.New(batch.NewParams{Domain: domain.String(), Sender: p.Sender, Subject: p.Subject, TemplateID: tpl.TemplateID(), Attachments: attachments, Headers: p.Headers, Tracking: tracking.Resolve(ceiling, p.Tracking, tracking.Policy{}), OneClickUnsubscribe: p.OneClickUnsubscribe, ReplyTo: p.ReplyTo})
 	if err != nil {
 		return nil, nil, invalid(err)
 	}

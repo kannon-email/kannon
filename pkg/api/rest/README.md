@@ -99,7 +99,8 @@ Batch input reuses generated DTOs, with a strict content-union adapter and an
 attachment presence check. `content_base64` now accepts only JSON strings as
 specified by OpenAPI; numeric arrays previously accepted by Go's byte decoder
 return 400 `malformed_request`. Missing content returns 422; an empty string is
-valid, and invalid base64 remains 400. Template creation intentionally uses
+valid, and invalid base64 remains 400. An address that fails a `format: email`
+member (`from.email`, `reply_to.email`) returns 422 `validation_failed`. Template creation intentionally uses
 TemplatePatch as a presence adapter so omitted title differs from empty title.
 Missing recipient email still reaches intake as an inline refusal. Explicit null
 anywhere remains a whole-request 422 with an escaped JSON pointer. Maps, tracking

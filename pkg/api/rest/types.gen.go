@@ -553,12 +553,15 @@ type Batch struct {
 	Id ID `json:"id"`
 
 	// OneClickUnsubscribe Sender-owned HTTPS endpoint template, personalized with recipient fields. Not a Kannon endpoint.
-	OneClickUnsubscribe *Unsubscribe   `json:"one_click_unsubscribe,omitempty"`
-	RejectedCount       int            `json:"rejected_count"`
-	ScheduledAt         time.Time      `json:"scheduled_at"`
-	Status              BatchStatus    `json:"status"`
-	Subject             string         `json:"subject"`
-	Tracking            TrackingPolicy `json:"tracking"`
+	OneClickUnsubscribe *Unsubscribe `json:"one_click_unsubscribe,omitempty"`
+	RejectedCount       int          `json:"rejected_count"`
+
+	// ReplyTo Where replies should go, emitted as the Reply-To header. Literal, not personalized. When omitted, no Reply-To header is emitted and replies go to from.
+	ReplyTo     *ReplyTo       `json:"reply_to,omitempty"`
+	ScheduledAt time.Time      `json:"scheduled_at"`
+	Status      BatchStatus    `json:"status"`
+	Subject     string         `json:"subject"`
+	Tracking    TrackingPolicy `json:"tracking"`
 }
 
 // BatchContentType defines model for Batch.Content.Type.
@@ -582,6 +585,9 @@ type BatchCreate struct {
 	// OneClickUnsubscribe Sender-owned HTTPS endpoint template, personalized with recipient fields. Not a Kannon endpoint.
 	OneClickUnsubscribe *Unsubscribe     `json:"one_click_unsubscribe,omitempty"`
 	Recipients          []RecipientInput `json:"recipients"`
+
+	// ReplyTo Where replies should go, emitted as the Reply-To header. Literal, not personalized. When omitted, no Reply-To header is emitted and replies go to from.
+	ReplyTo *ReplyTo `json:"reply_to,omitempty"`
 
 	// ScheduledAt Omit for immediate sending. If supplied, must be in the future at first creation; otherwise 422. A valid replay does not revalidate the timestamp against the current clock.
 	ScheduledAt *time.Time `json:"scheduled_at,omitempty"`
@@ -846,6 +852,13 @@ type RecipientRejection struct {
 type RecipientTracking struct {
 	Links *string `json:"links,omitempty"`
 	Opens *string `json:"opens,omitempty"`
+}
+
+// ReplyTo Where replies should go, emitted as the Reply-To header. Literal, not personalized. When omitted, no Reply-To header is emitted and replies go to from.
+type ReplyTo struct {
+	// Email A bare address, without a display name; use name for that. Not restricted to the Domain.
+	Email openapi_types.Email `json:"email"`
+	Name  *string             `json:"name,omitempty"`
 }
 
 // Role defines model for Role.

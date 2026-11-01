@@ -9,7 +9,7 @@ import (
 
 func TestBuildHeadersEmitsTheRFC8058Pair(t *testing.T) {
 	sender := batch.Sender{Email: "noreply@test.com", Alias: "Test"}
-	h := buildHeaders("subject", sender, "to@test.com", "132@test.com", "<msg-123@test.com>",
+	h := buildHeaders("subject", sender, batch.ReplyTo{}, "to@test.com", "132@test.com", "<msg-123@test.com>",
 		headers{}, batch.Headers{}, "https://test.com/unsub?u=abc")
 
 	assert.Equal(t, []string{"<https://test.com/unsub?u=abc>"}, h["List-Unsubscribe"],
@@ -19,7 +19,7 @@ func TestBuildHeadersEmitsTheRFC8058Pair(t *testing.T) {
 
 func TestBuildHeadersOmitsBothWhenNoEndpointIsStated(t *testing.T) {
 	sender := batch.Sender{Email: "noreply@test.com", Alias: "Test"}
-	h := buildHeaders("subject", sender, "to@test.com", "132@test.com", "<msg-123@test.com>",
+	h := buildHeaders("subject", sender, batch.ReplyTo{}, "to@test.com", "132@test.com", "<msg-123@test.com>",
 		headers{}, batch.Headers{}, "")
 
 	assert.NotContains(t, h, "List-Unsubscribe")

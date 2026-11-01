@@ -51,6 +51,16 @@ func decodeBatch(body io.Reader) (decodedBatch, error) {
 		}
 		p.OneClickUnsubscribe.URLTemplate = input.OneClickUnsubscribe.UrlTemplate
 	}
+	if input.ReplyTo != nil {
+		// A stated reply_to without its email would decode to no Reply-To at all.
+		if input.ReplyTo.Email == "" {
+			return decodedBatch{}, problemError(422, "validation_failed")
+		}
+		p.ReplyTo.Email = string(input.ReplyTo.Email)
+		if input.ReplyTo.Name != nil {
+			p.ReplyTo.Alias = *input.ReplyTo.Name
+		}
+	}
 	p.Attachments, err = decodeAttachments(input.Attachments, raw)
 	if err != nil {
 		return decodedBatch{}, err

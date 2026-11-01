@@ -81,6 +81,7 @@ type BatchHistory struct {
 	Attachments                  []AttachmentMetadata
 	Headers                      batch.Headers
 	OneClickUnsubscribe          batch.OneClickUnsubscribe
+	ReplyTo                      batch.ReplyTo
 }
 
 // Status is Completed once every Delivery has an outcome, Processing once any

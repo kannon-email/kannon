@@ -2,6 +2,7 @@ package intake
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -339,6 +340,11 @@ func TestInlineCreate(t *testing.T) {
 			built    bool
 		}{
 			{name: "invalid key", key: " key", change: func(*InlineRequest) {}, code: "validation_failed"},
+			{name: "invalid reply-to", change: func(p *InlineRequest) { p.ReplyTo = batch.ReplyTo{Email: "not-an-address"} }, code: "validation_failed"},
+			{name: "reply-to alias without address", change: func(p *InlineRequest) { p.ReplyTo = batch.ReplyTo{Alias: "Maintainer"} }, code: "validation_failed"},
+			{name: "reply-to header injection", change: func(p *InlineRequest) {
+				p.ReplyTo = batch.ReplyTo{Email: "maintainer@elsewhere.example", Alias: "M\r\nBcc: victim@example.com"}
+			}, code: "validation_failed"},
 			{name: "too many recipients", change: func(p *InlineRequest) { p.Recipients = make([]InlineRecipient, maxInlineRecipients+1) }, want: ErrTooManyRecipients},
 			{name: "batch tracking above ceiling", change: func(p *InlineRequest) { p.Tracking = tracking.Policy{Opens: tracking.ModeFull} }, code: "validation_failed", built: true},
 			{name: "unsupported batch tracking", change: func(p *InlineRequest) { p.Tracking = tracking.Policy{Links: "telepathic"} }, code: "validation_failed", built: true},
@@ -382,6 +388,29 @@ func TestInlineCreate(t *testing.T) {
 		}
 	})
 
+	t.Run("reply-to is carried on the Batch", func(t *testing.T) {
+		s, store := service()
+		p := inlineRequest()
+		// Unlike the Sender, a Reply-To is not bound to the Domain: the point is
+		// to name a mailbox the sending address does not have.
+		p.ReplyTo = batch.ReplyTo{Email: "maintainer@elsewhere.example", Alias: "The Maintainer"}
+		_, _, _, err := s.Create(ctx, inlineDomain, "key", p)
+		require.NoError(t, err)
+		require.Len(t, store.works, 1)
+		require.Equal(t, p.ReplyTo, store.works[0].Batch.ReplyTo())
+	})
+
+	t.Run("stating a reply-to changes the request", func(t *testing.T) {
+		s, store := service()
+		p := inlineRequest()
+		_, _, _, err := s.Create(ctx, inlineDomain, "key", p)
+		require.NoError(t, err)
+		p.ReplyTo = batch.ReplyTo{Email: "maintainer@elsewhere.example"}
+		_, _, _, err = s.Create(ctx, inlineDomain, "key", p)
+		require.ErrorIs(t, err, ErrIdempotencyConflict)
+		require.Equal(t, 1, store.builds)
+	})
+
 	t.Run("unrelated sender is refused before storage", func(t *testing.T) {
 		s, store := service()
 		p := inlineRequest()
@@ -416,4 +445,19 @@ func TestInlineCreateRefusesMessageTooLarge(t *testing.T) {
 	require.ErrorIs(t, err, ErrMessageTooLarge)
 	require.Nil(t, receipt)
 	require.Len(t, store.works, 1)
+}
+
+// A request that states no Reply-To must digest exactly as it did before the
+// field existed, or every replay of a key taken before the upgrade would be
+// refused as a conflict.
+func TestInlineFingerprintOmitsAnUnstatedReplyTo(t *testing.T) {
+	raw, err := json.Marshal(inlineRequest())
+	require.NoError(t, err)
+	require.NotContains(t, string(raw), "ReplyTo")
+
+	p := inlineRequest()
+	p.ReplyTo = batch.ReplyTo{Email: "maintainer@elsewhere.example"}
+	raw, err = json.Marshal(p)
+	require.NoError(t, err)
+	require.Contains(t, string(raw), "ReplyTo")
 }

@@ -70,6 +70,10 @@ The **sender's own** unsubscribe endpoint, stated once per Batch as an `https` U
 Stated at Batch level only — there is no Domain default and no Recipient override. A Domain default would stamp an unsubscribe on the password resets and receipts that are this sender's core traffic, offering a recipient something the sender cannot honour; and a Recipient override would add nothing, since personalising the template from the Recipient's fields is already what makes the endpoint per-Recipient. This is a deliberate asymmetry with **Tracking Policy**, which does cascade: a Policy expresses a permission that is meaningful to narrow by degrees, while this is an operational instruction that is meaningful only where the intent of a single Batch lives.
 _Avoid_: Unsubscribe Link (suggests something to click, and therefore something trackable), Unsubscribe List / Suppression List (Kannon keeps neither), Opt-out (a consent notion, which under ADR 0002 Kannon does not store)
 
+**Reply-To**:
+Where a Batch asks replies to go: one address with an optional display name, stated at Batch level and written as given into the `Reply-To` header of every message. Unlike the Sender it is not bound to the Domain, because its point is to name a mailbox that the sending address does not have. Unlike **One-Click Unsubscribe** it is not personalised. A Batch that states none carries no `Reply-To` at all, and replies go to the Sender. Only REST intake accepts one.
+_Avoid_: Reply Address, Response Address, Return Path (that is the SMTP bounce address, which Kannon signs and owns)
+
 ### Access control
 
 **Principal**:

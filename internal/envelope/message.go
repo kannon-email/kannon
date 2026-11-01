@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	netmail "net/mail"
 	"regexp"
 	"strings"
 	"time"
@@ -33,7 +34,7 @@ func buildEmailID(to, messageID string) string {
 	return fmt.Sprintf("<%v/%v>", emailBase64, messageID)
 }
 
-func buildHeaders(subject string, sender batch.Sender, to, poolMessageID, messageID string, baseHeaders headers, customHeaders batch.Headers, unsubscribeURL string) headers {
+func buildHeaders(subject string, sender batch.Sender, replyTo batch.ReplyTo, to, poolMessageID, messageID string, baseHeaders headers, customHeaders batch.Headers, unsubscribeURL string) headers {
 	h := make(headers)
 	for k, v := range baseHeaders {
 		h[k] = make([]string, len(v))
@@ -43,8 +44,13 @@ func buildHeaders(subject string, sender batch.Sender, to, poolMessageID, messag
 	h["From"] = []string{fmt.Sprintf("%v <%v>", sender.Alias, sender.Email)}
 	h["Message-ID"] = []string{messageID}
 	h["X-Pool-Message-ID"] = []string{poolMessageID}
-	h["Reply-To"] = []string{fmt.Sprintf("%v <%v>", sender.Alias, sender.Email)}
 	h["To"] = []string{to}
+
+	// Only a Reply-To the Batch states is written. Without one a reader replies
+	// to From (RFC 5322 §3.6.2), so repeating the Sender here would say nothing.
+	if !replyTo.IsZero() {
+		h["Reply-To"] = []string{formatAddress(replyTo.Alias, replyTo.Email)}
+	}
 
 	if len(customHeaders.To) > 0 {
 		h["To"] = customHeaders.To
@@ -61,6 +67,13 @@ func buildHeaders(subject string, sender batch.Sender, to, poolMessageID, messag
 	}
 
 	return h
+}
+
+// formatAddress writes one mailbox for an address header. The display name is
+// quoted where it holds a special such as a comma, which would otherwise split
+// one mailbox into two, and RFC 2047-encoded where it is not ASCII.
+func formatAddress(name, email string) string {
+	return (&netmail.Address{Name: name, Address: email}).String()
 }
 
 // addressHeaders are the fields whose value is an address list. A display name

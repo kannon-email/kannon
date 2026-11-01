@@ -133,6 +133,42 @@ func TestInlineBatchRetry(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, verified, 1)
 	require.NoError(t, verified[0].Err)
+	_, hasReplyTo := parsed.Header["Reply-To"]
+	require.False(t, hasReplyTo, "a Batch stating no reply_to emits no Reply-To")
+	require.NotContains(t, readBatch(fmt.Sprint(u["id"])), "reply_to")
+
+	replyTo := call(path, "reply-to", strings.TrimSuffix(body, "}")+`,"tracking":{"opens":"off","links":"off"},"reply_to":{"email":"maintainer@elsewhere.example","name":"The Maintainer"}}`, 201)
+	require.Equal(t, map[string]any{"email": "maintainer@elsewhere.example", "name": "The Maintainer"}, readBatch(fmt.Sprint(replyTo["id"]))["reply_to"])
+	rd, err := deliveryRepo.Get(t.Context(), batch.ID(fmt.Sprint(replyTo["id"])), "User+tag@example.com")
+	require.NoError(t, err)
+	replyMessage, err := envelope.NewBuilder(sqlc.New(db), nil, testReturnPath).Build(t.Context(), rd)
+	require.NoError(t, err)
+	replyParsed, err := mail.ReadMessage(strings.NewReader(string(replyMessage.Body())))
+	require.NoError(t, err)
+	require.Equal(t, `"The Maintainer" <maintainer@elsewhere.example>`, replyParsed.Header.Get("Reply-To"))
+	require.Equal(t, "<sender@example.com>", replyParsed.Header.Get("From"))
+	require.Contains(t, replyParsed.Header.Get("DKIM-Signature"), "Reply-To")
+	replyVerified, err := msgauth.VerifyWithOptions(strings.NewReader(string(replyMessage.Body())), &msgauth.VerifyOptions{LookupTXT: func(string) ([]string, error) {
+		return []string{"v=DKIM1; k=rsa; p=" + domainKeys.DkimPublicKey()}, nil
+	}})
+	require.NoError(t, err)
+	require.Len(t, replyVerified, 1)
+	require.NoError(t, replyVerified[0].Err, "a stated Reply-To must not break the signature")
+	bare := call(path, "reply-to-bare", strings.TrimSuffix(body, "}")+`,"reply_to":{"email":"maintainer@elsewhere.example"}}`, 201)
+	require.Equal(t, map[string]any{"email": "maintainer@elsewhere.example"}, readBatch(fmt.Sprint(bare["id"]))["reply_to"])
+	call(path, "reply-to-unknown", strings.TrimSuffix(body, "}")+`,"reply_to":{"email":"maintainer@elsewhere.example","to":"x"}}`, 400)
+	// An address that does not parse is well-formed JSON with an invalid value,
+	// in reply_to and in from alike.
+	require.Equal(t, "validation_failed", call(path, "from-invalid", strings.Replace(body, `"sender@example.com"`, `"not-an-address"`, 1), 422)["code"])
+	for key, extra := range map[string]string{
+		"reply-to-invalid":   `,"reply_to":{"email":"not-an-address"}}`,
+		"reply-to-null":      `,"reply_to":null`,
+		"reply-to-no-email":  `,"reply_to":{"name":"The Maintainer"}}`,
+		"reply-to-empty":     `,"reply_to":{}}`,
+		"reply-to-injection": `,"reply_to":{"email":"maintainer@elsewhere.example","name":"M\r\nBcc: victim@example.com"}}`,
+	} {
+		require.Equal(t, "validation_failed", call(path, key, strings.TrimSuffix(body, "}")+strings.TrimSuffix(extra, "}")+"}", 422)["code"], key)
+	}
 	// Exercise REST intake through actual signed engagement tokens, with no DNS/network calls.
 	ss := statssec.NewStatsService(sqlc.New(db))
 	for _, mode := range []string{"anonymous", "pseudonymous"} {

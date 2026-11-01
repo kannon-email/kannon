@@ -146,3 +146,69 @@ func TestBatchExposesTheUnsubscribeEndpoint(t *testing.T) {
 	assert.Equal(t, "https://test.com/unsub", b.OneClickUnsubscribe().URLTemplate)
 	assert.False(t, b.OneClickUnsubscribe().IsZero())
 }
+
+func TestNewBatchValidatesTheReplyTo(t *testing.T) {
+	newWith := func(r ReplyTo) error {
+		_, err := New(NewParams{
+			Domain:     "example.com",
+			Subject:    "subject",
+			Sender:     Sender{Email: "noreply@example.com", Alias: "From"},
+			TemplateID: "tpl_abc",
+			ReplyTo:    r,
+		})
+		return err
+	}
+
+	t.Run("NoneStatedAccepted", func(t *testing.T) {
+		assert.NoError(t, newWith(ReplyTo{}))
+	})
+
+	t.Run("AddressAccepted", func(t *testing.T) {
+		assert.NoError(t, newWith(ReplyTo{Email: "maintainer@elsewhere.example"}))
+	})
+
+	t.Run("AddressWithAliasAccepted", func(t *testing.T) {
+		assert.NoError(t, newWith(ReplyTo{Email: "maintainer@elsewhere.example", Alias: "Mario Rossi"}))
+	})
+
+	t.Run("AliasWithoutAddressRejected", func(t *testing.T) {
+		assert.Error(t, newWith(ReplyTo{Alias: "Mario Rossi"}))
+	})
+
+	t.Run("NotAnAddressRejected", func(t *testing.T) {
+		assert.Error(t, newWith(ReplyTo{Email: "not-an-address"}))
+	})
+
+	t.Run("DisplayNameInTheAddressRejected", func(t *testing.T) {
+		// The alias has its own field; letting the address carry one too would
+		// leave two places to state it.
+		assert.Error(t, newWith(ReplyTo{Email: "Mario <maintainer@elsewhere.example>"}))
+	})
+
+	t.Run("MultipleAddressesRejected", func(t *testing.T) {
+		assert.Error(t, newWith(ReplyTo{Email: "a@elsewhere.example, b@elsewhere.example"}))
+	})
+
+	t.Run("HeaderInjectionInAddressRejected", func(t *testing.T) {
+		assert.Error(t, newWith(ReplyTo{Email: "maintainer@elsewhere.example\r\nBcc: victim@test.com"}))
+	})
+
+	t.Run("HeaderInjectionInAliasRejected", func(t *testing.T) {
+		assert.Error(t, newWith(ReplyTo{Email: "maintainer@elsewhere.example", Alias: "Mario\r\nBcc: victim@test.com"}))
+	})
+}
+
+func TestBatchExposesTheReplyTo(t *testing.T) {
+	r := ReplyTo{Email: "maintainer@elsewhere.example", Alias: "Mario Rossi"}
+	b, err := New(NewParams{
+		Domain:     "example.com",
+		Subject:    "subject",
+		Sender:     Sender{Email: "noreply@example.com", Alias: "From"},
+		TemplateID: "tpl_abc",
+		ReplyTo:    r,
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, r, b.ReplyTo())
+	assert.False(t, b.ReplyTo().IsZero())
+}
