@@ -93,11 +93,10 @@ func TestDispatchCycle_RetryBudgetSpent_FailsInsteadOfReschedulingForever(t *tes
 
 	repo := sqlc.NewDeliveryRepository(testDB, backoff, retryWindow)
 	claimer := pool.NewClaimer(repo)
-	q := sqlc.New(testDB)
 	pub := &subjectPublisher{}
 	d := &disp{
 		claimer: claimer,
-		eb:      envelope.NewBuilder(q, statssec.NewStatsService(q), returnpath.MustParse(strings.Repeat("s", returnpath.MinSecretLength))),
+		eb:      envelope.NewBuilder(sqlc.NewSendingDataSource(testDB), statssec.NewStatsService(statssec.NewInMemKeyRepository()), returnpath.MustParse(strings.Repeat("s", returnpath.MinSecretLength))),
 		pub:     pub,
 	}
 

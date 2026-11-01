@@ -27,7 +27,6 @@ func TestPseudonymousDeliveryEndToEnd(t *testing.T) {
 	const second = "second@emailtest.com"
 
 	sender := newPseudonymousSender(t, domain)
-	ss := statssec.NewStatsService(q)
 
 	batchOne := sender.send(t, first, second)
 	one := batchOne[first]

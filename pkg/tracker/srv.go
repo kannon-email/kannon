@@ -20,8 +20,7 @@ type srv struct {
 }
 
 func NewServer(cnt *container.Container, cfg Config) *srv {
-	q := cnt.Queries()
-	ss := statssec.NewStatsService(q)
+	ss := statssec.NewStatsService(cnt.StatsKeys())
 
 	return newServer(cnt.Nats(), ss, cfg)
 }

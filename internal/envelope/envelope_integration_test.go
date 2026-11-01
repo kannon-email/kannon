@@ -35,6 +35,10 @@ import (
 var db *pgxpool.Pool
 var q *sqlc.Queries
 var eb envelope.Builder
+
+// ss is the one token service of the package: tokens the Builder mints are verified by the same
+// key store they were signed against, as the Dispatcher and the Tracker share stats_keys.
+var ss = statssec.NewStatsService(statssec.NewInMemKeyRepository())
 var ma mailerv1connect.MailerHandler
 var adminAPI adminv1connect.ApiHandler
 var claimer pool.Claimer
@@ -52,7 +56,7 @@ func TestMain(m *testing.M) {
 
 		q = sqlc.New(db)
 
-		eb = envelope.NewBuilder(q, statssec.NewStatsService(q), returnpath.MustParse(strings.Repeat("s", returnpath.MinSecretLength)))
+		eb = envelope.NewBuilder(sqlc.NewSendingDataSource(db), ss, returnpath.MustParse(strings.Repeat("s", returnpath.MinSecretLength)))
 		ma = mailapi.NewMailerAPIV1(db, delivery.DefaultBackoff, delivery.DefaultRetryWindow, 0)
 		adminAPI = adminapi.CreateAdminAPIService(db)
 		claimer = pool.NewClaimer(sqlc.NewDeliveryRepository(db, delivery.DefaultBackoff, delivery.DefaultRetryWindow))

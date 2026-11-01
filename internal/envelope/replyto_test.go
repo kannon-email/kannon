@@ -25,7 +25,7 @@ func buildWithReplyTo(t *testing.T, r batch.ReplyTo) *mail.Message {
 		DkimPrivateKey: newDKIMKeys(t),
 		ReplyTo:        r,
 	}}
-	b := envelope.NewBuilderWith(src, stubTokens{link: "ltok", open: "otok"}, testReturnPath)
+	b := envelope.NewBuilder(src, stubTokens{link: "ltok", open: "otok"}, testReturnPath)
 
 	env, err := b.Build(t.Context(), mustDelivery(t, "rcpt@example.com", nil))
 	require.NoError(t, err)
