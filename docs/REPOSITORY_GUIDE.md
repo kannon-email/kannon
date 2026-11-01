@@ -2,7 +2,7 @@
 
 This guide documents the repository implementation pattern used in Kannon. For a complete working example, see the API Keys implementation in `internal/apikeys/` and `internal/db/key_repo.go`.
 
-The same pattern is used by every persistent domain package in `internal/`: the spine domains [`batch`](../internal/batch/) and [`delivery`](../internal/delivery/) (introduced by PRD #322) follow it, alongside the supporting [`apikeys`](../internal/apikeys/), [`templates`](../internal/templates/), and [`domains`](../internal/domains/) packages. Each one ships an entity with `New` / `Load` constructors, a `Repository` interface, and a `repospec.go` specification harness exercised against real Postgres in `internal/db/`. The third spine domain, [`envelope`](../internal/envelope/), is build-only — it ships the `Envelope` entity plus the `envelope.Builder` deep module instead of a repository, because envelopes are not persisted. When adding a new domain entity, mirror this shape rather than inventing a new one.
+The same pattern is used by every persistent domain package in `internal/`: the spine domains [`batch`](../internal/batch/) and [`delivery`](../internal/delivery/) (introduced by PRD #322) follow it, alongside the supporting [`apikeys`](../internal/apikeys/), [`templates`](../internal/templates/), and [`domains`](../internal/domains/) packages. Each one ships an entity with `New` / `Load` constructors, a `Repository` interface, and a `repospec.go` specification harness exercised against real Postgres in `internal/db/`. Most also ship an in-memory adapter checked against the same specification (`InMemRepository` in the domain package; `apikeys` keeps its in `helpers/`), which is what tests above the seam use. `delivery` does not have one yet. New packages should ship both. The third spine domain, [`envelope`](../internal/envelope/), is build-only — it ships the `Envelope` entity plus the `envelope.Builder` deep module instead of a repository, because envelopes are not persisted. When adding a new domain entity, mirror this shape rather than inventing a new one.
 
 ## Overview
 
@@ -122,6 +122,28 @@ func NewEntityRepository(q *Queries, pool *pgxpool.Pool) domain.Repository {
 ```
 
 **See:** `internal/db/key_repo.go`
+
+### 6. In-Memory Implementation
+
+Ship an `InMemRepository` in the domain package (`inmem_repo.go`) and run the same specification
+against it (`inmem_repo_test.go`):
+
+```go
+func TestInMemRepository(t *testing.T) {
+    RunRepoSpec(t, NewInMemRepository(), inMemHelper{})
+}
+```
+
+Hand out copies, never the stored entity, so a caller mutating what it was given cannot change
+what is stored. When a behaviour of the Postgres adapter is not yet in the specification (a
+column default, a uniqueness error, an ordering), add it to the specification rather than to one
+adapter: two adapters that pass different specifications are two contracts.
+
+A test that needs to inspect what was stored, and that no production caller would ask the
+Repository, reads it from the in-memory adapter's own methods (for example `audit.InMemRepository.Records`)
+rather than widening the interface. Add such a method when a test needs it, not before.
+
+**See:** `internal/domains/inmem_repo.go`, `internal/audit/inmem_repo.go`
 
 ## Quick Reference
 
