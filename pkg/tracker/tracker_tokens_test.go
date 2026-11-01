@@ -16,8 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
-	schema "github.com/kannon-email/kannon/db"
-	sqlc "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/statssec"
 	"github.com/kannon-email/kannon/internal/tests"
 	"github.com/kannon-email/kannon/internal/tracking"
@@ -29,22 +27,13 @@ func TestMain(m *testing.M) {
 	tests.Main(m.Run)
 }
 
-// TestTrackerIntegration exercises real signed tokens through the HTTP handlers
-// and statssec backed by Postgres. A stub deciding which tokens are acceptable
-// could not distinguish forged tokens from legitimate ones. Only this group
-// requires Docker.
-func TestTrackerIntegration(t *testing.T) {
-	if testing.Short() {
-		t.Skip("requires Docker/Postgres; run without -short")
-	}
-
-	db, purge, err := tests.TestPostgresInit(schema.Schema)
-	require.NoError(t, err, "start test postgres")
-	t.Cleanup(func() {
-		db.Close()
-		require.NoError(t, purge(), "purge test postgres")
-	})
-	ss := statssec.NewStatsService(sqlc.New(db))
+// TestTrackerWithRealSignedTokens exercises real signed tokens through the HTTP handlers
+// and the real statssec. A stub deciding which tokens are acceptable could not
+// distinguish forged tokens from legitimate ones. The key pairs live in memory:
+// where they are stored is the KeyRepository's contract, which RunKeyRepoSpec
+// checks against Postgres.
+func TestTrackerWithRealSignedTokens(t *testing.T) {
+	ss := statssec.NewStatsService(statssec.NewInMemKeyRepository())
 
 	t.Run("OpenRetainsOnlyWhatItsModeAllows", func(t *testing.T) { testOpenRetainsOnlyWhatItsModeAllows(t, ss) })
 	t.Run("ClickRetainsOnlyWhatItsModeAllows", func(t *testing.T) { testClickRetainsOnlyWhatItsModeAllows(t, ss) })

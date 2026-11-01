@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	sqlc "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/tracking"
 	"github.com/kannon-email/kannon/internal/utils"
 )
@@ -195,21 +194,21 @@ type channelClaims interface {
 func (c *OpenClaims) boundTo() (jwt.ClaimStrings, tracking.Mode) { return c.Audience, c.Mode }
 func (c *LinkClaims) boundTo() (jwt.ClaimStrings, tracking.Mode) { return c.Audience, c.Mode }
 
-func verifyOpenToken(ctx context.Context, tokenString string, q *sqlc.Queries) (*OpenClaims, error) {
-	return verifyToken(ctx, tokenString, q, &OpenClaims{}, audienceOpen)
+func verifyOpenToken(ctx context.Context, tokenString string, keys KeyRepository) (*OpenClaims, error) {
+	return verifyToken(ctx, tokenString, keys, &OpenClaims{}, audienceOpen)
 }
 
-func verifyLinkToken(ctx context.Context, tokenString string, q *sqlc.Queries) (*LinkClaims, error) {
-	return verifyToken(ctx, tokenString, q, &LinkClaims{}, audienceLink)
+func verifyLinkToken(ctx context.Context, tokenString string, keys KeyRepository) (*LinkClaims, error) {
+	return verifyToken(ctx, tokenString, keys, &LinkClaims{}, audienceLink)
 }
 
 // verifyToken checks a stats token's signature, its registered claims and the channel it was
 // minted for, returning the claims only if all three hold. Shared by both channels so a check
 // added for one can never be forgotten for the other.
-func verifyToken[C channelClaims](ctx context.Context, tokenString string, q *sqlc.Queries, into C, want string) (C, error) {
+func verifyToken[C channelClaims](ctx context.Context, tokenString string, keys KeyRepository, into C, want string) (C, error) {
 	var none C
 
-	token, err := jwt.ParseWithClaims(tokenString, into, getVerifyTokenFunc(ctx, q), verifyOptions()...)
+	token, err := jwt.ParseWithClaims(tokenString, into, getVerifyTokenFunc(ctx, keys), verifyOptions()...)
 	if err != nil {
 		return none, fmt.Errorf("cannot parse jwt: %w", err)
 	}
@@ -254,7 +253,7 @@ func assertAudience(audience jwt.ClaimStrings, mode tracking.Mode, want string) 
 	return fmt.Errorf("token audience %v is not valid for %q", audience, want)
 }
 
-func getVerifyTokenFunc(ctx context.Context, q *sqlc.Queries) func(token *jwt.Token) (interface{}, error) {
+func getVerifyTokenFunc(ctx context.Context, keys KeyRepository) func(token *jwt.Token) (interface{}, error) {
 	return func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
@@ -265,12 +264,12 @@ func getVerifyTokenFunc(ctx context.Context, q *sqlc.Queries) func(token *jwt.To
 			return nil, fmt.Errorf("key not found for kid: %v", kid)
 		}
 
-		publicKeyString, err := q.GetValidPublicStatsKeyByKid(ctx, kid)
+		publicKeyString, err := keys.PublicKey(ctx, kid)
 		if err != nil {
 			return nil, fmt.Errorf("key not found for provided kid: %w", err)
 		}
 
-		publicKey, err := jwt.ParseRSAPublicKeyFromPEM([]byte(publicKeyString.PublicKey))
+		publicKey, err := jwt.ParseRSAPublicKeyFromPEM([]byte(publicKeyString))
 		if err != nil {
 			return nil, fmt.Errorf("error parsing publicKey: %w", err)
 		}

@@ -7,11 +7,9 @@ import (
 	"log/slog"
 
 	"github.com/kannon-email/kannon/internal/batch"
-	sqlc "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/delivery"
 	"github.com/kannon-email/kannon/internal/dkim"
 	"github.com/kannon-email/kannon/internal/returnpath"
-	"github.com/kannon-email/kannon/internal/statssec"
 	"github.com/kannon-email/kannon/internal/tracking"
 	"github.com/kannon-email/kannon/internal/utils"
 )
@@ -63,26 +61,11 @@ type Builder interface {
 	Build(ctx context.Context, d *delivery.Delivery) (*Envelope, error)
 }
 
-// NewBuilder returns the default Builder backed by sqlc and the given
-// stats service. The sqlc-backed source resolves the Batch + Template +
-// Domain join in a single query (see internal/db/pool.sql). rp signs the
-// return path, so the inbound SMTP server can tell a real bounce from a
-// forged one.
-func NewBuilder(q *sqlc.Queries, st statssec.StatsService, rp returnpath.Signer) Builder {
-	return &defaultBuilder{
-		source: sqlcSource{q: q},
-		tokens: st,
-		rp:     rp,
-		shared: newSharedTokens(),
-		baseHeaders: headers{
-			"X-Mailer": {"SMTP Mailer"},
-		},
-	}
-}
-
-// NewBuilderWith wires a Builder against an explicit source + token issuer.
-// Useful for unit tests that want to stub both sides.
-func NewBuilderWith(source SendingDataSource, tokens TokenIssuer, rp returnpath.Signer) Builder {
+// NewBuilder wires a Builder against the source of a Batch's rendering inputs and the issuer of its
+// tracking tokens. rp signs the return path, so the inbound SMTP server can tell a real bounce from
+// a forged one. The production source is the sqlc-backed one in internal/db, which resolves the
+// Batch + Template + Domain join in a single query.
+func NewBuilder(source SendingDataSource, tokens TokenIssuer, rp returnpath.Signer) Builder {
 	return &defaultBuilder{
 		source: source,
 		tokens: tokens,
@@ -401,60 +384,4 @@ func (b *defaultBuilder) token(key sharedTokenKey, mint func() (string, error)) 
 		return mint()
 	}
 	return b.shared.reuse(key, mint)
-}
-
-// sqlcSource adapts the sqlc-generated GetSendingData query into the
-// domain-friendly SendingData type the Builder consumes.
-type sqlcSource struct {
-	q *sqlc.Queries
-}
-
-func (s sqlcSource) GetSendingData(ctx context.Context, batchID batch.ID) (SendingData, error) {
-	row, err := s.q.GetSendingData(ctx, batchID.String())
-	if err != nil {
-		return SendingData{}, err
-	}
-
-	atts := make(map[string][]byte, len(row.Attachments))
-	for name, raw := range row.Attachments {
-		atts[name] = raw
-	}
-
-	return SendingData{
-		LiteralFields:  row.LiteralFields,
-		Subject:        row.Subject,
-		HTML:           row.Html,
-		Domain:         row.Domain,
-		MessageID:      row.MessageID,
-		SenderEmail:    row.SenderEmail,
-		SenderAlias:    row.SenderAlias,
-		DkimPrivateKey: row.DkimPrivateKey,
-		Attachments:    atts,
-		Headers: batch.Headers{
-			To: row.Headers.To,
-			Cc: row.Headers.Cc,
-		},
-		OneClickUnsubscribe: unsubscribeFromRow(row.Headers),
-		ReplyTo:             replyToFromRow(row.Headers),
-	}, nil
-}
-
-// unsubscribeFromRow reads the unsubscribe endpoint out of the headers JSONB.
-// A Batch written before ADR 0005 has no such key, which is indistinguishable
-// from — and treated as — a Batch that states no endpoint.
-func unsubscribeFromRow(h sqlc.Headers) batch.OneClickUnsubscribe {
-	if h.OneClickUnsubscribe == nil {
-		return batch.OneClickUnsubscribe{}
-	}
-	return batch.OneClickUnsubscribe{URLTemplate: h.OneClickUnsubscribe.URLTemplate}
-}
-
-// replyToFromRow reads the Batch's Reply-To out of the headers JSONB. A Batch
-// written before Reply-To could be stated has no such key, and is treated as
-// stating none.
-func replyToFromRow(h sqlc.Headers) batch.ReplyTo {
-	if h.ReplyTo == nil {
-		return batch.ReplyTo{}
-	}
-	return batch.ReplyTo{Email: h.ReplyTo.Email, Alias: h.ReplyTo.Alias}
 }

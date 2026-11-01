@@ -204,7 +204,7 @@ func TestDispatchCycle_BudgetDeathMidPage_NoDeliveryLost(t *testing.T) {
 	pub := &recordingPublisher{}
 	d := &disp{
 		claimer: claimer,
-		eb:      envelope.NewBuilderWith(src, noopTokens{}, returnpath.MustParse(strings.Repeat("s", returnpath.MinSecretLength))),
+		eb:      envelope.NewBuilder(src, noopTokens{}, returnpath.MustParse(strings.Repeat("s", returnpath.MinSecretLength))),
 		pub:     pub,
 	}
 

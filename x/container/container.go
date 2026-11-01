@@ -14,6 +14,7 @@ import (
 	"github.com/kannon-email/kannon/internal/delivery"
 	"github.com/kannon-email/kannon/internal/publisher"
 	"github.com/kannon-email/kannon/internal/smtp"
+	"github.com/kannon-email/kannon/internal/statssec"
 	"github.com/kannon-email/kannon/x/config"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
@@ -154,6 +155,13 @@ func (c *Container) DB() *pgxpool.Pool {
 // Queries returns a singleton Queries instance.
 func (c *Container) Queries() *sqlc.Queries {
 	return sqlc.New(c.DB())
+}
+
+// StatsKeys returns the store of the key pairs tracking tokens are signed and verified with. The
+// Dispatcher mints with it and the Tracker verifies with it; they agree on the keys because every
+// adapter it returns reads the same stats_keys table.
+func (c *Container) StatsKeys() statssec.KeyRepository {
+	return sqlc.NewStatsKeysRepository(c.DB())
 }
 
 // EmbeddedNatsServer returns a singleton embedded NATS server instance.

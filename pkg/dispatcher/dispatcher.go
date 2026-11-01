@@ -33,11 +33,9 @@ func New(cnt *container.Container) container.Runnable {
 }
 
 func run(ctx context.Context, cnt *container.Container, rp returnpath.Signer) error {
-	q := cnt.Queries()
-
-	ss := statssec.NewStatsService(q)
+	ss := statssec.NewStatsService(cnt.StatsKeys())
 	claimer := pool.NewClaimer(sqlc.NewDeliveryRepository(cnt.DB(), cnt.BackoffPolicy(), cnt.RetryWindow()))
-	eb := envelope.NewBuilder(q, ss, rp)
+	eb := envelope.NewBuilder(sqlc.NewSendingDataSource(cnt.DB()), ss, rp)
 
 	js := cnt.NatsJetStream()
 	if err := configureSendingStream(ctx, js); err != nil {
