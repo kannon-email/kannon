@@ -61,6 +61,26 @@ func testCreate(t *testing.T, repo Repository, helper RepoTestHelper) {
 		require.NoError(t, err)
 		assert.NotNil(t, result.Key.ExpiresAt())
 	})
+
+	// An expiry given in any zone must be stored as the same instant, not as its
+	// wall-clock time read in UTC.
+	for _, offset := range []int{9 * 3600, -5 * 3600} {
+		t.Run(fmt.Sprintf("ExpirationInZoneOffset%+d", offset/3600), func(t *testing.T) {
+			ctx := t.Context()
+			domain := helper.CreateDomain(t)
+
+			zone := time.FixedZone("caller", offset)
+			expiresAt := time.Now().Add(24 * time.Hour).Truncate(time.Second).In(zone)
+			result, err := NewAPIKey(domain, "zoned-key", &expiresAt)
+			require.NoError(t, err)
+			require.NoError(t, repo.Create(ctx, result.Key))
+
+			fetched, err := repo.GetByID(ctx, NewKeyRef(domain, result.Key.ID()))
+			require.NoError(t, err)
+			require.NotNil(t, fetched.ExpiresAt())
+			assert.True(t, expiresAt.Equal(*fetched.ExpiresAt()), "stored expiry %s should be the instant %s", fetched.ExpiresAt(), expiresAt)
+		})
+	}
 }
 
 func testUpdate(t *testing.T, repo Repository, helper RepoTestHelper) {

@@ -65,10 +65,10 @@ type ApiKey struct {
 	ID            string
 	Name          string
 	Domain        string
-	CreatedAt     pgtype.Timestamp
-	ExpiresAt     pgtype.Timestamp
+	CreatedAt     pgtype.Timestamptz
+	ExpiresAt     pgtype.Timestamptz
 	IsActive      bool
-	DeactivatedAt pgtype.Timestamp
+	DeactivatedAt pgtype.Timestamptz
 	KeyHash       string
 	KeyPrefix     string
 	Roles         []string

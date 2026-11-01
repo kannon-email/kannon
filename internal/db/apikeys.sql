@@ -40,7 +40,7 @@ LIMIT $3 OFFSET $4;
 SELECT *
 FROM api_keys
 WHERE domain = @domain
-    AND (sqlc.narg(before_time)::timestamp IS NULL OR (created_at, id) < (sqlc.narg(before_time)::timestamp, sqlc.arg(before_id)::text))
+    AND (sqlc.narg(before_time)::timestamptz IS NULL OR (created_at, id) < (sqlc.narg(before_time)::timestamptz, sqlc.arg(before_id)::text))
 ORDER BY created_at DESC, id DESC
 LIMIT @take;
 
