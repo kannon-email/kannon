@@ -3,9 +3,12 @@ package rest
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
+
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 const maxBodyBytes = 10 << 20
@@ -37,11 +40,18 @@ func decodeBodyBytes[T any](body io.Reader) (value T, raw []byte, err error) {
 func strictJSON(raw []byte, value any) error {
 	d := json.NewDecoder(bytes.NewReader(raw))
 	d.DisallowUnknownFields()
-	if err := d.Decode(value); err == nil {
+	err := d.Decode(value)
+	if err == nil {
 		var tail any
 		if d.Decode(&tail) == io.EOF {
 			return nil
 		}
+	}
+	// A format: email member is checked by the generated type while decoding,
+	// but a string that is not an address is well-formed JSON with an invalid
+	// value: that is a validation failure, not a malformed request.
+	if errors.Is(err, openapi_types.ErrValidationEmail) {
+		return problemError(422, "validation_failed")
 	}
 	return problemError(400, "malformed_request")
 }

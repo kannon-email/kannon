@@ -156,11 +156,12 @@ func TestInlineBatchRetry(t *testing.T) {
 	require.NoError(t, replyVerified[0].Err, "a stated Reply-To must not break the signature")
 	bare := call(path, "reply-to-bare", strings.TrimSuffix(body, "}")+`,"reply_to":{"email":"maintainer@elsewhere.example"}}`, 201)
 	require.Equal(t, map[string]any{"email": "maintainer@elsewhere.example"}, readBatch(fmt.Sprint(bare["id"]))["reply_to"])
-	// An address that does not parse fails like a from address that does not; the
-	// rest are well-formed JSON the contract refuses.
-	call(path, "reply-to-invalid", strings.TrimSuffix(body, "}")+`,"reply_to":{"email":"not-an-address"}}`, 400)
 	call(path, "reply-to-unknown", strings.TrimSuffix(body, "}")+`,"reply_to":{"email":"maintainer@elsewhere.example","to":"x"}}`, 400)
+	// An address that does not parse is well-formed JSON with an invalid value,
+	// in reply_to and in from alike.
+	require.Equal(t, "validation_failed", call(path, "from-invalid", strings.Replace(body, `"sender@example.com"`, `"not-an-address"`, 1), 422)["code"])
 	for key, extra := range map[string]string{
+		"reply-to-invalid":   `,"reply_to":{"email":"not-an-address"}}`,
 		"reply-to-null":      `,"reply_to":null`,
 		"reply-to-no-email":  `,"reply_to":{"name":"The Maintainer"}}`,
 		"reply-to-empty":     `,"reply_to":{}}`,

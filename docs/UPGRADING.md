@@ -24,9 +24,16 @@ not the message carries one (see the amendment to
 that *adds* a `Reply-To` to your mail now breaks the signature instead of
 redirecting replies unnoticed.
 
+On the REST API, an address that does not parse in `from.email` (and now
+`reply_to.email`) is refused with **422 `validation_failed`** instead of 400
+`malformed_request`: the JSON is well-formed, the value is not.
+
 ### What you have to do
 
-Nothing, unless something downstream of Kannon looks for a `Reply-To` header
+If a REST client branches on the status of a refused `from` address, expect
+422 rather than 400.
+
+Nothing else, unless something downstream of Kannon looks for a `Reply-To` header
 on every message, or adds one to your mail in transit. If it looks for one,
 state `reply_to` on your REST Batches.
 
