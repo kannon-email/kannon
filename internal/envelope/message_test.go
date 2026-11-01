@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/base64"
 	"errors"
-	"fmt"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -26,7 +25,7 @@ func TestBuildHeaders(t *testing.T) {
 
 	assert.Equal(t, "testH", h["testH"][0])
 	assert.Equal(t, "test subject", h["Subject"][0])
-	assert.Equal(t, fmt.Sprintf("%v <%v>", sender.Alias, sender.Email), h["From"][0])
+	assert.Equal(t, `"email" <from@email.com>`, h["From"][0])
 	assert.Equal(t, "to@email.com", h["To"][0])
 }
 

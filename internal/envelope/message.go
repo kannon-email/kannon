@@ -41,7 +41,7 @@ func buildHeaders(subject string, sender batch.Sender, replyTo batch.ReplyTo, to
 		copy(h[k], v)
 	}
 	h["Subject"] = []string{subject}
-	h["From"] = []string{fmt.Sprintf("%v <%v>", sender.Alias, sender.Email)}
+	h["From"] = []string{formatAddress(sender.Alias, sender.Email)}
 	h["Message-ID"] = []string{messageID}
 	h["X-Pool-Message-ID"] = []string{poolMessageID}
 	h["To"] = []string{to}

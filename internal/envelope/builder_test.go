@@ -158,7 +158,7 @@ func TestBuilderRendersSubjectFromAndTo(t *testing.T) {
 	parsed, err := mail.ReadMessage(bytes.NewReader(env.Body()))
 	assert.Nil(t, err)
 	assert.Equal(t, "Hello World", parsed.Header.Get("Subject"))
-	assert.Equal(t, "Test <noreply@test.com>", parsed.Header.Get("From"))
+	assert.Equal(t, `"Test" <noreply@test.com>`, parsed.Header.Get("From"))
 	assert.Equal(t, "rcpt@example.com", parsed.Header.Get("To"))
 }
 
