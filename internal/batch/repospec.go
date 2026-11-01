@@ -54,6 +54,23 @@ func testCreate(t *testing.T, repo Repository, helper RepoTestHelper) {
 		require.NoError(t, err)
 	})
 
+	// A Batch ID names one Batch for good: a second Create under it is refused rather than
+	// overwriting the first, whose Deliveries already point at it.
+	t.Run("DuplicateIDIsRefused", func(t *testing.T) {
+		ctx := t.Context()
+		domain := helper.CreateDomain(t)
+		tpl := helper.CreateTemplate(t, domain)
+
+		b, err := New(NewParams{Domain: domain, Subject: testSubject, Sender: Sender{Email: "from@" + domain, Alias: testSenderAlias}, TemplateID: tpl})
+		require.NoError(t, err)
+		require.NoError(t, repo.Create(ctx, b))
+		require.Error(t, repo.Create(ctx, b))
+
+		fetched, err := repo.GetByID(ctx, b.ID())
+		require.NoError(t, err)
+		assert.Equal(t, testSubject, fetched.Subject())
+	})
+
 	t.Run("WithAttachmentsAndHeaders", func(t *testing.T) {
 		ctx := t.Context()
 		domain := helper.CreateDomain(t)
