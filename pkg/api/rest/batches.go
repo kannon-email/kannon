@@ -33,7 +33,7 @@ func registerBatches(mux *http.ServeMux, service *intake.InlineService) {
 			switch v.Code {
 			case "tracking_above_ceiling", "unsupported_tracking_mode":
 				field = "tracking"
-			case "unsubscribe_url_unresolved", "unresolved_placeholder", "reserved_field":
+			case "unsubscribe_url_unresolved", "unresolved_placeholder", "reserved_field", "message_too_large":
 				field = "fields"
 			}
 			rejected = append(rejected, RecipientRejection{Index: v.Index, Code: v.Code, Pointer: fmt.Sprintf("/recipients/%d/%s", v.Index, field), Detail: "Recipient refused: " + v.Code})

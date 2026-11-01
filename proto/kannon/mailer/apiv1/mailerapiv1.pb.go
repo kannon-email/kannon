@@ -82,10 +82,11 @@ type SendHTMLReq struct {
 	Subject       string                 `protobuf:"bytes,3,opt,name=subject,proto3" json:"subject,omitempty"`
 	Html          string                 `protobuf:"bytes,4,opt,name=html,proto3" json:"html,omitempty"`
 	ScheduledTime *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=scheduled_time,json=scheduledTime,proto3,oneof" json:"scheduled_time,omitempty"`
-	Recipients    []*types.Recipient     `protobuf:"bytes,6,rep,name=recipients,proto3" json:"recipients,omitempty"`
-	Attachments   []*Attachment          `protobuf:"bytes,7,rep,name=attachments,proto3" json:"attachments,omitempty"`
-	GlobalFields  map[string]string      `protobuf:"bytes,8,rep,name=global_fields,json=globalFields,proto3" json:"global_fields,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	Headers       *types.Headers         `protobuf:"bytes,9,opt,name=headers,proto3,oneof" json:"headers,omitempty"`
+	// At most 2000. More fails the call with InvalidArgument (too_many_recipients).
+	Recipients   []*types.Recipient `protobuf:"bytes,6,rep,name=recipients,proto3" json:"recipients,omitempty"`
+	Attachments  []*Attachment      `protobuf:"bytes,7,rep,name=attachments,proto3" json:"attachments,omitempty"`
+	GlobalFields map[string]string  `protobuf:"bytes,8,rep,name=global_fields,json=globalFields,proto3" json:"global_fields,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Headers      *types.Headers     `protobuf:"bytes,9,opt,name=headers,proto3,oneof" json:"headers,omitempty"`
 	// The Batch-level Tracking Policy. States nothing when omitted, which
 	// imposes no restriction of its own and resolves to the Domain's ceiling
 	// (ADR 0003). A Mode above that ceiling fails the call.
@@ -204,10 +205,11 @@ type SendTemplateReq struct {
 	Subject       string                 `protobuf:"bytes,3,opt,name=subject,proto3" json:"subject,omitempty"`
 	TemplateId    string                 `protobuf:"bytes,4,opt,name=template_id,json=templateId,proto3" json:"template_id,omitempty"`
 	ScheduledTime *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=scheduled_time,json=scheduledTime,proto3,oneof" json:"scheduled_time,omitempty"`
-	Recipients    []*types.Recipient     `protobuf:"bytes,6,rep,name=recipients,proto3" json:"recipients,omitempty"`
-	Attachments   []*Attachment          `protobuf:"bytes,7,rep,name=attachments,proto3" json:"attachments,omitempty"`
-	GlobalFields  map[string]string      `protobuf:"bytes,8,rep,name=global_fields,json=globalFields,proto3" json:"global_fields,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	Headers       *types.Headers         `protobuf:"bytes,9,opt,name=headers,proto3,oneof" json:"headers,omitempty"`
+	// At most 2000. More fails the call with InvalidArgument (too_many_recipients).
+	Recipients   []*types.Recipient `protobuf:"bytes,6,rep,name=recipients,proto3" json:"recipients,omitempty"`
+	Attachments  []*Attachment      `protobuf:"bytes,7,rep,name=attachments,proto3" json:"attachments,omitempty"`
+	GlobalFields map[string]string  `protobuf:"bytes,8,rep,name=global_fields,json=globalFields,proto3" json:"global_fields,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Headers      *types.Headers     `protobuf:"bytes,9,opt,name=headers,proto3,oneof" json:"headers,omitempty"`
 	// The Batch-level Tracking Policy. States nothing when omitted, which
 	// imposes no restriction of its own and resolves to the Domain's ceiling
 	// (ADR 0003). A Mode above that ceiling fails the call.
@@ -430,6 +432,9 @@ type RejectedRecipient struct {
 	//	                           one_click_unsubscribe.url_template unresolved,
 	//	                           so its unsubscribe endpoint would be advertised
 	//	                           as authenticated while being unreachable
+	//	message_too_large          this Recipient's fields personalise the
+	//	                           Batch's content past the configured
+	//	                           api.max_payload
 	//
 	// Treat an unrecognised value as a refusal of unknown cause: the set grows as
 	// new causes are added.

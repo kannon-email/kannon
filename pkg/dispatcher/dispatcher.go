@@ -37,7 +37,9 @@ func run(ctx context.Context, cnt *container.Container, rp returnpath.Signer) er
 
 	ss := statssec.NewStatsService(q)
 	claimer := pool.NewClaimer(sqlc.NewDeliveryRepository(cnt.DB(), cnt.BackoffPolicy(), cnt.RetryWindow()))
-	eb := envelope.NewBuilder(q, ss, rp)
+	// An Envelope travels as one NATS message, so the server's limit for one is
+	// the most content a Delivery can be built with.
+	eb := envelope.NewBuilder(q, ss, rp, int(cnt.Nats().MaxPayload()))
 
 	js := cnt.NatsJetStream()
 	if err := configureSendingStream(ctx, js); err != nil {

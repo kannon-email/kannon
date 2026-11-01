@@ -3,8 +3,11 @@ package envelope
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
+	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 
 	"github.com/kannon-email/kannon/internal/batch"
 	sqlc "github.com/kannon-email/kannon/internal/db"
@@ -63,31 +66,29 @@ type Builder interface {
 	Build(ctx context.Context, d *delivery.Delivery) (*Envelope, error)
 }
 
+// ErrContentTooLarge is a Delivery whose personalised content exceeds the
+// Builder's maxPayload, refused before it is rendered.
+var ErrContentTooLarge = errors.New("personalised content exceeds the maximum payload")
+
 // NewBuilder returns the default Builder backed by sqlc and the given
 // stats service. The sqlc-backed source resolves the Batch + Template +
 // Domain join in a single query (see internal/db/pool.sql). rp signs the
 // return path, so the inbound SMTP server can tell a real bounce from a
-// forged one.
-func NewBuilder(q *sqlc.Queries, st statssec.StatsService, rp returnpath.Signer) Builder {
-	return &defaultBuilder{
-		source: sqlcSource{q: q},
-		tokens: st,
-		rp:     rp,
-		shared: newSharedTokens(),
-		baseHeaders: headers{
-			"X-Mailer": {"SMTP Mailer"},
-		},
-	}
+// forged one. maxPayload bounds a Delivery's personalised content in bytes;
+// zero leaves it unchecked.
+func NewBuilder(q *sqlc.Queries, st statssec.StatsService, rp returnpath.Signer, maxPayload int) Builder {
+	return NewBuilderWith(sqlcSource{q: q}, st, rp, maxPayload)
 }
 
 // NewBuilderWith wires a Builder against an explicit source + token issuer.
 // Useful for unit tests that want to stub both sides.
-func NewBuilderWith(source SendingDataSource, tokens TokenIssuer, rp returnpath.Signer) Builder {
+func NewBuilderWith(source SendingDataSource, tokens TokenIssuer, rp returnpath.Signer, maxPayload int) Builder {
 	return &defaultBuilder{
-		source: source,
-		tokens: tokens,
-		rp:     rp,
-		shared: newSharedTokens(),
+		source:     source,
+		tokens:     tokens,
+		rp:         rp,
+		maxPayload: maxPayload,
+		shared:     newSharedTokens(),
 		baseHeaders: headers{
 			"X-Mailer": {"SMTP Mailer"},
 		},
@@ -98,6 +99,9 @@ type defaultBuilder struct {
 	source SendingDataSource
 	tokens TokenIssuer
 	rp     returnpath.Signer
+	// maxPayload bounds a Delivery's personalised content; zero leaves it
+	// unchecked. See personalise.
+	maxPayload int
 	// shared holds the tokens that name no Recipient, so they are issued once per
 	// Batch rather than once per Delivery. It is per-Builder, and a Builder lives
 	// as long as the Dispatcher does.
@@ -144,20 +148,68 @@ func (b *defaultBuilder) Build(ctx context.Context, d *delivery.Delivery) (*Enve
 func (b *defaultBuilder) prepareMessage(ctx context.Context, d *delivery.Delivery, data SendingData, attachments Attachments) ([]byte, error) {
 	emailMessageID := buildEmailID(d.Email(), data.MessageID)
 	fields := utils.EffectiveFields(d.Email(), d.Fields())
-	html, err := b.preparedHTML(ctx, d, data, fields)
+	subject, html, err := b.personalise(data, fields)
 	if err != nil {
 		return nil, err
 	}
-	render := utils.ReplaceCustomFields
-	if data.LiteralFields {
-		render = utils.ReplaceLiteralFields
+	html, err = b.preparedHTML(ctx, d, data, html)
+	if err != nil {
+		return nil, err
 	}
-	subject := render(data.Subject, fields)
 
 	sender := batch.Sender{Email: data.SenderEmail, Alias: data.SenderAlias}
 	h := buildHeaders(subject, sender, data.ReplyTo, d.Email(), data.MessageID, emailMessageID, b.baseHeaders, data.Headers,
 		resolveUnsubscribeURL(data.OneClickUnsubscribe, fields))
 	return renderMsg(html, h, attachments)
+}
+
+// personalise substitutes one Delivery's fields into the Batch's subject and
+// body, refusing with ErrContentTooLarge, before building it, content that with
+// the attachments and the unsubscribe URL exceeds maxPayload.
+//
+// Intake refuses such a Recipient already, so this is the backstop for a
+// Delivery queued before it did. Substitution multiplies — one placeholder
+// repeated through a body against a large value — and the Builder serves every
+// Domain in turn, so a single such Delivery would otherwise take the Dispatcher
+// down for all of them, and again after every reclaim. Built here the Envelope
+// could not be handed on anyway: it travels as one NATS message, and maxPayload
+// is the server's limit for one.
+//
+// The refusal is an ordinary build failure, so the Delivery is retried until its
+// Retry Budget closes it out as Failed (ADR 0007). The check is cheap enough to
+// repeat, and a legacy Batch reads its Template live, which can still be edited
+// down to a size that fits.
+func (b *defaultBuilder) personalise(data SendingData, fields map[string]string) (string, string, error) {
+	room := math.MaxInt
+	if b.maxPayload > 0 {
+		room = b.maxPayload
+		for _, content := range data.Attachments {
+			room -= base64.StdEncoding.EncodedLen(len(content))
+		}
+	}
+	var subject, html string
+	if data.LiteralFields {
+		// The literal substitution can be measured before it is built.
+		text := utils.LiteralFieldsSize(data.HTML, fields) + utils.LiteralFieldsSize(data.Subject, fields)
+		if text > room {
+			return "", "", ErrContentTooLarge
+		}
+		subject, html = utils.ReplaceLiteralFields(data.Subject, fields), utils.ReplaceLiteralFields(data.HTML, fields)
+	} else {
+		var ok bool
+		if html, ok = utils.ReplaceCustomFieldsWithin(data.HTML, fields, room); !ok {
+			return "", "", ErrContentTooLarge
+		}
+		if subject, ok = utils.ReplaceCustomFieldsWithin(data.Subject, fields, room-len(html)); !ok {
+			return "", "", ErrContentTooLarge
+		}
+	}
+	if !data.OneClickUnsubscribe.IsZero() {
+		if _, ok := utils.ReplaceCustomFieldsInURLWithin(data.OneClickUnsubscribe.URLTemplate, fields, room-len(subject)-len(html)); !ok {
+			return "", "", ErrContentTooLarge
+		}
+	}
+	return subject, html, nil
 }
 
 // resolveUnsubscribeURL personalises the Batch's unsubscribe endpoint for one
@@ -219,10 +271,10 @@ func signMessage(domain, dkimPrivateKey string, msg []byte) ([]byte, error) {
 	return dkim.SignMessage(signData, bytes.NewReader(msg))
 }
 
-// preparedHTML renders the Batch template for one Delivery and applies the
-// Delivery's frozen Tracking Policy. The cascade was already resolved at intake
-// (ADR 0003), so the Builder reads the Policy as it stands: it never resolves it
-// again and never consults configuration.
+// preparedHTML applies the Delivery's frozen Tracking Policy to its personalised
+// body. The cascade was already resolved at intake (ADR 0003), so the Builder
+// reads the Policy as it stands: it never resolves it again and never consults
+// configuration.
 //
 // The two axes are independent, and each Off suppresses only its own channel: no
 // pixel is injected for opens, no href is rewritten for links. A Mode that
@@ -232,13 +284,8 @@ func signMessage(domain, dkimPrivateKey string, msg []byte) ([]byte, error) {
 // Whatever the Mode of a tracked axis is, it is minted into the token of that
 // axis, so the Tracker acts on the Policy frozen on this Delivery rather than on
 // whatever is configured when the engagement arrives.
-func (b *defaultBuilder) preparedHTML(ctx context.Context, d *delivery.Delivery, data SendingData, fields map[string]string) (string, error) {
+func (b *defaultBuilder) preparedHTML(ctx context.Context, d *delivery.Delivery, data SendingData, html string) (string, error) {
 	policy := d.TrackingPolicy()
-	render := utils.ReplaceCustomFields
-	if data.LiteralFields {
-		render = utils.ReplaceLiteralFields
-	}
-	html := render(data.HTML, fields)
 
 	identity, err := newTrackingIdentity(policy, d.Email(), data.Domain)
 	if err != nil {

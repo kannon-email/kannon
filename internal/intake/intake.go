@@ -99,6 +99,9 @@ func (e *SenderNotAuthorized) Unwrap() error { return e.Err }
 // rendering), accepts past schedules, and creates a Batch even if every Recipient
 // is refused. Adapters must not apply the REST contract's different rules here.
 func (s *Service) Accept(ctx context.Context, domain *domains.Domain, p Request) (*Result, error) {
+	if len(p.Recipients) > maxRecipients {
+		return nil, ErrTooManyRecipients
+	}
 	if strings.ContainsAny(p.Subject, "\r\n") {
 		return nil, invalid(errors.New("subject contains forbidden CR/LF"))
 	}
@@ -125,17 +128,27 @@ func (s *Service) Accept(ctx context.Context, domain *domains.Domain, p Request)
 }
 
 func (s *Service) accept(ctx context.Context, domain *domains.Domain, p Request) (*Result, error) {
+	// The global fields are substituted under the payload limit rather than checked after it: the
+	// substitution is where the content grows, so it is where the bound has to hold.
+	room := textRoom(s.maxPayload, p.Attachments)
 	var tpl, generated *templates.Template
 	var err error
 	if p.HTML != nil {
-		tpl, err = templates.NewTransient(domain.Name(), utils.ReplaceCustomFields(*p.HTML, p.GlobalFields))
+		html, ok := utils.ReplaceCustomFieldsWithin(*p.HTML, p.GlobalFields, room-len(p.Subject))
+		if !ok {
+			return nil, ErrMessageTooLarge
+		}
+		tpl, err = templates.NewTransient(domain.Name(), html)
 		generated = tpl
 	} else {
 		tpl, err = s.store.FindByDomain(ctx, domain.Name(), p.TemplateID)
 		if err != nil {
 			return nil, fmt.Errorf("cannot find template with id: %v", p.TemplateID)
 		}
-		html := utils.ReplaceCustomFields(tpl.Html(), p.GlobalFields)
+		html, ok := utils.ReplaceCustomFieldsWithin(tpl.Html(), p.GlobalFields, room-len(p.Subject))
+		if !ok {
+			return nil, ErrMessageTooLarge
+		}
 		if html != tpl.Html() {
 			tpl, err = templates.NewTransient(domain.Name(), html)
 			generated = tpl
@@ -143,9 +156,6 @@ func (s *Service) accept(ctx context.Context, domain *domains.Domain, p Request)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("cannot create template %w", err)
-	}
-	if err := checkMessageSize(s.maxPayload, tpl.Html(), p.Attachments); err != nil {
-		return nil, err
 	}
 	for i, emails := range [][]string{p.Headers.To, p.Headers.Cc} {
 		for _, email := range emails {
@@ -176,7 +186,7 @@ func (s *Service) accept(ctx context.Context, domain *domains.Domain, p Request)
 	if p.ScheduledTime != nil {
 		scheduled = *p.ScheduledTime
 	}
-	taken := s.decide(domain, b, p.Recipients, scheduled)
+	taken := s.decide(domain, b, tpl.Html(), room, p.Recipients, scheduled)
 	if err := s.store.Accept(ctx, generated, b, taken.deliveries); err != nil {
 		return nil, fmt.Errorf("cannot accept batch %s: %w", b.ID(), err)
 	}
@@ -203,6 +213,10 @@ const (
 	// the Batch's one-click unsubscribe URL. Refusing beats sending a DKIM-signed header
 	// advertising an authenticated endpoint that is a URL with braces in it (ADR 0005).
 	ReasonUnsubscribeURLUnresolved RejectionReason = "unsubscribe_url_unresolved"
+	// ReasonMessageTooLarge is a Recipient whose fields personalise the Batch's content past
+	// the payload limit the Batch itself fits within. Its message could never be sent, since
+	// the Envelope travels as one NATS message (see checkMessageSize).
+	ReasonMessageTooLarge RejectionReason = "message_too_large"
 )
 
 // acceptance is what became of a Batch's Recipients: those accepted onto the Pool, and
@@ -240,7 +254,9 @@ type Recipient struct {
 	TrackingError error
 }
 
-func (s *Service) decide(domain *domains.Domain, b *batch.Batch, recipients []Recipient, scheduled time.Time) *acceptance {
+// decide accepts or Rejects each Recipient. html is the Batch body after global substitution,
+// and room the text its personalised message may carry beside the attachments.
+func (s *Service) decide(domain *domains.Domain, b *batch.Batch, html string, room int, recipients []Recipient, scheduled time.Time) *acceptance {
 	taken := &acceptance{
 		batchID:    b.ID().String(),
 		deliveries: make([]*delivery.Delivery, 0, len(recipients)),
@@ -253,6 +269,11 @@ func (s *Service) decide(domain *domains.Domain, b *batch.Batch, recipients []Re
 		policy, rejection := resolveRecipientTracking(domain.TrackingPolicy(), b.TrackingPolicy(), r)
 		if rejection != nil {
 			taken.reject(r.Email, rejection.reason, rejection.detail)
+			continue
+		}
+		// Unchecked, the check would only render every Recipient for nothing.
+		if s.maxPayload > 0 && !recipientFits(html, b.Subject(), b.OneClickUnsubscribe(), utils.EffectiveFields(r.Email, r.Fields), room) {
+			taken.reject(r.Email, ReasonMessageTooLarge, "personalised content exceeds the maximum payload")
 			continue
 		}
 		if detail, ok := unresolvedUnsubscribeURL(b.OneClickUnsubscribe(), r.Recipient); !ok {
@@ -276,6 +297,19 @@ func (s *Service) decide(domain *domains.Domain, b *batch.Batch, recipients []Re
 		taken.deliveries = append(taken.deliveries, d)
 	}
 	return taken
+}
+
+// recipientFits reports whether one Recipient's message, personalised the way the Builder
+// personalises a legacy Batch, stays within room. The legacy substitution cannot be measured
+// without rendering, so it renders under the bound instead (utils.ReplaceCustomFieldsWithin):
+// whatever the fields, nothing much larger than room is ever built.
+func recipientFits(html, subject string, u batch.OneClickUnsubscribe, fields map[string]string, room int) bool {
+	html, ok := utils.ReplaceCustomFieldsWithin(html, fields, room)
+	if !ok {
+		return false
+	}
+	subject, ok = utils.ReplaceCustomFieldsWithin(subject, fields, room-len(html))
+	return ok && unsubscribeURLFits(u, fields, room-len(html)-len(subject))
 }
 
 // unresolvedUnsubscribeURL reports whether one Recipient's fields can resolve the

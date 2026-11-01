@@ -2,6 +2,8 @@ package intake_test
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -137,27 +139,92 @@ func TestSenderRefusalDescribesApplicationDecision(t *testing.T) {
 }
 
 // The Envelope travels as one NATS message, so intake refuses a Batch over the configured
-// payload rather than accepting work the Dispatcher can never hand on. The payload is the HTML
-// plus each attachment as base64.
+// payload rather than accepting work the Dispatcher can never hand on. The payload is the subject
+// and the HTML plus each attachment as base64.
 func TestIntakeRefusesMessageTooLarge(t *testing.T) {
 	name := values.MustParse("example.com")
 	domain := domains.Load(domains.LoadParams{Domain: name})
 	ctx := authz.NewContext(t.Context(), authz.MustNewPrincipal("key", authz.MustNewGrant(authz.RoleSender, authz.DomainAnchor(name))))
 	request := func(attachment int) intake.Request {
 		return intake.Request{
-			HTML: new("Hello!!!"), Subject: "Hello", Sender: batch.Sender{Email: "sender@example.com"},
+			HTML: new("Hello!!"), Subject: "Hello", Sender: batch.Sender{Email: "sender@example.com"},
 			Recipients:  []intake.Recipient{{Recipient: batch.Recipient{Email: "recipient@example.com"}}},
 			Attachments: batch.Attachments{"a.pdf": make([]byte, attachment)},
 		}
 	}
 
-	// 519 raw bytes encode to 692; with the 8-byte body that is 700, exactly the limit.
+	// 516 raw bytes encode to 688; with the 5-byte subject and the 7-byte body that is 700,
+	// exactly the limit.
 	store := &capturedStore{}
-	_, err := intake.New(store, nil, 0, 700).Accept(ctx, domain, request(519))
+	_, err := intake.New(store, nil, 0, 700).Accept(ctx, domain, request(516))
 	require.NoError(t, err)
 	require.Len(t, store.deliveries, 1)
 
-	// 522 raw bytes encode to 696; with the body that is 704, past the limit.
-	_, err = intake.New(unavailableStore{}, nil, 0, 700).Accept(ctx, domain, request(522))
+	// 519 raw bytes encode to 692; with the text that is 704, past the limit.
+	_, err = intake.New(unavailableStore{}, nil, 0, 700).Accept(ctx, domain, request(519))
 	require.ErrorIs(t, err, intake.ErrMessageTooLarge)
+}
+
+// The legacy intake holds the same bound on Recipients as REST: each one is measured against the
+// payload limit before it is accepted, so the bound is what keeps one request's work in proportion.
+func TestIntakeRefusesMoreThanTwoThousandRecipients(t *testing.T) {
+	name := values.MustParse("example.com")
+	domain := domains.Load(domains.LoadParams{Domain: name})
+	ctx := authz.NewContext(t.Context(), authz.MustNewPrincipal("key", authz.MustNewGrant(authz.RoleSender, authz.DomainAnchor(name))))
+	request := func(n int) intake.Request {
+		recipients := make([]intake.Recipient, n)
+		for i := range recipients {
+			recipients[i] = intake.Recipient{Recipient: batch.Recipient{Email: fmt.Sprintf("r%d@example.com", i)}}
+		}
+		return intake.Request{HTML: new("<p>Hi</p>"), Subject: "Hello", Sender: batch.Sender{Email: "sender@example.com"}, Recipients: recipients}
+	}
+
+	store := &capturedStore{}
+	_, err := intake.New(store, nil, 0, 500<<10).Accept(ctx, domain, request(2000))
+	require.NoError(t, err)
+	require.Len(t, store.deliveries, 2000)
+
+	_, err = intake.New(unavailableStore{}, nil, 0, 500<<10).Accept(ctx, domain, request(2001))
+	require.ErrorIs(t, err, intake.ErrTooManyRecipients)
+}
+
+// Global fields grow the content before it can be measured, so they are substituted under the
+// payload limit: a body of well under a megabyte that would render to gigabytes is refused, and
+// never built.
+func TestIntakeRefusesGlobalFieldsPastThePayload(t *testing.T) {
+	name := values.MustParse("example.com")
+	domain := domains.Load(domains.LoadParams{Domain: name})
+	ctx := authz.NewContext(t.Context(), authz.MustNewPrincipal("key", authz.MustNewGrant(authz.RoleSender, authz.DomainAnchor(name))))
+	_, err := intake.New(unavailableStore{}, nil, 0, 500<<10).Accept(ctx, domain, intake.Request{
+		HTML: new(strings.Repeat("{{a}}", 100_000)), Subject: "Hello", Sender: batch.Sender{Email: "sender@example.com"},
+		GlobalFields: map[string]string{"a": strings.Repeat("x", 50_000)},
+		Recipients:   []intake.Recipient{{Recipient: batch.Recipient{Email: "recipient@example.com"}}},
+	})
+	require.ErrorIs(t, err, intake.ErrMessageTooLarge)
+}
+
+// A Recipient's own fields are only substituted by the Dispatcher, so intake measures each
+// Recipient's message as the Builder will render it, and Rejects the one that cannot fit.
+func TestIntakeRejectsARecipientWhoseFieldsPassThePayload(t *testing.T) {
+	name := values.MustParse("example.com")
+	domain := domains.Load(domains.LoadParams{Domain: name})
+	ctx := authz.NewContext(t.Context(), authz.MustNewPrincipal("key", authz.MustNewGrant(authz.RoleSender, authz.DomainAnchor(name))))
+	big := map[string]string{"a": strings.Repeat("x", 50_000)}
+	store := &capturedStore{}
+	result, err := intake.New(store, nil, 0, 500<<10).Accept(ctx, domain, intake.Request{
+		HTML: new(strings.Repeat("{{a}}", 100_000)), Subject: "Hello", Sender: batch.Sender{Email: "sender@example.com"},
+		OneClickUnsubscribe: batch.OneClickUnsubscribe{URLTemplate: "https://example.com/leave?t={{ t }}" + strings.Repeat("{{t}}", 10_000)},
+		Recipients: []intake.Recipient{
+			{Recipient: batch.Recipient{Email: "body@example.com", Fields: map[string]string{"a": big["a"], "t": "1"}}},
+			{Recipient: batch.Recipient{Email: "fits@example.com", Fields: map[string]string{"a": "", "t": "1"}}},
+			{Recipient: batch.Recipient{Email: "unsubscribe@example.com", Fields: map[string]string{"a": "", "t": big["a"]}}},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []intake.RejectedRecipient{
+		{Email: "body@example.com", Reason: intake.ReasonMessageTooLarge},
+		{Email: "unsubscribe@example.com", Reason: intake.ReasonMessageTooLarge},
+	}, result.Rejected)
+	require.Len(t, store.deliveries, 1)
+	require.Equal(t, "fits@example.com", store.deliveries[0].Email())
 }

@@ -97,7 +97,7 @@ func TestDispatchCycle_RetryBudgetSpent_FailsInsteadOfReschedulingForever(t *tes
 	pub := &subjectPublisher{}
 	d := &disp{
 		claimer: claimer,
-		eb:      envelope.NewBuilder(q, statssec.NewStatsService(q), returnpath.MustParse(strings.Repeat("s", returnpath.MinSecretLength))),
+		eb:      envelope.NewBuilder(q, statssec.NewStatsService(q), returnpath.MustParse(strings.Repeat("s", returnpath.MinSecretLength)), 0),
 		pub:     pub,
 	}
 

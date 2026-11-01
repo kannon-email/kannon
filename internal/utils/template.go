@@ -87,3 +87,99 @@ func ReplaceLiteralFields(text string, fields map[string]string) string {
 		return token
 	})
 }
+
+// LiteralFieldsSize is len(ReplaceLiteralFields(text, fields)), computed without
+// building the result: each placeholder a field names changes the length by the
+// difference between its value and itself.
+//
+// It exists so a size limit can be enforced before rendering rather than after.
+// The amplification is multiplicative — a placeholder repeated a hundred
+// thousand times in a body, against a value of fifty kilobytes, renders to five
+// gigabytes from a request of well under a megabyte — so measuring the rendered
+// string would already have paid for it.
+func LiteralFieldsSize(text string, fields map[string]string) int {
+	size := len(text)
+	for rest := text; ; {
+		loc := placeholderReg.FindStringIndex(rest)
+		if loc == nil {
+			return size
+		}
+		token := rest[loc[0]:loc[1]]
+		if value, ok := fields[strings.TrimSpace(token[2:len(token)-2])]; ok {
+			size += len(value) - len(token)
+		}
+		rest = rest[loc[1]:]
+	}
+}
+
+// ReplaceCustomFieldsWithin is ReplaceCustomFields refusing, with false, a
+// result longer than limit, without ever holding a string much longer than it.
+//
+// Unlike the literal semantics, the legacy ones cannot be measured without
+// rendering: keys are substituted one after another, in map order, so a value
+// may hold a placeholder a later key expands, and a value is a regexp template,
+// so a `$0` in it expands to the whole placeholder it replaces. Each key's pass
+// is therefore measured before it is built, and a pass that would cross the
+// limit stops the substitution there.
+//
+// A `$` makes the exact length of one expansion expensive to know in advance.
+// It is bounded by the value's length plus the placeholder's length for each
+// `$` in it, since a reference expands to at most the whole match, and only
+// expanded when that bound fits within limit. A value whose bound does not is
+// refused even if its exact expansion might have fitted: no legitimate value
+// needs that many references, and a literal `$` already renders broken here.
+func ReplaceCustomFieldsWithin(str string, fields map[string]string, limit int) (string, bool) {
+	return replaceCustomFieldsWithin(str, fields, func(v string) string { return v }, limit)
+}
+
+// ReplaceCustomFieldsInURLWithin is ReplaceCustomFieldsInURL under the limit of
+// ReplaceCustomFieldsWithin.
+func ReplaceCustomFieldsInURLWithin(str string, fields map[string]string, limit int) (string, bool) {
+	return replaceCustomFieldsWithin(str, fields, url.QueryEscape, limit)
+}
+
+func replaceCustomFieldsWithin(str string, fields map[string]string, escape func(string) string, limit int) (string, bool) {
+	var scratch []byte
+	for key, value := range fields {
+		reg, err := regexp.Compile(fmt.Sprintf(`\{\{ *%s *\}\}`, key))
+		if err != nil {
+			continue
+		}
+		matches := reg.FindAllStringSubmatchIndex(str, -1)
+		if len(matches) == 0 {
+			continue
+		}
+		value = escape(value)
+		dollars := strings.Count(value, "$")
+		size, expanded := len(str), 0
+		for _, m := range matches {
+			e := len(value)
+			if dollars > 0 {
+				if len(value)+dollars*(m[1]-m[0]) > limit {
+					return "", false
+				}
+				scratch = reg.ExpandString(scratch[:0], value, str, m)
+				e = len(scratch)
+			}
+			// The result holds every expansion, so their sum alone crossing the
+			// limit settles it, whatever the placeholders they replace give back.
+			expanded += e
+			size += e - (m[1] - m[0])
+			if expanded > limit {
+				return "", false
+			}
+		}
+		if size > limit {
+			return "", false
+		}
+		out := make([]byte, 0, size)
+		last := 0
+		for _, m := range matches {
+			out = append(out, str[last:m[0]]...)
+			out = reg.ExpandString(out, value, str, m)
+			last = m[1]
+		}
+		str = string(append(out, str[last:]...))
+	}
+	return str, len(str) <= limit
+}

@@ -164,7 +164,7 @@ func validateInline(key string, p InlineRequest) error {
 	if len(key) < 1 || len(key) > 256 || strings.TrimSpace(key) != key || strings.ContainsAny(key, "\r\n") {
 		return invalid(errors.New("invalid idempotency key"))
 	}
-	if len(p.Recipients) > maxInlineRecipients {
+	if len(p.Recipients) > maxRecipients {
 		return ErrTooManyRecipients
 	}
 	if p.Subject == "" || strings.ContainsAny(p.Subject+p.Sender.Alias, "\r\n") || len(p.Recipients) < 1 || (p.HTML == "") == (p.TemplateID == "") {
@@ -189,8 +189,10 @@ func validateInline(key string, p InlineRequest) error {
 	return nil
 }
 
-// maxInlineRecipients bounds one REST Batch.
-const maxInlineRecipients = 2000
+// maxRecipients bounds one Batch, from either intake. Each Recipient is measured against the
+// payload limit before it is accepted, so the bound is also what keeps one request's intake work
+// in proportion.
+const maxRecipients = 2000
 
 // inlineFingerprint digests the full application input, including refused rows;
 // only the digest is retained, never raw input or refusal details.
@@ -234,7 +236,9 @@ func (s *InlineService) buildWork(ctx context.Context, domain values.DomainName,
 		}
 		html = source.Html()
 	}
-	if err := checkMessageSize(s.maxPayload, html, attachments); err != nil {
+	// Fields are left out here: REST substitutes them per Recipient, global ones included, so it
+	// is per Recipient that they are measured.
+	if err := checkMessageSize(s.maxPayload, len(p.Subject)+len(html), attachments); err != nil {
 		return nil, nil, err
 	}
 	tpl, err := templates.NewTransient(domain, html)
@@ -245,7 +249,7 @@ func (s *InlineService) buildWork(ctx context.Context, domain values.DomainName,
 	if err != nil {
 		return nil, nil, invalid(err)
 	}
-	accepted, refusals := decideRecipients(ceiling, html, p)
+	accepted, refusals := decideRecipients(ceiling, html, textRoom(s.maxPayload, attachments), p)
 	ds := []*delivery.Delivery{}
 	for _, r := range accepted {
 		// An immediate Batch is scheduled at its receipt time, so its Deliveries
@@ -311,13 +315,14 @@ type inlineRecipient struct {
 }
 
 // decideRecipients accepts or refuses each Recipient independently, preserving
-// request order. html is the Batch body before personalization.
-func decideRecipients(ceiling tracking.Policy, html string, p InlineRequest) ([]inlineRecipient, []InlineRefusal) {
+// request order. html is the Batch body before personalization, and room the text
+// each personalised message may carry beside the attachments.
+func decideRecipients(ceiling tracking.Policy, html string, room int, p InlineRequest) ([]inlineRecipient, []InlineRefusal) {
 	var accepted []inlineRecipient
 	var refusals []InlineRefusal
 	seen := map[string]bool{}
 	for i, recipient := range p.Recipients {
-		r, reason := decideRecipient(ceiling, html, p, recipient, seen)
+		r, reason := decideRecipient(ceiling, html, room, p, recipient, seen)
 		if reason != "" {
 			refusals = append(refusals, InlineRefusal{Index: i, Code: string(reason)})
 			continue
@@ -333,7 +338,11 @@ func decideRecipients(ceiling tracking.Policy, html string, p InlineRequest) ([]
 // REST differs from legacy Accept here: global and Recipient fields are merged
 // and substituted literally, once, and a placeholder left unresolved refuses the
 // Recipient instead of being sent verbatim.
-func decideRecipient(ceiling tracking.Policy, html string, p InlineRequest, recipient InlineRecipient, seen map[string]bool) (inlineRecipient, RejectionReason) {
+//
+// Nothing is rendered until the Recipient's content is known to fit room, and nothing
+// at all for a Recipient already refused: the rendering is what a hostile request
+// would make expensive.
+func decideRecipient(ceiling tracking.Policy, html string, room int, p InlineRequest, recipient InlineRecipient, seen map[string]bool) (inlineRecipient, RejectionReason) {
 	email := normalizeInlineEmail(recipient.Email)
 	var reason RejectionReason
 	if !smtp.Validate(email) {
@@ -353,8 +362,14 @@ func decideRecipient(ceiling tracking.Policy, html string, p InlineRequest, reci
 		reason = ReasonReservedField
 	}
 	fields["email"] = email
+	if reason == "" && !inlineRecipientFits(html, p, fields, room) {
+		reason = ReasonMessageTooLarge
+	}
+	if reason != "" {
+		return inlineRecipient{}, reason
+	}
 	subject := utils.ReplaceLiteralFields(p.Subject, fields)
-	if reason == "" && (utils.HasUnresolvedPlaceholders(utils.ReplaceLiteralFields(html, fields)) || utils.HasUnresolvedPlaceholders(subject)) {
+	if utils.HasUnresolvedPlaceholders(utils.ReplaceLiteralFields(html, fields)) || utils.HasUnresolvedPlaceholders(subject) {
 		reason = ReasonUnresolvedPlaceholder
 	}
 	if reason == "" && strings.ContainsAny(subject, "\r\n") {
@@ -373,6 +388,14 @@ func decideRecipient(ceiling tracking.Policy, html string, p InlineRequest, reci
 		return inlineRecipient{}, reason
 	}
 	return inlineRecipient{email: email, fields: fields, tracking: tracking.Resolve(ceiling, p.Tracking, recipient.Tracking)}, ""
+}
+
+// inlineRecipientFits reports whether one Recipient's personalised subject, body and
+// unsubscribe URL fit room. The literal substitution is measured without being
+// built; the URL keeps the legacy substitution and is rendered under the bound.
+func inlineRecipientFits(html string, p InlineRequest, fields map[string]string, room int) bool {
+	text := utils.LiteralFieldsSize(html, fields) + utils.LiteralFieldsSize(p.Subject, fields)
+	return text <= room && unsubscribeURLFits(p.OneClickUnsubscribe, fields, room-text)
 }
 
 // normalizeInlineEmail trims an address and lowercases its domain part only;

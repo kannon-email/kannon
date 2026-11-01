@@ -2304,6 +2304,7 @@ x-recipient-rejection-codes:
 - unsubscribe_url_unresolved
 - unresolved_placeholder
 - reserved_field
+- message_too_large
 x-implementation-constraints:
 - Reuse existing application modules; add Batch creation where missing. REST adapter -> application operation ->
   persistence.
