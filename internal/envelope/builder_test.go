@@ -640,7 +640,7 @@ func TestBuilderSignsAFixedHeaderSet(t *testing.T) {
 	}}
 	b := envelope.NewBuilderWith(src, stubTokens{link: "ltok", open: "otok"}, testReturnPath)
 
-	// No Cc and no unsubscribe on this message: they must still be signed.
+	// No Cc, Reply-To or unsubscribe on this message: they must still be signed.
 	d := mustDelivery(t, "rcpt@example.com", nil)
 	env, err := b.Build(t.Context(), d)
 	require.NoError(t, err)
@@ -656,7 +656,7 @@ func TestBuilderSignsAFixedHeaderSet(t *testing.T) {
 	signed := strings.Split(strings.ReplaceAll(m[1], " ", ""), ":")
 
 	assert.Equal(t, []string{
-		"From", "To", "Cc", "Subject", "Message-ID",
+		"From", "To", "Cc", "Reply-To", "Subject", "Message-ID",
 		"List-Unsubscribe", "List-Unsubscribe",
 		"List-Unsubscribe-Post", "List-Unsubscribe-Post",
 	}, signed)

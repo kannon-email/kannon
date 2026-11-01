@@ -196,3 +196,21 @@ requirement exists to prevent.
   authenticated-but-broken one-click this feature exists to avoid.
 - **Percent-encoding substitutions everywhere.** Would render `{{ name }}` in
   prose as `Mario%20Rossi`.
+
+## Amendment: Reply-To (2026-11-01)
+
+A REST Batch may now state a `reply_to`, written into the `Reply-To` header
+only when stated. `Reply-To` joins the fixed signed set, named **once** like
+`From`/`To`/`Cc`/`Subject`/`Message-ID`:
+
+```
+From:To:Cc:Reply-To:Subject:Message-ID:
+List-Unsubscribe:List-Unsubscribe:List-Unsubscribe-Post:List-Unsubscribe-Post
+```
+
+The threat is the one this ADR already names: the header decides where a reply
+goes, and one inserted in transit on a message that carries none would redirect
+replies while the signature still verified. Naming it once covers insertion
+where the header is absent; doubling it was not taken, for the same reason it
+was not taken for `From`. A forwarder that adds its own `Reply-To` now breaks
+the signature.

@@ -147,6 +147,13 @@ func TestInlineBatchRetry(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, `"The Maintainer" <maintainer@elsewhere.example>`, replyParsed.Header.Get("Reply-To"))
 	require.Equal(t, "<sender@example.com>", replyParsed.Header.Get("From"))
+	require.Contains(t, replyParsed.Header.Get("DKIM-Signature"), "Reply-To")
+	replyVerified, err := msgauth.VerifyWithOptions(strings.NewReader(string(replyMessage.Body())), &msgauth.VerifyOptions{LookupTXT: func(string) ([]string, error) {
+		return []string{"v=DKIM1; k=rsa; p=" + domainKeys.DkimPublicKey()}, nil
+	}})
+	require.NoError(t, err)
+	require.Len(t, replyVerified, 1)
+	require.NoError(t, replyVerified[0].Err, "a stated Reply-To must not break the signature")
 	bare := call(path, "reply-to-bare", strings.TrimSuffix(body, "}")+`,"reply_to":{"email":"maintainer@elsewhere.example"}}`, 201)
 	require.Equal(t, map[string]any{"email": "maintainer@elsewhere.example"}, readBatch(fmt.Sprint(bare["id"]))["reply_to"])
 	// An address that does not parse fails like a from address that does not; the

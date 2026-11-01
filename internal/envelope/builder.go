@@ -199,8 +199,11 @@ func resolveUnsubscribeURL(u batch.OneClickUnsubscribe, fields map[string]string
 // unauthenticated POST to an endpoint of the attacker's choosing — the attack
 // RFC 8058's signing requirement exists to prevent. The other headers are named
 // once; see ADR 0005 for why the thorough reading was not taken everywhere.
+//
+// Reply-To joined the list once a Batch could state one: it decides where a
+// reply goes, so one inserted in transit would redirect it.
 var dkimSignedHeaders = []string{
-	"From", "To", "Cc", "Subject", "Message-ID",
+	"From", "To", "Cc", "Reply-To", "Subject", "Message-ID",
 	headerListUnsubscribe, headerListUnsubscribe,
 	headerListUnsubscribePost, headerListUnsubscribePost,
 }

@@ -18,10 +18,17 @@ said nothing, because a mail client with no `Reply-To` replies to `From` (RFC
 5322 §3.6.2), so replies keep going where they went before. A message now
 carries `Reply-To` only when its Batch asked for one.
 
+`Reply-To` also joins the header set every DKIM signature covers, whether or
+not the message carries one (see the amendment to
+[ADR 0005](adr/0005-one-click-unsubscribe-and-signed-header-set.md)). A relay
+that *adds* a `Reply-To` to your mail now breaks the signature instead of
+redirecting replies unnoticed.
+
 ### What you have to do
 
 Nothing, unless something downstream of Kannon looks for a `Reply-To` header
-on every message. If so, state `reply_to` on your REST Batches.
+on every message, or adds one to your mail in transit. If it looks for one,
+state `reply_to` on your REST Batches.
 
 ## Unreleased — Retention for every table and stream
 
