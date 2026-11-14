@@ -51,6 +51,7 @@ func TestTrackerIntegration(t *testing.T) {
 	t.Run("AnonymousEventsAreIndistinguishable", func(t *testing.T) { testAnonymousEventsAreIndistinguishable(t, ss) })
 	t.Run("ForgedModeClaimIsRefused", func(t *testing.T) { testForgedModeClaimIsRefused(t, ss) })
 	t.Run("ATokenReplayedOnTheOtherChannelIsRefused", func(t *testing.T) { testATokenReplayedOnTheOtherChannelIsRefused(t, ss) })
+	t.Run("EngagementIsCountedByKind", func(t *testing.T) { testEngagementIsCountedByKind(t, ss) })
 }
 
 // fakePublisher captures what the tracker publishes, decoded the way the Stats
@@ -91,7 +92,7 @@ func engage(t *testing.T, ss statssec.StatsService, path string) (answer, []*sta
 	t.Helper()
 
 	pub := &fakePublisher{}
-	srv := newServer(pub, ss, Config{})
+	srv := newServer(pub, ss, Config{}, nil)
 
 	req := httptest.NewRequest(http.MethodGet, path, nil)
 	req.Header.Set("User-Agent", testUserAgent)

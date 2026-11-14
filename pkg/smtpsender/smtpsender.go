@@ -8,6 +8,7 @@ import (
 
 	"github.com/kannon-email/kannon/internal/envelope"
 	"github.com/kannon-email/kannon/internal/envelopepb"
+	"github.com/kannon-email/kannon/internal/mailflow"
 	"github.com/kannon-email/kannon/internal/publisher"
 	"github.com/kannon-email/kannon/internal/smtp"
 	"github.com/kannon-email/kannon/internal/stats"
@@ -33,6 +34,7 @@ type smtpSender struct {
 	js        jetstream.JetStream
 	guard     sendGuard
 	cfg       Config
+	flow      *mailflow.Metrics
 }
 
 // sendAckPolicy is the ack deadline curve of the sending consumer, and it is
@@ -60,19 +62,20 @@ func New(cnt *container.Container) container.Runnable {
 	var cfg Config
 	config.LoadSection("sender", &cfg)
 	cfg.setDefaults()
-	s := NewSMTPSender(cnt.NatsPublisher(), cnt.NatsJetStream(), cnt.Sender(), cfg)
+	s := NewSMTPSender(cnt.NatsPublisher(), cnt.NatsJetStream(), cnt.Sender(), cfg, mailflow.New(cnt.Metrics()))
 	return container.Runnable{
 		Name: "smtpsender",
 		Run:  s.Run,
 	}
 }
 
-func NewSMTPSender(publisher publisher.Publisher, js jetstream.JetStream, s smtp.Sender, cfg Config) *smtpSender {
+func NewSMTPSender(publisher publisher.Publisher, js jetstream.JetStream, s smtp.Sender, cfg Config, flow *mailflow.Metrics) *smtpSender {
 	return &smtpSender{
 		sender:    s,
 		publisher: publisher,
 		js:        js,
 		cfg:       cfg,
+		flow:      flow,
 	}
 }
 
@@ -167,13 +170,35 @@ func (s *smtpSender) handleMessage(ctx context.Context, msg jetstream.Msg) error
 		return nil
 	}
 
+	start := time.Now()
 	sendErr := s.sender.Send(env.ReturnPath(), env.To(), env.Body())
+	s.countAttempt(sendErr, env, time.Since(start))
 	if sendErr != nil {
 		slog.Info(fmt.Sprintf("Cannot send email %v - %v: %v", utils.ObfuscateEmail(env.To()), env.EmailID(), sendErr.Error()))
 		return s.handleSendError(sendErr, env)
 	}
 	slog.Info(fmt.Sprintf("Email delivered: %v - %v", utils.ObfuscateEmail(env.To()), env.EmailID()))
 	return s.handleSendSuccess(env)
+}
+
+// countAttempt counts the transaction here rather than in the stat helpers, which skip an Envelope
+// whose email ID does not parse.
+func (s *smtpSender) countAttempt(sendErr smtp.SenderError, env *envelope.Envelope, took time.Duration) {
+	switch {
+	case sendErr == nil:
+		s.flow.SendAttempt(mailflow.SendDelivered, took)
+		s.flow.Delivered()
+	case bounces(sendErr, env):
+		s.flow.SendAttempt(mailflow.SendBounced, took)
+		s.flow.Bounced(mailflow.BounceSync, sendErr.IsPermanent())
+	default:
+		s.flow.SendAttempt(mailflow.SendErrored, took)
+	}
+}
+
+// bounces reports whether a failed transaction ends the Delivery as Bounced rather than Errored.
+func bounces(sendErr smtp.SenderError, env *envelope.Envelope) bool {
+	return !env.ShouldRetry() || sendErr.IsPermanent()
 }
 
 // claimSend reports whether this delivery of the Envelope is the one allowed
@@ -240,7 +265,7 @@ func (s *smtpSender) handleSendError(sendErr smtp.SenderError, env *envelope.Env
 		Email:     env.To(),
 		Timestamp: time.Now(),
 	}
-	if !env.ShouldRetry() || sendErr.IsPermanent() {
+	if bounces(sendErr, env) {
 		// The permanent argument below still reads sendErr.IsPermanent(), not
 		// the reason this branch was taken: a 4xx that lands here because
 		// ShouldRetry is already false is terminal for us, but it is not

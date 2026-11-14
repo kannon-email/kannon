@@ -213,6 +213,15 @@ A process with nothing enabled refuses to boot rather than exit as if it had don
 | `use_embedded_nats` | bool   | false      | Run an in-process NATS server. `kannon standalone` forces this on  |
 | `debug`             | bool   | false      | Enable debug logging                                               |
 
+**Metrics** — every process that runs a component serves Prometheus metrics on a listener of its own:
+
+| YAML key          | Type | Default | Description                                                                                   |
+| ----------------- | ---- | ------- | --------------------------------------------------------------------------------------------- |
+| `metrics.enabled` | bool | true    | Serve `GET /metrics`. `false` opens no listener                                               |
+| `metrics.port`    | int  | 9090    | Metrics listen port; must differ from `api.port`, `api.rest_port` and `tracker.port` in a process running them |
+
+Metrics carry no `domain` label: per-Domain figures are in the Stats API. Keep the port off public networks. See [ADR 0018](./docs/adr/0018-metrics-are-prometheus-on-a-dedicated-listener-with-no-tenant-label.md).
+
 **Per-component options**, under their own section:
 
 | YAML key                     | Type     | Default        | Description                                      |

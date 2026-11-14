@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/emersion/go-smtp"
+	"github.com/kannon-email/kannon/internal/mailflow"
 	"github.com/kannon-email/kannon/internal/publisher"
 	"github.com/kannon-email/kannon/internal/returnpath"
 	"github.com/kannon-email/kannon/internal/stats"
@@ -28,14 +29,16 @@ import (
 // addressed to, which rp verifies was signed by Kannon for that Recipient of
 // that Batch.
 type Backend struct {
-	nc publisher.Publisher
-	rp returnpath.Signer
+	nc   publisher.Publisher
+	rp   returnpath.Signer
+	flow *mailflow.Metrics
 }
 
 func (bkd *Backend) NewSession(_ *smtp.Conn) (smtp.Session, error) {
 	return &Session{
-		nc: bkd.nc,
-		rp: bkd.rp,
+		nc:   bkd.nc,
+		rp:   bkd.rp,
+		flow: bkd.flow,
 	}, nil
 }
 
@@ -45,6 +48,7 @@ type Session struct {
 	To   string
 	nc   publisher.Publisher
 	rp   returnpath.Signer
+	flow *mailflow.Metrics
 }
 
 func (s *Session) AuthPlain(username, password string) error {
@@ -100,6 +104,7 @@ func (s *Session) Data(r io.Reader) error {
 		slog.Error("Cannot publish data", "err", err)
 		return nil
 	}
+	s.flow.Bounced(mailflow.BounceAsync, isPermanentCode(code))
 
 	return nil
 }

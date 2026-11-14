@@ -10,6 +10,7 @@ import (
 	"github.com/kannon-email/kannon/internal/batch"
 	"github.com/kannon-email/kannon/internal/delivery"
 	"github.com/kannon-email/kannon/internal/envelope"
+	"github.com/kannon-email/kannon/internal/mailflow"
 	"github.com/kannon-email/kannon/internal/pool"
 	"github.com/kannon-email/kannon/internal/publisher"
 	"github.com/kannon-email/kannon/internal/stats"
@@ -25,6 +26,7 @@ type disp struct {
 	eb      envelope.Builder
 	pub     publisher.Publisher
 	js      jetstream.JetStream
+	flow    *mailflow.Metrics
 }
 
 func (d *disp) log() *slog.Logger {
@@ -95,6 +97,7 @@ func (d *disp) dispatchOne(ctx context.Context, dlv *delivery.Delivery) {
 
 	env, err := d.eb.Build(buildCtx, dlv)
 	if err != nil {
+		d.flow.Dispatched(mailflow.DispatchBuildError)
 		log.With("err", err).Error("Cannot send email")
 		d.reschedule(ctx, dlv, log)
 		return
@@ -103,11 +106,13 @@ func (d *disp) dispatchOne(ctx context.Context, dlv *delivery.Delivery) {
 	log = log.With("email_id", env.EmailID())
 
 	if err := publisher.SendEmail(d.pub, env); err != nil {
+		d.flow.Dispatched(mailflow.DispatchPublishError)
 		log.With("err", err).Error("Cannot send email")
 		d.reschedule(ctx, dlv, log)
 		return
 	}
 
+	d.flow.Dispatched(mailflow.DispatchOK)
 	log.Info("[✅ accepted]")
 }
 
@@ -175,6 +180,7 @@ func (d *disp) fail(ctx context.Context, dlv *delivery.Delivery, reason string) 
 	if err := publisher.PublishStat(d.pub, event); err != nil {
 		return fmt.Errorf("cannot publish failed stat: %w", err)
 	}
+	d.flow.Failed()
 
 	if err := d.claimer.Drop(ctx, dlv); err != nil {
 		return fmt.Errorf("cannot drop delivery with a spent retry budget: %w", err)
