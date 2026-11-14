@@ -2,6 +2,7 @@ package hzapi
 
 import (
 	"context"
+	"log/slog"
 
 	"connectrpc.com/connect"
 	"github.com/kannon-email/kannon/pkg/hz"
@@ -15,23 +16,21 @@ type hzAPIConnectAdapter struct {
 }
 
 func (h *hzAPIConnectAdapter) HZ(ctx context.Context, req *connect.Request[pb.HZRequest]) (*connect.Response[pb.HZResponse], error) {
-	result := h.hzService.HZ(ctx)
-
-	// Convert map[string]error to map[string]string
-	stringResult := make(map[string]string)
-	for name, err := range result {
-		if err != nil {
-			stringResult[name] = err.Error()
-		} else {
-			stringResult[name] = "OK"
-		}
+	statuses := make(map[string]string)
+	for name, err := range h.hzService.HZ(ctx) {
+		statuses[name] = componentStatus(name, err)
 	}
+	return connect.NewResponse(&pb.HZResponse{Result: statuses}), nil
+}
 
-	response := &pb.HZResponse{
-		Result: stringResult,
+// componentStatus keeps a failure's detail in the log: the service answers unauthenticated
+// callers, and a driver error names the database user, the database and the host.
+func componentStatus(name string, err error) string {
+	if err == nil {
+		return "ok"
 	}
-
-	return connect.NewResponse(response), nil
+	slog.Warn("health check failed", "component", name, "err", err)
+	return "unavailable"
 }
 
 func CreateHZAPIService(cnt *container.Container) hzv1connect.HZServiceHandler {

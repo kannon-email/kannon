@@ -35,11 +35,10 @@ func (c *Container) HZ(ctx context.Context) HZRes {
 	for _, hz := range hzs {
 		go func(hz HZ) {
 			defer wg.Done()
-			if err := hz.hz(ctx); err != nil {
-				mu.Lock()
-				hzResult[hz.name] = err
-				mu.Unlock()
-			}
+			err := hz.hz(ctx)
+			mu.Lock()
+			hzResult[hz.name] = err
+			mu.Unlock()
 		}(hz)
 	}
 
