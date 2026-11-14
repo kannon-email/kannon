@@ -82,8 +82,8 @@ func inlineRequest() InlineRequest {
 	}
 }
 
-// internalHostAddresses replay the security review's SSRF inputs: addresses that
-// name a host by IP literal or as localhost, so the SMTPSender would dial it directly.
+// internalHostAddresses name a host by IP literal or as localhost, so the SMTPSender
+// would dial it directly and a tenant could aim a Delivery at an internal service.
 var internalHostAddresses = []string{
 	"x@[127.0.0.1]",
 	"x@10.0.0.5",

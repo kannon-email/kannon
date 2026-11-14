@@ -76,9 +76,8 @@ func TestRequireAdminTokenWithAnUnresolvableReference(t *testing.T) {
 	}
 }
 
-// The review PoC: an API served with a one-character token or with the placeholder the
-// docker-compose example used to ship booted and authenticated as admin on the root. Both are
-// refused at boot, naming the key and the minimum length an operator has to meet.
+// A one-character token or a placeholder would let anyone authenticate as admin on the root, so
+// both are refused at boot, naming the key and the minimum length an operator has to meet.
 func TestRequireAdminTokenRefusesAWeakToken(t *testing.T) {
 	for _, token := range []string{"a", "change-me"} {
 		t.Run(token, func(t *testing.T) {

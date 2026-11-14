@@ -22,8 +22,7 @@ func TestParseRefusesABlankSecret(t *testing.T) {
 	}
 }
 
-// The review PoC: a one-character token and the placeholder the docker-compose example used to
-// ship both booted and authenticated as admin on the root. A short secret is refused naming the
+// A short secret would let anyone guess their way to admin on the root. It is refused naming the
 // minimum, so the operator learns the rule rather than only that the value was wrong.
 func TestParseRefusesASecretShorterThanTheMinimum(t *testing.T) {
 	for _, s := range []string{"a", "s3cr3t", "9f2c4e7a1b8d3f6e0a5c2b9d4e7f1a3"} {

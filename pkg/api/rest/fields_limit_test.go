@@ -96,8 +96,8 @@ func requireLimitProblem(t *testing.T, got map[string]any, code, pointer, detail
 	require.Contains(t, e["detail"], detail)
 }
 
-// The review's proof of concept: 50,000 empty global fields copied into 200 Recipients
-// allocated about two gigabytes and wrote tens of megabytes of Delivery fields.
+// Copied into 200 Recipients, 50,000 empty global fields would allocate about two gigabytes and
+// write tens of megabytes of Delivery fields.
 func TestBatchWithTooManyGlobalFieldsIsRefusedBeforeCopying(t *testing.T) {
 	c := newFieldsClient(t)
 	global := make(map[string]string, 50_000)
@@ -107,7 +107,7 @@ func TestBatchWithTooManyGlobalFieldsIsRefusedBeforeCopying(t *testing.T) {
 	var before, after runtime.MemStats
 	runtime.GC()
 	runtime.ReadMemStats(&before)
-	got := c.sendExpecting("poc", global, 200, 422)
+	got := c.sendExpecting("too-many", global, 200, 422)
 	runtime.ReadMemStats(&after)
 	requireLimitProblem(t, got, "too_many_fields", "/global_fields", "1000 fields")
 	// Decoding the request alone allocates tens of megabytes; copying it per Recipient

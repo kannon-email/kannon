@@ -373,8 +373,8 @@ func testATokenReplayedOnTheOtherChannelIsRefused(t *testing.T, ss statssec.Stat
 // Tracker: every Domain's stats host reaches the same server, so a token minted
 // for one Domain must not be honoured on another's. Otherwise a tenant mints a
 // link to a page of its own choosing and hands it out on a victim's stats host,
-// which then redirects there — the review's PoC was `stats.victim-bank.com`
-// answering 307 to `https://evil.example/login`.
+// which then redirects there, such as `stats.victim-bank.com` answering 307 to
+// `https://evil.example/login`.
 func testATokenIsServedOnlyOnItsDomainsStatsHost(t *testing.T, ss statssec.StatsService) {
 	const attackerMessageID = "msg-1@attacker.example"
 	const phishingURL = "https://evil.example/login"
