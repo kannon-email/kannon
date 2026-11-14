@@ -58,6 +58,11 @@ func (c *clientTest) SenderFrom() string {
 	return (&mail.Address{Name: defaultSenderAlias, Address: "sender@" + c.domain}).String()
 }
 
+// StatsHost is the host the client's Domain's tracking links point at.
+func (c *clientTest) StatsHost() string {
+	return "stats." + c.domain
+}
+
 // SetTrackingPolicy configures the Tracking Policy of the client's Domain
 // through the Admin API, the way an operator would. It must be called before a
 // send: the Policy is resolved at intake and frozen on each Delivery, so it does
