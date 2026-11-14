@@ -82,6 +82,40 @@ func inlineRequest() InlineRequest {
 	}
 }
 
+// internalHostAddresses replay the security review's SSRF inputs: addresses that
+// name a host by IP literal or as localhost, so the SMTPSender would dial it directly.
+var internalHostAddresses = []string{
+	"x@[127.0.0.1]",
+	"x@10.0.0.5",
+	"x@[10.0.0.5]",
+	"x@169.254.169.254",
+	"x@127.1",
+	"x@[IPv6:::1]",
+	"x@[IPv6:::ffff:127.0.0.1]",
+	"x@[::1]",
+	"x@::1",
+	"x@fd00::1",
+	"x@localhost",
+	"x@LOCALHOST.",
+	"x@foo.localhost",
+}
+
+func inlineRecipients(emails ...string) []InlineRecipient {
+	recipients := make([]InlineRecipient, len(emails))
+	for i, email := range emails {
+		recipients[i] = InlineRecipient{Email: email, Fields: map[string]string{"name": "A"}}
+	}
+	return recipients
+}
+
+func repeatReason(reason RejectionReason, n int) []RejectionReason {
+	reasons := make([]RejectionReason, n)
+	for i := range reasons {
+		reasons[i] = reason
+	}
+	return reasons
+}
+
 func requireValidationFailed(t *testing.T, err error) {
 	t.Helper()
 	refusal, ok := apperr.As(err)
@@ -185,6 +219,11 @@ func TestDecideRecipients(t *testing.T) {
 	}{
 		{name: "accepted", recipients: []InlineRecipient{{Email: "a@example.com", Fields: map[string]string{"name": "A"}}}, want: []RejectionReason{""}},
 		{name: "invalid email", recipients: []InlineRecipient{{Email: "not-an-address"}, {Email: " "}}, want: []RejectionReason{ReasonInvalidEmail, ReasonInvalidEmail}},
+		{
+			name:       "address naming an internal host",
+			recipients: inlineRecipients(internalHostAddresses...),
+			want:       repeatReason(ReasonInvalidEmail, len(internalHostAddresses)),
+		},
 		{
 			name:       "duplicate after domain normalization",
 			recipients: []InlineRecipient{{Email: "a@example.com", Fields: map[string]string{"name": "A"}}, {Email: " a@EXAMPLE.com ", Fields: map[string]string{"name": "A"}}, {Email: "A@example.com", Fields: map[string]string{"name": "A"}}},
