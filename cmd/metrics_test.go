@@ -32,6 +32,12 @@ func TestRequireOwnMetricsPort(t *testing.T) {
 			wantKey:  "api.rest_port",
 		},
 		{
+			name:     "the health port",
+			services: api,
+			settings: map[string]any{"api.health_port": 9090},
+			wantKey:  "api.health_port",
+		},
+		{
 			name:     "the tracker port",
 			services: tracker,
 			settings: map[string]any{"tracker.port": 9090},

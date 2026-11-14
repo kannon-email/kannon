@@ -22,6 +22,7 @@ import (
 	"github.com/kannon-email/kannon/internal/templates"
 	"github.com/kannon-email/kannon/pkg/api/adminapi"
 	"github.com/kannon-email/kannon/pkg/api/apimetrics"
+	"github.com/kannon-email/kannon/pkg/api/health"
 	"github.com/kannon-email/kannon/pkg/api/hzapi"
 	"github.com/kannon-email/kannon/pkg/api/mailapi"
 	"github.com/kannon-email/kannon/pkg/api/rest"
@@ -44,6 +45,9 @@ type Config struct {
 	// RESTPort serves the REST API on a listener of its own, so it can be published without the
 	// Connect Admin and Stats services that share Port.
 	RESTPort uint `mapstructure:"rest_port"`
+	// HealthPort serves the readiness check for probes inside the cluster. It must not be
+	// published: the check is kept off the REST API so the internet cannot poll it.
+	HealthPort uint `mapstructure:"health_port"`
 	// MaxPayload is the largest content, in bytes, a Batch may carry: its HTML plus each
 	// attachment as base64. Each Envelope travels as one NATS message, so set it to about 70% of
 	// the NATS server's max_payload, leaving room for the headers, DKIM signature and tracking
@@ -60,6 +64,9 @@ func (c *Config) setDefaults() {
 	}
 	if c.RESTPort == 0 {
 		c.RESTPort = 8081
+	}
+	if c.HealthPort == 0 {
+		c.HealthPort = 8082
 	}
 	if c.MaxPayload <= 0 {
 		c.MaxPayload = defaultMaxPayload
@@ -93,9 +100,10 @@ func adminTokenError(err error) error {
 
 const (
 	configKey = "api"
-	// PortKey and RESTPortKey name the keys the API's ports are read from.
-	PortKey     = configKey + ".port"
-	RESTPortKey = configKey + ".rest_port"
+	// PortKey, RESTPortKey and HealthPortKey name the keys the API's ports are read from.
+	PortKey       = configKey + ".port"
+	RESTPortKey   = configKey + ".rest_port"
+	HealthPortKey = configKey + ".health_port"
 )
 
 // ListenPorts reads the ports the API listens on, so the boot path can refuse another listener asked
@@ -106,7 +114,23 @@ func ListenPorts() ([]metrics.ListenPort, error) {
 		return nil, err
 	}
 	cfg.setDefaults()
-	return []metrics.ListenPort{{Key: PortKey, Port: cfg.Port}, {Key: RESTPortKey, Port: cfg.RESTPort}}, nil
+	return cfg.listenPorts(), nil
+}
+
+func (c Config) listenPorts() []metrics.ListenPort {
+	return []metrics.ListenPort{{Key: PortKey, Port: c.Port}, {Key: RESTPortKey, Port: c.RESTPort}, {Key: HealthPortKey, Port: c.HealthPort}}
+}
+
+func (c Config) checkPorts() error {
+	ports := c.listenPorts()
+	for i, a := range ports {
+		for _, b := range ports[i+1:] {
+			if a.Port == b.Port {
+				return fmt.Errorf("%s and %s are both %d: the Connect API, the REST API and the health check need a port each", a.Key, b.Key, a.Port)
+			}
+		}
+	}
+	return nil
 }
 
 // New constructs the API runnable, loading its slice of configuration from
@@ -124,8 +148,8 @@ func New(cnt *container.Container) container.Runnable {
 }
 
 func run(ctx context.Context, config Config, cnt *container.Container) error {
-	if config.Port == config.RESTPort {
-		return fmt.Errorf("%s and %s are both %d: the Connect and REST APIs need a port each", PortKey, RESTPortKey, config.Port)
+	if err := config.checkPorts(); err != nil {
+		return err
 	}
 
 	// Resolved before the listener opens, and again here rather than only in the boot path: a
@@ -161,25 +185,26 @@ func run(ctx context.Context, config Config, cnt *container.Container) error {
 
 	connectServer := newServer(config.Port, recorder, newAPIMux(connectReadMaxBytes(config.MaxPayload), adminAuth, calls, adminAPIService, mailAPIService, statsAPIService, statsV2APIService, hzAPIService), connectProtocols())
 	restServer := newServer(config.RESTPort, recorder, calls.REST(rest.NewHandler(rest.Services{
-		Domains: domains.NewService(sq.NewDomainsRepository(db)),
-		Token:   adminToken,
-		Ready: func(ctx context.Context) error {
-			for _, err := range hz.NewHZ(cnt).HZ(ctx) {
-				if err != nil {
-					return err
-				}
-			}
-			return nil
-		},
+		Domains:   domains.NewService(sq.NewDomainsRepository(db)),
+		Token:     adminToken,
 		Keys:      apikeys.NewService(sq.NewAPIKeysRepository(db)),
 		Templates: templates.NewService(sq.NewTemplatesRepository(db)),
 		Inline:    intake.NewInlineService(sq.NewInlineStore(db), sq.NewDomainsRepository(db), cnt.BackoffPolicy(), cnt.RetryWindow(), int(config.MaxPayload)),
 		Flow:      flow,
 		Stats:     statsService,
 	})), nil)
+	healthServer := newServer(config.HealthPort, nil, health.NewHandler(func(ctx context.Context) error {
+		for _, err := range hz.NewHZ(cnt).HZ(ctx) {
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}), nil)
 	slog.Info("Connect API server listening on " + connectServer.Addr)
 	slog.Info("REST API server listening on " + restServer.Addr)
-	return serveAll(ctx, connectServer, restServer)
+	slog.Info("health server listening on " + healthServer.Addr)
+	return serveAll(ctx, connectServer, restServer, healthServer)
 }
 
 // startAuditRecording resolves the Recorder every authorization decision on this process reports to,

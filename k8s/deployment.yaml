@@ -46,6 +46,7 @@ data:
     api:
       port: 50051
       rest_port: 8081
+      health_port: 8082
       # Authenticates the Admin API and both Stats APIs, and authorizes
       # everything on every Domain. Referenced rather than written here so the
       # value stays in a Secret; the pod refuses to boot without it whenever it
@@ -141,6 +142,8 @@ spec:
               name: 'api'
             - containerPort: 8081
               name: 'rest'
+            - containerPort: 8082
+              name: 'health'
             - containerPort: 8080
               name: 'tracker'
             - containerPort: 9090

@@ -1,9 +1,13 @@
 package rest_test
 
 import (
-	"context"
 	"encoding/json"
-	"errors"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"strings"
+	"testing"
+
 	schema "github.com/kannon-email/kannon/db"
 	"github.com/kannon-email/kannon/internal/admintoken"
 	sqlc "github.com/kannon-email/kannon/internal/db"
@@ -11,39 +15,19 @@ import (
 	"github.com/kannon-email/kannon/internal/tests"
 	"github.com/kannon-email/kannon/pkg/api/rest"
 	"go.yaml.in/yaml/v3"
-	"net/http"
-	"net/http/httptest"
-	"os"
-	"strings"
-	"testing"
 )
 
 func TestMain(m *testing.M) {
 	tests.Main(m.Run)
 }
 
-func TestPublicReadiness(t *testing.T) {
-	for _, ready := range []bool{true, false} {
-		h := rest.NewHandler(rest.Services{Token: admintoken.MustParse(testAdminToken), Ready: func(context.Context) error {
-			if !ready {
-				return errors.New("postgres password secret")
-			}
-			return nil
-		}})
+func TestHealthIsNotPartOfTheRESTAPI(t *testing.T) {
+	h := rest.NewHandler(rest.Services{Token: admintoken.MustParse(testAdminToken)})
+	for _, path := range []string{"/v1/health", "/v1beta1/health", "/health"} {
 		w := httptest.NewRecorder()
-		h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/v1/health", nil))
-		want := 200
-		if !ready {
-			want = 503
-		}
-		if w.Code != want {
-			t.Fatalf("status %d: %s", w.Code, w.Body)
-		}
-		if strings.Contains(w.Body.String(), "password") {
-			t.Fatal("infrastructure leak")
-		}
-		if w.Header().Get("X-Request-ID") == "" {
-			t.Fatal("missing request id")
+		h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
+		if w.Code == http.StatusOK {
+			t.Fatalf("%s: served without authentication", path)
 		}
 	}
 }
@@ -110,7 +94,7 @@ func TestPersistentDomainJourney(t *testing.T) {
 			t.Error(err)
 		}
 	}()
-	h := rest.NewHandler(rest.Services{Domains: domains.NewService(sqlc.NewDomainsRepository(db)), Token: admintoken.MustParse(testAdminToken), Ready: db.Ping})
+	h := rest.NewHandler(rest.Services{Domains: domains.NewService(sqlc.NewDomainsRepository(db)), Token: admintoken.MustParse(testAdminToken)})
 	call := func(method, path, body string, status int) string {
 		t.Helper()
 		r := httptest.NewRequest(method, path, strings.NewReader(body))
@@ -189,7 +173,7 @@ func TestApprovedContract(t *testing.T) {
 			}
 		}
 	}
-	if contract.OpenAPI != "3.1.1" || operations != 21 || len(contract.Components.Schemas) != 49 {
+	if contract.OpenAPI != "3.1.1" || operations != 20 || len(contract.Components.Schemas) != 48 {
 		t.Fatalf("approved contract changed: version=%s operations=%d schemas=%d", contract.OpenAPI, operations, len(contract.Components.Schemas))
 	}
 }

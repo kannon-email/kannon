@@ -42,10 +42,8 @@ func TestRESTCountsAnAuthenticatedRouteByItsInnerPattern(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/v1/domains?wat=1", nil)
 	req.Header.Set("Authorization", "Bearer "+adminToken)
 	h.ServeHTTP(httptest.NewRecorder(), req)
-	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/v1/health", nil))
 
 	assertCounted(t, reg, sample{"rest", "GET /domains", "4xx"}, 1)
-	assertCounted(t, reg, sample{"rest", "GET /health", "5xx"}, 1)
 }
 
 func TestRESTCountsAnUnmatchedRequestAsUnmatched(t *testing.T) {
@@ -81,10 +79,10 @@ func TestRegisteringTwiceOnOneRegistryReusesTheCollectors(t *testing.T) {
 	first := apimetrics.New(reg).REST(rest.NewHandler(rest.Services{Token: admintoken.MustParse(adminToken)}))
 	second := apimetrics.New(reg).REST(rest.NewHandler(rest.Services{Token: admintoken.MustParse(adminToken)}))
 
-	first.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/v1/health", nil))
-	second.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/v1/health", nil))
+	first.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/v1/openapi.yaml", nil))
+	second.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/v1/openapi.yaml", nil))
 
-	assertCounted(t, reg, sample{"rest", "GET /health", "5xx"}, 2)
+	assertCounted(t, reg, sample{"rest", "GET /v1/openapi.yaml", "2xx"}, 2)
 }
 
 func family(t *testing.T, reg *prometheus.Registry, name string) *dto.MetricFamily {

@@ -69,7 +69,7 @@ func TestHistoryExpiresAtThirtyDays(t *testing.T) {
 	require.NotNil(t, b.CompletedAt)
 	list, err := svc.ListDeliveries(ctx, domain, receipt.ID, "", keyset.Page[string]{Limit: 10})
 	require.NoError(t, err)
-	h := rest.NewHandler(rest.Services{Domains: ds, Token: admintoken.MustParse(testAdminToken), Ready: db.Ping, Inline: svc})
+	h := rest.NewHandler(rest.Services{Domains: ds, Token: admintoken.MustParse(testAdminToken), Inline: svc})
 	read := func(path string, status int) {
 		t.Helper()
 		r := httptest.NewRequest(http.MethodGet, "/v1/domains/example.com/batches/"+path, nil)

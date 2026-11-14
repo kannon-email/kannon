@@ -28,7 +28,6 @@ func TestParsingHTTPContract(t *testing.T) {
 	h := rest.NewHandler(rest.Services{
 		Domains:   domains.NewService(sqlc.NewDomainsRepository(db)),
 		Token:     admintoken.MustParse(testAdminToken),
-		Ready:     db.Ping,
 		Inline:    intake.NewInlineService(sqlc.NewInlineStore(db), sqlc.NewDomainsRepository(db), nil, 0, 0),
 		Stats:     stats.NewService(stats.NewInMemRepository(), stats.WithAggregatedStatsRepository(stats.NewInMemAggregatedStatsRepository())),
 		Templates: templates.NewService(sqlc.NewTemplatesRepository(db)),
@@ -239,8 +238,8 @@ func TestOversizedBodyHTTPServer(t *testing.T) {
 	require.NoError(t, response.Body.Close())
 	require.Equal(t, 413, response.StatusCode)
 	require.Contains(t, string(body), `"code":"request_body_too_large"`)
-	response, err = server.Client().Get(server.URL + "/v1/health")
+	response, err = server.Client().Get(server.URL + "/v1/domains")
 	require.NoError(t, err)
 	require.NoError(t, response.Body.Close())
-	require.Equal(t, 503, response.StatusCode)
+	require.Equal(t, 401, response.StatusCode)
 }

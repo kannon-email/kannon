@@ -251,21 +251,6 @@ func (e EventType) Valid() bool {
 	}
 }
 
-// Defines values for HealthStatus.
-const (
-	Ready HealthStatus = "ready"
-)
-
-// Valid indicates whether the value is a known member of the HealthStatus enum.
-func (e HealthStatus) Valid() bool {
-	switch e {
-	case Ready:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for Role.
 const (
 	Admin         Role = "admin"
@@ -802,14 +787,6 @@ type Headers struct {
 	Cc *[]string `json:"cc,omitempty"`
 	To *[]string `json:"to,omitempty"`
 }
-
-// Health defines model for Health.
-type Health struct {
-	Status HealthStatus `json:"status"`
-}
-
-// HealthStatus defines model for Health.Status.
-type HealthStatus string
 
 // ID Opaque identifier. Clients must not parse its structure.
 type ID = string
@@ -1652,9 +1629,6 @@ type ServerInterface interface {
 	// Update title and/or HTML
 	// (PATCH /domains/{domain}/templates/{template_id})
 	UpdateTemplate(w http.ResponseWriter, r *http.Request, parameterDomain Parameter_domain, parameterTemplateId Parameter_template_id, params UpdateTemplateParams)
-	// Check readiness
-	// (GET /health)
-	GetHealth(w http.ResponseWriter, r *http.Request)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -3047,20 +3021,6 @@ func (siw *ServerInterfaceWrapper) UpdateTemplate(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r)
 }
 
-// GetHealth operation middleware
-func (siw *ServerInterfaceWrapper) GetHealth(w http.ResponseWriter, r *http.Request) {
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetHealth(w, r)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
 type UnescapedCookieParamError struct {
 	ParamName string
 	Err       error
@@ -3201,7 +3161,6 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("DELETE "+options.BaseURL+"/domains/{domain}/templates/{template_id}", wrapper.DeleteTemplate)
 	m.HandleFunc("GET "+options.BaseURL+"/domains/{domain}/templates/{template_id}", wrapper.GetTemplate)
 	m.HandleFunc("PATCH "+options.BaseURL+"/domains/{domain}/templates/{template_id}", wrapper.UpdateTemplate)
-	m.HandleFunc("GET "+options.BaseURL+"/health", wrapper.GetHealth)
 
 	return m
 }

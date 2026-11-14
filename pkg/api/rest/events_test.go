@@ -56,7 +56,7 @@ func TestPersistentEvents(t *testing.T) {
 		t.Fatal(appPage, err)
 	}
 	keys := apikeys.NewService(sqlc.NewAPIKeysRepository(db))
-	h := rest.NewHandler(rest.Services{Domains: domains.NewService(sqlc.NewDomainsRepository(db)), Token: admintoken.MustParse(testAdminToken), Ready: db.Ping, Stats: svc, Keys: keys})
+	h := rest.NewHandler(rest.Services{Domains: domains.NewService(sqlc.NewDomainsRepository(db)), Token: admintoken.MustParse(testAdminToken), Stats: svc, Keys: keys})
 	call := func(q string, status int) map[string]any {
 		t.Helper()
 		r := httptest.NewRequest(http.MethodGet, "/v1/domains/events.example/stats/events?"+q, nil)

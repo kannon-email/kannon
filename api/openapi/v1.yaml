@@ -15,7 +15,6 @@ tags:
 - name: Batches
 - name: Deliveries
 - name: Stats
-- name: Health
 x-design-review:
   status: accepted
   unresolved: []
@@ -806,23 +805,6 @@ paths:
       - analyst
       - metrics-reader
       description: ' Ordering: Bucket start ascending.'
-  /health:
-    get:
-      operationId: getHealth
-      tags:
-      - Health
-      summary: Check readiness
-      security: []
-      responses:
-        '200':
-          description: Checks passed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Health'
-        '503':
-          $ref: '#/components/responses/Error503'
-      description: Public, minimal readiness check. Failure must not disclose database or infrastructure error detail.
 components:
   securitySchemes:
     bearerAuth:
@@ -2155,15 +2137,6 @@ components:
       required:
       - items
       - next_cursor
-    Health:
-      type: object
-      properties:
-        status:
-          type: string
-          enum:
-          - ready
-      required:
-      - status
     BatchReplay:
       type: object
       properties:

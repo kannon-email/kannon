@@ -221,7 +221,7 @@ A process with nothing enabled refuses to boot rather than exit as if it had don
 | YAML key          | Type | Default | Description                                                                                   |
 | ----------------- | ---- | ------- | --------------------------------------------------------------------------------------------- |
 | `metrics.enabled` | bool | true    | Serve `GET /metrics`. `false` opens no listener                                               |
-| `metrics.port`    | int  | 9090    | Metrics listen port; must differ from `api.port`, `api.rest_port` and `tracker.port` in a process running them |
+| `metrics.port`    | int  | 9090    | Metrics listen port; must differ from `api.port`, `api.rest_port`, `api.health_port` and `tracker.port` in a process running them |
 
 Metrics carry no `domain` label: per-Domain figures are in the Stats API. Keep the port off public networks. See [ADR 0018](./docs/adr/0018-metrics-are-prometheus-on-a-dedicated-listener-with-no-tenant-label.md).
 
@@ -231,6 +231,7 @@ Metrics carry no `domain` label: per-Domain figures are in the Stats API. Keep t
 | ---------------------------- | -------- | -------------- | ------------------------------------------------ |
 | `api.port`                   | int      | 50051          | Connect, gRPC and gRPC-Web API listen port       |
 | `api.rest_port`              | int      | 8081           | REST API (`/v1`) listen port; must differ from `api.port` |
+| `api.health_port`            | int      | 8082           | Internal readiness check (`GET /health`) listen port; do not publish it. Must differ from the other API ports |
 | `api.max_payload`            | size     | 500Ki          | Max Batch content (subject + HTML + base64 attachments, after field substitution); larger is refused with `message_too_large`, per Recipient when its own fields push it over. Set to ~70% of the NATS server's `max_payload` |
 | `sender.hostname`            | string   | (required)     | Hostname announced for outgoing mail             |
 | `sender.max_jobs`            | int      | 10             | Max parallel sending jobs                        |
@@ -314,9 +315,10 @@ See [`db/migrations/`](./db/migrations/) for full schema and migrations.
 
 ## API Overview
 
-Kannon serves its APIs on two HTTP listeners, so each can be exposed on its own:
+Kannon serves its APIs on two HTTP listeners, so each can be exposed on its own, and a readiness check on a third, internal one:
 
 - **REST API** (`api.rest_port`, default `8081`): the primary API under `/v1`. It publishes its OpenAPI contract unauthenticated at `GET /v1/openapi.yaml`. The same API is still served under the deprecated `/v1beta1` prefix, which will be removed; move clients to `/v1`.
+- **Health** (`api.health_port`, default `8082`): `GET /health` answers 200 `{"status":"ready"}` when the database and NATS checks pass and 503 `{"status":"unavailable"}` otherwise, with no detail. It is meant for probes inside the cluster: keep the port off every Ingress and HTTPRoute.
 - **Connect APIs** (`api.port`, default `50051`): the deprecated Mailer, Admin and Stats services, built with [Connect](https://connectrpc.com) and serving the Connect, gRPC and gRPC-Web protocols over HTTP/1.1 and h2c. The simplest client is plain `curl` with JSON; any gRPC client works too.
 
 > The server does **not** register gRPC server reflection, so tools like `grpcurl` need the schema passed explicitly: `grpcurl -import-path .proto -proto kannon/mailer/apiv1/mailerapiv1.proto …`. The proto sources live in [`.proto/`](.proto/); `proto/` holds the generated Go code.

@@ -1,7 +1,6 @@
 package rest_test
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -17,17 +16,17 @@ import (
 const v1beta1Notice = "Deprecated, use v1, which has the same contract under /v1; v1beta1 will be removed. "
 
 func TestBothVersionsAreMounted(t *testing.T) {
-	h := rest.NewHandler(rest.Services{Token: admintoken.MustParse(testAdminToken), Ready: func(context.Context) error { return nil }})
+	h := rest.NewHandler(rest.Services{Token: admintoken.MustParse(testAdminToken)})
 	for _, tc := range []struct {
 		path string
 		code int
 	}{
-		{"/v1/health", 200},
-		{"/v1beta1/health", 200},
+		{"/v1/openapi.yaml", 200},
+		{"/v1beta1/openapi.yaml", 200},
 		{"/v1/domains", 401},
 		{"/v1beta1/domains", 401},
-		{"/v2/health", 404},
-		{"/health", 404},
+		{"/v2/domains", 404},
+		{"/domains", 404},
 	} {
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, tc.path, nil))
