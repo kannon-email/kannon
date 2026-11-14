@@ -124,7 +124,7 @@ const idSeparator = "@"
 // "x@a.com@b.com" ambiguity; authorizing on it is sound because the parse can only narrow (ADR 0008).
 func DomainFromID(templateID string) (values.DomainName, error) {
 	if n := strings.Count(templateID, idSeparator); n != 1 {
-		return values.DomainName{}, fmt.Errorf("template id %q must contain exactly one %q, found %d", templateID, idSeparator, n)
+		return values.DomainName{}, apperr.Wrap(apperr.Invalid, "validation_failed", fmt.Errorf("template id %q must contain exactly one %q, found %d", templateID, idSeparator, n))
 	}
 
 	_, raw, _ := strings.Cut(templateID, idSeparator)

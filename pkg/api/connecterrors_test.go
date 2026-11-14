@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -12,13 +13,20 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/kannon-email/kannon/internal/admintoken"
+	"github.com/kannon-email/kannon/internal/apikeys"
 	"github.com/kannon-email/kannon/internal/authzconnect"
 	"github.com/kannon-email/kannon/internal/domains"
+	"github.com/kannon-email/kannon/internal/templates"
+	"github.com/kannon-email/kannon/internal/values"
 	"github.com/kannon-email/kannon/pkg/api/apimetrics"
 	"github.com/kannon-email/kannon/pkg/api/connecterr"
+	"github.com/kannon-email/kannon/pkg/api/mailapi"
+	"github.com/kannon-email/kannon/pkg/api/requestid"
 	adminv1 "github.com/kannon-email/kannon/proto/kannon/admin/apiv1"
 	adminv1connect "github.com/kannon-email/kannon/proto/kannon/admin/apiv1/apiv1connect"
+	mailerv1 "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1"
 	mailerv1connect "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1/apiv1connect"
 	"github.com/kannon-email/kannon/proto/kannon/stats/apiv1/apiv1connect"
 	"github.com/kannon-email/kannon/proto/kannon/stats/apiv2/apiv2connect"
@@ -40,8 +48,8 @@ func (a failingAdmin) CreateDomain(context.Context, *connect.Request[adminv1.Cre
 	return nil, a.err
 }
 
-// A fault in a Connect handler used to reach the caller as the database's own words. The caller
-// now gets a generic message and a request ID, and the log has the cause under that ID.
+// A fault in a Connect handler reaches the caller as a generic message and a request ID, and the
+// log has the cause under that ID.
 func TestAConnectFaultIsGenericForTheCallerAndLoggedWithItsRequestID(t *testing.T) {
 	pgErr := &pgconn.PgError{Code: "22021", Message: "invalid byte sequence for encoding \"UTF8\": 0x00", Detail: "secret data"}
 	for _, tc := range []struct {
@@ -69,7 +77,7 @@ func TestAConnectFaultIsGenericForTheCallerAndLoggedWithItsRequestID(t *testing.
 			require.ErrorAs(t, err, &ce)
 			assert.Equal(t, connect.CodeInternal, ce.Code())
 			assert.Equal(t, "internal", ce.Message())
-			id := ce.Meta().Get("X-Request-ID")
+			id := ce.Meta().Get(requestid.Header)
 			require.NotEmpty(t, id)
 
 			var logged []map[string]any
@@ -88,16 +96,59 @@ func TestAConnectFaultIsGenericForTheCallerAndLoggedWithItsRequestID(t *testing.
 	}
 }
 
-// A refusal is the caller's to act on, so its code and message still reach it.
+// A refusal is the caller's to act on, so its code and message reach it, malformed identifiers
+// included.
 func TestAConnectRefusalKeepsItsMessage(t *testing.T) {
-	srv := httptest.NewServer(connectMux(failingAdmin{err: connecterr.Error(domains.ErrDomainAlreadyExists)}))
-	t.Cleanup(srv.Close)
-	req := connect.NewRequest(&adminv1.CreateDomainRequest{Domain: "example.com"})
-	req.Header().Set(authzconnect.AdminTokenHeader, connectTestToken)
-	_, err := adminv1connect.NewApiClient(srv.Client(), srv.URL).CreateDomain(t.Context(), req)
+	_, badDomain := values.Parse("no-dot")
+	_, badTemplateID := templates.DomainFromID("no-separator")
+	_, badKeyID := apikeys.ParseID("not-a-key-id")
+	for _, tc := range []struct {
+		name string
+		err  error
+		code connect.Code
+	}{
+		{"conflict", domains.ErrDomainAlreadyExists, connect.CodeAlreadyExists},
+		{"domain name", badDomain, connect.CodeInvalidArgument},
+		{"template ID", badTemplateID, connect.CodeInvalidArgument},
+		{"key ID", badKeyID, connect.CodeInvalidArgument},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := httptest.NewServer(connectMux(failingAdmin{err: connecterr.Error(tc.err)}))
+			t.Cleanup(srv.Close)
+			req := connect.NewRequest(&adminv1.CreateDomainRequest{Domain: "example.com"})
+			req.Header().Set(authzconnect.AdminTokenHeader, connectTestToken)
+			_, err := adminv1connect.NewApiClient(srv.Client(), srv.URL).CreateDomain(t.Context(), req)
 
-	assert.Equal(t, connect.CodeAlreadyExists, connect.CodeOf(err))
-	assert.ErrorContains(t, err, domains.ErrDomainAlreadyExists.Error())
+			assert.Equal(t, tc.code, connect.CodeOf(err))
+			assert.ErrorContains(t, err, tc.err.Error())
+		})
+	}
+}
+
+// A Mailer credential that does not authenticate is refused as unauthenticated, with the
+// message legacy clients read.
+func TestAMailerCredentialThatDoesNotAuthenticateIsUnauthenticated(t *testing.T) {
+	db, err := pgxpool.New(t.Context(), "postgres://nobody@127.0.0.1:1/none?sslmode=disable&connect_timeout=1")
+	require.NoError(t, err)
+	t.Cleanup(db.Close)
+	mux := newAPIMux(
+		connectReadMaxBytes(defaultMaxPayload),
+		authzconnect.AdminTokenHandlerOptions(admintoken.MustParse(connectTestToken)),
+		apimetrics.New(prometheus.NewRegistry()),
+		adminv1connect.UnimplementedApiHandler{},
+		mailapi.NewMailerAPIV1(db, nil, 0, int(defaultMaxPayload), nil),
+		apiv1connect.UnimplementedStatsApiV1Handler{},
+		apiv2connect.UnimplementedStatsApiV2Handler{},
+		adminv1connect.UnimplementedHZServiceHandler{},
+	)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	req := connect.NewRequest(&mailerv1.SendHTMLReq{})
+	req.Header().Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte("example.com:k_wrong")))
+	_, err = mailerv1connect.NewMailerClient(srv.Client(), srv.URL).SendHTML(t.Context(), req)
+
+	assert.Equal(t, connect.CodeUnauthenticated, connect.CodeOf(err))
+	assert.ErrorContains(t, err, "invalid or wrong auth")
 }
 
 func connectMux(admin adminv1connect.ApiHandler) *http.ServeMux {
