@@ -10,7 +10,7 @@ type Sender interface {
 // SenderOption configures a Sender built by NewSender.
 type SenderOption func(*sender)
 
-// AllowPrivateDestinations lets the Sender deliver to loopback, private,
+// AllowPrivateDestinations lets the Sender deliver to loopback, private, shared,
 // link-local and unspecified addresses, which it refuses by default.
 func AllowPrivateDestinations() SenderOption {
 	return func(s *sender) { s.allowPrivate = true }

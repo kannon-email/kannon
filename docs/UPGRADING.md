@@ -10,7 +10,10 @@ generated from commits.
 ### What changes
 
 The sender no longer delivers to an MX host whose address is on loopback, a
-private range, link-local or unspecified. Such a Delivery bounces permanently,
+private range, the shared address space of carrier-grade NAT (`100.64.0.0/10`),
+link-local or unspecified, nor to an IPv6 address that embeds such an IPv4
+address (NAT64 `64:ff9b::/96`, IPv4-compatible `::a.b.c.d`, 6to4 `2002::/16`)
+or lies in the local-use NAT64 prefix `64:ff9b:1::/48`. Such a Delivery bounces permanently,
 with a reason naming the refused address, instead of being handed over.
 
 ### What you have to do

@@ -226,7 +226,7 @@ A process with nothing enabled refuses to boot rather than exit as if it had don
 | `sender.hostname`            | string   | (required)     | Hostname announced for outgoing mail             |
 | `sender.max_jobs`            | int      | 10             | Max parallel sending jobs                        |
 | `sender.demo_sender`         | bool     | false          | Enable demo sender mode for testing              |
-| `sender.allow_private_destinations` | bool | false | Deliver to MX hosts on loopback, private, link-local or unspecified addresses (see below) |
+| `sender.allow_private_destinations` | bool | false | Deliver to MX hosts on loopback, private, shared (CGNAT), link-local or unspecified addresses (see below) |
 | `smtp.address`               | string   | `:25`          | Inbound SMTP server listen address               |
 | `smtp.domain`                | string   | localhost      | Inbound SMTP server domain                       |
 | `smtp.read_timeout`          | duration | 10s            | SMTP read timeout                                |
@@ -242,7 +242,7 @@ A process with nothing enabled refuses to boot rather than exit as if it had don
 A *size* is written as a Kubernetes quantity: `5Mi`, `500Ki`, `1Gi` (powers of 1024), `5M`, `500k`, `1G` (powers of 1000), or a bare number of bytes.
 
 > [!NOTE]
-> The sender refuses to open an SMTP session with any address on loopback (`127.0.0.0/8`, `::1`), a private range (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `fc00::/7`), link-local (`169.254.0.0/16`, `fe80::/10`) or the unspecified address, whether it came from an MX record, the A/AAAA fallback or an address literal. The check runs on the address actually dialed, so a name that resolves differently by the time of the connection (DNS rebinding) is caught too. Such a Delivery bounces permanently, with a reason naming the refused address, and is not retried. Set `sender.allow_private_destinations: true` only for tests or when Kannon relays through a self-hosted MX on a private network.
+> The sender refuses to open an SMTP session with any address on loopback (`127.0.0.0/8`, `::1`), a private range (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `fc00::/7`), the shared address space of carrier-grade NAT (`100.64.0.0/10`), link-local (`169.254.0.0/16`, `fe80::/10`) or the unspecified address, or with an IPv6 address that embeds such an IPv4 address (NAT64 `64:ff9b::/96`, IPv4-compatible `::a.b.c.d`, 6to4 `2002::/16`) or lies in the local-use NAT64 prefix `64:ff9b:1::/48`, whether it came from an MX record, the A/AAAA fallback or an address literal. The check runs on the address actually dialed, so a name that resolves differently by the time of the connection (DNS rebinding) is caught too. Such a Delivery bounces permanently, with a reason naming the refused address, and is not retried. Set `sender.allow_private_destinations: true` only for tests or when Kannon relays through a self-hosted MX on a private network.
 
 **Access control**:
 

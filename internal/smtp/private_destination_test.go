@@ -317,3 +317,54 @@ func (d *fakeDNS) answer(req []byte) ([]byte, bool) {
 	packed, err := resp.Pack()
 	return packed, err == nil
 }
+
+func TestSendRefusesCarrierGradeNATMX(t *testing.T) {
+	mx := startFakeMX(t)
+	dns := startFakeDNS(t)
+	dns.setMX("cgnat.test.", "mx.cgnat.test.")
+	dns.setA("mx.cgnat.test.", "100.64.0.1")
+
+	err := newTestSender(dns, mx, false).Send("from@sender.test", "to@cgnat.test", []byte("Subject: x\r\n\r\nhi\r\n"))
+
+	if err == nil || !err.IsPermanent() || !strings.Contains(err.Error(), "100.64.0.1") {
+		t.Fatalf("Send to a CGNAT MX = %v, want a permanent refusal naming 100.64.0.1", err)
+	}
+}
+
+// IPv6 forms that embed an IPv4 address reach that IPv4 host through a
+// translator or tunnel, so they are judged on the address they embed. The
+// local-use NAT64 prefix is refused whole: it never leaves the operator's
+// network, and where it embeds the IPv4 depends on how the operator sized it.
+func TestDialRefusesIPv6EmbeddingAPrivateIPv4(t *testing.T) {
+	refused := []string{
+		"[64:ff9b::7f00:1]:25",
+		"[64:ff9b::a00:1]:25",
+		"[64:ff9b:1::7f00:1]:25",
+		"[64:ff9b:1:ffff:ffff:ffff:c0a8:101]:25",
+		"[64:ff9b:1::808:808]:25",
+		"[::7f00:1]:25",
+		"[::a00:1]:25",
+		"[2002:7f00:1::1]:25",
+		"[2002:c0a8:101::]:25",
+		"[2002:6440:1::1]:25",
+		"[::ffff:100.64.0.1]:25",
+		"100.127.255.254:25",
+	}
+	for _, address := range refused {
+		if err := refusePrivateDestinations(t.Context(), "tcp", address, nil); err == nil {
+			t.Errorf("dial to %s allowed, want refused", address)
+		}
+	}
+	allowed := []string{
+		"[64:ff9b::808:808]:25",
+		"[2002:808:808::1]:25",
+		"[2001:4860:4860::8888]:25",
+		"100.128.0.1:25",
+		"8.8.8.8:25",
+	}
+	for _, address := range allowed {
+		if err := refusePrivateDestinations(t.Context(), "tcp", address, nil); err != nil {
+			t.Errorf("dial to %s refused: %v", address, err)
+		}
+	}
+}
