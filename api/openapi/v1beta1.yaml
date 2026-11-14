@@ -2,7 +2,8 @@ openapi: 3.1.1
 info:
   title: Kannon REST API
   version: v1beta1
-  description: Versioned REST contract of Kannon. Authenticate with the configured Admin Token or a Domain API Key as a
+  description: Deprecated, use v1, which has the same contract under /v1; v1beta1 will be removed. Versioned REST
+    contract of Kannon. Authenticate with the configured Admin Token or a Domain API Key as a
     Bearer token. Decisions are recorded in docs/rest-api-design.md.
 servers:
 - url: /v1beta1
@@ -29,6 +30,7 @@ paths:
   /domains:
     post:
       operationId: createDomain
+      deprecated: true
       tags:
       - Domains
       summary: Create a Domain
@@ -75,6 +77,7 @@ paths:
               $ref: '#/components/schemas/DomainCreate'
     get:
       operationId: listDomains
+      deprecated: true
       tags:
       - Domains
       summary: List Domains
@@ -107,6 +110,7 @@ paths:
   /domains/{domain}:
     get:
       operationId: getDomain
+      deprecated: true
       tags:
       - Domains
       summary: Read a Domain
@@ -138,6 +142,7 @@ paths:
       - admin
     patch:
       operationId: updateDomain
+      deprecated: true
       tags:
       - Domains
       summary: Replace the Domain Tracking Policy
@@ -180,6 +185,7 @@ paths:
   /domains/{domain}/templates:
     post:
       operationId: createTemplate
+      deprecated: true
       tags:
       - Templates
       summary: Create a Persistent Template
@@ -227,6 +233,7 @@ paths:
               $ref: '#/components/schemas/TemplateCreate'
     get:
       operationId: listTemplates
+      deprecated: true
       tags:
       - Templates
       summary: List Persistent Templates
@@ -262,6 +269,7 @@ paths:
   /domains/{domain}/templates/{template_id}:
     get:
       operationId: getTemplate
+      deprecated: true
       tags:
       - Templates
       summary: Read a Template
@@ -294,6 +302,7 @@ paths:
       - admin
     patch:
       operationId: updateTemplate
+      deprecated: true
       tags:
       - Templates
       summary: Update title and/or HTML
@@ -336,6 +345,7 @@ paths:
               $ref: '#/components/schemas/TemplatePatch'
     delete:
       operationId: deleteTemplate
+      deprecated: true
       tags:
       - Templates
       summary: Delete a Template without affecting accepted Batches
@@ -365,6 +375,7 @@ paths:
   /domains/{domain}/api-keys:
     post:
       operationId: createAPIKey
+      deprecated: true
       tags:
       - API keys
       summary: Issue a Domain credential
@@ -415,6 +426,7 @@ paths:
               $ref: '#/components/schemas/APIKeyCreate'
     get:
       operationId: listAPIKeys
+      deprecated: true
       tags:
       - API keys
       summary: List credentials without secrets
@@ -450,6 +462,7 @@ paths:
   /domains/{domain}/api-keys/{key_id}:
     get:
       operationId: getAPIKey
+      deprecated: true
       tags:
       - API keys
       summary: Read credential metadata
@@ -482,6 +495,7 @@ paths:
       - admin
     patch:
       operationId: revokeAPIKey
+      deprecated: true
       tags:
       - API keys
       summary: Permanently revoke a credential
@@ -527,6 +541,7 @@ paths:
   /domains/{domain}/batches:
     post:
       operationId: createBatch
+      deprecated: true
       tags:
       - Batches
       summary: Create an immutable Batch and accepted Deliveries atomically
@@ -588,6 +603,7 @@ paths:
               $ref: '#/components/schemas/BatchCreate'
     get:
       operationId: listBatches
+      deprecated: true
       tags:
       - Batches
       summary: List Batch summaries
@@ -624,6 +640,7 @@ paths:
   /domains/{domain}/batches/{batch_id}:
     get:
       operationId: getBatch
+      deprecated: true
       tags:
       - Batches
       summary: Read a Batch and its immutable content
@@ -658,6 +675,7 @@ paths:
   /domains/{domain}/batches/{batch_id}/deliveries:
     get:
       operationId: listDeliveries
+      deprecated: true
       tags:
       - Deliveries
       summary: List Delivery history
@@ -696,6 +714,7 @@ paths:
   /domains/{domain}/batches/{batch_id}/deliveries/{delivery_id}:
     get:
       operationId: getDelivery
+      deprecated: true
       tags:
       - Deliveries
       summary: Read one Delivery
@@ -731,6 +750,7 @@ paths:
   /domains/{domain}/stats/events:
     get:
       operationId: listStatsEvents
+      deprecated: true
       tags:
       - Stats
       summary: Query retained individual events
@@ -771,6 +791,7 @@ paths:
   /domains/{domain}/stats/aggregated:
     get:
       operationId: getAggregatedStats
+      deprecated: true
       tags:
       - Stats
       summary: Read Domain aggregate counters
@@ -809,6 +830,7 @@ paths:
   /health:
     get:
       operationId: getHealth
+      deprecated: true
       tags:
       - Health
       summary: Check readiness

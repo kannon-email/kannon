@@ -59,7 +59,7 @@ func TestPersistentEvents(t *testing.T) {
 	h := rest.NewHandler(rest.Services{Domains: domains.NewService(sqlc.NewDomainsRepository(db)), Token: admintoken.MustParse("secret"), Ready: db.Ping, Stats: svc, Keys: keys})
 	call := func(q string, status int) map[string]any {
 		t.Helper()
-		r := httptest.NewRequest(http.MethodGet, "/v1beta1/domains/events.example/stats/events?"+q, nil)
+		r := httptest.NewRequest(http.MethodGet, "/v1/domains/events.example/stats/events?"+q, nil)
 		r.Header.Set("Authorization", "Bearer secret")
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, r)
@@ -72,7 +72,7 @@ func TestPersistentEvents(t *testing.T) {
 		}
 		return v
 	}
-	rDomain := httptest.NewRequest(http.MethodPost, "/v1beta1/domains", strings.NewReader(`{"domain":"events.example"}`))
+	rDomain := httptest.NewRequest(http.MethodPost, "/v1/domains", strings.NewReader(`{"domain":"events.example"}`))
 	rDomain.Header.Set("Authorization", "Bearer secret")
 	wDomain := httptest.NewRecorder()
 	h.ServeHTTP(wDomain, rDomain)
@@ -120,7 +120,7 @@ func TestPersistentEvents(t *testing.T) {
 		t.Fatal(page)
 	}
 	for _, role := range []string{"analyst", "metrics-reader", "sender", "admin"} {
-		r := httptest.NewRequest(http.MethodPost, "/v1beta1/domains/events.example/api-keys", strings.NewReader(`{"name":"reader","roles":["`+role+`"]}`))
+		r := httptest.NewRequest(http.MethodPost, "/v1/domains/events.example/api-keys", strings.NewReader(`{"name":"reader","roles":["`+role+`"]}`))
 		r.Header.Set("Authorization", "Bearer secret")
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, r)
@@ -132,7 +132,7 @@ func TestPersistentEvents(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, domain := range []string{"events.example", "other.example"} {
-			r = httptest.NewRequest(http.MethodGet, "/v1beta1/domains/"+domain+"/stats/events?"+q, nil)
+			r = httptest.NewRequest(http.MethodGet, "/v1/domains/"+domain+"/stats/events?"+q, nil)
 			r.Header.Set("Authorization", "Bearer "+key.Secret)
 			w = httptest.NewRecorder()
 			h.ServeHTTP(w, r)

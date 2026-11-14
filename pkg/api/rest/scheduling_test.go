@@ -54,7 +54,7 @@ func TestScheduledAttachments(t *testing.T) {
 			t.Fatalf("got %d want %d: %s", w.Code, status, w.Body)
 		}
 	}
-	call("/v1beta1/domains", "", `{"domain":"example.com"}`, 201)
+	call("/v1/domains", "", `{"domain":"example.com"}`, 201)
 	domain := values.MustParse("example.com")
 	ctx := authz.NewContext(t.Context(), authz.MustNewPrincipal("admin", authz.MustNewGrant(authz.RoleAdmin, authz.DomainAnchor(domain))))
 	due := now.Add(time.Hour)
@@ -115,7 +115,7 @@ func TestScheduledAttachments(t *testing.T) {
 	if err != nil || !replayed || replay.ID != receipt.ID || !replay.ScheduledAt.Equal(due) || len(replay.Attachments) != 1 {
 		t.Fatal(replay, replayed, err)
 	}
-	path := "/v1beta1/domains/example.com/batches"
+	path := "/v1/domains/example.com/batches"
 	body := `{"from":{"email":"sender@example.com"},"subject":"hello","content":{"type":"html","html":"hello"},"recipients":[{"email":"to@example.com"}]`
 	call(path, "past", body+`,"scheduled_at":"2030-01-01T01:00:00Z"}`, 422)
 	call(path, "past", body+`}`, 201)

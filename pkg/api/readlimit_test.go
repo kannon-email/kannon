@@ -165,7 +165,7 @@ func gzipped(t *testing.T, b []byte) []byte {
 func TestTheConnectMuxDoesNotServeREST(t *testing.T) {
 	_, srv := readLimitServer(t)
 
-	res, err := http.Get(srv.URL + "/v1beta1/openapi.yaml")
+	res, err := http.Get(srv.URL + "/v1/openapi.yaml")
 	require.NoError(t, err)
 	_ = res.Body.Close()
 

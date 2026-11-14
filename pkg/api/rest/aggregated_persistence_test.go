@@ -64,8 +64,8 @@ func TestPersistentAggregateSeries(t *testing.T) {
 		}
 		return w.Body.String()
 	}
-	call("secret", "POST", "/v1beta1/domains", `{"domain":"aggregate.example"}`, 201)
-	base := "/v1beta1/domains/aggregate.example/stats/aggregated?"
+	call("secret", "POST", "/v1/domains", `{"domain":"aggregate.example"}`, 201)
+	base := "/v1/domains/aggregate.example/stats/aggregated?"
 	q := "from=2026-01-01T03:00:00Z&to=2026-01-01T09:00:00Z&group_by=3h"
 	body := call("secret", "GET", base+q, "", 200)
 	shifted := strings.ReplaceAll(strings.ReplaceAll(q, "03:00:00Z", "04:00:00%2B01:00"), "09:00:00Z", "10:00:00%2B01:00")
@@ -108,7 +108,7 @@ func TestPersistentAggregateSeries(t *testing.T) {
 	}
 	for _, role := range []string{"admin", "analyst", "metrics-reader", "sender", "batch-reader"} {
 		var key rest.APIKeyCreated
-		if err := json.Unmarshal([]byte(call("secret", "POST", "/v1beta1/domains/aggregate.example/api-keys", `{"name":"reader","roles":["`+role+`"]}`, 201)), &key); err != nil {
+		if err := json.Unmarshal([]byte(call("secret", "POST", "/v1/domains/aggregate.example/api-keys", `{"name":"reader","roles":["`+role+`"]}`, 201)), &key); err != nil {
 			t.Fatal(err)
 		}
 		want := 200
@@ -118,7 +118,7 @@ func TestPersistentAggregateSeries(t *testing.T) {
 		call(key.Secret, "GET", base+q, "", want)
 		call(key.Secret, "GET", strings.Replace(base, "aggregate.example", "other.example", 1)+q, "", 403)
 		if role == "metrics-reader" {
-			call(key.Secret, "GET", "/v1beta1/domains/aggregate.example/stats/events?from=2026-01-01T03:00:00Z&to=2026-01-01T09:00:00Z", "", 403)
+			call(key.Secret, "GET", "/v1/domains/aggregate.example/stats/events?from=2026-01-01T03:00:00Z&to=2026-01-01T09:00:00Z", "", 403)
 		}
 	}
 }

@@ -17,7 +17,7 @@ func batchSummary(b intake.BatchHistory) BatchSummary {
 	return BatchSummary{Id: b.ID, Domain: b.Domain, From: from, Subject: b.Subject, CreatedAt: b.CreatedAt, ScheduledAt: b.ScheduledAt, CompletedAt: b.CompletedAt, ExpiresAt: b.ExpiresAt(), AcceptedCount: b.AcceptedCount, RejectedCount: b.RejectedCount, DeliveryCounts: counts, Status: BatchSummaryStatus(b.Status())}
 }
 func registerBatchHistory(mux *http.ServeMux, s *intake.InlineService) {
-	mux.Handle("GET /v1beta1/domains/{domain}/batches/{batch_id}", handler(func(w http.ResponseWriter, r *http.Request) error {
+	mux.Handle("GET /domains/{domain}/batches/{batch_id}", handler(func(w http.ResponseWriter, r *http.Request) error {
 		d, err := parseDomainPath(r)
 		if err != nil {
 			return err
@@ -56,7 +56,7 @@ func registerBatchHistory(mux *http.ServeMux, s *intake.InlineService) {
 		writeJSON(w, 200, out)
 		return nil
 	}))
-	mux.Handle("GET /v1beta1/domains/{domain}/batches", handler(func(w http.ResponseWriter, r *http.Request) error {
+	mux.Handle("GET /domains/{domain}/batches", handler(func(w http.ResponseWriter, r *http.Request) error {
 		d, err := parseDomainPath(r)
 		if err != nil {
 			return err
@@ -86,7 +86,7 @@ func registerBatchHistory(mux *http.ServeMux, s *intake.InlineService) {
 		writeJSON(w, 200, out)
 		return nil
 	}))
-	mux.Handle("GET /v1beta1/domains/{domain}/batches/{batch_id}/deliveries", handler(func(w http.ResponseWriter, r *http.Request) error {
+	mux.Handle("GET /domains/{domain}/batches/{batch_id}/deliveries", handler(func(w http.ResponseWriter, r *http.Request) error {
 		d, err := parseDomainPath(r)
 		if err != nil {
 			return err

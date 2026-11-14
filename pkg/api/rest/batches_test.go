@@ -60,9 +60,9 @@ func TestInlineBatchRetry(t *testing.T) {
 		}
 		return v
 	}
-	call("/v1beta1/domains", "", `{"domain":"example.com"}`, 201)
+	call("/v1/domains", "", `{"domain":"example.com"}`, 201)
 	body := `{"from":{"email":"sender@example.com"},"subject":"Hello","content":{"type":"html","html":"<p>Hello</p>"},"recipients":[{"email":" User+tag@EXAMPLE.com "},{"email":"User+tag@example.com"},{"email":"refused-address"}]}`
-	path := "/v1beta1/domains/example.com/batches"
+	path := "/v1/domains/example.com/batches"
 	if got := call(path, "limit", strings.Replace(body, `[{"email":" User+tag@EXAMPLE.com "},{"email":"User+tag@example.com"},{"email":"refused-address"}]`, "["+strings.Repeat(`{"email":"same@example.com"},`, 2000)+`{"email":"last@example.com"}]`, 1), 422); got["code"] != "too_many_recipients" {
 		t.Fatal(got)
 	}
@@ -242,7 +242,7 @@ func TestInlineBatchRetry(t *testing.T) {
 	assertSend(acceptedBySender.ID, "sender-only@example.com", "Hi Sender", "<p>Sender sender-only@example.com</p>")
 	foreign, err := templates.NewPersistent(values.MustParse("other.example.com"), "Other", "Other")
 	require.NoError(t, err)
-	call("/v1beta1/domains", "", `{"domain":"other.example.com"}`, 201)
+	call("/v1/domains", "", `{"domain":"other.example.com"}`, 201)
 	require.NoError(t, repo.Create(t.Context(), foreign))
 	senderRequest.TemplateID = foreign.TemplateID()
 	_, err = func() (*intake.InlineReceipt, error) {

@@ -5,6 +5,22 @@ releases that change behaviour of an installation already in production appear
 here; everything else is in [`CHANGELOG.md`](../CHANGELOG.md), which is
 generated from commits.
 
+## Unreleased — REST API v1
+
+### What changes
+
+The REST API is served under `/v1`, with the same contract as `/v1beta1`: same
+operations, request and response bodies, status codes and authentication.
+`/v1beta1` keeps working unchanged but is deprecated and will be removed in a
+coming release; its contract (`GET /v1beta1/openapi.yaml`) marks every operation
+deprecated. A `Location` header points under the version the request was made to.
+
+### What you have to do
+
+Nothing now. Before `/v1beta1` is removed, change client base URLs from
+`/v1beta1` to `/v1`, and any Ingress or HTTPRoute that matches `/v1beta1/` only
+so that it also routes `/v1/`.
+
 ## Unreleased — REST on its own port
 
 ### What changes

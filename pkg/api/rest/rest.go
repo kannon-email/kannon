@@ -45,17 +45,16 @@ type Services struct {
 	Stats     *stats.Service
 }
 
-// NewHandler returns the versioned REST handler for the supplied services.
+// NewHandler returns the REST handler for the supplied services, serving every API version.
 func NewHandler(s Services) http.Handler {
 	mux := http.NewServeMux()
-	mux.Handle("GET /v1beta1/health", handler(func(w http.ResponseWriter, r *http.Request) error {
+	mux.Handle("GET /health", handler(func(w http.ResponseWriter, r *http.Request) error {
 		if s.Ready == nil || s.Ready(r.Context()) != nil {
 			return problemError(503, "service_unavailable")
 		}
 		writeJSON(w, 200, map[string]string{statusKey: "ready"})
 		return nil
 	}))
-	mux.HandleFunc("GET /v1beta1/openapi.yaml", serveContract)
 	protected := http.NewServeMux()
 	if s.Inline != nil {
 		registerBatches(protected, s.Inline)
@@ -71,7 +70,7 @@ func NewHandler(s Services) http.Handler {
 	if s.Keys != nil {
 		registerKeys(protected, s.Keys)
 	}
-	protected.Handle("POST /v1beta1/domains", handler(func(w http.ResponseWriter, r *http.Request) error {
+	protected.Handle("POST /domains", handler(func(w http.ResponseWriter, r *http.Request) error {
 		if _, err := parseQuery(r.URL.RawQuery); err != nil {
 			return err
 		}
@@ -87,11 +86,11 @@ func NewHandler(s Services) http.Handler {
 		if err != nil {
 			return err
 		}
-		w.Header().Set("Location", "/v1beta1/domains/"+d.Domain())
+		w.Header().Set("Location", versionedPath(r, "/domains/"+d.Domain()))
 		writeJSON(w, 201, domainWire(d))
 		return nil
 	}))
-	protected.Handle("GET /v1beta1/domains", handler(func(w http.ResponseWriter, r *http.Request) error {
+	protected.Handle("GET /domains", handler(func(w http.ResponseWriter, r *http.Request) error {
 		q, err := parseQuery(r.URL.RawQuery, limitParameter, cursorParameter)
 		if err != nil {
 			return err
@@ -123,7 +122,7 @@ func NewHandler(s Services) http.Handler {
 		writeJSON(w, 200, DomainPage{Items: items, NextCursor: next})
 		return nil
 	}))
-	protected.Handle("GET /v1beta1/domains/{domain}", handler(func(w http.ResponseWriter, r *http.Request) error {
+	protected.Handle("GET /domains/{domain}", handler(func(w http.ResponseWriter, r *http.Request) error {
 		if _, err := parseQuery(r.URL.RawQuery); err != nil {
 			return err
 		}
@@ -138,7 +137,7 @@ func NewHandler(s Services) http.Handler {
 		writeJSON(w, 200, domainWire(d))
 		return nil
 	}))
-	protected.Handle("PATCH /v1beta1/domains/{domain}", handler(func(w http.ResponseWriter, r *http.Request) error {
+	protected.Handle("PATCH /domains/{domain}", handler(func(w http.ResponseWriter, r *http.Request) error {
 		if _, err := parseQuery(r.URL.RawQuery); err != nil {
 			return err
 		}
@@ -163,7 +162,7 @@ func NewHandler(s Services) http.Handler {
 		writeJSON(w, 200, domainWire(d))
 		return nil
 	}))
-	mux.Handle("/v1beta1/", handler(func(w http.ResponseWriter, r *http.Request) error {
+	mux.Handle("/", handler(func(w http.ResponseWriter, r *http.Request) error {
 		parts := strings.Split(r.Header.Get("Authorization"), " ")
 		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
 			return problemError(401, "unauthenticated")
@@ -188,11 +187,12 @@ func NewHandler(s Services) http.Handler {
 		protected.ServeHTTP(w, r.WithContext(authz.NewContext(r.Context(), p)))
 		return nil
 	}))
+	root := mountVersions(mux)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := make([]byte, 16)
 		_, _ = rand.Read(id)
 		w.Header().Set("X-Request-ID", base64.RawURLEncoding.EncodeToString(id))
-		mux.ServeHTTP(w, r)
+		root.ServeHTTP(w, r)
 	})
 }
 

@@ -11,7 +11,7 @@ import (
 )
 
 func registerEvents(mux *http.ServeMux, service *stats.Service) {
-	mux.Handle("GET /v1beta1/domains/{domain}/stats/events", handler(func(w http.ResponseWriter, r *http.Request) error {
+	mux.Handle("GET /domains/{domain}/stats/events", handler(func(w http.ResponseWriter, r *http.Request) error {
 		d, err := parseDomainPath(r)
 		if err != nil {
 			return err

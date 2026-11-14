@@ -54,8 +54,8 @@ func TestParsingHTTPContract(t *testing.T) {
 		}
 		return out
 	}
-	const domain = "/v1beta1/domains/example.com"
-	call("POST", "/v1beta1/domains", `{"domain":"example.com"}`, "", 201, "")
+	const domain = "/v1/domains/example.com"
+	call("POST", "/v1/domains", `{"domain":"example.com"}`, "", 201, "")
 	batchBody := `{"from":{"email":"sender@example.com"},"subject":"Hello","content":{"type":"html","html":"Hello"},"recipients":[{"email":"ok@example.com"},{}]}`
 	created := call("POST", domain+"/batches", batchBody, "initial", 201, "")
 	require.Equal(t, float64(1), created["accepted_count"])
@@ -66,7 +66,7 @@ func TestParsingHTTPContract(t *testing.T) {
 	template := call("POST", domain+"/templates", `{"title":"","html":"Hello"} `, "", 201, "")
 	templatePath := domain + "/templates/" + fmt.Sprint(template["id"])
 	const span = "from=2026-01-01T00:00:00Z&to=2026-01-01T01:00:00Z"
-	collections := []string{"/v1beta1/domains", domain + "/templates", domain + "/api-keys", domain + "/batches", batchPath + "/deliveries", domain + "/stats/events"}
+	collections := []string{"/v1/domains", domain + "/templates", domain + "/api-keys", domain + "/batches", batchPath + "/deliveries", domain + "/stats/events"}
 	for _, path := range collections {
 		t.Run("query "+path, func(t *testing.T) {
 			prefix := path + "?"
@@ -110,7 +110,7 @@ func TestParsingHTTPContract(t *testing.T) {
 	call("GET", domain+"/stats/aggregated?"+span+"&group_by=1h&batch_id=x", "", "", 400, "unknown_query_parameter")
 
 	for _, route := range []struct{ method, path string }{
-		{"POST", "/v1beta1/domains"}, {"PATCH", domain}, {"POST", domain + "/templates"}, {"PATCH", templatePath},
+		{"POST", "/v1/domains"}, {"PATCH", domain}, {"POST", domain + "/templates"}, {"PATCH", templatePath},
 		{"POST", domain + "/api-keys"}, {"PATCH", keyPath}, {"POST", domain + "/batches"},
 	} {
 		t.Run("body "+route.method+route.path, func(t *testing.T) {
@@ -180,7 +180,7 @@ func TestParsingHTTPContract(t *testing.T) {
 	require.NotNil(t, page["next_cursor"])
 	cursor := fmt.Sprint(page["next_cursor"])
 	call("GET", domain+"/batches?limit=1000&cursor="+cursor, "", "", 200, "")
-	call("GET", "/v1beta1/domains/other.com/batches?cursor="+cursor, "", "", 400, "invalid_cursor")
+	call("GET", "/v1/domains/other.com/batches?cursor="+cursor, "", "", 400, "invalid_cursor")
 	call("GET", batchPath+"/deliveries?cursor="+cursor, "", "", 400, "invalid_cursor")
 	manyBody := strings.Replace(batchBody, `[{"email":"ok@example.com"},{}]`, `[{"email":"a@example.com"},{"email":"b@example.com"},{"email":"c@example.com"}]`, 1)
 	many := call("POST", domain+"/batches", manyBody, "many", 201, "")
@@ -212,7 +212,7 @@ func (brokenBody) Close() error             { return nil }
 
 func TestBodyReadFailureHTTP(t *testing.T) {
 	h := rest.NewHandler(rest.Services{Token: admintoken.MustParse("secret")})
-	r := httptest.NewRequest(http.MethodPost, "/v1beta1/domains", nil)
+	r := httptest.NewRequest(http.MethodPost, "/v1/domains", nil)
 	r.Body = io.ReadCloser(brokenBody{})
 	r.Header.Set("Authorization", "Bearer secret")
 	w := httptest.NewRecorder()
@@ -229,7 +229,7 @@ func TestOversizedBodyHTTPServer(t *testing.T) {
 	h := rest.NewHandler(rest.Services{Token: admintoken.MustParse("secret")})
 	server := httptest.NewServer(h)
 	defer server.Close()
-	request, err := http.NewRequest(http.MethodPost, server.URL+"/v1beta1/domains", strings.NewReader(strings.Repeat(" ", (10<<20)+1)))
+	request, err := http.NewRequest(http.MethodPost, server.URL+"/v1/domains", strings.NewReader(strings.Repeat(" ", (10<<20)+1)))
 	require.NoError(t, err)
 	request.Header.Set("Authorization", "Bearer secret")
 	response, err := server.Client().Do(request)
@@ -239,7 +239,7 @@ func TestOversizedBodyHTTPServer(t *testing.T) {
 	require.NoError(t, response.Body.Close())
 	require.Equal(t, 413, response.StatusCode)
 	require.Contains(t, string(body), `"code":"request_body_too_large"`)
-	response, err = server.Client().Get(server.URL + "/v1beta1/health")
+	response, err = server.Client().Get(server.URL + "/v1/health")
 	require.NoError(t, err)
 	require.NoError(t, response.Body.Close())
 	require.Equal(t, 503, response.StatusCode)

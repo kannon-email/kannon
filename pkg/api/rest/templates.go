@@ -15,7 +15,7 @@ func templateWire(t *templates.Template) Template {
 }
 
 func registerTemplates(mux *http.ServeMux, service *templates.Service) {
-	mux.Handle("POST /v1beta1/domains/{domain}/templates", handler(func(w http.ResponseWriter, r *http.Request) error {
+	mux.Handle("POST /domains/{domain}/templates", handler(func(w http.ResponseWriter, r *http.Request) error {
 		if _, err := parseQuery(r.URL.RawQuery); err != nil {
 			return err
 		}
@@ -34,12 +34,12 @@ func registerTemplates(mux *http.ServeMux, service *templates.Service) {
 		if err != nil {
 			return err
 		}
-		w.Header().Set("Location", "/v1beta1/domains/"+domain.String()+"/templates/"+t.TemplateID())
+		w.Header().Set("Location", versionedPath(r, "/domains/"+domain.String()+"/templates/"+t.TemplateID()))
 		writeJSON(w, 201, templateWire(t))
 		return nil
 	}))
 	for _, method := range []string{"GET", http.MethodPatch, http.MethodDelete} {
-		mux.Handle(method+" /v1beta1/domains/{domain}/templates/{template_id}", handler(func(w http.ResponseWriter, r *http.Request) error {
+		mux.Handle(method+" /domains/{domain}/templates/{template_id}", handler(func(w http.ResponseWriter, r *http.Request) error {
 			if _, err := parseQuery(r.URL.RawQuery); err != nil {
 				return err
 			}
@@ -75,7 +75,7 @@ func registerTemplates(mux *http.ServeMux, service *templates.Service) {
 			return nil
 		}))
 	}
-	mux.Handle("GET /v1beta1/domains/{domain}/templates", handler(func(w http.ResponseWriter, r *http.Request) error {
+	mux.Handle("GET /domains/{domain}/templates", handler(func(w http.ResponseWriter, r *http.Request) error {
 		q, err := parseQuery(r.URL.RawQuery, limitParameter, cursorParameter)
 		if err != nil {
 			return err

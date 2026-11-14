@@ -23,7 +23,7 @@ func keyWire(k *apikeys.APIKey) APIKey {
 }
 
 func registerKeys(mux *http.ServeMux, service *apikeys.Service) {
-	mux.Handle("POST /v1beta1/domains/{domain}/api-keys", handler(func(w http.ResponseWriter, r *http.Request) error {
+	mux.Handle("POST /domains/{domain}/api-keys", handler(func(w http.ResponseWriter, r *http.Request) error {
 		if _, err := parseQuery(r.URL.RawQuery); err != nil {
 			return err
 		}
@@ -44,12 +44,12 @@ func registerKeys(mux *http.ServeMux, service *apikeys.Service) {
 			return err
 		}
 		k := keyWire(result.Key)
-		w.Header().Set("Location", "/v1beta1/domains/"+domain.String()+"/api-keys/"+k.Id)
+		w.Header().Set("Location", versionedPath(r, "/domains/"+domain.String()+"/api-keys/"+k.Id))
 		writeJSON(w, 201, APIKeyCreated{Id: k.Id, Domain: k.Domain, Name: k.Name, Prefix: k.Prefix, Roles: k.Roles, CreatedAt: k.CreatedAt, ExpiresAt: k.ExpiresAt, RevokedAt: k.RevokedAt, Status: APIKeyCreatedStatus(k.Status), Secret: result.PlaintextKey})
 		return nil
 	}))
 	for _, method := range []string{"GET", http.MethodPatch} {
-		mux.Handle(method+" /v1beta1/domains/{domain}/api-keys/{key_id}", handler(func(w http.ResponseWriter, r *http.Request) error {
+		mux.Handle(method+" /domains/{domain}/api-keys/{key_id}", handler(func(w http.ResponseWriter, r *http.Request) error {
 			if _, err := parseQuery(r.URL.RawQuery); err != nil {
 				return err
 			}
@@ -82,7 +82,7 @@ func registerKeys(mux *http.ServeMux, service *apikeys.Service) {
 			return nil
 		}))
 	}
-	mux.Handle("GET /v1beta1/domains/{domain}/api-keys", handler(func(w http.ResponseWriter, r *http.Request) error {
+	mux.Handle("GET /domains/{domain}/api-keys", handler(func(w http.ResponseWriter, r *http.Request) error {
 		q, err := parseQuery(r.URL.RawQuery, limitParameter, cursorParameter)
 		if err != nil {
 			return err

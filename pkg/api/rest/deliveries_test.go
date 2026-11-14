@@ -51,7 +51,7 @@ func TestDeliverySurvivesPoolAndLateBounce(t *testing.T) {
 	h := rest.NewHandler(rest.Services{Domains: ds, Token: admintoken.MustParse("secret"), Ready: db.Ping, Inline: svc})
 	read := func(domain, bid string, status int) rest.Delivery {
 		t.Helper()
-		r := httptest.NewRequest(http.MethodGet, "/v1beta1/domains/"+domain+"/batches/"+bid+"/deliveries/"+id, nil)
+		r := httptest.NewRequest(http.MethodGet, "/v1/domains/"+domain+"/batches/"+bid+"/deliveries/"+id, nil)
 		r.Header.Set("Authorization", "Bearer secret")
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, r)
@@ -69,7 +69,7 @@ func TestDeliverySurvivesPoolAndLateBounce(t *testing.T) {
 	if d := read("example.com", receipt.ID, 200); d.Status != "pending" || d.Email != "to@example.com" {
 		t.Fatal(d)
 	}
-	r := httptest.NewRequest(http.MethodGet, "/v1beta1/domains/example.com/batches/"+receipt.ID, nil)
+	r := httptest.NewRequest(http.MethodGet, "/v1/domains/example.com/batches/"+receipt.ID, nil)
 	r.Header.Set("Authorization", "Bearer secret")
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
@@ -95,7 +95,7 @@ func TestDeliverySurvivesPoolAndLateBounce(t *testing.T) {
 		}
 		return rec.Body.Bytes()
 	}
-	base := "/v1beta1/domains/example.com/batches"
+	base := "/v1/domains/example.com/batches"
 	var page rest.BatchSummaryPage
 	if err := json.Unmarshal(get(base+"?limit=1", 200), &page); err != nil {
 		t.Fatal(err)

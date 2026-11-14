@@ -8,7 +8,9 @@ Implementation specification: [GitHub issue #476](https://github.com/kannon-emai
 published in English with the prd and ready-for-agent labels after confirmation
 of the testing interfaces. A local copy is available in `docs/specs/rest-api-v1beta1.md`.
 
-The machine-readable contract is `api/openapi/v1beta1.yaml` (OpenAPI 3.1.1).
+The machine-readable contract is `api/openapi/v1.yaml` (OpenAPI 3.1.1). The REST API was
+first released as `/v1beta1`; ADR 0017 promoted the same contract to `/v1` and deprecated
+`/v1beta1` (`api/openapi/v1beta1.yaml`), which will be removed.
 It contains 21 operations across 13 paths and 48 schemas, and has passed structural
 OpenAPI validation. It is approved but not implemented: `x-design-review` records
 acceptance and the separate implementation follow-up.
@@ -110,8 +112,8 @@ Confirmed decisions:
    the authenticated administrator identity in audit records. No Domain key is
    impersonated or needed for the operation. This agrees with ADR 0008.
 5. Global and Domain credentials use the same endpoints. Domain ownership is
-   explicit in `/v1beta1/domains/{domain}/...`; there is no parallel `/admin` API.
-6. `POST /v1beta1/domains/{domain}/batches` replaces the two send operations in REST.
+   explicit in `/v1/domains/{domain}/...`; there is no parallel `/admin` API.
+6. `POST /v1/domains/{domain}/batches` replaces the two send operations in REST.
    The payload uses `from: {email, name}` and a discriminated `content` object:
    either `{type: "html", html: ...}` or `{type: "template", template_id: ...}`.
    Recipients carry `email` and optional personalization `fields`. Scheduling,
@@ -179,10 +181,11 @@ Confirmed decisions:
 19. API Key roles are fixed at creation. The plaintext secret is shown only once;
     reads never return it. Changing authority or rotating the secret requires a
     new key and revocation of the old one. Revocation uses
-    `PATCH /v1beta1/domains/{domain}/api-keys/{key_id}` with `{status: "revoked"}`;
+    `PATCH /v1/domains/{domain}/api-keys/{key_id}` with `{status: "revoked"}`;
     repeated revocation is idempotent, reactivation is forbidden, and the key's
     record remains readable.
-20. The initial REST prefix is `/v1beta1/`, replacing the initially proposed `/v1/`.
+20. The REST prefix is `/v1/`. The first release used `/v1beta1/`; ADR 0017 promoted
+    the unchanged contract to `/v1/` and deprecated `/v1beta1/`.
     Domain operations are create/list/get and Tracking Policy update. Domain names
     are immutable. Domain deletion, DNS verification and DKIM rotation are outside
     the first release. Template operations are create/list/get/update/delete;
@@ -239,9 +242,9 @@ Confirmed decisions:
 31. Batch creation accepts at most 2,000 Recipients and a total HTTP body of
     10 MiB, including base64 attachment expansion. Excess recipients fail the
     request with 422, excess body size with 413. Neither is silently truncated.
-32. `GET /v1beta1/health` is public: 200 when checks pass, 503 when not ready.
+32. `GET /v1/health` is public: 200 when checks pass, 503 when not ready.
     Responses are minimal and do not disclose infrastructure/database errors.
-33. Evolution within v1beta1 remains compatible. Breaking changes require a new
+33. Evolution within v1 remains compatible. Breaking changes require a new
     API version. gRPC stays in maintenance, with necessary fixes and no removal
     date fixed; new features target REST.
 34. Intake rejections are response-only: rejected recipient records/details must
@@ -399,18 +402,18 @@ by limited-role credentials or a generic delegation subsystem.
 Accepted resource path families:
 
 ```text
-/v1beta1/domains
-/v1beta1/domains/{domain}
-/v1beta1/domains/{domain}/templates
-/v1beta1/domains/{domain}/api-keys
-/v1beta1/domains/{domain}/batches
-/v1beta1/domains/{domain}/batches/{batch_id}/deliveries
-/v1beta1/domains/{domain}/stats
+/v1/domains
+/v1/domains/{domain}
+/v1/domains/{domain}/templates
+/v1/domains/{domain}/api-keys
+/v1/domains/{domain}/batches
+/v1/domains/{domain}/batches/{batch_id}/deliveries
+/v1/domains/{domain}/stats
 ```
 
 ### Accepted endpoint inventory
 
-All paths below are relative to `/v1beta1`.
+All paths below are relative to `/v1`.
 
 | Methods | Path | Meaning |
 | --- | --- | --- |

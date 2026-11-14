@@ -49,8 +49,8 @@ func TestPersistentCredentialJourney(t *testing.T) {
 		}
 		return w.Body.String()
 	}
-	call("secret", "POST", "/v1beta1/domains", `{"domain":"example.com"}`, 201)
-	base := "/v1beta1/domains/example.com/api-keys"
+	call("secret", "POST", "/v1/domains", `{"domain":"example.com"}`, 201)
+	base := "/v1/domains/example.com/api-keys"
 	var key rest.APIKeyCreated
 	if err := json.Unmarshal([]byte(call("secret", "POST", base, `{"name":"operator","roles":["admin"]}`, 201)), &key); err != nil {
 		t.Fatal(err)
@@ -58,10 +58,10 @@ func TestPersistentCredentialJourney(t *testing.T) {
 	if key.Secret == "" {
 		t.Fatal("missing secret")
 	}
-	call(key.Secret, "GET", "/v1beta1/domains/example.com", "", 200)
-	call(key.Secret, "GET", "/v1beta1/domains", "", 403)
-	call(key.Secret, "GET", "/v1beta1/domains/other.com", "", 403)
-	call(key.Secret, "POST", "/v1beta1/domains/other.com/api-keys", `{"name":"outside","roles":["admin"]}`, 403)
+	call(key.Secret, "GET", "/v1/domains/example.com", "", 200)
+	call(key.Secret, "GET", "/v1/domains", "", 403)
+	call(key.Secret, "GET", "/v1/domains/other.com", "", 403)
+	call(key.Secret, "POST", "/v1/domains/other.com/api-keys", `{"name":"outside","roles":["admin"]}`, 403)
 	body := call(key.Secret, "GET", base+"/"+key.Id, "", 200)
 	if strings.Contains(body, key.Secret) || strings.Contains(body, "secret") {
 		t.Fatal("secret in metadata")
@@ -84,7 +84,7 @@ func TestPersistentCredentialJourney(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	call(legacy.PlaintextKey, "GET", "/v1beta1/domains/example.com", "", 403)
+	call(legacy.PlaintextKey, "GET", "/v1/domains/example.com", "", 403)
 	resolved, err := keys.ValidateForAuth(context.Background(), domain, legacy.PlaintextKey)
 	if err != nil || resolved.ID() != legacy.Key.ID() || resolved.KeyHash() != legacy.Key.KeyHash() {
 		t.Fatal("legacy credential changed", err)
@@ -133,7 +133,7 @@ func TestPersistentCredentialJourney(t *testing.T) {
 	if strings.Contains(next, page.Items[0].Id) {
 		t.Fatal("repeated page item")
 	}
-	call(key.Secret, "PATCH", "/v1beta1/domains/example.com", `{"tracking":{"opens":"off","links":"off"}}`, 200)
+	call(key.Secret, "PATCH", "/v1/domains/example.com", `{"tracking":{"opens":"off","links":"off"}}`, 200)
 	// Attribution is validated, stays attached to the authenticated identity, and is permission checked.
 	for _, tc := range []struct {
 		token, claim string
