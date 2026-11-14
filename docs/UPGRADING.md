@@ -5,6 +5,20 @@ releases that change behaviour of an installation already in production appear
 here; everything else is in [`CHANGELOG.md`](../CHANGELOG.md), which is
 generated from commits.
 
+## Unreleased — no delivery to private destinations
+
+### What changes
+
+The sender no longer delivers to an MX host whose address is on loopback, a
+private range, link-local or unspecified. Such a Delivery bounces permanently,
+with a reason naming the refused address, instead of being handed over.
+
+### What you have to do
+
+Nothing, unless your recipients' mail is relayed through a host on a private
+network (a self-hosted MX, a test relay). Then set
+`sender.allow_private_destinations: true` on the sender.
+
 ## Unreleased — REST API v1
 
 ### What changes
