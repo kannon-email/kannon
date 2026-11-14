@@ -15,18 +15,18 @@ func Validate(addr string) bool {
 	if !emailValidator.MatchString(addr) {
 		return false
 	}
-	return !namesHostDirectly(addr[strings.LastIndex(addr, "@")+1:])
+	return !NamesHostDirectly(addr)
 }
 
-// namesHostDirectly reports whether a domain names a host instead of a mail
+// NamesHostDirectly reports whether addr's domain names a host instead of a mail
 // domain: an address literal, a bare IP, or localhost. Mail to such a domain
 // has no MX to resolve, so the SMTPSender would dial the host itself, which
 // lets a tenant aim a Delivery at an internal service.
 //
 // A top-level label made only of digits is never a real TLD (RFC 3696 §2), and
 // rejecting it also catches the shortened IPv4 forms such as 127.1.
-func namesHostDirectly(domain string) bool {
-	domain = strings.ToLower(strings.TrimSuffix(domain, "."))
+func NamesHostDirectly(addr string) bool {
+	domain := strings.ToLower(strings.TrimSuffix(addr[strings.LastIndex(addr, "@")+1:], "."))
 	if strings.ContainsAny(domain, "[]:") || net.ParseIP(domain) != nil {
 		return true
 	}
