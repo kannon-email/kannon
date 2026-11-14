@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kannon-email/kannon/internal/mailflow"
 	"github.com/kannon-email/kannon/internal/publisher"
 	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/internal/statssec"
@@ -56,6 +57,7 @@ func (s *srv) handleClick(w http.ResponseWriter, r *http.Request) {
 		slog.Error("cannot send message on nats", "err", err)
 		return
 	}
+	s.flow.Engaged(mailflow.Clicked)
 
 	slog.Info(fmt.Sprintf("🔗 %s %s %s %s %s %s", r.Method, claims.URL, claims.MessageID, kept.userAgent, r.Host, kept.ip))
 }

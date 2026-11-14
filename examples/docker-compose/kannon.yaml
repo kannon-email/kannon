@@ -25,6 +25,11 @@ services:
   audit:
     enabled: env://KANNON_ENABLE_AUDIT:-false
 
+# Prometheus metrics on a listener of their own, in every process. These are the defaults.
+metrics:
+  enabled: true
+  port: 9090
+
 api:
   port: 50051
   rest_port: 8081

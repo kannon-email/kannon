@@ -53,6 +53,7 @@ func TestTrackerIntegration(t *testing.T) {
 	t.Run("ATokenReplayedOnTheOtherChannelIsRefused", func(t *testing.T) { testATokenReplayedOnTheOtherChannelIsRefused(t, ss) })
 	t.Run("ATokenIsServedOnlyOnItsDomainsStatsHost", func(t *testing.T) { testATokenIsServedOnlyOnItsDomainsStatsHost(t, ss) })
 	t.Run("AClickRedirectsOnlyToTheWeb", func(t *testing.T) { testAClickRedirectsOnlyToTheWeb(t, ss) })
+	t.Run("EngagementIsCountedByKind", func(t *testing.T) { testEngagementIsCountedByKind(t, ss) })
 }
 
 // fakePublisher captures what the tracker publishes, decoded the way the Stats
@@ -100,7 +101,7 @@ func engageOn(t *testing.T, ss statssec.StatsService, host, path string) (answer
 	t.Helper()
 
 	pub := &fakePublisher{}
-	srv := newServer(pub, ss, Config{})
+	srv := newServer(pub, ss, Config{}, nil)
 
 	req := httptest.NewRequest(http.MethodGet, path, nil)
 	req.Host = host

@@ -3,6 +3,8 @@ package rest
 import (
 	"context"
 	"net/http"
+
+	"github.com/kannon-email/kannon/pkg/api/httproute"
 )
 
 type apiVersion struct {
@@ -28,7 +30,7 @@ func mountVersions(routes http.Handler) http.Handler {
 		})
 		root.Handle(v.prefix+"/", http.StripPrefix(v.prefix, scoped))
 	}
-	return root
+	return httproute.OverwritingMatch(root)
 }
 
 // versionedPath returns path under the API version the request was made to, so a client of a

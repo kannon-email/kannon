@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/emersion/go-smtp"
+	"github.com/kannon-email/kannon/internal/mailflow"
 	"github.com/kannon-email/kannon/internal/returnpath"
 	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/x/config"
@@ -29,13 +30,13 @@ func New(cnt *container.Container) container.Runnable {
 			if err := stats.ConfigureStream(ctx, cnt.NatsJetStream()); err != nil {
 				return fmt.Errorf("cannot configure stats stream: %w", err)
 			}
-			return run(ctx, cnt.Nats(), cfg, rp)
+			return run(ctx, cnt.Nats(), cfg, rp, mailflow.New(cnt.Metrics()))
 		},
 	}
 }
 
-func run(ctx context.Context, nc *nats.Conn, config Config, rp returnpath.Signer) error {
-	s := buildServer(config, nc, rp)
+func run(ctx context.Context, nc *nats.Conn, config Config, rp returnpath.Signer, flow *mailflow.Metrics) error {
+	s := buildServer(config, nc, rp, flow)
 	defer s.Close()
 
 	slog.Info(fmt.Sprintf("Starting server at: %v", s.Addr))
@@ -65,10 +66,11 @@ func run(ctx context.Context, nc *nats.Conn, config Config, rp returnpath.Signer
 	return shutdownErr
 }
 
-func buildServer(config Config, nc *nats.Conn, rp returnpath.Signer) *smtp.Server {
+func buildServer(config Config, nc *nats.Conn, rp returnpath.Signer, flow *mailflow.Metrics) *smtp.Server {
 	backend := &Backend{
-		nc: nc,
-		rp: rp,
+		nc:   nc,
+		rp:   rp,
+		flow: flow,
 	}
 
 	s := smtp.NewServer(backend)

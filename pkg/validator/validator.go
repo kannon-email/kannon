@@ -10,6 +10,7 @@ import (
 
 	sqlc "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/delivery"
+	"github.com/kannon-email/kannon/internal/mailflow"
 	"github.com/kannon-email/kannon/internal/pool"
 	"github.com/kannon-email/kannon/internal/publisher"
 	"github.com/kannon-email/kannon/internal/runner"
@@ -19,16 +20,18 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func NewValidator(c pool.Claimer, pub publisher.Publisher) *Validator {
+func NewValidator(c pool.Claimer, pub publisher.Publisher, flow *mailflow.Metrics) *Validator {
 	return &Validator{
 		claimer: c,
 		pub:     pub,
+		flow:    flow,
 	}
 }
 
 type Validator struct {
 	claimer pool.Claimer
 	pub     publisher.Publisher
+	flow    *mailflow.Metrics
 }
 
 func (v *Validator) log() *slog.Logger {
@@ -47,10 +50,8 @@ func New(cnt *container.Container) container.Runnable {
 			}
 			claimer := pool.NewClaimer(sqlc.NewDeliveryRepository(cnt.DB(), cnt.BackoffPolicy(), cnt.RetryWindow()))
 
-			v := Validator{
-				claimer: claimer,
-				pub:     cnt.NatsPublisher(),
-			}
+			v := NewValidator(claimer, cnt.NatsPublisher(), mailflow.New(cnt.Metrics()))
+			mailflow.RegisterPool(cnt.Metrics(), sqlc.NewPoolCensus(cnt.DB()))
 
 			v.log().Info("🚀 Starting validator")
 
@@ -100,12 +101,14 @@ func (d *Validator) handleDelivery(ctx context.Context, dlv *delivery.Delivery) 
 		if err := d.claimer.Drop(ctx, dlv); err != nil {
 			return err
 		}
+		d.flow.Rejected()
 		return publisher.PublishStat(d.pub, event)
 	}
 
 	if err := d.claimer.MarkValidated(ctx, dlv); err != nil {
 		return err
 	}
+	d.flow.Validated()
 	event.Outcome = stats.Accepted()
 	return publisher.PublishStat(d.pub, event)
 }

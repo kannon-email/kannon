@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"time"
 
 	"connectrpc.com/connect"
@@ -16,9 +17,11 @@ import (
 	sq "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/domains"
 	"github.com/kannon-email/kannon/internal/intake"
+	"github.com/kannon-email/kannon/internal/mailflow"
 	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/internal/templates"
 	"github.com/kannon-email/kannon/pkg/api/adminapi"
+	"github.com/kannon-email/kannon/pkg/api/apimetrics"
 	"github.com/kannon-email/kannon/pkg/api/hzapi"
 	"github.com/kannon-email/kannon/pkg/api/mailapi"
 	"github.com/kannon-email/kannon/pkg/api/rest"
@@ -31,6 +34,7 @@ import (
 	statsv2connect "github.com/kannon-email/kannon/proto/kannon/stats/apiv2/apiv2connect"
 	"github.com/kannon-email/kannon/x/config"
 	"github.com/kannon-email/kannon/x/container"
+	"github.com/kannon-email/kannon/x/metrics"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -87,11 +91,29 @@ func adminTokenError(err error) error {
 		config.APIAdminTokenKey, admintoken.MinSecretLength, err)
 }
 
+const (
+	configKey = "api"
+	// PortKey and RESTPortKey name the keys the API's ports are read from.
+	PortKey     = configKey + ".port"
+	RESTPortKey = configKey + ".rest_port"
+)
+
+// ListenPorts reads the ports the API listens on, so the boot path can refuse another listener asked
+// to share one.
+func ListenPorts() ([]metrics.ListenPort, error) {
+	var cfg Config
+	if err := config.TryLoadSection(configKey, &cfg); err != nil {
+		return nil, err
+	}
+	cfg.setDefaults()
+	return []metrics.ListenPort{{Key: PortKey, Port: cfg.Port}, {Key: RESTPortKey, Port: cfg.RESTPort}}, nil
+}
+
 // New constructs the API runnable, loading its slice of configuration from
 // viper under the "api" key.
 func New(cnt *container.Container) container.Runnable {
 	var cfg Config
-	config.LoadSection("api", &cfg)
+	config.LoadSection(configKey, &cfg)
 	cfg.setDefaults()
 	return container.Runnable{
 		Name: "api",
@@ -103,7 +125,7 @@ func New(cnt *container.Container) container.Runnable {
 
 func run(ctx context.Context, config Config, cnt *container.Container) error {
 	if config.Port == config.RESTPort {
-		return fmt.Errorf("api.port and api.rest_port are both %d: the Connect and REST APIs need a port each", config.Port)
+		return fmt.Errorf("%s and %s are both %d: the Connect and REST APIs need a port each", PortKey, RESTPortKey, config.Port)
 	}
 
 	// Resolved before the listener opens, and again here rather than only in the boot path: a
@@ -125,7 +147,8 @@ func run(ctx context.Context, config Config, cnt *container.Container) error {
 	recorder := startAuditRecording(ctx, cnt)
 
 	adminAPIService := adminapi.CreateAdminAPIService(db)
-	mailAPIService := mailapi.NewMailerAPIV1(db, cnt.BackoffPolicy(), cnt.RetryWindow(), int(config.MaxPayload))
+	flow := mailflow.New(cnt.Metrics())
+	mailAPIService := mailapi.NewMailerAPIV1(db, cnt.BackoffPolicy(), cnt.RetryWindow(), int(config.MaxPayload), flow)
 	statsAPIService := statsv1.NewStatsAPIService(statsService)
 	statsV2APIService := statsv2.NewStatsAPIService(statsService)
 	hzAPIService := hzapi.CreateHZAPIService(cnt)
@@ -134,8 +157,10 @@ func run(ctx context.Context, config Config, cnt *container.Container) error {
 	// this point asks the configuration layer what authority a request has.
 	adminAuth := authzconnect.AdminTokenHandlerOptions(adminToken)
 
-	connectServer := newServer(config.Port, recorder, newAPIMux(connectReadMaxBytes(config.MaxPayload), adminAuth, adminAPIService, mailAPIService, statsAPIService, statsV2APIService, hzAPIService), connectProtocols())
-	restServer := newServer(config.RESTPort, recorder, rest.NewHandler(rest.Services{
+	calls := apimetrics.New(cnt.Metrics())
+
+	connectServer := newServer(config.Port, recorder, newAPIMux(connectReadMaxBytes(config.MaxPayload), adminAuth, calls, adminAPIService, mailAPIService, statsAPIService, statsV2APIService, hzAPIService), connectProtocols())
+	restServer := newServer(config.RESTPort, recorder, calls.REST(rest.NewHandler(rest.Services{
 		Domains: domains.NewService(sq.NewDomainsRepository(db)),
 		Token:   adminToken,
 		Ready: func(ctx context.Context) error {
@@ -149,8 +174,9 @@ func run(ctx context.Context, config Config, cnt *container.Container) error {
 		Keys:      apikeys.NewService(sq.NewAPIKeysRepository(db)),
 		Templates: templates.NewService(sq.NewTemplatesRepository(db)),
 		Inline:    intake.NewInlineService(sq.NewInlineStore(db), sq.NewDomainsRepository(db), cnt.BackoffPolicy(), cnt.RetryWindow(), int(config.MaxPayload)),
+		Flow:      flow,
 		Stats:     statsService,
-	}), nil)
+	})), nil)
 	slog.Info("Connect API server listening on " + connectServer.Addr)
 	slog.Info("REST API server listening on " + restServer.Addr)
 	return serveAll(ctx, connectServer, restServer)
@@ -282,17 +308,17 @@ func serveAll(ctx context.Context, servers ...*http.Server) error {
 // ones included. adminAuth authenticates the three surfaces that answer to the operator's admin
 // token. The mailer handler must never get it — it authenticates its own sender credential — and
 // neither must health, which discloses nothing and is polled unauthenticated.
-func newAPIMux(readMaxBytes int, adminAuth []connect.HandlerOption, adminServer adminv1connect.ApiHandler, mailerServer mailerv1connect.MailerHandler, statsServer statsv1connect.StatsApiV1Handler, statsV2Server statsv2connect.StatsApiV2Handler, hzServer adminv1connect.HZServiceHandler) *http.ServeMux {
+func newAPIMux(readMaxBytes int, adminAuth []connect.HandlerOption, calls *apimetrics.Metrics, adminServer adminv1connect.ApiHandler, mailerServer mailerv1connect.MailerHandler, statsServer statsv1connect.StatsApiV1Handler, statsV2Server statsv2connect.StatsApiV2Handler, hzServer adminv1connect.HZServiceHandler) *http.ServeMux {
 	mux := http.NewServeMux()
 
-	limit := connect.WithReadMaxBytes(readMaxBytes)
-	admin := append([]connect.HandlerOption{limit}, adminAuth...)
+	common := []connect.HandlerOption{connect.WithReadMaxBytes(readMaxBytes), connect.WithInterceptors(calls.Connect())}
+	admin := append(slices.Clone(common), adminAuth...)
 
-	adminPath, adminHandler := adminv1connect.NewApiHandler(adminServer, admin...)
-	mailerPath, mailerHandler := mailerv1connect.NewMailerHandler(mailerServer, limit)
-	statsPath, statsHandler := statsv1connect.NewStatsApiV1Handler(statsServer, admin...)
-	statsV2Path, statsV2Handler := statsv2connect.NewStatsApiV2Handler(statsV2Server, admin...)
-	hzPath, hzHandler := adminv1connect.NewHZServiceHandler(hzServer, limit)
+	adminPath, adminHandler := calls.ConnectService(adminv1connect.NewApiHandler(adminServer, admin...))
+	mailerPath, mailerHandler := calls.ConnectService(mailerv1connect.NewMailerHandler(mailerServer, common...))
+	statsPath, statsHandler := calls.ConnectService(statsv1connect.NewStatsApiV1Handler(statsServer, admin...))
+	statsV2Path, statsV2Handler := calls.ConnectService(statsv2connect.NewStatsApiV2Handler(statsV2Server, admin...))
+	hzPath, hzHandler := calls.ConnectService(adminv1connect.NewHZServiceHandler(hzServer, common...))
 
 	mux.Handle(adminPath, adminHandler)
 	mux.Handle(mailerPath, mailerHandler)

@@ -14,6 +14,7 @@ import (
 	"connectrpc.com/connect"
 	"github.com/kannon-email/kannon/internal/admintoken"
 	"github.com/kannon-email/kannon/internal/authzconnect"
+	"github.com/kannon-email/kannon/pkg/api/apimetrics"
 	adminv1 "github.com/kannon-email/kannon/proto/kannon/admin/apiv1"
 	adminv1connect "github.com/kannon-email/kannon/proto/kannon/admin/apiv1/apiv1connect"
 	mailerv1 "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1"
@@ -21,6 +22,7 @@ import (
 	mailertypes "github.com/kannon-email/kannon/proto/kannon/mailer/types"
 	"github.com/kannon-email/kannon/proto/kannon/stats/apiv1/apiv1connect"
 	"github.com/kannon-email/kannon/proto/kannon/stats/apiv2/apiv2connect"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
@@ -111,6 +113,7 @@ func readLimitServer(t *testing.T) (*countingMailer, *httptest.Server) {
 	mux := newAPIMux(
 		connectReadMaxBytes(defaultMaxPayload),
 		authzconnect.AdminTokenHandlerOptions(admintoken.MustParse("0123456789abcdef0123456789abcdef")),
+		apimetrics.New(prometheus.NewRegistry()),
 		adminv1connect.UnimplementedApiHandler{},
 		mailer,
 		apiv1connect.UnimplementedStatsApiV1Handler{},

@@ -19,10 +19,12 @@ import (
 	"github.com/kannon-email/kannon/internal/domains"
 	"github.com/kannon-email/kannon/internal/intake"
 	"github.com/kannon-email/kannon/internal/keyset"
+	"github.com/kannon-email/kannon/internal/mailflow"
 	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/internal/templates"
 	"github.com/kannon-email/kannon/internal/tracking"
 	"github.com/kannon-email/kannon/internal/values"
+	"github.com/kannon-email/kannon/pkg/api/httproute"
 )
 
 const (
@@ -43,6 +45,8 @@ type Services struct {
 	Templates *templates.Service
 	Inline    *intake.InlineService
 	Stats     *stats.Service
+	// Flow counts what REST Intake decides; nil counts nothing.
+	Flow *mailflow.Metrics
 }
 
 // NewHandler returns the REST handler for the supplied services, serving every API version.
@@ -57,7 +61,7 @@ func NewHandler(s Services) http.Handler {
 	}))
 	protected := http.NewServeMux()
 	if s.Inline != nil {
-		registerBatches(protected, s.Inline)
+		registerBatches(protected, s.Inline, s.Flow)
 		registerDeliveries(protected, s.Inline)
 	}
 	if s.Stats != nil {
@@ -163,6 +167,7 @@ func NewHandler(s Services) http.Handler {
 		return nil
 	}))
 	mux.Handle("/", handler(func(w http.ResponseWriter, r *http.Request) error {
+		httproute.OverwriteMatch(protected, r)
 		parts := strings.Split(r.Header.Get("Authorization"), " ")
 		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
 			return problemError(401, "unauthenticated")
@@ -187,7 +192,7 @@ func NewHandler(s Services) http.Handler {
 		protected.ServeHTTP(w, r.WithContext(authz.NewContext(r.Context(), p)))
 		return nil
 	}))
-	root := mountVersions(mux)
+	root := mountVersions(httproute.OverwritingMatch(mux))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := make([]byte, 16)
 		_, _ = rand.Read(id)
