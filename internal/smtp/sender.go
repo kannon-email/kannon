@@ -105,7 +105,7 @@ func (s *sender) Send(from, to string, msg []byte) SenderError {
 }
 
 func (s *sender) deliver(ctx context.Context, from, to string, msg []byte, mx string, insecure bool) *smtpError {
-	conn, err := s.dialer().DialContext(ctx, "tcp", net.JoinHostPort(mx, s.smtpPort()))
+	conn, err := s.dialer().DialContext(ctx, "tcp", net.JoinHostPort(mx, s.dialPort()))
 	if blocked := (*blockedDestinationError)(nil); errors.As(err, &blocked) {
 		slog.Warn("refused SMTP destination", "mx", mx, "address", blocked.address)
 		return newSMTPError(blocked, true, 550)
@@ -135,7 +135,7 @@ func (s *sender) dialer() *net.Dialer {
 	return d
 }
 
-func (s *sender) smtpPort() string {
+func (s *sender) dialPort() string {
 	if s.port == "" {
 		return smtpPort
 	}
