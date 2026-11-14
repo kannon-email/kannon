@@ -44,16 +44,14 @@ var statuses = map[apperr.Kind]int{
 	apperr.Forbidden: http.StatusForbidden,
 }
 
-// limitErrors name the limit a refused request exceeded, so a caller can size the next one.
-var limitErrors = map[string]FieldError{
-	"too_many_fields":  {Code: "too_many_fields", Pointer: "", Detail: fmt.Sprintf("A Recipient may carry at most %d fields, global fields included", intake.MaxFieldsPerRecipient)},
-	"fields_too_large": {Code: "fields_too_large", Pointer: "", Detail: fmt.Sprintf("The fields of a Batch, with %d bytes charged for each, may total at most %d MiB, global fields counted once per Recipient", intake.FieldOverheadBytes, intake.MaxFieldsBytes>>20)},
-}
-
 func errorProblem(err error) *requestError {
 	var request *requestError
 	if errors.As(err, &request) {
 		return request
+	}
+	var limit *intake.FieldsLimitError
+	if errors.As(err, &limit) {
+		return fieldsLimitProblem(limit)
 	}
 	if e, ok := apperr.As(err); ok {
 		if status, ok := statuses[e.Kind]; ok {
@@ -61,6 +59,16 @@ func errorProblem(err error) *requestError {
 		}
 	}
 	return problemError(http.StatusInternalServerError, "internal_error")
+}
+
+// fieldsLimitProblem names the limit a refused Batch exceeded and the fields to shrink, so a
+// caller can size the next request.
+func fieldsLimitProblem(e *intake.FieldsLimitError) *requestError {
+	pointer := "/global_fields"
+	if e.Recipient != intake.GlobalFields {
+		pointer = fmt.Sprintf("/recipients/%d/fields", e.Recipient)
+	}
+	return &requestError{status: statuses[e.Limit.Kind], code: e.Limit.Code, fields: []FieldError{{Code: e.Limit.Code, Pointer: pointer, Detail: e.Error()}}}
 }
 
 func writeError(w http.ResponseWriter, err error) {
@@ -74,9 +82,6 @@ func writeError(w http.ResponseWriter, err error) {
 	fields := e.fields
 	if fields == nil && e.status == http.StatusUnprocessableEntity {
 		fields = []FieldError{{Code: e.code, Pointer: "", Detail: "Request content is invalid"}}
-		if limit, ok := limitErrors[e.code]; ok {
-			fields = []FieldError{limit}
-		}
 	}
 	p := Problem{Type: "urn:kannon:problem:" + e.code, Title: http.StatusText(e.status), Status: e.status, Code: e.code, RequestId: w.Header().Get("X-Request-ID")}
 	if len(fields) > 0 {

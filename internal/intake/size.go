@@ -2,6 +2,7 @@ package intake
 
 import (
 	"encoding/base64"
+	"fmt"
 	"math"
 
 	"github.com/kannon-email/kannon/internal/apperr"
@@ -70,20 +71,52 @@ const MaxFieldsBytes = 10 << 20
 // map entry and stores its JSON punctuation however short it is, so empty fields are not free.
 const FieldOverheadBytes = 64
 
+// ErrTooManyFields and ErrFieldsTooLarge are the limits a FieldsLimitError reports.
+var (
+	ErrTooManyFields = apperr.New(apperr.Invalid, "too_many_fields",
+		fmt.Sprintf("A Recipient may carry at most %d fields, global fields included", MaxFieldsPerRecipient))
+	ErrFieldsTooLarge = apperr.New(apperr.Invalid, "fields_too_large",
+		fmt.Sprintf("The fields of a Batch, with %d bytes charged for each, may total at most %d MiB, global fields counted once per Recipient",
+			FieldOverheadBytes, MaxFieldsBytes>>20))
+)
+
+// GlobalFields stands for a Batch's global fields where a FieldsLimitError names a Recipient.
+const GlobalFields = -1
+
+// FieldsLimitError refuses a Batch whose fields exceed ErrTooManyFields or ErrFieldsTooLarge,
+// and names the fields to shrink: those of Recipient, an index into the request, or GlobalFields.
+type FieldsLimitError struct {
+	Limit     *apperr.Error
+	Recipient int
+}
+
+func (e *FieldsLimitError) Error() string { return e.Limit.Error() }
+
+func (e *FieldsLimitError) Unwrap() error { return e.Limit }
+
 // checkFieldsBudget refuses a Batch whose fields would be expensive to copy, before any copy is
 // made: global fields are merged into every Recipient and stored with each Delivery, so a request
 // that is small on the wire multiplies by the number of Recipients. A global field a Recipient
 // overrides is counted twice, which keeps the measure an upper bound computed without merging.
+//
+// Global fields are blamed for a refusal whenever they take part in it, since shrinking them is
+// what shrinks every Recipient.
 func checkFieldsBudget(p InlineRequest) error {
+	if len(p.GlobalFields) > MaxFieldsPerRecipient {
+		return &FieldsLimitError{Limit: ErrTooManyFields, Recipient: GlobalFields}
+	}
 	global := fieldsSize(p.GlobalFields)
 	total := 0
-	for _, r := range p.Recipients {
+	for i, r := range p.Recipients {
 		if len(p.GlobalFields)+len(r.Fields) > MaxFieldsPerRecipient {
-			return ErrTooManyFields
+			return &FieldsLimitError{Limit: ErrTooManyFields, Recipient: i}
 		}
 		total += global + fieldsSize(r.Fields)
 		if total > MaxFieldsBytes {
-			return ErrFieldsTooLarge
+			if len(p.GlobalFields) > 0 {
+				return &FieldsLimitError{Limit: ErrFieldsTooLarge, Recipient: GlobalFields}
+			}
+			return &FieldsLimitError{Limit: ErrFieldsTooLarge, Recipient: i}
 		}
 	}
 	return nil
