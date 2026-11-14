@@ -31,10 +31,15 @@ import (
 	statsv2connect "github.com/kannon-email/kannon/proto/kannon/stats/apiv2/apiv2connect"
 	"github.com/kannon-email/kannon/x/config"
 	"github.com/kannon-email/kannon/x/container"
+	"golang.org/x/sync/errgroup"
 )
 
 type Config struct {
+	// Port serves the Connect, gRPC and gRPC-Web APIs.
 	Port uint `mapstructure:"port"`
+	// RESTPort serves the REST API on a listener of its own, so it can be published without the
+	// Connect Admin and Stats services that share Port.
+	RESTPort uint `mapstructure:"rest_port"`
 	// MaxPayload is the largest content, in bytes, a Batch may carry: its HTML plus each
 	// attachment as base64. Each Envelope travels as one NATS message, so set it to about 70% of
 	// the NATS server's max_payload, leaving room for the headers, DKIM signature and tracking
@@ -48,6 +53,9 @@ const defaultMaxPayload config.ByteSize = 500 << 10
 func (c *Config) setDefaults() {
 	if c.Port == 0 {
 		c.Port = 50051
+	}
+	if c.RESTPort == 0 {
+		c.RESTPort = 8081
 	}
 	if c.MaxPayload <= 0 {
 		c.MaxPayload = defaultMaxPayload
@@ -94,7 +102,9 @@ func New(cnt *container.Container) container.Runnable {
 }
 
 func run(ctx context.Context, config Config, cnt *container.Container) error {
-	port := config.Port
+	if config.Port == config.RESTPort {
+		return fmt.Errorf("api.port and api.rest_port are both %d: the Connect and REST APIs need a port each", config.Port)
+	}
 
 	// Resolved before the listener opens, and again here rather than only in the boot path: a
 	// caller registering this runnable directly — the e2e suite does — must not be able to
@@ -103,8 +113,6 @@ func run(ctx context.Context, config Config, cnt *container.Container) error {
 	if err != nil {
 		return err
 	}
-
-	slog.Info(fmt.Sprintf("Starting API Service on port %d", port))
 
 	db := cnt.DB()
 
@@ -126,7 +134,8 @@ func run(ctx context.Context, config Config, cnt *container.Container) error {
 	// this point asks the configuration layer what authority a request has.
 	adminAuth := authzconnect.AdminTokenHandlerOptions(adminToken)
 
-	return startAPIServer(ctx, port, connectReadMaxBytes(config.MaxPayload), adminAuth, recorder, adminAPIService, mailAPIService, statsAPIService, statsV2APIService, hzAPIService, rest.NewHandler(rest.Services{
+	connectServer := newServer(config.Port, recorder, newAPIMux(connectReadMaxBytes(config.MaxPayload), adminAuth, adminAPIService, mailAPIService, statsAPIService, statsV2APIService, hzAPIService), connectProtocols())
+	restServer := newServer(config.RESTPort, recorder, rest.NewHandler(rest.Services{
 		Domains: domains.NewService(sq.NewDomainsRepository(db)),
 		Token:   adminToken,
 		Ready: func(ctx context.Context) error {
@@ -141,7 +150,10 @@ func run(ctx context.Context, config Config, cnt *container.Container) error {
 		Templates: templates.NewService(sq.NewTemplatesRepository(db)),
 		Inline:    intake.NewInlineService(sq.NewInlineStore(db), sq.NewDomainsRepository(db), cnt.BackoffPolicy(), cnt.RetryWindow(), int(config.MaxPayload)),
 		Stats:     statsService,
-	}))
+	}), nil)
+	slog.Info("Connect API server listening on " + connectServer.Addr)
+	slog.Info("REST API server listening on " + restServer.Addr)
+	return serveAll(ctx, connectServer, restServer)
 }
 
 // startAuditRecording resolves the Recorder every authorization decision on this process reports to,
@@ -237,32 +249,40 @@ func connectReadMaxBytes(maxPayload config.ByteSize) int {
 	return int(maxPayload) + connectReadHeadroom
 }
 
-// startAPIServer mounts every handler and serves them until ctx is done.
-func startAPIServer(ctx context.Context, port uint, readMaxBytes int, adminAuth []connect.HandlerOption, recorder authz.Recorder, adminServer adminv1connect.ApiHandler, mailerServer mailerv1connect.MailerHandler, statsServer statsv1connect.StatsApiV1Handler, statsV2Server statsv2connect.StatsApiV2Handler, hzServer adminv1connect.HZServiceHandler, restHandlers ...http.Handler) error {
-	addr := fmt.Sprintf("0.0.0.0:%d", port)
-	mux := newAPIMux(readMaxBytes, adminAuth, adminServer, mailerServer, statsServer, statsV2Server, hzServer, restHandlers...)
-
+// connectProtocols adds h2c, which gRPC clients need to reach the Connect listener without TLS.
+func connectProtocols() *http.Protocols {
 	protocols := new(http.Protocols)
 	protocols.SetHTTP1(true)
 	protocols.SetUnencryptedHTTP2(true)
+	return protocols
+}
 
-	// Bound header reads and idle connections without limiting RPC body transfers.
-	server := &http.Server{
-		Addr:              addr,
-		Handler:           withRecorder(recorder, mux),
+// newServer bounds header reads and idle connections without limiting body transfers.
+func newServer(port uint, recorder authz.Recorder, handler http.Handler, protocols *http.Protocols) *http.Server {
+	return &http.Server{
+		Addr:              fmt.Sprintf("0.0.0.0:%d", port),
+		Handler:           withRecorder(recorder, handler),
 		Protocols:         protocols,
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
-	slog.Info("Connect API server listening on " + addr)
-	return container.ServeHTTP(ctx, server)
 }
 
-// newAPIMux routes every handler. readMaxBytes bounds every Connect handler, the unauthenticated
+// serveAll serves every server until ctx is done or one of them fails, which stops the others: a
+// process that has lost one of its APIs must not go on looking healthy through the other.
+func serveAll(ctx context.Context, servers ...*http.Server) error {
+	g, ctx := errgroup.WithContext(ctx)
+	for _, server := range servers {
+		g.Go(func() error { return container.ServeHTTP(ctx, server) })
+	}
+	return g.Wait()
+}
+
+// newAPIMux routes every Connect handler. readMaxBytes bounds every Connect handler, the unauthenticated
 // ones included. adminAuth authenticates the three surfaces that answer to the operator's admin
 // token. The mailer handler must never get it — it authenticates its own sender credential — and
 // neither must health, which discloses nothing and is polled unauthenticated.
-func newAPIMux(readMaxBytes int, adminAuth []connect.HandlerOption, adminServer adminv1connect.ApiHandler, mailerServer mailerv1connect.MailerHandler, statsServer statsv1connect.StatsApiV1Handler, statsV2Server statsv2connect.StatsApiV2Handler, hzServer adminv1connect.HZServiceHandler, restHandlers ...http.Handler) *http.ServeMux {
+func newAPIMux(readMaxBytes int, adminAuth []connect.HandlerOption, adminServer adminv1connect.ApiHandler, mailerServer mailerv1connect.MailerHandler, statsServer statsv1connect.StatsApiV1Handler, statsV2Server statsv2connect.StatsApiV2Handler, hzServer adminv1connect.HZServiceHandler) *http.ServeMux {
 	mux := http.NewServeMux()
 
 	limit := connect.WithReadMaxBytes(readMaxBytes)
@@ -279,8 +299,5 @@ func newAPIMux(readMaxBytes int, adminAuth []connect.HandlerOption, adminServer 
 	mux.Handle(statsPath, statsHandler)
 	mux.Handle(statsV2Path, statsV2Handler)
 	mux.Handle(hzPath, hzHandler)
-	for _, handler := range restHandlers {
-		mux.Handle("/v1beta1/", handler)
-	}
 	return mux
 }

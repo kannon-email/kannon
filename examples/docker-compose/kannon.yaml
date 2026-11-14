@@ -27,6 +27,7 @@ services:
 
 api:
   port: 50051
+  rest_port: 8081
   # Authenticates the Admin API and both Stats APIs, and authorizes everything on every
   # Domain. Required whenever services.api.enabled is set: without it Kannon refuses to boot.
   # Outside a local example, write `admin_token: env://KANNON_ADMIN_TOKEN` and keep the value

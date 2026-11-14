@@ -45,6 +45,7 @@ data:
 
     api:
       port: 50051
+      rest_port: 8081
       # Authenticates the Admin API and both Stats APIs, and authorizes
       # everything on every Domain. Referenced rather than written here so the
       # value stays in a Secret; the pod refuses to boot without it whenever it
@@ -137,6 +138,8 @@ spec:
           ports:
             - containerPort: 50051
               name: 'api'
+            - containerPort: 8081
+              name: 'rest'
             - containerPort: 8080
               name: 'tracker'
             # The image runs as UID 1000, so binding 25 needs either
@@ -168,6 +171,9 @@ spec:
     - port: 50051
       targetPort: api
       name: api
+    - port: 8081
+      targetPort: rest
+      name: rest
     - port: 8080
       targetPort: tracker
       name: tracker

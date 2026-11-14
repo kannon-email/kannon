@@ -5,6 +5,23 @@ releases that change behaviour of an installation already in production appear
 here; everything else is in [`CHANGELOG.md`](../CHANGELOG.md), which is
 generated from commits.
 
+## Unreleased — REST on its own port
+
+### What changes
+
+The REST API (`/v1beta1`) is no longer served on `api.port` beside the Connect
+APIs. It has a listener of its own, `api.rest_port`, which defaults to `8081`.
+On `api.port`, a request under `/v1beta1/` now answers 404. The Connect, gRPC
+and gRPC-Web APIs stay where they were.
+
+The API refuses to start when `api.port` and `api.rest_port` are equal.
+
+### What you have to do
+
+Expose the new port: add it to the container and Service, and point whatever
+routes `/v1beta1/` (an Ingress, an HTTPRoute, a client's base URL) at it
+instead of `api.port`. Set `api.rest_port` if `8081` is taken on the host.
+
 ## Unreleased — Personalised content within api.max_payload
 
 ### What changes

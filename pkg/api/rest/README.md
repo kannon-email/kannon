@@ -15,7 +15,7 @@ The adapter embeds `openapi.yaml` and serves it unauthenticated at
 contract of the running version. The route is not one of the 21 contract operations.
 Keep `api/openapi/v1beta1.yaml` identical to it.
 
-`NewHandler` mounts the versioned routes on the existing API listener. Extend its
+`NewHandler` returns the versioned routes; `pkg/api` serves them on their own listener (`api.rest_port`), apart from the Connect APIs. Extend its
 protected mux for dependent resource slices. Authenticate Bearer credentials to
 an `authz.Principal`, preserve its ID, apply optional Attribution, and pass the
 context to existing application operations. Keep authorization in those operations.

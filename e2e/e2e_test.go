@@ -193,6 +193,7 @@ func runKannon(t *testing.T, infra *TestInfrastructure, senderMock *senderMock) 
 
 	viper.Reset()
 	viper.Set("api.port", infra.apiPort)
+	viper.Set("api.rest_port", infra.restPort)
 	// Without this the API runnable refuses to start, which is the point of it: the suite
 	// configures the credential the way an operator does and then presents it on every Admin
 	// and Stats call, so the whole authenticated path is what these tests exercise.
@@ -509,6 +510,15 @@ func waitForAPIServer(t *testing.T, infra *TestInfrastructure) {
 			return
 		}
 	}, 30*time.Second, 500*time.Millisecond, "API server should be ready within 30 seconds")
+
+	require.EventuallyWithT(t, func(tt *assert.CollectT) {
+		res, err := http.Get(fmt.Sprintf("http://localhost:%d/v1beta1/health", infra.restPort))
+		if !assert.NoError(tt, err) {
+			return
+		}
+		_ = res.Body.Close()
+		assert.Equal(tt, http.StatusOK, res.StatusCode)
+	}, 30*time.Second, 500*time.Millisecond, "REST API server should be ready within 30 seconds")
 }
 
 func testAggregatedStats(t *testing.T, clientFactory *clientFactory, _ *senderMock, infra *TestInfrastructure) {
