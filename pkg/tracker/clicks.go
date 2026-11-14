@@ -33,6 +33,11 @@ func (s *srv) handleClick(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	if !servesDomain(r, domain) {
+		slog.Warn("click token presented on another Domain's host", "host", r.Host, "domain", domain)
+		http.NotFound(w, r)
+		return
+	}
 
 	defer writeRedirect(w, r, claims)
 

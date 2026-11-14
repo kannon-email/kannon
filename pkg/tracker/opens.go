@@ -35,6 +35,11 @@ func (s *srv) handleOpen(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	if !servesDomain(r, domain) {
+		slog.Warn("open token presented on another Domain's host", "host", r.Host, "domain", domain)
+		http.NotFound(w, r)
+		return
+	}
 
 	defer writeTrackingPixel(w)
 
