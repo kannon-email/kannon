@@ -88,7 +88,7 @@ func connectCode(err error) string {
 func (m *Metrics) REST(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		ctx, route := httproute.Track(r.Context())
+		ctx, route := httproute.WithMatchedRoute(r.Context())
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(rec, r.WithContext(ctx))
 		operation := route.Pattern()

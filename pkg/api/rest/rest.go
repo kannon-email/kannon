@@ -167,7 +167,7 @@ func NewHandler(s Services) http.Handler {
 		return nil
 	}))
 	mux.Handle("/", handler(func(w http.ResponseWriter, r *http.Request) error {
-		httproute.Note(protected, r)
+		httproute.OverwriteMatch(protected, r)
 		parts := strings.Split(r.Header.Get("Authorization"), " ")
 		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
 			return problemError(401, "unauthenticated")
@@ -192,7 +192,7 @@ func NewHandler(s Services) http.Handler {
 		protected.ServeHTTP(w, r.WithContext(authz.NewContext(r.Context(), p)))
 		return nil
 	}))
-	root := mountVersions(httproute.Noting(mux))
+	root := mountVersions(httproute.OverwritingMatch(mux))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := make([]byte, 16)
 		_, _ = rand.Read(id)

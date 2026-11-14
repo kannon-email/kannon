@@ -30,7 +30,7 @@ func mountVersions(routes http.Handler) http.Handler {
 		})
 		root.Handle(v.prefix+"/", http.StripPrefix(v.prefix, scoped))
 	}
-	return httproute.Noting(root)
+	return httproute.OverwritingMatch(root)
 }
 
 // versionedPath returns path under the API version the request was made to, so a client of a
