@@ -58,7 +58,11 @@ func freePort(t *testing.T) uint {
 		t.Fatal(err)
 	}
 	defer func() { _ = l.Close() }()
-	return uint(l.Addr().(*net.TCPAddr).Port)
+	addr, ok := l.Addr().(*net.TCPAddr)
+	if !ok {
+		t.Fatalf("not a TCP address: %v", l.Addr())
+	}
+	return uint(addr.Port)
 }
 
 func scrape(t *testing.T, url string) string {
