@@ -216,7 +216,8 @@ A process with nothing enabled refuses to boot rather than exit as if it had don
 
 | YAML key                     | Type     | Default        | Description                                      |
 | ---------------------------- | -------- | -------------- | ------------------------------------------------ |
-| `api.port`                   | int      | 50051          | API listen port                                  |
+| `api.port`                   | int      | 50051          | Connect, gRPC and gRPC-Web API listen port       |
+| `api.rest_port`              | int      | 8081           | REST API (`/v1beta1`) listen port; must differ from `api.port` |
 | `api.max_payload`            | size     | 500Ki          | Max Batch content (subject + HTML + base64 attachments, after field substitution); larger is refused with `message_too_large`, per Recipient when its own fields push it over. Set to ~70% of the NATS server's `max_payload` |
 | `sender.hostname`            | string   | (required)     | Hostname announced for outgoing mail             |
 | `sender.max_jobs`            | int      | 10             | Max parallel sending jobs                        |
@@ -296,7 +297,10 @@ See [`db/migrations/`](./db/migrations/) for full schema and migrations.
 
 ## API Overview
 
-Kannon exposes a single HTTP server (default port `50051`) built with [Connect](https://connectrpc.com), serving the Connect, gRPC and gRPC-Web protocols over HTTP/1.1 and h2c. The simplest client is plain `curl` with JSON; any gRPC client works too.
+Kannon serves its APIs on two HTTP listeners, so each can be exposed on its own:
+
+- **REST API** (`api.rest_port`, default `8081`): the primary API under `/v1beta1`. It publishes its OpenAPI contract unauthenticated at `GET /v1beta1/openapi.yaml`.
+- **Connect APIs** (`api.port`, default `50051`): the deprecated Mailer, Admin and Stats services, built with [Connect](https://connectrpc.com) and serving the Connect, gRPC and gRPC-Web protocols over HTTP/1.1 and h2c. The simplest client is plain `curl` with JSON; any gRPC client works too.
 
 > The server does **not** register gRPC server reflection, so tools like `grpcurl` need the schema passed explicitly: `grpcurl -import-path .proto -proto kannon/mailer/apiv1/mailerapiv1.proto …`. The proto sources live in [`.proto/`](.proto/); `proto/` holds the generated Go code.
 
@@ -528,7 +532,7 @@ curl -sX POST http://localhost:50051/kannon.stats.apiv2.StatsApiV2/GetAggregated
 
 ### Kubernetes
 
-- See [`k8s/deployment.yaml`](k8s/deployment.yaml) for a starting manifest: a ConfigMap holding the whole configuration, and one pod running every component, exposing the API (50051), the Tracker (8080) and the inbound SMTP listener (25).
+- See [`k8s/deployment.yaml`](k8s/deployment.yaml) for a starting manifest: a ConfigMap holding the whole configuration, and one pod running every component, exposing the REST API (8081), the Connect APIs (50051), the Tracker (8080) and the inbound SMTP listener (25).
 - To split the components across Deployments, mount that same ConfigMap in each of them and set only the `KANNON_ENABLE_*` variables that pod needs — one file describes the installation, and each Deployment says which part of it it is.
 - The sender is the component to split out first: it needs no database at all. It is NATS in, SMTP out, NATS out by design ([ADR 0013](docs/adr/0013-the-sender-never-talks-to-the-database.md)), so it scales with outbound volume rather than with database capacity, carries no database credential, and keeps delivering mail Kannon has already accepted while PostgreSQL is unavailable. For a sender pod to run without a `database_url`, write the reference with an empty fallback — `database_url: env://KANNON_DATABASE_URL:-` — since a bare `env://NAME` is required of every process that reads the file, whether or not it ever connects.
 - Kannon exits at boot if `--config` points at a file that is not there, and refuses to start if the file enables no component.
@@ -613,7 +617,7 @@ The [`examples/docker-compose/`](examples/docker-compose/) stack is the fastest 
 docker compose -f examples/docker-compose/docker-compose.yaml up -d
 ```
 
-The API is then available at `localhost:50051`. Follow [Sending Mail](#sending-mail) to create a Domain, mint an API Key, send, and read the stats back — the whole pipeline runs, statistics are collected, and nothing leaves your machine.
+The REST API is then available at `localhost:8081` and the Connect APIs at `localhost:50051`. Follow [Sending Mail](#sending-mail) to create a Domain, mint an API Key, send, and read the stats back — the whole pipeline runs, statistics are collected, and nothing leaves your machine.
 
 To customise it, edit `examples/docker-compose/kannon.yaml` (Kannon config) or `examples/docker-compose/docker-compose.yaml` (infrastructure), then `docker compose … down && docker compose … up`.
 

@@ -19,6 +19,7 @@ type TestInfrastructure struct {
 	dbURL       string
 	natsURL     string
 	apiPort     uint
+	restPort    uint
 	trackerPort uint
 	smtpPort    uint
 	cleanup     []func() error
@@ -111,6 +112,11 @@ func setupTestInfrastructure(ctx context.Context) (*TestInfrastructure, error) {
 		return infra, fmt.Errorf("could not find available port: %w", err)
 	}
 
+	restPort, err := findAvailablePort()
+	if err != nil {
+		return infra, fmt.Errorf("could not find available port for rest: %w", err)
+	}
+
 	trackerPort, err := findAvailablePort()
 	if err != nil {
 		return infra, fmt.Errorf("could not find available port for tracker: %w", err)
@@ -124,6 +130,7 @@ func setupTestInfrastructure(ctx context.Context) (*TestInfrastructure, error) {
 	infra.dbURL = dbURL
 	infra.natsURL = natsURL
 	infra.apiPort = apiPort
+	infra.restPort = restPort
 	infra.trackerPort = trackerPort
 	infra.smtpPort = smtpPort
 

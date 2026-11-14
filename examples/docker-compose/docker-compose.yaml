@@ -26,6 +26,7 @@ services:
       - ./kannon.yaml:/kannon.yaml
     ports:
       - "50051:50051"
+      - "8081:8081"
     depends_on:
       - db
       - nats

@@ -160,3 +160,14 @@ func gzipped(t *testing.T, b []byte) []byte {
 	require.NoError(t, w.Close())
 	return buf.Bytes()
 }
+
+// REST has a listener of its own, so publishing the Connect port must not publish REST with it.
+func TestTheConnectMuxDoesNotServeREST(t *testing.T) {
+	_, srv := readLimitServer(t)
+
+	res, err := http.Get(srv.URL + "/v1beta1/openapi.yaml")
+	require.NoError(t, err)
+	_ = res.Body.Close()
+
+	assert.Equal(t, http.StatusNotFound, res.StatusCode)
+}
