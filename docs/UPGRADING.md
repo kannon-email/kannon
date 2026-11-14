@@ -5,6 +5,42 @@ releases that change behaviour of an installation already in production appear
 here; everything else is in [`CHANGELOG.md`](../CHANGELOG.md), which is
 generated from commits.
 
+## Unreleased — strong Admin Token required
+
+### What changes
+
+A process serving the API refuses to boot when `api.admin_token` is shorter
+than 32 characters or is a known placeholder (`change-me`, `changeme`, `admin`,
+`secret`), whatever its length. The boot error names the minimum. The
+docker-compose example no longer falls back to `change-me`: Compose refuses to
+start the stack until `KANNON_ADMIN_TOKEN` is set.
+
+### What you have to do
+
+If your token is shorter than 32 characters or is one of the placeholders,
+generate a new one with `openssl rand -hex 32`, store it where `api.admin_token`
+reads it (a Secret behind `env://KANNON_ADMIN_TOKEN`), and give it to every
+caller of the Admin and Stats APIs before upgrading. With the docker-compose
+example, export `KANNON_ADMIN_TOKEN` before `docker compose up`.
+
+## Unreleased — Tracker served only on the Domain's stats host
+
+### What changes
+
+The Tracker answers a click or open only when the request's host, port
+stripped and case ignored, is `stats.` followed by the Domain the token was
+issued for, the host Kannon writes into tracking links. On any other host it
+answers 404 and records nothing. A click now redirects only to an `http` or
+`https` URL; a token naming any other kind of URL answers 404.
+
+### What you have to do
+
+Nothing, if every `stats.<domain>` host reaches the Tracker with its `Host`
+header intact. If a proxy, Ingress or HTTPRoute in front of `tracker.port`
+rewrites the `Host` header, or the Tracker is reached only through a single
+shared host, change it so that the original `stats.<domain>` host is passed
+through; otherwise every open and click answers 404.
+
 ## Unreleased — no delivery to private destinations
 
 ### What changes
