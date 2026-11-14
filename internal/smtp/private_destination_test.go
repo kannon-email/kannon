@@ -42,14 +42,20 @@ func TestSendRefusesLoopbackARecordFallback(t *testing.T) {
 }
 
 func TestSendRefusesLoopbackAddressLiteral(t *testing.T) {
-	mx := startFakeMX(t)
-	dns := startFakeDNS(t)
+	for _, to := range []string{"to@127.0.0.1", "to@[127.0.0.1]"} {
+		t.Run(to, func(t *testing.T) {
+			mx := startFakeMX(t)
+			dns := startFakeDNS(t)
 
-	err := newTestSender(dns, mx, false).Send("from@sender.test", "to@127.0.0.1", []byte("Subject: x\r\n\r\nhi\r\n"))
+			err := newTestSender(dns, mx, false).Send("from@sender.test", to, []byte("Subject: x\r\n\r\nhi\r\n"))
 
-	assertRefusedLoopback(t, err)
-	if n := mx.sessions.Load(); n != 0 {
-		t.Fatalf("fake MX received %d sessions, want none", n)
+			if err == nil || !err.IsPermanent() {
+				t.Fatalf("Send to an address literal = %v, want a permanent refusal", err)
+			}
+			if n := mx.sessions.Load(); n != 0 {
+				t.Fatalf("fake MX received %d sessions, want none", n)
+			}
+		})
 	}
 }
 
