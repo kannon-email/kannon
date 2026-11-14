@@ -17,7 +17,7 @@ type handler func(http.ResponseWriter, *http.Request) error
 
 func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err := h(w, r); err != nil {
-		writeError(w, err)
+		writeError(w, r, err)
 	}
 }
 
@@ -71,8 +71,9 @@ func fieldsLimitProblem(e *intake.FieldsLimitError) *requestError {
 	return &requestError{status: statuses[e.Limit.Kind], code: e.Limit.Code, fields: []FieldError{{Code: e.Limit.Code, Pointer: pointer, Detail: e.Error()}}}
 }
 
-func writeError(w http.ResponseWriter, err error) {
+func writeError(w http.ResponseWriter, r *http.Request, err error) {
 	e := errorProblem(err)
+	logError(r, w.Header().Get("X-Request-ID"), e.status, err)
 	if e.status == http.StatusUnauthorized {
 		w.Header().Set("WWW-Authenticate", "Bearer")
 	}
@@ -91,5 +92,16 @@ func writeError(w http.ResponseWriter, err error) {
 	w.WriteHeader(e.status)
 	if err := json.NewEncoder(w).Encode(p); err != nil {
 		slog.Debug("cannot write Problem Details", "err", err)
+	}
+}
+
+// logError records what the Problem leaves out: who failed to authenticate, never with what,
+// and the cause of a 500, under the request ID the caller was given.
+func logError(r *http.Request, requestID string, status int, err error) {
+	switch {
+	case status == http.StatusUnauthorized:
+		slog.Warn("REST authentication failed", "peer", r.RemoteAddr, "path", versionedPath(r, r.URL.Path), "request_id", requestID)
+	case status >= http.StatusInternalServerError:
+		slog.Error("REST request failed", "method", r.Method, "path", versionedPath(r, r.URL.Path), "request_id", requestID, "err", err)
 	}
 }
