@@ -153,9 +153,12 @@ go build -o kannon .
 See [`examples/docker-compose/`](examples/docker-compose/) for ready-to-use files. The compose file runs the migration as a separate `migrator` service before starting Kannon.
 
 ```sh
+export KANNON_ADMIN_TOKEN=$(openssl rand -hex 32)
 docker compose -f examples/docker-compose/docker-compose.yaml up
 # or: make docker-up
 ```
+
+The stack ships no default admin token: Compose refuses to start until `KANNON_ADMIN_TOKEN` is set.
 
 - Edit `examples/docker-compose/kannon.yaml` to configure your environment.
 
@@ -241,10 +244,10 @@ A *size* is written as a Kubernetes quantity: `5Mi`, `500Ki`, `1Gi` (powers of 1
 
 | YAML key          | Type   | Default    | Description                                                     |
 | ----------------- | ------ | ---------- | --------------------------------------------------------------- |
-| `api.admin_token` | string | (required) | Credential authenticating the Admin API and both Stats APIs      |
+| `api.admin_token` | string | (required) | Credential authenticating the Admin API and both Stats APIs; at least 32 characters, see below |
 
 > [!IMPORTANT]
-> Write `admin_token: env://KANNON_ADMIN_TOKEN` and keep the value in a Secret rather than in the ConfigMap holding the rest of the file. It is required whenever `services.api.enabled` is set: a process asked to serve the API without it refuses to boot, rather than come up answering every Admin and Stats request with `unauthenticated`. Workers that do not serve the API need no token.
+> Write `admin_token: env://KANNON_ADMIN_TOKEN` and keep the value in a Secret rather than in the ConfigMap holding the rest of the file. It is required whenever `services.api.enabled` is set: a process asked to serve the API without it refuses to boot, rather than come up answering every Admin and Stats request with `unauthenticated`. Workers that do not serve the API need no token. A token shorter than 32 characters, or a known placeholder such as `change-me`, `changeme`, `admin` or `secret`, is refused at boot too: generate the value with `openssl rand -hex 32`.
 
 > [!WARNING]
 > The admin token is a single shared secret that authorizes **everything on every Domain** — creating Domains, minting API Keys, rewriting Templates and reading any Domain's per-Delivery statistics. It names no operator, so an Audit Record can only say that a holder acted, and it is revoked by changing it and restarting. Give it to as few callers as possible, and keep the API listener off untrusted networks.
@@ -615,6 +618,7 @@ This mode mocks the SMTP client and does not actually send emails.
 The [`examples/docker-compose/`](examples/docker-compose/) stack is the fastest way to develop against Kannon: it starts PostgreSQL, NATS, a one-shot migrator, and Kannon with every component enabled and `demo_sender: true`.
 
 ```sh
+export KANNON_ADMIN_TOKEN=$(openssl rand -hex 32)
 docker compose -f examples/docker-compose/docker-compose.yaml up -d
 ```
 
