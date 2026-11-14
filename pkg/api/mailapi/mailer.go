@@ -19,6 +19,7 @@ import (
 	"github.com/kannon-email/kannon/internal/delivery"
 	"github.com/kannon-email/kannon/internal/domains"
 	"github.com/kannon-email/kannon/internal/intake"
+	"github.com/kannon-email/kannon/internal/mailflow"
 	"github.com/kannon-email/kannon/internal/trackingpb"
 	"github.com/kannon-email/kannon/internal/values"
 	"github.com/kannon-email/kannon/pkg/api/connecterr"
@@ -32,6 +33,7 @@ type mailAPIService struct {
 	domains domains.Repository
 	apiKeys *apikeys.Service
 	intake  *intake.Service
+	flow    *mailflow.Metrics
 }
 
 func (s mailAPIService) SendHTML(ctx context.Context, req *connect.Request[pb.SendHTMLReq]) (*connect.Response[pb.SendRes], error) {
@@ -82,6 +84,7 @@ func (s mailAPIService) accept(ctx context.Context, domain *domains.Domain, msg 
 	if err != nil {
 		return nil, sendError(err)
 	}
+	s.flow.BatchAccepted(mailflow.IntakeMailer, result.AcceptedCount, len(result.Rejected))
 	rejected := make([]*pb.RejectedRecipient, 0, len(result.Rejected))
 	for _, r := range result.Rejected {
 		rejected = append(rejected, &pb.RejectedRecipient{Email: r.Email, Reason: string(r.Reason)})
@@ -196,13 +199,14 @@ func sendError(err error) error {
 }
 
 // NewMailerAPIV1 wires the legacy send API. maxPayload is the largest content, in bytes, a
-// Batch may carry.
-func NewMailerAPIV1(db *pgxpool.Pool, backoff delivery.BackoffPolicy, retryWindow time.Duration, maxPayload int) mailerv1connect.MailerHandler {
+// Batch may carry; flow counts what Intake decides.
+func NewMailerAPIV1(db *pgxpool.Pool, backoff delivery.BackoffPolicy, retryWindow time.Duration, maxPayload int, flow *mailflow.Metrics) mailerv1connect.MailerHandler {
 	domainsCli := sqlc.NewDomainsRepository(db)
 	apiKeysRepo := sqlc.NewAPIKeysRepository(db)
 	apiKeysService := apikeys.NewService(apiKeysRepo)
 	return &mailAPIService{
 		domains: domainsCli, apiKeys: apiKeysService,
 		intake: intake.New(sqlc.NewIntakeStore(db), backoff, retryWindow, maxPayload),
+		flow:   flow,
 	}
 }

@@ -17,6 +17,7 @@ import (
 	sq "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/domains"
 	"github.com/kannon-email/kannon/internal/intake"
+	"github.com/kannon-email/kannon/internal/mailflow"
 	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/internal/templates"
 	"github.com/kannon-email/kannon/pkg/api/adminapi"
@@ -138,7 +139,8 @@ func run(ctx context.Context, config Config, cnt *container.Container) error {
 	recorder := startAuditRecording(ctx, cnt)
 
 	adminAPIService := adminapi.CreateAdminAPIService(db)
-	mailAPIService := mailapi.NewMailerAPIV1(db, cnt.BackoffPolicy(), cnt.RetryWindow(), int(config.MaxPayload))
+	flow := mailflow.New(cnt.Metrics())
+	mailAPIService := mailapi.NewMailerAPIV1(db, cnt.BackoffPolicy(), cnt.RetryWindow(), int(config.MaxPayload), flow)
 	statsAPIService := statsv1.NewStatsAPIService(statsService)
 	statsV2APIService := statsv2.NewStatsAPIService(statsService)
 	hzAPIService := hzapi.CreateHZAPIService(cnt)

@@ -21,6 +21,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/kannon-email/kannon/internal/delivery"
+	"github.com/kannon-email/kannon/internal/mailflow"
 	"github.com/kannon-email/kannon/internal/tests"
 	"github.com/kannon-email/kannon/pkg/api"
 	kannonaudit "github.com/kannon-email/kannon/pkg/audit"
@@ -58,13 +59,19 @@ func TestE2EEmailSending(t *testing.T) {
 
 	senderMock := &senderMock{}
 
-	runKannon(t, infra, senderMock)
+	cnt := runKannon(t, infra, senderMock)
 
 	waitForAPIServer(t, infra)
 
 	factory := makeFactory(infra)
 
 	waitHZ(t, factory, infra)
+
+	// Not parallel: it runs before the parallel subtests are released, so the process-wide counters
+	// it reads move for its Batch alone.
+	t.Run("MailFlowMetrics", func(t *testing.T) {
+		testMailFlowMetrics(t, factory, senderMock, infra, cnt.Metrics())
+	})
 
 	t.Run("SingleRecipientEmail", func(t *testing.T) {
 		t.Parallel()
@@ -187,7 +194,7 @@ func TestE2EEmailSending(t *testing.T) {
 	})
 }
 
-func runKannon(t *testing.T, infra *TestInfrastructure, senderMock *senderMock) {
+func runKannon(t *testing.T, infra *TestInfrastructure, senderMock *senderMock) *container.Container {
 	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
@@ -250,7 +257,7 @@ func runKannon(t *testing.T, infra *TestInfrastructure, senderMock *senderMock) 
 	// Custom SMTPSender wired against the test sender mock, since the package's New(c) builds a
 	// real SMTP sender the suite cannot assert payloads on. MaxJobs is sized for the parallel
 	// subtest burst: ~120+ concurrent messages, and a small pool blows the EventuallyWithT windows.
-	sender := smtpsender.NewSMTPSender(cnt.NatsPublisher(), cnt.NatsJetStream(), senderMock, smtpsender.Config{MaxJobs: 50})
+	sender := smtpsender.NewSMTPSender(cnt.NatsPublisher(), cnt.NatsJetStream(), senderMock, smtpsender.Config{MaxJobs: 50}, mailflow.New(cnt.Metrics()))
 	reg.Register(container.Runnable{Name: "smtpsender", Run: sender.Run})
 
 	go func() {
@@ -258,6 +265,7 @@ func runKannon(t *testing.T, infra *TestInfrastructure, senderMock *senderMock) 
 			slog.Error("error in running kannon", "err", err)
 		}
 	}()
+	return cnt
 }
 
 func testSingleRecipientEmail(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {

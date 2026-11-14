@@ -9,6 +9,7 @@ import (
 
 	sqlc "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/envelope"
+	"github.com/kannon-email/kannon/internal/mailflow"
 	"github.com/kannon-email/kannon/internal/pool"
 	"github.com/kannon-email/kannon/internal/returnpath"
 	"github.com/kannon-email/kannon/internal/runner"
@@ -56,6 +57,7 @@ func run(ctx context.Context, cnt *container.Container, rp returnpath.Signer) er
 		eb:      eb,
 		pub:     cnt.NatsPublisher(),
 		js:      js,
+		flow:    mailflow.New(cnt.Metrics()),
 	}
 
 	d.log().Info("🚀 Starting dispatcher")
