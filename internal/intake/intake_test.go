@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kannon-email/kannon/internal/apperr"
 	"github.com/kannon-email/kannon/internal/authz"
 	"github.com/kannon-email/kannon/internal/batch"
 	"github.com/kannon-email/kannon/internal/delivery"
@@ -250,4 +251,63 @@ func TestIntakeRejectsARecipientAddressedToAnInternalHost(t *testing.T) {
 	require.Equal(t, want, result.Rejected)
 	require.Len(t, store.deliveries, 1)
 	require.Equal(t, "ok@example.com", store.deliveries[0].Email())
+}
+
+// Postgres text cannot hold a NUL byte, so a send carrying one used to fail on insert as an
+// internal error. It is refused at Intake as invalid instead, before anything is stored.
+func TestIntakeRefusesANULByte(t *testing.T) {
+	name := values.MustParse("example.com")
+	domain := domains.Load(domains.LoadParams{Domain: name})
+	ctx := authz.NewContext(t.Context(), authz.MustNewPrincipal("key", authz.MustNewGrant(authz.RoleSender, authz.DomainAnchor(name))))
+	for _, tc := range []struct {
+		name   string
+		change func(*intake.Request)
+	}{
+		{"subject", func(p *intake.Request) { p.Subject = "hi\x00there" }},
+		{"alias", func(p *intake.Request) { p.Sender.Alias = "a\x00b" }},
+		{"html", func(p *intake.Request) { p.HTML = new("<p>\x00</p>") }},
+		{"global field value", func(p *intake.Request) { p.GlobalFields = map[string]string{"name": "a\x00"} }},
+		{"global field name", func(p *intake.Request) { p.GlobalFields = map[string]string{"na\x00me": "a"} }},
+		{"recipient field value", func(p *intake.Request) { p.Recipients[0].Fields = map[string]string{"name": "a\x00"} }},
+		{"recipient field name", func(p *intake.Request) { p.Recipients[0].Fields = map[string]string{"\x00": "a"} }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := intake.Request{
+				HTML: new("<p>Hi</p>"), Subject: "Hello", Sender: batch.Sender{Email: "sender@example.com", Alias: "Sender"},
+				Recipients: []intake.Recipient{{Recipient: batch.Recipient{Email: "r@example.org"}}},
+			}
+			tc.change(&p)
+			_, err := intake.New(unavailableStore{}, nil, 0, 0).Accept(ctx, domain, p)
+			refusal, ok := apperr.As(err)
+			require.True(t, ok, "%v", err)
+			require.Equal(t, apperr.Invalid, refusal.Kind)
+		})
+	}
+}
+
+// A field substituted into the Subject could put a CR or LF there, which the Envelope build
+// refuses, so the Delivery retried until Failed. The Recipient is refused at Intake instead, as
+// REST refuses it, and the rest of the Batch goes ahead.
+func TestIntakeRejectsARecipientWhoseFieldsPutCRLFInTheSubject(t *testing.T) {
+	name := values.MustParse("example.com")
+	domain := domains.Load(domains.LoadParams{Domain: name})
+	ctx := authz.NewContext(t.Context(), authz.MustNewPrincipal("key", authz.MustNewGrant(authz.RoleSender, authz.DomainAnchor(name))))
+	for _, maxPayload := range []int{0, 500 << 10} {
+		store := &capturedStore{}
+		result, err := intake.New(store, nil, 0, maxPayload).Accept(ctx, domain, intake.Request{
+			HTML: new("Hello"), Subject: "Hi {{ name }}", Sender: batch.Sender{Email: "sender@example.com"},
+			Recipients: []intake.Recipient{
+				{Recipient: batch.Recipient{Email: "victim@example.org", Fields: map[string]string{"name": "x\r\nBcc: attacker@evil.test"}}},
+				{Recipient: batch.Recipient{Email: "lf@example.org", Fields: map[string]string{"name": "x\ny"}}},
+				{Recipient: batch.Recipient{Email: "ok@example.org", Fields: map[string]string{"name": "Alice"}}},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, []intake.RejectedRecipient{
+			{Email: "victim@example.org", Reason: intake.ReasonReservedField},
+			{Email: "lf@example.org", Reason: intake.ReasonReservedField},
+		}, result.Rejected)
+		require.Len(t, store.deliveries, 1)
+		require.Equal(t, "ok@example.org", store.deliveries[0].Email())
+	}
 }

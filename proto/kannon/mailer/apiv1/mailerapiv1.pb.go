@@ -435,6 +435,8 @@ type RejectedRecipient struct {
 	//	message_too_large          this Recipient's fields personalise the
 	//	                           Batch's content past the configured
 	//	                           api.max_payload
+	//	reserved_field             this Recipient's fields put a CR or LF into
+	//	                           the subject
 	//
 	// Treat an unrecognised value as a refusal of unknown cause: the set grows as
 	// new causes are added.

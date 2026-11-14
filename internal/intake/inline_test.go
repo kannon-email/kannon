@@ -152,6 +152,13 @@ func TestValidateInline(t *testing.T) {
 		{name: "unparsable display header", key: "k", change: func(p *InlineRequest) { p.Headers.To = []string{"not an address"} }, bad: true},
 		{name: "display header with newline", key: "k", change: func(p *InlineRequest) { p.Headers.Cc = []string{"a@example.com\n"} }, bad: true},
 		{name: "reserved global field", key: "k", change: func(p *InlineRequest) { p.GlobalFields = map[string]string{"email": "x"} }, bad: true},
+		{name: "subject with NUL", key: "k", change: func(p *InlineRequest) { p.Subject = "a\x00b" }, bad: true},
+		{name: "alias with NUL", key: "k", change: func(p *InlineRequest) { p.Sender.Alias = "a\x00b" }, bad: true},
+		{name: "html with NUL", key: "k", change: func(p *InlineRequest) { p.HTML = "<p>\x00</p>" }, bad: true},
+		{name: "global field with NUL", key: "k", change: func(p *InlineRequest) { p.GlobalFields = map[string]string{"name": "a\x00"} }, bad: true},
+		{name: "global field name with NUL", key: "k", change: func(p *InlineRequest) { p.GlobalFields = map[string]string{"\x00": "a"} }, bad: true},
+		{name: "recipient field with NUL", key: "k", change: func(p *InlineRequest) { p.Recipients[0].Fields = map[string]string{"name": "a\x00"} }, bad: true},
+		{name: "recipient field name with NUL", key: "k", change: func(p *InlineRequest) { p.Recipients[0].Fields = map[string]string{"n\x00": "a"} }, bad: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			p := inlineRequest()
