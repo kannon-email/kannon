@@ -22,7 +22,11 @@ Kannon is a cloud-native, scalable SMTP mail sender designed for Kubernetes and 
 
 #### `x/metrics/`
 
-- Reads the top-level `metrics` section (`enabled`, default `true`; `port`, default `9090`) and serves the container's registry on `GET /metrics` from a listener of its own, in every process that runs at least one Component. Not on the Connect or REST ports, which are meant to be published, and not a Component: the workers have no other HTTP listener. `metrics.Register` lets a Component built twice reuse its collectors. No metric carries a `domain` label or any other unbounded one. See [ADR 0018](./docs/adr/0018-metrics-are-prometheus-on-a-dedicated-listener-with-no-tenant-label.md).
+- Reads the top-level `metrics` section (`enabled`, default `true`; `port`, default `9090`) and serves the container's registry on `GET /metrics` from a listener of its own, in every process that runs at least one Component. Not on the Connect or REST ports, which are meant to be published, and not a Component: the workers have no other HTTP listener. `metrics.Register` lets a Component built twice reuse its collectors. No metric carries a `domain` label or any other unbounded one. See [ADR 0018](./docs/adr/0018-metrics-are-prometheus-on-a-dedicated-listener-with-no-tenant-label.md). Every metric Kannon exposes is listed in [docs/observability.md](./docs/observability.md).
+
+#### `internal/mailflow/`
+
+- The mail flow collectors, which each Component counts into where it takes the decision: Batches and Recipient decisions at Intake (counted by the Mailer API and the REST handler, since `internal/intake` sits below the container), Delivery outcomes, SMTP transactions with their duration, dispatches, and engagement events. A nil `*Metrics` counts nothing. Also the `kannon_pool_deliveries` gauge, read at scrape time through a `PoolCounter` with a timeout, and registered only by the Dispatcher and the Validator, which already hold the database: the package itself never touches it, so the SMTPSender can count into it without breaking ADR 0013.
 
 #### `internal/db/`
 
