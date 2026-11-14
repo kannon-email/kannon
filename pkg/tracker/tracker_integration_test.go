@@ -52,6 +52,7 @@ func TestTrackerIntegration(t *testing.T) {
 	t.Run("ForgedModeClaimIsRefused", func(t *testing.T) { testForgedModeClaimIsRefused(t, ss) })
 	t.Run("ATokenReplayedOnTheOtherChannelIsRefused", func(t *testing.T) { testATokenReplayedOnTheOtherChannelIsRefused(t, ss) })
 	t.Run("ATokenIsServedOnlyOnItsDomainsStatsHost", func(t *testing.T) { testATokenIsServedOnlyOnItsDomainsStatsHost(t, ss) })
+	t.Run("AClickRedirectsOnlyToTheWeb", func(t *testing.T) { testAClickRedirectsOnlyToTheWeb(t, ss) })
 }
 
 // fakePublisher captures what the tracker publishes, decoded the way the Stats
@@ -421,6 +422,42 @@ func testATokenIsServedOnlyOnItsDomainsStatsHost(t *testing.T, ss statssec.Stats
 		t.Run("Open"+tc.name, func(t *testing.T) {
 			resp, published := engageOn(t, ss, tc.host, "/o/"+attackerOpen)
 			assert.Equal(t, http.StatusOK, resp.status)
+			assert.Len(t, published, 1)
+		})
+	}
+}
+
+// testAClickRedirectsOnlyToTheWeb: a tracked link sends the recipient to an http
+// or https page and nowhere else, whatever URL its token was minted with.
+func testAClickRedirectsOnlyToTheWeb(t *testing.T, ss statssec.StatsService) {
+	refused := []struct {
+		name string
+		url  string
+	}{
+		{name: "JavaScript", url: "javascript:alert(document.domain)"},
+		{name: "Data", url: "data:text/html,<script>alert(1)</script>"},
+		{name: "File", url: "file:///etc/passwd"},
+		{name: "SchemeRelative", url: "//evil.example/login"},
+		{name: "Relative", url: "/login"},
+	}
+	for _, tc := range refused {
+		t.Run("Refuses"+tc.name, func(t *testing.T) {
+			token, err := ss.CreateLinkToken(t.Context(), testMessageID, testRecipient, tc.url, tracking.ModeFull)
+			require.NoError(t, err)
+			resp, published := engage(t, ss, "/c/"+token)
+			assert.Equal(t, http.StatusNotFound, resp.status)
+			assert.Empty(t, resp.location, "a link outside the web must redirect nowhere")
+			assert.Empty(t, published, "a refused click must publish no stat")
+		})
+	}
+
+	for _, url := range []string{"http://example.com/landing", "HTTPS://example.com/landing"} {
+		t.Run("Follows"+url, func(t *testing.T) {
+			token, err := ss.CreateLinkToken(t.Context(), testMessageID, testRecipient, url, tracking.ModeFull)
+			require.NoError(t, err)
+			resp, published := engage(t, ss, "/c/"+token)
+			assert.Equal(t, http.StatusTemporaryRedirect, resp.status)
+			assert.Equal(t, url, resp.location)
 			assert.Len(t, published, 1)
 		})
 	}

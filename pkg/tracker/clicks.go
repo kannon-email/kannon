@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -38,6 +39,11 @@ func (s *srv) handleClick(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	if !isWebURL(claims.URL) {
+		slog.Warn("click token names a non-web URL", "domain", domain)
+		http.NotFound(w, r)
+		return
+	}
 
 	defer writeRedirect(w, r, claims)
 
@@ -52,6 +58,15 @@ func (s *srv) handleClick(w http.ResponseWriter, r *http.Request) {
 	}
 
 	slog.Info(fmt.Sprintf("🔗 %s %s %s %s %s %s", r.Method, claims.URL, claims.MessageID, kept.userAgent, r.Host, kept.ip))
+}
+
+func isWebURL(raw string) bool {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return false
+	}
+	scheme := strings.ToLower(u.Scheme)
+	return (scheme == "http" || scheme == "https") && u.Host != ""
 }
 
 func writeRedirect(w http.ResponseWriter, r *http.Request, claims *statssec.LinkClaims) {
