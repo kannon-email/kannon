@@ -19,6 +19,16 @@ func (c *Config) setDefaults() {
 	}
 }
 
+// ListenPorts reads the port the tracker listens on, keyed by the config key that sets it.
+func ListenPorts() (map[string]uint, error) {
+	var cfg Config
+	if err := config.TryLoadSection("tracker", &cfg); err != nil {
+		return nil, err
+	}
+	cfg.setDefaults()
+	return map[string]uint{"tracker.port": cfg.Port}, nil
+}
+
 // New constructs the tracker runnable, loading its slice of configuration from
 // viper under the "tracker" key.
 func New(cnt *container.Container) container.Runnable {

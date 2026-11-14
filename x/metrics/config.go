@@ -2,7 +2,13 @@
 // helpers Components use to register their collectors on it. See ADR 0018.
 package metrics
 
-import "github.com/kannon-email/kannon/x/config"
+import (
+	"fmt"
+	"maps"
+	"slices"
+
+	"github.com/kannon-email/kannon/x/config"
+)
 
 // PortKey names the key Port is read from, for the messages that have to point an operator at it.
 const PortKey = sectionKey + ".port"
@@ -35,4 +41,18 @@ func LoadConfig() (Config, error) {
 		cfg.Port = defaultPort
 	}
 	return cfg, nil
+}
+
+// RequireOwnPort refuses a metrics listener asked to share a port with another listener of the same
+// process, named by the config key that sets its port.
+func (c Config) RequireOwnPort(others map[string]uint) error {
+	if !c.Enabled {
+		return nil
+	}
+	for _, key := range slices.Sorted(maps.Keys(others)) {
+		if others[key] == c.Port {
+			return fmt.Errorf("%s and %s are both %d: the metrics listener needs a port of its own", PortKey, key, c.Port)
+		}
+	}
+	return nil
 }

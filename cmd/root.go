@@ -20,6 +20,7 @@ import (
 	"github.com/kannon-email/kannon/pkg/validator"
 	"github.com/kannon-email/kannon/x/config"
 	"github.com/kannon-email/kannon/x/container"
+	"github.com/kannon-email/kannon/x/metrics"
 	"github.com/spf13/cobra"
 )
 
@@ -101,6 +102,11 @@ func bootstrap(cmd *cobra.Command, cfg config.RootConfig, services config.Servic
 		return err
 	}
 
+	metricsCfg, err := loadMetrics(services)
+	if err != nil {
+		return err
+	}
+
 	cnt := container.New(ctx, cfg)
 	defer func() {
 		if err := cnt.CloseWithTimeout(shutdownTimeout); err != nil {
@@ -109,6 +115,10 @@ func bootstrap(cmd *cobra.Command, cfg config.RootConfig, services config.Servic
 	}()
 
 	reg := &container.Registry{}
+
+	if listener, ok := metrics.Listener(metricsCfg, cnt.Metrics()); ok {
+		reg.Register(listener)
+	}
 
 	if services.Sender.Enabled {
 		reg.Register(smtpsender.New(cnt))

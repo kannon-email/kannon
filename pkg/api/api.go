@@ -87,6 +87,17 @@ func adminTokenError(err error) error {
 		config.APIAdminTokenKey, err)
 }
 
+// ListenPorts reads the ports the API listens on, keyed by the config key that sets each, so the
+// boot path can refuse another listener asked to share one.
+func ListenPorts() (map[string]uint, error) {
+	var cfg Config
+	if err := config.TryLoadSection("api", &cfg); err != nil {
+		return nil, err
+	}
+	cfg.setDefaults()
+	return map[string]uint{"api.port": cfg.Port, "api.rest_port": cfg.RESTPort}, nil
+}
+
 // New constructs the API runnable, loading its slice of configuration from
 // viper under the "api" key.
 func New(cnt *container.Container) container.Runnable {
