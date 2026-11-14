@@ -43,7 +43,7 @@ func (m *Metrics) observe(api, operation, code string, start time.Time) {
 	m.duration.WithLabelValues(api, operation).Observe(time.Since(start).Seconds())
 }
 
-// Connect is the interceptor that counts every Connect call by procedure and Connect code.
+// Connect is the handler interceptor that counts every Connect call by procedure and Connect code.
 func (m *Metrics) Connect() connect.Interceptor {
 	return &interceptor{m: m}
 }
@@ -54,9 +54,6 @@ type interceptor struct {
 
 func (i *interceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
 	return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
-		if req.Spec().IsClient {
-			return next(ctx, req)
-		}
 		markIntercepted(ctx)
 		start := time.Now()
 		res, err := next(ctx, req)
