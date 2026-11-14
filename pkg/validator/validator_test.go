@@ -147,3 +147,39 @@ func (m *MockPublisher) Publish(subj string, data []byte) error {
 	m.subjects = append(m.subjects, subj)
 	return nil
 }
+
+// The Validator is the last check before the SMTPSender dials anyone, so it refuses an address
+// that names a host rather than a mail domain even when the Delivery predates intake refusing it,
+// and matches the whole address rather than an address somewhere inside it.
+func TestValidatorRejectsAddressesItCannotDeliverTo(t *testing.T) {
+	domain := createTestDomain(t)
+	refused := []string{
+		"x@[127.0.0.1]",
+		"x@10.0.0.5",
+		"x@[IPv6:::1]",
+		"x@::1",
+		"x@localhost",
+		"x@foo.localhost",
+		"junk\r\nvictim@ok.com trailing",
+		"prefix victim@ok.com",
+	}
+	for _, email := range refused {
+		sendEmail(t, domain, "placeholder@email.com")
+		_, err := db.Exec(t.Context(), "UPDATE sending_pool_emails SET email = $1 WHERE email = 'placeholder@email.com'", email)
+		assert.Nil(t, err)
+	}
+	sendEmail(t, domain, "Valid.Name+tag@Example.com")
+	t.Cleanup(func() { mp.subjects = nil })
+
+	runOneCycle(t)
+
+	rejected := 0
+	for _, subj := range mp.subjects {
+		if subj == "kannon.stats.rejected" {
+			rejected++
+		}
+	}
+	assert.Len(t, mp.subjects, len(refused)+1)
+	assert.Equal(t, len(refused), rejected)
+	assert.Contains(t, mp.subjects, "kannon.stats.accepted")
+}

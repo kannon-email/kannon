@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"regexp"
-	"strings"
 	"time"
 
 	sqlc "github.com/kannon-email/kannon/internal/db"
@@ -14,6 +13,7 @@ import (
 	"github.com/kannon-email/kannon/internal/pool"
 	"github.com/kannon-email/kannon/internal/publisher"
 	"github.com/kannon-email/kannon/internal/runner"
+	"github.com/kannon-email/kannon/internal/smtp"
 	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/x/container"
 	"golang.org/x/sync/errgroup"
@@ -118,16 +118,22 @@ func validateDelivery(d *delivery.Delivery) error {
 	return nil
 }
 
-var emailReg = regexp.MustCompile("(?:[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*|\"(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21\x23-\x5b\x5d-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])*\")@(?:(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?|\\[(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?|[a-z0-9-]*[a-z0-9]:(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21-\x5a\x53-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])+)\\])")
+var emailReg = regexp.MustCompile("(?i)^(?:[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*|\"(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21\x23-\x5b\x5d-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])*\")@(?:(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?|\\[(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?|[a-z0-9-]*[a-z0-9]:(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21-\x5a\x53-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])+)\\])$")
 
 func validateEmail(email string) error {
-	if strings.HasSuffix(email, "@localhost") {
-		return nil
+	if !emailReg.MatchString(email) {
+		return ErrInvalidEmailAddress
 	}
-	if emailReg.Match([]byte(email)) {
-		return nil
+	if smtp.NamesHostDirectly(email) {
+		return ErrAddressNamesHost
 	}
-	return ErrInvalidEmailAddress
+	return nil
 }
 
-var ErrInvalidEmailAddress = errors.New(" is not a valid email")
+// ErrInvalidEmailAddress is the reason a Delivery is Rejected for an address
+// that is not a well-formed email address.
+var ErrInvalidEmailAddress = errors.New("invalid email address")
+
+// ErrAddressNamesHost is the reason a Delivery is Rejected for an address whose
+// domain is an IP literal or localhost, which Kannon refuses to deliver to.
+var ErrAddressNamesHost = fmt.Errorf("%w: domain names a host, not a mail domain", ErrInvalidEmailAddress)

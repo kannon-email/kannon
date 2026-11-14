@@ -228,3 +228,26 @@ func TestIntakeRejectsARecipientWhoseFieldsPassThePayload(t *testing.T) {
 	require.Len(t, store.deliveries, 1)
 	require.Equal(t, "fits@example.com", store.deliveries[0].Email())
 }
+
+// An address that names a host rather than a mail domain has no MX, so the SMTPSender would dial
+// the host itself: legacy intake refuses it the way REST does, and keeps the ordinary addresses.
+func TestIntakeRejectsARecipientAddressedToAnInternalHost(t *testing.T) {
+	name := values.MustParse("example.com")
+	domain := domains.Load(domains.LoadParams{Domain: name})
+	ctx := authz.NewContext(t.Context(), authz.MustNewPrincipal("key", authz.MustNewGrant(authz.RoleSender, authz.DomainAnchor(name))))
+	internal := []string{"x@[127.0.0.1]", "x@10.0.0.5", "x@[IPv6:::1]", "x@::1", "x@localhost"}
+	recipients := []intake.Recipient{{Recipient: batch.Recipient{Email: "ok@example.com"}}}
+	var want []intake.RejectedRecipient
+	for _, email := range internal {
+		recipients = append(recipients, intake.Recipient{Recipient: batch.Recipient{Email: email}})
+		want = append(want, intake.RejectedRecipient{Email: email, Reason: intake.ReasonInvalidEmail})
+	}
+	store := &capturedStore{}
+	result, err := intake.New(store, nil, 0, 0).Accept(ctx, domain, intake.Request{
+		HTML: new("<p>Hi</p>"), Subject: "Hello", Sender: batch.Sender{Email: "sender@example.com"}, Recipients: recipients,
+	})
+	require.NoError(t, err)
+	require.Equal(t, want, result.Rejected)
+	require.Len(t, store.deliveries, 1)
+	require.Equal(t, "ok@example.com", store.deliveries[0].Email())
+}
