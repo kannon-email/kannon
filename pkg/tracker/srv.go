@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/kannon-email/kannon/internal/mailflow"
 	"github.com/kannon-email/kannon/internal/publisher"
 	"github.com/kannon-email/kannon/internal/statssec"
 	"github.com/kannon-email/kannon/internal/tracking"
@@ -14,25 +15,27 @@ import (
 )
 
 type srv struct {
-	pub publisher.Publisher
-	ss  statssec.StatsService
-	cfg Config
+	pub  publisher.Publisher
+	ss   statssec.StatsService
+	cfg  Config
+	flow *mailflow.Metrics
 }
 
 func NewServer(cnt *container.Container, cfg Config) *srv {
 	q := cnt.Queries()
 	ss := statssec.NewStatsService(q)
 
-	return newServer(cnt.Nats(), ss, cfg)
+	return newServer(cnt.Nats(), ss, cfg, mailflow.New(cnt.Metrics()))
 }
 
 // newServer wires a tracker against explicit dependencies, so the handlers can
 // be driven over HTTP without a container behind them.
-func newServer(pub publisher.Publisher, ss statssec.StatsService, cfg Config) *srv {
+func newServer(pub publisher.Publisher, ss statssec.StatsService, cfg Config, flow *mailflow.Metrics) *srv {
 	return &srv{
-		pub: pub,
-		ss:  ss,
-		cfg: cfg,
+		pub:  pub,
+		ss:   ss,
+		cfg:  cfg,
+		flow: flow,
 	}
 }
 
