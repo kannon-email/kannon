@@ -36,7 +36,7 @@ collectors (`go_*`, `process_*`). A counter series appears once it has been incr
 | `kannon_smtp_send_duration_seconds` | histogram | `result` = `delivered` \| `bounced` \| `errored` | SMTPSender, the time of one SMTP transaction. Buckets from 50ms to 120s. |
 | `kannon_dispatch_total` | counter | `result` = `ok` \| `build_error` \| `publish_error` | Dispatcher, once per dispatch of a claimed Delivery: built and published, failed to build the Envelope, or failed to publish it to NATS |
 | `kannon_engagement_events_total` | counter | `kind` = `opened` \| `clicked` | Tracker, once per event published, under every Tracking Mode that publishes (all but `off`, `anonymous` included) |
-| `kannon_pool_deliveries` | gauge | `status` = the Pool status (`to_validate`, `validating`, `scheduled`, `sending`) | Dispatcher and Validator processes only, read with one `GROUP BY` on the Pool at scrape time, with a 2s timeout. A failed query yields no sample and a log line, not a failed scrape. The statuses are internal mechanics and may change between releases. |
+| `kannon_pool_deliveries` | gauge | `status` = `to_validate` \| `validating` \| `scheduled` \| `sending`, every one on every scrape (0 when no Delivery holds it) | Dispatcher and Validator processes only, read with one `GROUP BY` on the Pool at scrape time, with a 2s timeout. A failed query yields no sample and a log line, not a failed scrape. A row in any other status is not counted. The statuses are internal mechanics, exposed for operators as an exception (ADR 0018), and may change between releases. |
 
 ## PromQL examples
 

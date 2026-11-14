@@ -10,9 +10,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDeliveriesByPoolStatusCountsThePoolByStatus(t *testing.T) {
+func TestPoolCensusCountsThePoolByStatus(t *testing.T) {
 	ctx := t.Context()
-	before, err := q.DeliveriesByPoolStatus(ctx)
+	census := NewPoolCensus(db)
+	before, err := census.DeliveriesByStatus(ctx)
 	require.NoError(t, err)
 
 	batchID, domain := seedBatchFixture(t)
@@ -26,8 +27,16 @@ func TestDeliveriesByPoolStatusCountsThePoolByStatus(t *testing.T) {
 	require.NoError(t, repo.Schedule(ctx, ds...))
 	require.NoError(t, pool.NewClaimer(repo).MarkValidated(ctx, ds[0]))
 
-	after, err := q.DeliveriesByPoolStatus(ctx)
+	after, err := census.DeliveriesByStatus(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 2.0, after["to_validate"]-before["to_validate"])
-	assert.Equal(t, 1.0, after["scheduled"]-before["scheduled"])
+	assert.Equal(t, 2, after[pool.StatusToValidate]-before[pool.StatusToValidate])
+	assert.Equal(t, 1, after[pool.StatusScheduled]-before[pool.StatusScheduled])
+}
+
+func TestEveryStoredPoolStatusMapsToAReportedOne(t *testing.T) {
+	for _, s := range []SendingPoolStatus{SendingPoolStatusToValidate, SendingPoolStatusValidating, SendingPoolStatusScheduled, SendingPoolStatusSending} {
+		reported, ok := poolStatuses[s]
+		require.True(t, ok, s)
+		assert.Contains(t, pool.Statuses(), reported)
+	}
 }

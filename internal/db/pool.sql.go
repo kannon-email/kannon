@@ -28,12 +28,12 @@ func (q *Queries) CleanPool(ctx context.Context, arg CleanPoolParams) error {
 }
 
 const countPoolByStatus = `-- name: CountPoolByStatus :many
-SELECT status, count(*)::float8 AS deliveries FROM sending_pool_emails GROUP BY status
+SELECT status, count(*)::int AS deliveries FROM sending_pool_emails GROUP BY status
 `
 
 type CountPoolByStatusRow struct {
 	Status     SendingPoolStatus
-	Deliveries float64
+	Deliveries int32
 }
 
 func (q *Queries) CountPoolByStatus(ctx context.Context) ([]CountPoolByStatusRow, error) {

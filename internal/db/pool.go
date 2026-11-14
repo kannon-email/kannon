@@ -1,7 +1,6 @@
 package sqlc
 
 import (
-	"context"
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
@@ -15,20 +14,6 @@ const (
 	SendingPoolStatusSending    SendingPoolStatus = "sending"
 	SendingPoolStatusScheduled  SendingPoolStatus = "scheduled"
 )
-
-// DeliveriesByPoolStatus counts the Deliveries in the Pool by status, in the shape
-// mailflow.RegisterPool reads.
-func (q *Queries) DeliveriesByPoolStatus(ctx context.Context) (map[string]float64, error) {
-	rows, err := q.CountPoolByStatus(ctx)
-	if err != nil {
-		return nil, err
-	}
-	counts := make(map[string]float64, len(rows))
-	for _, r := range rows {
-		counts[string(r.Status)] = r.Deliveries
-	}
-	return counts, nil
-}
 
 type CustomFields map[string]string
 

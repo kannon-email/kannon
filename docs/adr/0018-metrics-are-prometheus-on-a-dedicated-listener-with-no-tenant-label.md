@@ -45,6 +45,12 @@ Domain, a Batch, a Delivery, an address or a raw URL path. The REST `operation` 
 the ServeMux matched (`GET /domains/{domain}`), and a request no route matches is
 `operation="unmatched"`.
 
+**Pool statuses are exposed, as an accepted exception.** CONTEXT.md treats the Pool's statuses as
+implementation detail, but the backlog in each is what an operator needs to see a stuck worker, so
+`kannon_pool_deliveries{status}` reports them: `to_validate`, `validating`, `scheduled` and
+`sending`, the bounded `pool.Status` enum, each on every scrape. They may change between releases,
+and the metric's help text says so.
+
 ## Why not the Connect or REST ports
 
 Those ports are meant to be published — the REST one to the internet. Metrics on them would either
