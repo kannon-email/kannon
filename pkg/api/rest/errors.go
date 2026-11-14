@@ -3,10 +3,12 @@ package rest
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 
 	"github.com/kannon-email/kannon/internal/apperr"
+	"github.com/kannon-email/kannon/internal/intake"
 )
 
 // handler owns error responses. Operations write success only and must return
@@ -42,6 +44,12 @@ var statuses = map[apperr.Kind]int{
 	apperr.Forbidden: http.StatusForbidden,
 }
 
+// limitErrors name the limit a refused request exceeded, so a caller can size the next one.
+var limitErrors = map[string]FieldError{
+	"too_many_fields":  {Code: "too_many_fields", Pointer: "", Detail: fmt.Sprintf("A Recipient may carry at most %d fields, global fields included", intake.MaxFieldsPerRecipient)},
+	"fields_too_large": {Code: "fields_too_large", Pointer: "", Detail: fmt.Sprintf("The fields of a Batch may total at most %d MiB, global fields counted once per Recipient", intake.MaxFieldsBytes>>20)},
+}
+
 func errorProblem(err error) *requestError {
 	var request *requestError
 	if errors.As(err, &request) {
@@ -66,6 +74,9 @@ func writeError(w http.ResponseWriter, err error) {
 	fields := e.fields
 	if fields == nil && e.status == http.StatusUnprocessableEntity {
 		fields = []FieldError{{Code: e.code, Pointer: "", Detail: "Request content is invalid"}}
+		if limit, ok := limitErrors[e.code]; ok {
+			fields = []FieldError{limit}
+		}
 	}
 	p := Problem{Type: "urn:kannon:problem:" + e.code, Title: http.StatusText(e.status), Status: e.status, Code: e.code, RequestId: w.Header().Get("X-Request-ID")}
 	if len(fields) > 0 {
