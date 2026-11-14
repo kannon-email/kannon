@@ -26,7 +26,7 @@ Kannon is a cloud-native, scalable SMTP mail sender designed for Kubernetes and 
 
 #### `internal/mailflow/`
 
-- The mail flow collectors, which each Component counts into where it takes the decision: Batches and Recipient decisions at Intake (counted by the Mailer API and the REST handler, since `internal/intake` sits below the container), Delivery outcomes, SMTP transactions with their duration, dispatches, and engagement events. A nil `*Metrics` counts nothing. Also the `kannon_pool_deliveries` gauge, read at scrape time through a `PoolCounter` with a timeout, and registered only by the Dispatcher and the Validator, which already hold the database: the package itself never touches it, so the SMTPSender can count into it without breaking ADR 0013.
+- The mail flow collectors, which each Component counts into where it takes the decision: Batches and Recipient decisions at Intake (counted by the Mailer API and the REST handler, since `internal/intake` sits below the container), Delivery outcomes, SMTP transactions with their duration, dispatches, and engagement events. A nil `*Metrics` counts nothing. Also the `kannon_pool_deliveries` gauge, read at scrape time through a `pool.Census` (implemented in `internal/db`) with a timeout, one series for every `pool.Status` on every scrape, and registered only by the Dispatcher and the Validator, which already hold the database: the package itself never touches it, so the SMTPSender can count into it without breaking ADR 0013.
 
 #### `internal/db/`
 
@@ -202,7 +202,7 @@ Kannon is a cloud-native, scalable SMTP mail sender designed for Kubernetes and 
 
 #### `pkg/api/apimetrics/`
 
-- Counts and times every call to the APIs: `kannon_api_requests_total{api, operation, code}` and `kannon_api_request_duration_seconds{api, operation}`. A Connect interceptor on every handler labels by procedure and Connect code; a middleware around the REST handler labels by the route pattern the ServeMux matched and the status class, never the raw path. The pattern is carried out of the nested muxes by `internal/httproute`, since a mux sets `Request.Pattern` only on the request it dispatches.
+- Counts and times every call to the APIs: `kannon_api_requests_total{api, operation, code}` and `kannon_api_request_duration_seconds{api, operation}`. A Connect interceptor on every handler labels by procedure and Connect code, and `ConnectService` around each generated service handler counts the calls connect-go refuses before any interceptor runs (oversized or undecodable body, unsupported protocol, unknown procedure as `unmatched`); a middleware around the REST handler labels by the route pattern the ServeMux matched and the status class, never the raw path. The pattern is carried out of the nested muxes by `internal/httproute`, since a mux sets `Request.Pattern` only on the request it dispatches.
 
 #### `pkg/api/hzapi/`
 
