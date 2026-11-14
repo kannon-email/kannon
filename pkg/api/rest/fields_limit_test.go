@@ -122,11 +122,11 @@ func TestBatchWhoseMergedFieldsExceedTheByteBudgetIsRefused(t *testing.T) {
 	for i := range 900 {
 		global[fmt.Sprintf("k%03d", i)] = strings.Repeat("v", 100)
 	}
-	// About 94 KB of global fields, merged into 200 Recipients: about 19 MB of Delivery fields.
+	// About 150 KB of global fields with their overhead, merged into 200 Recipients: about 30 MB.
 	requireLimitProblem(t, c.sendExpecting("bytes", global, 200, 422), "fields_too_large", "10 MiB")
 	require.Zero(t, c.batchCount())
 	// The same fields for fewer Recipients stay within the budget.
-	require.Equal(t, float64(100), c.send("fewer", global, 100)["accepted_count"])
+	require.Equal(t, float64(50), c.send("fewer", global, 50)["accepted_count"])
 }
 
 func TestRecipientFieldsAreCountedWithTheGlobalOnes(t *testing.T) {
@@ -139,4 +139,16 @@ func TestRecipientFieldsAreCountedWithTheGlobalOnes(t *testing.T) {
 	require.Equal(t, float64(2), c.send("at-limit", global, 2)["accepted_count"])
 	global["one-more"] = "v"
 	requireLimitProblem(t, c.sendExpecting("over-limit", global, 2, 422), "too_many_fields", "1000 fields")
+}
+
+// Copying a field costs a map entry whatever its length, so many empty fields
+// merged into many Recipients are refused even though their bytes are few.
+func TestBatchOfManyEmptyFieldsTimesManyRecipientsIsRefused(t *testing.T) {
+	c := newFieldsClient(t)
+	global := make(map[string]string, 999)
+	for i := range 999 {
+		global[fmt.Sprintf("k%03d", i)] = ""
+	}
+	requireLimitProblem(t, c.sendExpecting("empty", global, 2000, 422), "fields_too_large", "10 MiB")
+	require.Zero(t, c.batchCount())
 }

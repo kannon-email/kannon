@@ -1181,8 +1181,8 @@ components:
           description: Defaults merged with each recipient fields, which take precedence. Applied to both subject
             and HTML. email is reserved. Missing placeholders reject the affected Recipient inline. A Recipient may
             carry at most 1000 fields, global fields included, or the whole request fails with 422 too_many_fields.
-            Keys and values of all Recipients' fields, global fields counted once per Recipient, may total at most
-            10 MiB, or the whole request fails with 422 fields_too_large.
+            Keys and values of all Recipients' fields plus 64 bytes for each field, global fields counted once per
+            Recipient, may total at most 10 MiB, or the whole request fails with 422 fields_too_large.
         attachments:
           type: array
           items:

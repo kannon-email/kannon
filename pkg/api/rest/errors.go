@@ -47,7 +47,7 @@ var statuses = map[apperr.Kind]int{
 // limitErrors name the limit a refused request exceeded, so a caller can size the next one.
 var limitErrors = map[string]FieldError{
 	"too_many_fields":  {Code: "too_many_fields", Pointer: "", Detail: fmt.Sprintf("A Recipient may carry at most %d fields, global fields included", intake.MaxFieldsPerRecipient)},
-	"fields_too_large": {Code: "fields_too_large", Pointer: "", Detail: fmt.Sprintf("The fields of a Batch may total at most %d MiB, global fields counted once per Recipient", intake.MaxFieldsBytes>>20)},
+	"fields_too_large": {Code: "fields_too_large", Pointer: "", Detail: fmt.Sprintf("The fields of a Batch, with %d bytes charged for each, may total at most %d MiB, global fields counted once per Recipient", intake.FieldOverheadBytes, intake.MaxFieldsBytes>>20)},
 }
 
 func errorProblem(err error) *requestError {

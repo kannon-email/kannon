@@ -60,10 +60,15 @@ func unsubscribeURLFits(u batch.OneClickUnsubscribe, fields map[string]string, r
 // MaxFieldsPerRecipient bounds the fields one Recipient carries, its global fields included.
 const MaxFieldsPerRecipient = 1000
 
-// MaxFieldsBytes bounds the fields of one Batch, keys and values, summed over its Recipients
-// with the global fields counted once for each. It matches the REST body limit, so a Batch never
-// stores more fields than one request could carry without global fields.
+// MaxFieldsBytes bounds the fields of one Batch, keys and values plus FieldOverheadBytes for
+// each field, summed over its Recipients with the global fields counted once for each. It matches
+// the REST body limit, so a Batch never stores more fields than one request could carry without
+// global fields.
 const MaxFieldsBytes = 10 << 20
+
+// FieldOverheadBytes is what one field is charged beyond its key and value: copying it costs a
+// map entry and stores its JSON punctuation however short it is, so empty fields are not free.
+const FieldOverheadBytes = 64
 
 // checkFieldsBudget refuses a Batch whose fields would be expensive to copy, before any copy is
 // made: global fields are merged into every Recipient and stored with each Delivery, so a request
@@ -87,7 +92,7 @@ func checkFieldsBudget(p InlineRequest) error {
 func fieldsSize(fields map[string]string) int {
 	size := 0
 	for k, v := range fields {
-		size += len(k) + len(v)
+		size += len(k) + len(v) + FieldOverheadBytes
 	}
 	return size
 }

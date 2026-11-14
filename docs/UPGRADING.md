@@ -29,9 +29,9 @@ network (a self-hosted MX, a test relay). Then set
 `POST .../batches` refuses a request whose fields would multiply out of
 proportion, since global fields are copied into every Recipient and stored with
 each Delivery. A Recipient may carry at most 1000 fields, global fields
-included (422 `too_many_fields`), and all Recipients' fields, keys and values,
-with global fields counted once per Recipient, may total at most 10 MiB (422
-`fields_too_large`). The legacy Mailer API is unchanged.
+included (422 `too_many_fields`), and all Recipients' fields, keys and values
+plus 64 bytes for each field, with global fields counted once per Recipient,
+may total at most 10 MiB (422 `fields_too_large`). The legacy Mailer API is unchanged.
 
 ### What you have to do
 
