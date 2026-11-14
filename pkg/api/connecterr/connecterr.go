@@ -5,14 +5,13 @@ package connecterr
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/base64"
 	"errors"
 	"log/slog"
 
 	"connectrpc.com/connect"
 	"github.com/kannon-email/kannon/internal/apperr"
 	"github.com/kannon-email/kannon/internal/authz"
+	"github.com/kannon-email/kannon/pkg/api/requestid"
 )
 
 var codes = map[apperr.Kind]connect.Code{
@@ -52,17 +51,14 @@ func Interceptor() connect.Interceptor {
 			if err == nil || !isFault(err) {
 				return res, err
 			}
-			id := requestID()
+			id := requestid.New()
 			slog.Error("Connect request failed", "procedure", req.Spec().Procedure, "request_id", id, "err", err)
 			generic := connect.NewError(connect.CodeInternal, errors.New("internal"))
-			generic.Meta().Set(RequestIDHeader, id)
+			generic.Meta().Set(requestid.Header, id)
 			return nil, generic
 		}
 	})
 }
-
-// RequestIDHeader carries the ID a fault is logged under, so a caller can quote it.
-const RequestIDHeader = "X-Request-ID"
 
 func isFault(err error) bool {
 	var ce *connect.Error
@@ -70,10 +66,4 @@ func isFault(err error) bool {
 		return true
 	}
 	return ce.Code() == connect.CodeInternal || ce.Code() == connect.CodeUnknown
-}
-
-func requestID() string {
-	id := make([]byte, 16)
-	_, _ = rand.Read(id)
-	return base64.RawURLEncoding.EncodeToString(id)
 }

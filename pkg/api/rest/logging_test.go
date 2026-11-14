@@ -39,8 +39,8 @@ func captureLogs(t *testing.T) func() []map[string]any {
 	}
 }
 
-// Someone guessing credentials used to leave no trace: each refused Bearer authentication is one
-// log line naming the peer, the path and the request ID, and never what was presented.
+// Each refused Bearer authentication is one log line naming the peer, the path and the request
+// ID, and never what was presented.
 func TestAFailedAuthenticationIsLoggedWithoutTheToken(t *testing.T) {
 	const presented = "k_guessed-0123456789"
 	for _, tc := range []struct {

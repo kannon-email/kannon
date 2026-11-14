@@ -9,6 +9,7 @@ import (
 
 	"github.com/kannon-email/kannon/internal/apperr"
 	"github.com/kannon-email/kannon/internal/intake"
+	"github.com/kannon-email/kannon/pkg/api/requestid"
 )
 
 // handler owns error responses. Operations write success only and must return
@@ -73,7 +74,7 @@ func fieldsLimitProblem(e *intake.FieldsLimitError) *requestError {
 
 func writeError(w http.ResponseWriter, r *http.Request, err error) {
 	e := errorProblem(err)
-	logError(r, w.Header().Get("X-Request-ID"), e.status, err)
+	logError(r, w.Header().Get(requestid.Header), e.status, err)
 	if e.status == http.StatusUnauthorized {
 		w.Header().Set("WWW-Authenticate", "Bearer")
 	}
@@ -84,7 +85,7 @@ func writeError(w http.ResponseWriter, r *http.Request, err error) {
 	if fields == nil && e.status == http.StatusUnprocessableEntity {
 		fields = []FieldError{{Code: e.code, Pointer: "", Detail: "Request content is invalid"}}
 	}
-	p := Problem{Type: "urn:kannon:problem:" + e.code, Title: http.StatusText(e.status), Status: e.status, Code: e.code, RequestId: w.Header().Get("X-Request-ID")}
+	p := Problem{Type: "urn:kannon:problem:" + e.code, Title: http.StatusText(e.status), Status: e.status, Code: e.code, RequestId: w.Header().Get(requestid.Header)}
 	if len(fields) > 0 {
 		p.Errors = &fields
 	}

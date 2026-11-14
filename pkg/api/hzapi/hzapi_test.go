@@ -42,7 +42,7 @@ func TestHealthReportsOnlyStatusWhenTheDatabaseIsDown(t *testing.T) {
 
 	require.NotEmpty(t, res.Msg.Result)
 	for name, status := range res.Msg.Result {
-		assert.Equal(t, "unavailable", status, name)
+		assert.Equal(t, hzapi.StatusUnavailable, status, name)
 	}
 	assert.Contains(t, logs.String(), "127.0.0.1")
 	for _, secret := range []string{"kannon_svc", "kannon_prod", "127.0.0.1", "hunter2"} {

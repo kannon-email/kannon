@@ -25,9 +25,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// A NUL byte reached Postgres, which cannot store it in text: REST answered an unlogged 500 and
-// the legacy API handed the caller the database's error. Both now refuse it as the caller's
-// mistake, before anything is written.
+// Postgres cannot store a NUL byte in text, so REST and the legacy API refuse one as the
+// caller's mistake, before anything is written.
 func TestANULByteIsRefusedBeforeItReachesTheDatabase(t *testing.T) {
 	if testing.Short() {
 		t.Skip("requires Docker PostgreSQL")

@@ -4,8 +4,6 @@ package rest
 //go:generate go run ./generate
 
 import (
-	"crypto/rand"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -24,6 +22,7 @@ import (
 	"github.com/kannon-email/kannon/internal/tracking"
 	"github.com/kannon-email/kannon/internal/values"
 	"github.com/kannon-email/kannon/pkg/api/httproute"
+	"github.com/kannon-email/kannon/pkg/api/requestid"
 )
 
 const (
@@ -184,9 +183,7 @@ func NewHandler(s Services) http.Handler {
 	}))
 	root := mountVersions(httproute.OverwritingMatch(mux))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		id := make([]byte, 16)
-		_, _ = rand.Read(id)
-		w.Header().Set("X-Request-ID", base64.RawURLEncoding.EncodeToString(id))
+		w.Header().Set(requestid.Header, requestid.New())
 		root.ServeHTTP(w, r)
 	})
 }

@@ -23,14 +23,20 @@ func (h *hzAPIConnectAdapter) HZ(ctx context.Context, req *connect.Request[pb.HZ
 	return connect.NewResponse(&pb.HZResponse{Result: statuses}), nil
 }
 
+// StatusOK and StatusUnavailable are the only values a component's status takes on the wire.
+const (
+	StatusOK          = "ok"
+	StatusUnavailable = "unavailable"
+)
+
 // componentStatus keeps a failure's detail in the log: the service answers unauthenticated
 // callers, and a driver error names the database user, the database and the host.
 func componentStatus(name string, err error) string {
 	if err == nil {
-		return "ok"
+		return StatusOK
 	}
 	slog.Warn("health check failed", "component", name, "err", err)
-	return "unavailable"
+	return StatusUnavailable
 }
 
 func CreateHZAPIService(cnt *container.Container) hzv1connect.HZServiceHandler {
