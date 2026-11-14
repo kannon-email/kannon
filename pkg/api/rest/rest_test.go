@@ -128,16 +128,16 @@ func TestPersistentDomainJourney(t *testing.T) {
 	for _, name := range []string{"b.example.com", "a.example.com"} {
 		call("POST", "/v1/domains", `{"domain":"`+name+`"}`, 201)
 	}
-	for _, prefix := range []string{"/v1", "/v1beta1"} {
-		r := httptest.NewRequest(http.MethodPost, prefix+"/domains", strings.NewReader(`{"domain":"`+prefix[1:]+`.example.org"}`))
+	for prefix, domain := range map[string]string{"/v1": "created-on-v1.example.org", "/v1beta1": "created-on-v1beta1.example.org"} {
+		r := httptest.NewRequest(http.MethodPost, prefix+"/domains", strings.NewReader(`{"domain":"`+domain+`"}`))
 		r.Header.Set("Authorization", "Bearer secret")
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, r)
-		if want := prefix + "/domains/" + prefix[1:] + ".example.org"; w.Code != 201 || w.Header().Get("Location") != want {
+		if want := prefix + "/domains/" + domain; w.Code != 201 || w.Header().Get("Location") != want {
 			t.Fatalf("%s: status %d Location %q, want %q", prefix, w.Code, w.Header().Get("Location"), want)
 		}
-		call("GET", "/v1/domains/"+prefix[1:]+".example.org", "", 200)
-		call("GET", "/v1beta1/domains/"+prefix[1:]+".example.org", "", 200)
+		call("GET", "/v1/domains/"+domain, "", 200)
+		call("GET", "/v1beta1/domains/"+domain, "", 200)
 	}
 	duplicate := call("POST", "/v1/domains", `{"domain":"a.example.com"}`, 409)
 	if !strings.Contains(duplicate, `"code":"domain_already_exists"`) {

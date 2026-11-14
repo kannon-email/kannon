@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/kannon-email/kannon/internal/admintoken"
@@ -13,7 +14,9 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-func TestEveryVersionServesTheSameRoutes(t *testing.T) {
+const v1beta1Notice = "Deprecated, use v1, which has the same contract under /v1; v1beta1 will be removed. "
+
+func TestBothVersionsAreMounted(t *testing.T) {
 	h := rest.NewHandler(rest.Services{Token: admintoken.MustParse("secret"), Ready: func(context.Context) error { return nil }})
 	for _, tc := range []struct {
 		path string
@@ -37,12 +40,19 @@ func TestEveryVersionServesTheSameRoutes(t *testing.T) {
 func TestDeprecatedContractMirrorsV1(t *testing.T) {
 	v1, beta := readContract(t, "openapi.yaml"), readContract(t, "openapi_v1beta1.yaml")
 	v1Info, betaInfo := object(t, v1["info"]), object(t, beta["info"])
-	if betaInfo["version"] != "v1beta1" || v1Info["version"] != "v1" {
-		t.Fatalf("versions: v1 %v, v1beta1 %v", v1Info["version"], betaInfo["version"])
+	expect := func(field string, got, want any) {
+		t.Helper()
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("%s: got %v, want %v", field, got, want)
+		}
 	}
-	for _, field := range []string{"version", "description"} {
-		betaInfo[field] = v1Info[field]
-	}
+	expect("v1 version", v1Info["version"], "v1")
+	expect("v1beta1 version", betaInfo["version"], "v1beta1")
+	expect("v1 servers", v1["servers"], []any{map[string]any{"url": "/v1"}})
+	expect("v1beta1 servers", beta["servers"], []any{map[string]any{"url": "/v1beta1"}})
+	expect("v1beta1 description", betaInfo["description"], v1beta1Notice+text(t, v1Info["description"]))
+	expect("v1beta1 x-compatibility", beta["x-compatibility"], strings.Replace(text(t, v1["x-compatibility"]), "within v1.", "within v1beta1.", 1))
+	betaInfo["version"], betaInfo["description"] = v1Info["version"], v1Info["description"]
 	beta["servers"], beta["x-compatibility"] = v1["servers"], v1["x-compatibility"]
 	for path, item := range object(t, beta["paths"]) {
 		for method, op := range object(t, item) {
@@ -94,4 +104,13 @@ func object(t *testing.T, v any) map[string]any {
 		t.Fatalf("expected an OpenAPI object, got %T", v)
 	}
 	return m
+}
+
+func text(t *testing.T, v any) string {
+	t.Helper()
+	s, ok := v.(string)
+	if !ok {
+		t.Fatalf("expected an OpenAPI string, got %T", v)
+	}
+	return s
 }
