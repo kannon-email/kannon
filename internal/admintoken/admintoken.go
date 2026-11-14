@@ -8,6 +8,7 @@ package admintoken
 import (
 	"crypto/subtle"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/kannon-email/kannon/internal/authz"
@@ -30,20 +31,41 @@ type Token struct {
 	secret string
 }
 
-// Parse resolves a configured value into a Token, refusing a blank one: an empty secret would
-// match the empty header every unauthenticated request carries, which is the whole of what this
-// package exists to prevent. Surrounding whitespace is trimmed, since a secret mounted from a file
-// or a Kubernetes Secret arrives with a trailing newline often enough that treating it as part of
-// the credential would leave an operator with a token nobody can present.
+// MinSecretLength is the shortest secret Parse accepts — the bar the bounce secret already sets.
+// The token is admin on the root of every Domain and is never typed by a person, so there is no
+// reason to accept one short enough to guess.
+const MinSecretLength = 32
+
+// placeholders are sample values that appear in docs and examples. They are refused by name
+// whatever their length, because a value copied from a page is known to everyone who read it.
+var placeholders = map[string]bool{
+	"change-me": true,
+	"changeme":  true,
+	"admin":     true,
+	"secret":    true,
+}
+
+// Parse resolves a configured value into a Token, refusing a blank one, a known placeholder and
+// one shorter than MinSecretLength: an empty secret would match the empty header every
+// unauthenticated request carries, and a guessable one is not much better. Surrounding whitespace
+// is trimmed, since a secret mounted from a file or a Kubernetes Secret arrives with a trailing
+// newline often enough that treating it as part of the credential would leave an operator with a
+// token nobody can present.
 func Parse(s string) (Token, error) {
 	secret := strings.TrimSpace(s)
 	if secret == "" {
 		return Token{}, errors.New("admin token is empty")
 	}
+	if placeholders[secret] {
+		return Token{}, fmt.Errorf("admin token is the placeholder %q: set a random value of at least %d characters", secret, MinSecretLength)
+	}
+	if len(secret) < MinSecretLength {
+		return Token{}, fmt.Errorf("admin token must be at least %d characters long", MinSecretLength)
+	}
 	return Token{secret: secret}, nil
 }
 
-// MustParse is Parse for tests and package-level values, where a blank
+// MustParse is Parse for tests and package-level values, where a blank or weak
 // secret is a programming error rather than an operator's.
 func MustParse(s string) Token {
 	t, err := Parse(s)

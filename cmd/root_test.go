@@ -35,7 +35,7 @@ func TestRequireAdminToken(t *testing.T) {
 		{
 			name:     "the API is served with a token",
 			services: config.Services{API: config.Service{Enabled: true}},
-			token:    "s3cr3t",
+			token:    "9f2c4e7a1b8d3f6e0a5c2b9d4e7f1a3c",
 		},
 		{
 			name: "this process serves no API",
@@ -73,6 +73,25 @@ func TestRequireAdminTokenWithAnUnresolvableReference(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "KANNON_ADMIN_TOKEN_NOBODY_SET") {
 		t.Errorf("expected the refusal to name the variable, got %q", err)
+	}
+}
+
+// The review PoC: an API served with a one-character token or with the placeholder the
+// docker-compose example used to ship booted and authenticated as admin on the root. Both are
+// refused at boot, naming the key and the minimum length an operator has to meet.
+func TestRequireAdminTokenRefusesAWeakToken(t *testing.T) {
+	for _, token := range []string{"a", "change-me"} {
+		t.Run(token, func(t *testing.T) {
+			viper.Reset()
+			t.Cleanup(viper.Reset)
+			viper.Set(config.APIAdminTokenKey, token)
+
+			err := requireAdminToken(config.Services{API: config.Service{Enabled: true}})
+			assertBootDecision(t, err, true, config.APIAdminTokenKey)
+			if !strings.Contains(err.Error(), "at least 32 characters") {
+				t.Errorf("expected the refusal to name the minimum length, got %q", err)
+			}
+		})
 	}
 }
 
