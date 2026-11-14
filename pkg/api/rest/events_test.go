@@ -56,11 +56,11 @@ func TestPersistentEvents(t *testing.T) {
 		t.Fatal(appPage, err)
 	}
 	keys := apikeys.NewService(sqlc.NewAPIKeysRepository(db))
-	h := rest.NewHandler(rest.Services{Domains: domains.NewService(sqlc.NewDomainsRepository(db)), Token: admintoken.MustParse("secret"), Ready: db.Ping, Stats: svc, Keys: keys})
+	h := rest.NewHandler(rest.Services{Domains: domains.NewService(sqlc.NewDomainsRepository(db)), Token: admintoken.MustParse(testAdminToken), Ready: db.Ping, Stats: svc, Keys: keys})
 	call := func(q string, status int) map[string]any {
 		t.Helper()
 		r := httptest.NewRequest(http.MethodGet, "/v1/domains/events.example/stats/events?"+q, nil)
-		r.Header.Set("Authorization", "Bearer secret")
+		r.Header.Set("Authorization", "Bearer "+testAdminToken)
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, r)
 		if w.Code != status {
@@ -73,7 +73,7 @@ func TestPersistentEvents(t *testing.T) {
 		return v
 	}
 	rDomain := httptest.NewRequest(http.MethodPost, "/v1/domains", strings.NewReader(`{"domain":"events.example"}`))
-	rDomain.Header.Set("Authorization", "Bearer secret")
+	rDomain.Header.Set("Authorization", "Bearer "+testAdminToken)
 	wDomain := httptest.NewRecorder()
 	h.ServeHTTP(wDomain, rDomain)
 	if wDomain.Code != 201 {
@@ -121,7 +121,7 @@ func TestPersistentEvents(t *testing.T) {
 	}
 	for _, role := range []string{"analyst", "metrics-reader", "sender", "admin"} {
 		r := httptest.NewRequest(http.MethodPost, "/v1/domains/events.example/api-keys", strings.NewReader(`{"name":"reader","roles":["`+role+`"]}`))
-		r.Header.Set("Authorization", "Bearer secret")
+		r.Header.Set("Authorization", "Bearer "+testAdminToken)
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, r)
 		if w.Code != 201 {

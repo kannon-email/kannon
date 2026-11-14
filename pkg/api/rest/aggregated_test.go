@@ -10,9 +10,9 @@ import (
 )
 
 func TestAggregateRoute(t *testing.T) {
-	h := rest.NewHandler(rest.Services{Token: admintoken.MustParse("secret"), Stats: stats.NewService(stats.NewInMemRepository(), stats.WithAggregatedStatsRepository(stats.NewInMemAggregatedStatsRepository()))})
+	h := rest.NewHandler(rest.Services{Token: admintoken.MustParse(testAdminToken), Stats: stats.NewService(stats.NewInMemRepository(), stats.WithAggregatedStatsRepository(stats.NewInMemAggregatedStatsRepository()))})
 	r := httptest.NewRequest(http.MethodGet, "/v1/domains/example.com/stats/aggregated?from=2026-01-01T00:00:00Z&to=2026-01-01T01:00:00Z&group_by=1h", nil)
-	r.Header.Set("Authorization", "Bearer secret")
+	r.Header.Set("Authorization", "Bearer "+testAdminToken)
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
 	if w.Code != 200 {

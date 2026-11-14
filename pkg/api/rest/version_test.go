@@ -17,7 +17,7 @@ import (
 const v1beta1Notice = "Deprecated, use v1, which has the same contract under /v1; v1beta1 will be removed. "
 
 func TestBothVersionsAreMounted(t *testing.T) {
-	h := rest.NewHandler(rest.Services{Token: admintoken.MustParse("secret"), Ready: func(context.Context) error { return nil }})
+	h := rest.NewHandler(rest.Services{Token: admintoken.MustParse(testAdminToken), Ready: func(context.Context) error { return nil }})
 	for _, tc := range []struct {
 		path string
 		code int

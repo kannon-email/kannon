@@ -30,7 +30,7 @@ func TestPersistentTemplateJourney(t *testing.T) {
 		}
 	}()
 	defer db.Close()
-	h := rest.NewHandler(rest.Services{Domains: domains.NewService(sqlc.NewDomainsRepository(db)), Token: admintoken.MustParse("secret"), Ready: db.Ping, Keys: apikeys.NewService(sqlc.NewAPIKeysRepository(db)), Templates: templates.NewService(sqlc.NewTemplatesRepository(db))})
+	h := rest.NewHandler(rest.Services{Domains: domains.NewService(sqlc.NewDomainsRepository(db)), Token: admintoken.MustParse(testAdminToken), Ready: db.Ping, Keys: apikeys.NewService(sqlc.NewAPIKeysRepository(db)), Templates: templates.NewService(sqlc.NewTemplatesRepository(db))})
 	call := func(token, method, path, body string, status int) *httptest.ResponseRecorder {
 		t.Helper()
 		r := httptest.NewRequest(method, path, strings.NewReader(body))
@@ -42,12 +42,12 @@ func TestPersistentTemplateJourney(t *testing.T) {
 		}
 		return w
 	}
-	call("secret", "POST", "/v1/domains", `{"domain":"example.com"}`, 201)
+	call(testAdminToken, "POST", "/v1/domains", `{"domain":"example.com"}`, 201)
 	base := "/v1/domains/example.com/templates"
 	for _, body := range []string{`{}`, `{"html":"body"}`, `{"title":"x"}`, `{"title":"x","html":""}`, `{"title":null,"html":"body"}`} {
-		call("secret", "POST", base, body, 422)
+		call(testAdminToken, "POST", base, body, 422)
 	}
-	created := call("secret", "POST", base, `{"title":"Welcome","html":"<p>Hello</p>"}`, 201)
+	created := call(testAdminToken, "POST", base, `{"title":"Welcome","html":"<p>Hello</p>"}`, 201)
 	var resource rest.Template
 	if err := json.Unmarshal(created.Body.Bytes(), &resource); err != nil {
 		t.Fatal(err)
@@ -57,17 +57,17 @@ func TestPersistentTemplateJourney(t *testing.T) {
 		t.Fatal(created)
 	}
 	for _, body := range []string{`{}`, `{"html":""}`, `{"html":null}`, `{"title":null,"html":"new"}`} {
-		call("secret", "PATCH", location, body, 422)
+		call(testAdminToken, "PATCH", location, body, 422)
 	}
-	call("secret", "PATCH", location, `{"title":"Updated"}`, 200)
-	read := call("secret", "GET", location, "", 200)
+	call(testAdminToken, "PATCH", location, `{"title":"Updated"}`, 200)
+	read := call(testAdminToken, "GET", location, "", 200)
 	if err := json.Unmarshal(read.Body.Bytes(), &resource); err != nil {
 		t.Fatal(err)
 	}
 	if resource.Title != "Updated" || resource.Html != "<p>Hello</p>" || resource.Domain != "example.com" {
 		t.Fatal(resource)
 	}
-	call("secret", "POST", base, `{"title":"Second","html":"body"}`, 201)
+	call(testAdminToken, "POST", base, `{"title":"Second","html":"body"}`, 201)
 	// A sending-created transient Template must never appear in authored lists.
 	domain := values.MustParse("example.com")
 	transient, err := templates.NewTransient(domain, "private sending body")
@@ -77,7 +77,7 @@ func TestPersistentTemplateJourney(t *testing.T) {
 	if err := sqlc.NewTemplatesRepository(db).Create(context.Background(), transient); err != nil {
 		t.Fatal(err)
 	}
-	list := call("secret", "GET", base+"?limit=1", "", 200)
+	list := call(testAdminToken, "GET", base+"?limit=1", "", 200)
 	if strings.Contains(list.Body.String(), "html") {
 		t.Fatal("HTML in list")
 	}
@@ -88,7 +88,7 @@ func TestPersistentTemplateJourney(t *testing.T) {
 	if len(page.Items) != 1 || page.NextCursor == nil {
 		t.Fatal(page)
 	}
-	next := call("secret", "GET", base+"?cursor="+*page.NextCursor, "", 200)
+	next := call(testAdminToken, "GET", base+"?cursor="+*page.NextCursor, "", 200)
 	var second rest.TemplateSummaryPage
 	if err := json.Unmarshal(next.Body.Bytes(), &second); err != nil {
 		t.Fatal(err)
@@ -96,9 +96,9 @@ func TestPersistentTemplateJourney(t *testing.T) {
 	if len(second.Items) != 1 || second.Items[0].Id <= page.Items[0].Id {
 		t.Fatal(second)
 	}
-	call("secret", "GET", "/v1/domains/other.com/templates?cursor="+*page.NextCursor, "", 400)
+	call(testAdminToken, "GET", "/v1/domains/other.com/templates?cursor="+*page.NextCursor, "", 400)
 	for _, role := range []string{"admin", "sender"} {
-		key := call("secret", "POST", "/v1/domains/example.com/api-keys", `{"name":"test","roles":["`+role+`"]}`, 201)
+		key := call(testAdminToken, "POST", "/v1/domains/example.com/api-keys", `{"name":"test","roles":["`+role+`"]}`, 201)
 		var k rest.APIKeyCreated
 		if err := json.Unmarshal(key.Body.Bytes(), &k); err != nil {
 			t.Fatal(err)
@@ -134,13 +134,13 @@ func TestPersistentTemplateJourney(t *testing.T) {
 	if err != nil || patched.Title() != "Updated" || patched.Html() != html {
 		t.Fatal(patched, err)
 	}
-	read = call("secret", "GET", location, "", 200)
+	read = call(testAdminToken, "GET", location, "", 200)
 	if err := json.Unmarshal(read.Body.Bytes(), &resource); err != nil {
 		t.Fatal(err)
 	}
 	if resource.Html != html {
 		t.Fatal(resource)
 	}
-	call("secret", "DELETE", location, "", 204)
-	call("secret", "GET", location, "", 404)
+	call(testAdminToken, "DELETE", location, "", 204)
+	call(testAdminToken, "GET", location, "", 404)
 }

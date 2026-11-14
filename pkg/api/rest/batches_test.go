@@ -43,11 +43,11 @@ func TestInlineBatchRetry(t *testing.T) {
 		}
 	}()
 	service := intake.NewInlineService(sqlc.NewInlineStore(db), sqlc.NewDomainsRepository(db), nil, 0, 0)
-	h := rest.NewHandler(rest.Services{Domains: domains.NewService(sqlc.NewDomainsRepository(db)), Token: admintoken.MustParse("secret"), Ready: db.Ping, Inline: service})
+	h := rest.NewHandler(rest.Services{Domains: domains.NewService(sqlc.NewDomainsRepository(db)), Token: admintoken.MustParse(testAdminToken), Ready: db.Ping, Inline: service})
 	call := func(path, key, body string, status int) map[string]any {
 		t.Helper()
 		r := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
-		r.Header.Set("Authorization", "Bearer secret")
+		r.Header.Set("Authorization", "Bearer "+testAdminToken)
 		r.Header.Set("Idempotency-Key", key)
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, r)
@@ -84,7 +84,7 @@ func TestInlineBatchRetry(t *testing.T) {
 	readBatch := func(id string) map[string]any {
 		t.Helper()
 		r := httptest.NewRequest(http.MethodGet, path+"/"+id, nil)
-		r.Header.Set("Authorization", "Bearer secret")
+		r.Header.Set("Authorization", "Bearer "+testAdminToken)
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, r)
 		require.Equal(t, 200, w.Code, w.Body.String())
@@ -321,7 +321,7 @@ func TestInlineBatchRetry(t *testing.T) {
 	call(path, "rollback", body, 201)
 	// Simulate a connection lost while the committed response is being written.
 	r := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
-	r.Header.Set("Authorization", "Bearer secret")
+	r.Header.Set("Authorization", "Bearer "+testAdminToken)
 	r.Header.Set("Idempotency-Key", "lost")
 	h.ServeHTTP(&lostWriter{header: http.Header{}}, r)
 	before = counts()

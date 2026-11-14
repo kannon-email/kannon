@@ -24,7 +24,7 @@ const procedure = "/kannon.test.authzconnect.Probe/Call"
 
 // serverSecret is what the guarded probe below is configured with. A test presenting
 // something else is presenting a wrong token, which is the case that matters.
-const serverSecret = "s3cr3t-admin-token"
+const serverSecret = "s3cr3t-admin-token-0123456789abcdef"
 
 // The whole of what the header does, end to end through a real Connect server: with the token, a
 // request reaches the operation; without it, or with the wrong one, it is refused as

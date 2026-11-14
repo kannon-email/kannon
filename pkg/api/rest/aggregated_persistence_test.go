@@ -52,7 +52,7 @@ func TestPersistentAggregateSeries(t *testing.T) {
 		t.Fatal(buckets, err)
 	}
 	keys := apikeys.NewService(sqlc.NewAPIKeysRepository(db))
-	h := rest.NewHandler(rest.Services{Domains: domains.NewService(sqlc.NewDomainsRepository(db)), Token: admintoken.MustParse("secret"), Ready: db.Ping, Stats: svc, Keys: keys})
+	h := rest.NewHandler(rest.Services{Domains: domains.NewService(sqlc.NewDomainsRepository(db)), Token: admintoken.MustParse(testAdminToken), Ready: db.Ping, Stats: svc, Keys: keys})
 	call := func(token, method, path, body string, status int) string {
 		t.Helper()
 		r := httptest.NewRequest(method, path, strings.NewReader(body))
@@ -64,14 +64,14 @@ func TestPersistentAggregateSeries(t *testing.T) {
 		}
 		return w.Body.String()
 	}
-	call("secret", "POST", "/v1/domains", `{"domain":"aggregate.example"}`, 201)
+	call(testAdminToken, "POST", "/v1/domains", `{"domain":"aggregate.example"}`, 201)
 	base := "/v1/domains/aggregate.example/stats/aggregated?"
 	q := "from=2026-01-01T03:00:00Z&to=2026-01-01T09:00:00Z&group_by=3h"
-	body := call("secret", "GET", base+q, "", 200)
+	body := call(testAdminToken, "GET", base+q, "", 200)
 	shifted := strings.ReplaceAll(strings.ReplaceAll(q, "03:00:00Z", "04:00:00%2B01:00"), "09:00:00Z", "10:00:00%2B01:00")
 	var offsetResult map[string]any
 	var utcResult map[string]any
-	if err := json.Unmarshal([]byte(call("secret", "GET", base+shifted, "", 200)), &offsetResult); err != nil {
+	if err := json.Unmarshal([]byte(call(testAdminToken, "GET", base+shifted, "", 200)), &offsetResult); err != nil {
 		t.Fatal(err)
 	}
 	if err := json.Unmarshal([]byte(body), &utcResult); err != nil {
@@ -97,18 +97,18 @@ func TestPersistentAggregateSeries(t *testing.T) {
 		"from=2026-01-01T03:00:00Z&to=2026-01-02T03:00:00Z&group_by=24h",
 		"from=2026-01-01T03:00:00Z&to=2026-02-11T19:00:00Z&group_by=1h",
 	} {
-		call("secret", "GET", base+query, "", 200)
+		call(testAdminToken, "GET", base+query, "", 200)
 	}
 	for _, query := range []string{
 		strings.Replace(q, "3h", "30m", 1), strings.Replace(q, "3h", "1h30m", 1), strings.Replace(q, "3h", "0h", 1), strings.Replace(q, "3h", "-1h", 1),
 		strings.Replace(q, "03:00:00Z", "03:30:00Z", 1), strings.Replace(q, "09:00:00Z", "08:00:00Z", 1), strings.Replace(q, "09:00:00Z", "03:00:00Z", 1),
 		"from=2026-01-01T03:00:00Z&to=2026-02-11T20:00:00Z&group_by=1h", "group_by=1h", q + "&group_by=1h", q + "&batch_id=old", q + "&limit=10", strings.Replace(q, "03:00:00Z", "03:00:00", 1),
 	} {
-		call("secret", "GET", base+query, "", 400)
+		call(testAdminToken, "GET", base+query, "", 400)
 	}
 	for _, role := range []string{"admin", "analyst", "metrics-reader", "sender", "batch-reader"} {
 		var key rest.APIKeyCreated
-		if err := json.Unmarshal([]byte(call("secret", "POST", "/v1/domains/aggregate.example/api-keys", `{"name":"reader","roles":["`+role+`"]}`, 201)), &key); err != nil {
+		if err := json.Unmarshal([]byte(call(testAdminToken, "POST", "/v1/domains/aggregate.example/api-keys", `{"name":"reader","roles":["`+role+`"]}`, 201)), &key); err != nil {
 			t.Fatal(err)
 		}
 		want := 200
