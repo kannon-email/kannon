@@ -85,10 +85,10 @@ func AdminToken() (admintoken.Token, error) {
 // that is not one — because the operator's next move is the same, and it is to look at this key.
 func adminTokenError(err error) error {
 	return fmt.Errorf(
-		"the API needs an admin token to authenticate the Admin and Stats APIs: set %q in the config file, "+
-			"taking it from the environment as `admin_token: env://KANNON_ADMIN_TOKEN` if you would rather "+
-			"not write it there (%w)",
-		config.APIAdminTokenKey, err)
+		"the API needs an admin token to authenticate the Admin and Stats APIs: set %q in the config file "+
+			"to a random value of at least %d characters (`openssl rand -hex 32`), taking it from the "+
+			"environment as `admin_token: env://KANNON_ADMIN_TOKEN` if you would rather not write it there (%w)",
+		config.APIAdminTokenKey, admintoken.MinSecretLength, err)
 }
 
 const (

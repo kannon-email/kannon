@@ -48,11 +48,11 @@ func TestDeliverySurvivesPoolAndLateBounce(t *testing.T) {
 	if err := db.QueryRow(ctx, `SELECT id FROM delivery_intake_facts WHERE batch_id=$1`, receipt.ID).Scan(&id); err != nil {
 		t.Fatal(err)
 	}
-	h := rest.NewHandler(rest.Services{Domains: ds, Token: admintoken.MustParse("secret"), Ready: db.Ping, Inline: svc})
+	h := rest.NewHandler(rest.Services{Domains: ds, Token: admintoken.MustParse(testAdminToken), Ready: db.Ping, Inline: svc})
 	read := func(domain, bid string, status int) rest.Delivery {
 		t.Helper()
 		r := httptest.NewRequest(http.MethodGet, "/v1/domains/"+domain+"/batches/"+bid+"/deliveries/"+id, nil)
-		r.Header.Set("Authorization", "Bearer secret")
+		r.Header.Set("Authorization", "Bearer "+testAdminToken)
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, r)
 		if w.Code != status {
@@ -70,7 +70,7 @@ func TestDeliverySurvivesPoolAndLateBounce(t *testing.T) {
 		t.Fatal(d)
 	}
 	r := httptest.NewRequest(http.MethodGet, "/v1/domains/example.com/batches/"+receipt.ID, nil)
-	r.Header.Set("Authorization", "Bearer secret")
+	r.Header.Set("Authorization", "Bearer "+testAdminToken)
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
 	if w.Code != 200 {
@@ -87,7 +87,7 @@ func TestDeliverySurvivesPoolAndLateBounce(t *testing.T) {
 	get := func(path string, code int) []byte {
 		t.Helper()
 		req := httptest.NewRequest(http.MethodGet, path, nil)
-		req.Header.Set("Authorization", "Bearer secret")
+		req.Header.Set("Authorization", "Bearer "+testAdminToken)
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, req)
 		if rec.Code != code {

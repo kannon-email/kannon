@@ -963,10 +963,11 @@ const (
 	engagementUserAgent = "kannon-e2e-agent/1.0"
 )
 
-// requireTrackerHit issues one tracking request the way a recipient's client would — with an IP and
-// a user agent for the Tracker to retain or drop — and returns the Location header. Redirects are
+// requireTrackerHit issues one tracking request the way a recipient's client would — on the stats
+// host of the Domain the token belongs to, with an IP and a user agent for the Tracker to retain or
+// drop — and returns the Location header. Redirects are
 // not followed: the tests assert the 307 directly, not that example.com is reachable from CI.
-func requireTrackerHit(t *testing.T, url string, wantStatus int) string {
+func requireTrackerHit(t *testing.T, host, url string, wantStatus int) string {
 	t.Helper()
 
 	httpClient := &http.Client{
@@ -979,6 +980,7 @@ func requireTrackerHit(t *testing.T, url string, wantStatus int) string {
 	require.EventuallyWithT(t, func(tt *assert.CollectT) {
 		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, url, nil)
 		require.NoError(tt, err)
+		req.Host = host
 		req.Header.Set("User-Agent", engagementUserAgent)
 		req.Header.Set("X-Real-Ip", engagementIP)
 
@@ -1012,10 +1014,10 @@ func trackEngagement(t *testing.T, client *clientTest, senderMock *senderMock, i
 
 	msg := requireGetEmail(t, senderMock, to)
 
-	requireTrackerHit(t,
+	requireTrackerHit(t, client.StatsHost(),
 		fmt.Sprintf("http://localhost:%d/o/%s", infra.trackerPort, extractOpenToken(t, msg.Body)),
 		http.StatusOK)
-	location := requireTrackerHit(t,
+	location := requireTrackerHit(t, client.StatsHost(),
 		fmt.Sprintf("http://localhost:%d/c/%s", infra.trackerPort, extractClickToken(t, msg.Body)),
 		http.StatusTemporaryRedirect)
 	assert.Equal(t, landingURL, location, "click redirect must round-trip the originally-authored URL")
@@ -1085,10 +1087,10 @@ func testTrackingAnonymous(t *testing.T, clientFactory *clientFactory, senderMoc
 	assert.Equal(t, clickToken, extractClickToken(t, secondMsg.Body),
 		"an anonymous tracked link names nobody, so both Recipients must receive the same token")
 
-	requireTrackerHit(t,
+	requireTrackerHit(t, client.StatsHost(),
 		fmt.Sprintf("http://localhost:%d/o/%s", infra.trackerPort, openToken),
 		http.StatusOK)
-	location := requireTrackerHit(t,
+	location := requireTrackerHit(t, client.StatsHost(),
 		fmt.Sprintf("http://localhost:%d/c/%s", infra.trackerPort, clickToken),
 		http.StatusTemporaryRedirect)
 	assert.Equal(t, landingURL, location, "the redirect is owed to the recipient under every Mode")
@@ -1161,7 +1163,7 @@ func testOpened(t *testing.T, clientFactory *clientFactory, senderMock *senderMo
 	msg := requireGetEmail(t, senderMock, to)
 	token := extractOpenToken(t, msg.Body)
 
-	requireTrackerHit(t, fmt.Sprintf("http://localhost:%d/o/%s", infra.trackerPort, token), http.StatusOK)
+	requireTrackerHit(t, client.StatsHost(), fmt.Sprintf("http://localhost:%d/o/%s", infra.trackerPort, token), http.StatusOK)
 
 	matched := requireStat(t, client, to, "opened", 1)
 	assert.EqualValues(t, to, matched[0].Email)
@@ -1194,7 +1196,7 @@ func testClicked(t *testing.T, clientFactory *clientFactory, senderMock *senderM
 	msg := requireGetEmail(t, senderMock, to)
 	token := extractClickToken(t, msg.Body)
 
-	location := requireTrackerHit(t,
+	location := requireTrackerHit(t, client.StatsHost(),
 		fmt.Sprintf("http://localhost:%d/c/%s", infra.trackerPort, token),
 		http.StatusTemporaryRedirect)
 
@@ -1319,7 +1321,7 @@ func testMixedRecipientTrackingPolicies(t *testing.T, clientFactory *clientFacto
 	trackedMsg := requireGetEmail(t, senderMock, tracked)
 	assert.NotContains(t, trackedMsg.Body, fmt.Sprintf("href=%q", landingURL),
 		"a tracked Recipient's links must be rewritten")
-	requireTrackerHit(t,
+	requireTrackerHit(t, client.StatsHost(),
 		fmt.Sprintf("http://localhost:%d/o/%s", infra.trackerPort, extractOpenToken(t, trackedMsg.Body)),
 		http.StatusOK)
 	opened := requireStat(t, client, tracked, "opened", 1)

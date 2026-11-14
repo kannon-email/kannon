@@ -153,9 +153,12 @@ go build -o kannon .
 See [`examples/docker-compose/`](examples/docker-compose/) for ready-to-use files. The compose file runs the migration as a separate `migrator` service before starting Kannon.
 
 ```sh
+export KANNON_ADMIN_TOKEN=$(openssl rand -hex 32)
 docker compose -f examples/docker-compose/docker-compose.yaml up
 # or: make docker-up
 ```
+
+The stack ships no default admin token: Compose refuses to start until `KANNON_ADMIN_TOKEN` is set.
 
 - Edit `examples/docker-compose/kannon.yaml` to configure your environment.
 
@@ -232,6 +235,7 @@ Metrics carry no `domain` label: per-Domain figures are in the Stats API. Keep t
 | `sender.hostname`            | string   | (required)     | Hostname announced for outgoing mail             |
 | `sender.max_jobs`            | int      | 10             | Max parallel sending jobs                        |
 | `sender.demo_sender`         | bool     | false          | Enable demo sender mode for testing              |
+| `sender.allow_private_destinations` | bool | false | Deliver to MX hosts on loopback, private, shared (CGNAT), link-local or unspecified addresses (see below) |
 | `smtp.address`               | string   | `:25`          | Inbound SMTP server listen address               |
 | `smtp.domain`                | string   | localhost      | Inbound SMTP server domain                       |
 | `smtp.read_timeout`          | duration | 10s            | SMTP read timeout                                |
@@ -246,14 +250,17 @@ Metrics carry no `domain` label: per-Domain figures are in the Stats API. Keep t
 
 A *size* is written as a Kubernetes quantity: `5Mi`, `500Ki`, `1Gi` (powers of 1024), `5M`, `500k`, `1G` (powers of 1000), or a bare number of bytes.
 
+> [!NOTE]
+> The sender refuses to open an SMTP session with any address on loopback (`127.0.0.0/8`, `::1`), a private range (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `fc00::/7`), the shared address space of carrier-grade NAT (`100.64.0.0/10`), link-local (`169.254.0.0/16`, `fe80::/10`) or the unspecified address, or with an IPv6 address that embeds such an IPv4 address (NAT64 `64:ff9b::/96`, IPv4-compatible `::a.b.c.d`, 6to4 `2002::/16`) or lies in the local-use NAT64 prefix `64:ff9b:1::/48`, whether it came from an MX record, the A/AAAA fallback or an address literal. The check runs on the address actually dialed, so a name that resolves differently by the time of the connection (DNS rebinding) is caught too. Such a Delivery bounces permanently, with a reason naming the refused address, and is not retried. Set `sender.allow_private_destinations: true` only for tests or when Kannon relays through a self-hosted MX on a private network.
+
 **Access control**:
 
 | YAML key          | Type   | Default    | Description                                                     |
 | ----------------- | ------ | ---------- | --------------------------------------------------------------- |
-| `api.admin_token` | string | (required) | Credential authenticating the Admin API and both Stats APIs      |
+| `api.admin_token` | string | (required) | Credential authenticating the Admin API and both Stats APIs; at least 32 characters, see below |
 
 > [!IMPORTANT]
-> Write `admin_token: env://KANNON_ADMIN_TOKEN` and keep the value in a Secret rather than in the ConfigMap holding the rest of the file. It is required whenever `services.api.enabled` is set: a process asked to serve the API without it refuses to boot, rather than come up answering every Admin and Stats request with `unauthenticated`. Workers that do not serve the API need no token.
+> Write `admin_token: env://KANNON_ADMIN_TOKEN` and keep the value in a Secret rather than in the ConfigMap holding the rest of the file. It is required whenever `services.api.enabled` is set: a process asked to serve the API without it refuses to boot, rather than come up answering every Admin and Stats request with `unauthenticated`. Workers that do not serve the API need no token. A token shorter than 32 characters, or a known placeholder such as `change-me`, `changeme`, `admin` or `secret`, is refused at boot too: generate the value with `openssl rand -hex 32`.
 
 > [!WARNING]
 > The admin token is a single shared secret that authorizes **everything on every Domain** — creating Domains, minting API Keys, rewriting Templates and reading any Domain's per-Delivery statistics. It names no operator, so an Audit Record can only say that a holder acted, and it is revoked by changing it and restarting. Give it to as few callers as possible, and keep the API listener off untrusted networks.
@@ -624,6 +631,7 @@ This mode mocks the SMTP client and does not actually send emails.
 The [`examples/docker-compose/`](examples/docker-compose/) stack is the fastest way to develop against Kannon: it starts PostgreSQL, NATS, a one-shot migrator, and Kannon with every component enabled and `demo_sender: true`.
 
 ```sh
+export KANNON_ADMIN_TOKEN=$(openssl rand -hex 32)
 docker compose -f examples/docker-compose/docker-compose.yaml up -d
 ```
 

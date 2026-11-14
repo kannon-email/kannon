@@ -87,7 +87,7 @@ func metricsServer(t *testing.T, reg *prometheus.Registry, mailer mailerv1connec
 	t.Helper()
 	mux := newAPIMux(
 		connectReadMaxBytes(defaultMaxPayload),
-		authzconnect.AdminTokenHandlerOptions(admintoken.MustParse("secret")),
+		authzconnect.AdminTokenHandlerOptions(admintoken.MustParse("0123456789abcdef0123456789abcdef")),
 		apimetrics.New(reg),
 		adminv1connect.UnimplementedApiHandler{},
 		mailer,

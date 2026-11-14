@@ -30,7 +30,7 @@ const defaultSenderAlias = "Test Sender"
 // adminToken is the credential the suite configures Kannon with and presents on every Admin and
 // Stats call. The Mailer client never gets it: those calls authenticate with a Domain's own API
 // Key, and a suite that handed both to every client could not tell the two apart.
-const adminToken = "e2e-admin-token"
+const adminToken = "e2e-admin-token-0123456789abcdef0123"
 
 type clientTest struct {
 	mailerClient  mailerv1connect.MailerClient
@@ -56,6 +56,11 @@ func (c *clientTest) Sender() *mailertypes.Sender {
 // matching what the SMTP layer puts in the From header.
 func (c *clientTest) SenderFrom() string {
 	return (&mail.Address{Name: defaultSenderAlias, Address: "sender@" + c.domain}).String()
+}
+
+// StatsHost is the host the client's Domain's tracking links point at.
+func (c *clientTest) StatsHost() string {
+	return "stats." + c.domain
 }
 
 // SetTrackingPolicy configures the Tracking Policy of the client's Domain

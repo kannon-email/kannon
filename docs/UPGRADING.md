@@ -5,6 +5,76 @@ releases that change behaviour of an installation already in production appear
 here; everything else is in [`CHANGELOG.md`](../CHANGELOG.md), which is
 generated from commits.
 
+## Unreleased — strong Admin Token required
+
+### What changes
+
+A process serving the API refuses to boot when `api.admin_token` is shorter
+than 32 characters or is a known placeholder (`change-me`, `changeme`, `admin`,
+`secret`), whatever its length. The boot error names the minimum. The
+docker-compose example no longer falls back to `change-me`: Compose refuses to
+start the stack until `KANNON_ADMIN_TOKEN` is set.
+
+### What you have to do
+
+If your token is shorter than 32 characters or is one of the placeholders,
+generate a new one with `openssl rand -hex 32`, store it where `api.admin_token`
+reads it (a Secret behind `env://KANNON_ADMIN_TOKEN`), and give it to every
+caller of the Admin and Stats APIs before upgrading. With the docker-compose
+example, export `KANNON_ADMIN_TOKEN` before `docker compose up`.
+
+## Unreleased — Tracker served only on the Domain's stats host
+
+### What changes
+
+The Tracker answers a click or open only when the request's host, port
+stripped and case ignored, is `stats.` followed by the Domain the token was
+issued for, the host Kannon writes into tracking links. On any other host it
+answers 404 and records nothing. A click now redirects only to an `http` or
+`https` URL; a token naming any other kind of URL answers 404.
+
+### What you have to do
+
+Nothing, if every `stats.<domain>` host reaches the Tracker with its `Host`
+header intact. If a proxy, Ingress or HTTPRoute in front of `tracker.port`
+rewrites the `Host` header, or the Tracker is reached only through a single
+shared host, change it so that the original `stats.<domain>` host is passed
+through; otherwise every open and click answers 404.
+
+## Unreleased — no delivery to private destinations
+
+### What changes
+
+The sender no longer delivers to an MX host whose address is on loopback, a
+private range, the shared address space of carrier-grade NAT (`100.64.0.0/10`),
+link-local or unspecified, nor to an IPv6 address that embeds such an IPv4
+address (NAT64 `64:ff9b::/96`, IPv4-compatible `::a.b.c.d`, 6to4 `2002::/16`)
+or lies in the local-use NAT64 prefix `64:ff9b:1::/48`. Such a Delivery bounces permanently,
+with a reason naming the refused address, instead of being handed over.
+
+### What you have to do
+
+Nothing, unless your recipients' mail is relayed through a host on a private
+network (a self-hosted MX, a test relay). Then set
+`sender.allow_private_destinations: true` on the sender.
+
+## Unreleased — Fields bounded per REST Batch
+
+### What changes
+
+`POST .../batches` refuses a request whose fields would multiply out of
+proportion, since global fields are copied into every Recipient and stored with
+each Delivery. A Recipient may carry at most 1000 fields, global fields
+included (422 `too_many_fields`), and all Recipients' fields, keys and values
+plus 64 bytes for each field, with global fields counted once per Recipient,
+may total at most 10 MiB (422 `fields_too_large`). The legacy Mailer API is unchanged.
+
+### What you have to do
+
+Nothing, unless a client sends more fields than that: split such a Batch into
+smaller ones, or move large shared content from `global_fields` into the HTML or
+a Template.
+
 ## Unreleased — Prometheus metrics on port 9090
 
 ### What changes

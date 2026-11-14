@@ -112,7 +112,7 @@ func readLimitServer(t *testing.T) (*countingMailer, *httptest.Server) {
 	mailer := &countingMailer{}
 	mux := newAPIMux(
 		connectReadMaxBytes(defaultMaxPayload),
-		authzconnect.AdminTokenHandlerOptions(admintoken.MustParse("secret")),
+		authzconnect.AdminTokenHandlerOptions(admintoken.MustParse("0123456789abcdef0123456789abcdef")),
 		apimetrics.New(prometheus.NewRegistry()),
 		adminv1connect.UnimplementedApiHandler{},
 		mailer,

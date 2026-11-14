@@ -22,6 +22,8 @@ services:
     image: *kannon-image
     restart: always
     command: "--config /kannon.yaml"
+    environment:
+      KANNON_ADMIN_TOKEN: ${KANNON_ADMIN_TOKEN:?generate an admin token first, e.g. export KANNON_ADMIN_TOKEN=$$(openssl rand -hex 32)}
     volumes:
       - ./kannon.yaml:/kannon.yaml
     ports:

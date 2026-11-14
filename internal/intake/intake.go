@@ -266,6 +266,10 @@ func (s *Service) decide(domain *domains.Domain, b *batch.Batch, html string, ro
 			taken.reject(r.Email, ReasonInvalidEmail, "email is empty")
 			continue
 		}
+		if smtputils.NamesHostDirectly(strings.TrimSpace(r.Email)) {
+			taken.reject(r.Email, ReasonInvalidEmail, "email names a host, not a mail domain")
+			continue
+		}
 		policy, rejection := resolveRecipientTracking(domain.TrackingPolicy(), b.TrackingPolicy(), r)
 		if rejection != nil {
 			taken.reject(r.Email, rejection.reason, rejection.detail)

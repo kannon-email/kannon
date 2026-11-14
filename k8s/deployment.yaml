@@ -115,7 +115,8 @@ spec:
             - name: KANNON_SENDER_HOSTNAME
               value: kannon.example.com
             # Required by a pod serving the API, and by no other: give it to those
-            # Deployments alone (ADR 0009).
+            # Deployments alone (ADR 0009). At least 32 characters, never a
+            # placeholder: `openssl rand -hex 32`.
             - name: KANNON_ADMIN_TOKEN
               valueFrom:
                 secretKeyRef:

@@ -37,7 +37,7 @@ func TestPersistentCredentialJourney(t *testing.T) {
 		}
 	}()
 	keys := apikeys.NewService(sqlc.NewAPIKeysRepository(db))
-	h := rest.NewHandler(rest.Services{Domains: domains.NewService(sqlc.NewDomainsRepository(db)), Token: admintoken.MustParse("secret"), Ready: db.Ping, Keys: keys})
+	h := rest.NewHandler(rest.Services{Domains: domains.NewService(sqlc.NewDomainsRepository(db)), Token: admintoken.MustParse(testAdminToken), Ready: db.Ping, Keys: keys})
 	call := func(token, method, path, body string, status int) string {
 		t.Helper()
 		r := httptest.NewRequest(method, path, strings.NewReader(body))
@@ -49,10 +49,10 @@ func TestPersistentCredentialJourney(t *testing.T) {
 		}
 		return w.Body.String()
 	}
-	call("secret", "POST", "/v1/domains", `{"domain":"example.com"}`, 201)
+	call(testAdminToken, "POST", "/v1/domains", `{"domain":"example.com"}`, 201)
 	base := "/v1/domains/example.com/api-keys"
 	var key rest.APIKeyCreated
-	if err := json.Unmarshal([]byte(call("secret", "POST", base, `{"name":"operator","roles":["admin"]}`, 201)), &key); err != nil {
+	if err := json.Unmarshal([]byte(call(testAdminToken, "POST", base, `{"name":"operator","roles":["admin"]}`, 201)), &key); err != nil {
 		t.Fatal(err)
 	}
 	if key.Secret == "" {
@@ -160,8 +160,8 @@ func TestPersistentCredentialJourney(t *testing.T) {
 		t.Fatal("expired gRPC credential accepted")
 	}
 
-	call("secret", "PATCH", base+"/"+key.Id, `{"status":"revoked"}`, 200)
-	call("secret", "PATCH", base+"/"+key.Id, `{"status":"revoked"}`, 200)
+	call(testAdminToken, "PATCH", base+"/"+key.Id, `{"status":"revoked"}`, 200)
+	call(testAdminToken, "PATCH", base+"/"+key.Id, `{"status":"revoked"}`, 200)
 	call(key.Secret, "GET", base, "", 401)
 }
 

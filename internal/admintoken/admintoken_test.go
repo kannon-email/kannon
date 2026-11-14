@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const secret = "s3cr3t-admin-token"
+const secret = "9f2c4e7a1b8d3f6e0a5c2b9d4e7f1a3c"
 
 // A blank secret is refused at the boundary rather than left to fail every comparison later: it
 // would authenticate the empty header of a request carrying no credential at all, which is the
@@ -19,6 +19,26 @@ func TestParseRefusesABlankSecret(t *testing.T) {
 	for _, s := range []string{"", " ", "\n", "\t  \n"} {
 		_, err := admintoken.Parse(s)
 		assert.Error(t, err, "expected %q to be refused as a secret", s)
+	}
+}
+
+// A short secret would let anyone guess their way to admin on the root. It is refused naming the
+// minimum, so the operator learns the rule rather than only that the value was wrong.
+func TestParseRefusesASecretShorterThanTheMinimum(t *testing.T) {
+	for _, s := range []string{"a", "s3cr3t", "9f2c4e7a1b8d3f6e0a5c2b9d4e7f1a3"} {
+		_, err := admintoken.Parse(s)
+		require.Error(t, err, "expected %q to be refused as a secret", s)
+		assert.ErrorContains(t, err, "at least 32 characters")
+	}
+}
+
+// Placeholders are refused by name whatever their length, so a sample value padded past the
+// minimum by a docs page or a chart default still cannot become the credential.
+func TestParseRefusesAKnownPlaceholder(t *testing.T) {
+	for _, s := range []string{"change-me", "changeme", "admin", "secret", " change-me\n"} {
+		_, err := admintoken.Parse(s)
+		require.Error(t, err, "expected %q to be refused as a secret", s)
+		assert.ErrorContains(t, err, "placeholder")
 	}
 }
 

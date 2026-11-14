@@ -24,7 +24,7 @@ func TestMain(m *testing.M) {
 
 func TestPublicReadiness(t *testing.T) {
 	for _, ready := range []bool{true, false} {
-		h := rest.NewHandler(rest.Services{Token: admintoken.MustParse("secret"), Ready: func(context.Context) error {
+		h := rest.NewHandler(rest.Services{Token: admintoken.MustParse(testAdminToken), Ready: func(context.Context) error {
 			if !ready {
 				return errors.New("postgres password secret")
 			}
@@ -49,7 +49,7 @@ func TestPublicReadiness(t *testing.T) {
 }
 
 func TestPublicContract(t *testing.T) {
-	h := rest.NewHandler(rest.Services{Token: admintoken.MustParse("secret")})
+	h := rest.NewHandler(rest.Services{Token: admintoken.MustParse(testAdminToken)})
 	for path, file := range map[string]string{"/v1/openapi.yaml": "openapi.yaml", "/v1beta1/openapi.yaml": "openapi_v1beta1.yaml"} {
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
@@ -67,17 +67,17 @@ func TestPublicContract(t *testing.T) {
 }
 
 func TestAuthenticationAndInvalidRequests(t *testing.T) {
-	h := rest.NewHandler(rest.Services{Token: admintoken.MustParse("secret")})
+	h := rest.NewHandler(rest.Services{Token: admintoken.MustParse(testAdminToken)})
 	for _, tc := range []struct {
 		method, path, body, token, code string
 		status                          int
 	}{
 		{"GET", "/v1/domains", "", "", "unauthenticated", 401},
-		{"GET", "/v1/domains?wat=1", "", "secret", "unknown_query_parameter", 400},
-		{"GET", "/v1/domains?limit=1001", "", "secret", "invalid_query_parameter", 400},
-		{"GET", "/v1/domains?cursor=garbage", "", "secret", "invalid_cursor", 400},
-		{"POST", "/v1/domains", `{"domain":"example.com","name":"rename"}`, "secret", "malformed_request", 400},
-		{"PATCH", "/v1/domains/example.com", `{"tracking":{"opens":"full"}}`, "secret", "validation_failed", 422},
+		{"GET", "/v1/domains?wat=1", "", testAdminToken, "unknown_query_parameter", 400},
+		{"GET", "/v1/domains?limit=1001", "", testAdminToken, "invalid_query_parameter", 400},
+		{"GET", "/v1/domains?cursor=garbage", "", testAdminToken, "invalid_cursor", 400},
+		{"POST", "/v1/domains", `{"domain":"example.com","name":"rename"}`, testAdminToken, "malformed_request", 400},
+		{"PATCH", "/v1/domains/example.com", `{"tracking":{"opens":"full"}}`, testAdminToken, "validation_failed", 422},
 	} {
 		t.Run(tc.code+tc.method, func(t *testing.T) {
 			r := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
@@ -110,11 +110,11 @@ func TestPersistentDomainJourney(t *testing.T) {
 			t.Error(err)
 		}
 	}()
-	h := rest.NewHandler(rest.Services{Domains: domains.NewService(sqlc.NewDomainsRepository(db)), Token: admintoken.MustParse("secret"), Ready: db.Ping})
+	h := rest.NewHandler(rest.Services{Domains: domains.NewService(sqlc.NewDomainsRepository(db)), Token: admintoken.MustParse(testAdminToken), Ready: db.Ping})
 	call := func(method, path, body string, status int) string {
 		t.Helper()
 		r := httptest.NewRequest(method, path, strings.NewReader(body))
-		r.Header.Set("Authorization", "Bearer secret")
+		r.Header.Set("Authorization", "Bearer "+testAdminToken)
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, r)
 		if w.Code != status {
@@ -130,7 +130,7 @@ func TestPersistentDomainJourney(t *testing.T) {
 	}
 	for prefix, domain := range map[string]string{"/v1": "created-on-v1.example.org", "/v1beta1": "created-on-v1beta1.example.org"} {
 		r := httptest.NewRequest(http.MethodPost, prefix+"/domains", strings.NewReader(`{"domain":"`+domain+`"}`))
-		r.Header.Set("Authorization", "Bearer secret")
+		r.Header.Set("Authorization", "Bearer "+testAdminToken)
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, r)
 		if want := prefix + "/domains/" + domain; w.Code != 201 || w.Header().Get("Location") != want {

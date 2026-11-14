@@ -30,14 +30,14 @@ func TestRESTIntakeCountsPersistedBatchesAndTheRecipientsItDecided(t *testing.T)
 	reg := prometheus.NewRegistry()
 	h := rest.NewHandler(rest.Services{
 		Domains: domains.NewService(sqlc.NewDomainsRepository(db)),
-		Token:   admintoken.MustParse("secret"),
+		Token:   admintoken.MustParse(testAdminToken),
 		Inline:  intake.NewInlineService(sqlc.NewInlineStore(db), sqlc.NewDomainsRepository(db), nil, 0, 0),
 		Flow:    mailflow.New(reg),
 	})
 	call := func(path, key, body string, status int) {
 		t.Helper()
 		r := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
-		r.Header.Set("Authorization", "Bearer secret")
+		r.Header.Set("Authorization", "Bearer "+testAdminToken)
 		r.Header.Set("Idempotency-Key", key)
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, r)

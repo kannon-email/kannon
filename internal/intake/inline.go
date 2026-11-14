@@ -186,7 +186,7 @@ func validateInline(key string, p InlineRequest) error {
 	if _, reserved := p.GlobalFields["email"]; reserved {
 		return invalid(errors.New("email is reserved"))
 	}
-	return nil
+	return checkFieldsBudget(p)
 }
 
 // maxRecipients bounds one Batch, from either intake. Each Recipient is measured against the

@@ -57,7 +57,7 @@ func TestCredentialLookupFailure(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			keys := apikeys.NewService(failingKeyRepository{err: tc.err})
-			h := rest.NewHandler(rest.Services{Domains: domains.NewService(failingDomainRepository{}), Token: admintoken.MustParse("secret"), Keys: keys})
+			h := rest.NewHandler(rest.Services{Domains: domains.NewService(failingDomainRepository{}), Token: admintoken.MustParse(testAdminToken), Keys: keys})
 			r := httptest.NewRequest(http.MethodGet, "/v1/domains", nil)
 			r.Header.Set("Authorization", "Bearer k_unknown")
 			w := httptest.NewRecorder()
@@ -108,9 +108,9 @@ func TestApplicationErrorResponses(t *testing.T) {
 			}
 		})
 		t.Run(tc.name, func(t *testing.T) {
-			h := rest.NewHandler(rest.Services{Domains: domains.NewService(failingDomainRepository{err: tc.err}), Token: admintoken.MustParse("secret")})
+			h := rest.NewHandler(rest.Services{Domains: domains.NewService(failingDomainRepository{err: tc.err}), Token: admintoken.MustParse(testAdminToken)})
 			r := httptest.NewRequest(http.MethodGet, "/v1/domains", nil)
-			r.Header.Set("Authorization", "Bearer secret")
+			r.Header.Set("Authorization", "Bearer "+testAdminToken)
 			w := httptest.NewRecorder()
 			h.ServeHTTP(w, r)
 			var p rest.Problem

@@ -3,10 +3,12 @@ package rest
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 
 	"github.com/kannon-email/kannon/internal/apperr"
+	"github.com/kannon-email/kannon/internal/intake"
 )
 
 // handler owns error responses. Operations write success only and must return
@@ -47,12 +49,26 @@ func errorProblem(err error) *requestError {
 	if errors.As(err, &request) {
 		return request
 	}
+	var limit *intake.FieldsLimitError
+	if errors.As(err, &limit) {
+		return fieldsLimitProblem(limit)
+	}
 	if e, ok := apperr.As(err); ok {
 		if status, ok := statuses[e.Kind]; ok {
 			return problemError(status, e.Code)
 		}
 	}
 	return problemError(http.StatusInternalServerError, "internal_error")
+}
+
+// fieldsLimitProblem names the limit a refused Batch exceeded and the fields to shrink, so a
+// caller can size the next request.
+func fieldsLimitProblem(e *intake.FieldsLimitError) *requestError {
+	pointer := "/global_fields"
+	if e.Recipient != intake.GlobalFields {
+		pointer = fmt.Sprintf("/recipients/%d/fields", e.Recipient)
+	}
+	return &requestError{status: statuses[e.Limit.Kind], code: e.Limit.Code, fields: []FieldError{{Code: e.Limit.Code, Pointer: pointer, Detail: e.Error()}}}
 }
 
 func writeError(w http.ResponseWriter, err error) {

@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/kannon-email/kannon/internal/mailflow"
@@ -62,6 +64,18 @@ func (s *srv) Run(ctx context.Context) error {
 	}
 
 	return container.ServeHTTP(ctx, server)
+}
+
+// servesDomain reports whether the request arrived on the stats host of the
+// Domain a verified token names. Every Domain's stats host reaches this one
+// server, so without the check a token minted by one tenant would be honoured on
+// another's host, turning it into that tenant's open redirect.
+func servesDomain(r *http.Request, domain string) bool {
+	host := r.Host
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	return domain != "" && strings.EqualFold(host, "stats."+domain)
 }
 
 // engagement is what an engagement event may keep: who it came from, and what the

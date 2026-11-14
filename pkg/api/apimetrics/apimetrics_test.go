@@ -13,13 +13,15 @@ import (
 	dto "github.com/prometheus/client_model/go"
 )
 
+const adminToken = "0123456789abcdef0123456789abcdef"
+
 type sample struct {
 	api, operation, code string
 }
 
 func TestRESTOperationIsTheRoutePatternNeverThePath(t *testing.T) {
 	reg := prometheus.NewRegistry()
-	h := apimetrics.New(reg).REST(rest.NewHandler(rest.Services{Token: admintoken.MustParse("secret")}))
+	h := apimetrics.New(reg).REST(rest.NewHandler(rest.Services{Token: admintoken.MustParse(adminToken)}))
 
 	for _, path := range []string{"/v1/domains/example.com", "/v1beta1/domains/example.com"} {
 		w := httptest.NewRecorder()
@@ -35,10 +37,10 @@ func TestRESTOperationIsTheRoutePatternNeverThePath(t *testing.T) {
 
 func TestRESTCountsAnAuthenticatedRouteByItsInnerPattern(t *testing.T) {
 	reg := prometheus.NewRegistry()
-	h := apimetrics.New(reg).REST(rest.NewHandler(rest.Services{Token: admintoken.MustParse("secret")}))
+	h := apimetrics.New(reg).REST(rest.NewHandler(rest.Services{Token: admintoken.MustParse(adminToken)}))
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/domains?wat=1", nil)
-	req.Header.Set("Authorization", "Bearer secret")
+	req.Header.Set("Authorization", "Bearer "+adminToken)
 	h.ServeHTTP(httptest.NewRecorder(), req)
 	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/v1/health", nil))
 
@@ -48,11 +50,11 @@ func TestRESTCountsAnAuthenticatedRouteByItsInnerPattern(t *testing.T) {
 
 func TestRESTCountsAnUnmatchedRequestAsUnmatched(t *testing.T) {
 	reg := prometheus.NewRegistry()
-	h := apimetrics.New(reg).REST(rest.NewHandler(rest.Services{Token: admintoken.MustParse("secret")}))
+	h := apimetrics.New(reg).REST(rest.NewHandler(rest.Services{Token: admintoken.MustParse(adminToken)}))
 
 	for _, path := range []string{"/nowhere/example.com", "/v1/nowhere/example.com"} {
 		req := httptest.NewRequest(http.MethodGet, path, nil)
-		req.Header.Set("Authorization", "Bearer secret")
+		req.Header.Set("Authorization", "Bearer "+adminToken)
 		h.ServeHTTP(httptest.NewRecorder(), req)
 	}
 
@@ -62,7 +64,7 @@ func TestRESTCountsAnUnmatchedRequestAsUnmatched(t *testing.T) {
 
 func TestRESTObservesTheDuration(t *testing.T) {
 	reg := prometheus.NewRegistry()
-	h := apimetrics.New(reg).REST(rest.NewHandler(rest.Services{Token: admintoken.MustParse("secret")}))
+	h := apimetrics.New(reg).REST(rest.NewHandler(rest.Services{Token: admintoken.MustParse(adminToken)}))
 
 	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/v1/openapi.yaml", nil))
 
@@ -76,8 +78,8 @@ func TestRESTObservesTheDuration(t *testing.T) {
 
 func TestRegisteringTwiceOnOneRegistryReusesTheCollectors(t *testing.T) {
 	reg := prometheus.NewRegistry()
-	first := apimetrics.New(reg).REST(rest.NewHandler(rest.Services{Token: admintoken.MustParse("secret")}))
-	second := apimetrics.New(reg).REST(rest.NewHandler(rest.Services{Token: admintoken.MustParse("secret")}))
+	first := apimetrics.New(reg).REST(rest.NewHandler(rest.Services{Token: admintoken.MustParse(adminToken)}))
+	second := apimetrics.New(reg).REST(rest.NewHandler(rest.Services{Token: admintoken.MustParse(adminToken)}))
 
 	first.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/v1/health", nil))
 	second.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/v1/health", nil))

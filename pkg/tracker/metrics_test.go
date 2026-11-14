@@ -22,7 +22,9 @@ func testEngagementIsCountedByKind(t *testing.T, ss statssec.StatsService) {
 	reg := prometheus.NewRegistry()
 	srv := newServer(&fakePublisher{}, ss, Config{}, mailflow.New(reg))
 	get := func(path string) {
-		srv.handler().ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, path, nil))
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Host = "stats." + testDomain
+		srv.handler().ServeHTTP(httptest.NewRecorder(), req)
 	}
 
 	openToken, err := ss.CreateOpenToken(t.Context(), testMessageID, testRecipient, tracking.ModeAnonymous)

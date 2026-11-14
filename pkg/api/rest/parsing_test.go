@@ -27,7 +27,7 @@ func TestParsingHTTPContract(t *testing.T) {
 	defer func() { db.Close(); require.NoError(t, cleanup()) }()
 	h := rest.NewHandler(rest.Services{
 		Domains:   domains.NewService(sqlc.NewDomainsRepository(db)),
-		Token:     admintoken.MustParse("secret"),
+		Token:     admintoken.MustParse(testAdminToken),
 		Ready:     db.Ping,
 		Inline:    intake.NewInlineService(sqlc.NewInlineStore(db), sqlc.NewDomainsRepository(db), nil, 0, 0),
 		Stats:     stats.NewService(stats.NewInMemRepository(), stats.WithAggregatedStatsRepository(stats.NewInMemAggregatedStatsRepository())),
@@ -37,7 +37,7 @@ func TestParsingHTTPContract(t *testing.T) {
 	call := func(method, path, body, key string, status int, code string) map[string]any {
 		t.Helper()
 		r := httptest.NewRequest(method, path, strings.NewReader(body))
-		r.Header.Set("Authorization", "Bearer secret")
+		r.Header.Set("Authorization", "Bearer "+testAdminToken)
 		if key != "" {
 			r.Header.Set("Idempotency-Key", key)
 		}
@@ -211,10 +211,10 @@ func (brokenBody) Read([]byte) (int, error) { return 0, errors.New("private read
 func (brokenBody) Close() error             { return nil }
 
 func TestBodyReadFailureHTTP(t *testing.T) {
-	h := rest.NewHandler(rest.Services{Token: admintoken.MustParse("secret")})
+	h := rest.NewHandler(rest.Services{Token: admintoken.MustParse(testAdminToken)})
 	r := httptest.NewRequest(http.MethodPost, "/v1/domains", nil)
 	r.Body = io.ReadCloser(brokenBody{})
-	r.Header.Set("Authorization", "Bearer secret")
+	r.Header.Set("Authorization", "Bearer "+testAdminToken)
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
 	require.Equal(t, 400, w.Code)
@@ -226,12 +226,12 @@ func TestBodyReadFailureHTTP(t *testing.T) {
 // the recorder tests. A subsequent request must work; connection reuse is not
 // part of the API contract.
 func TestOversizedBodyHTTPServer(t *testing.T) {
-	h := rest.NewHandler(rest.Services{Token: admintoken.MustParse("secret")})
+	h := rest.NewHandler(rest.Services{Token: admintoken.MustParse(testAdminToken)})
 	server := httptest.NewServer(h)
 	defer server.Close()
 	request, err := http.NewRequest(http.MethodPost, server.URL+"/v1/domains", strings.NewReader(strings.Repeat(" ", (10<<20)+1)))
 	require.NoError(t, err)
-	request.Header.Set("Authorization", "Bearer secret")
+	request.Header.Set("Authorization", "Bearer "+testAdminToken)
 	response, err := server.Client().Do(request)
 	require.NoError(t, err)
 	body, err := io.ReadAll(response.Body)

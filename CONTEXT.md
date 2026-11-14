@@ -139,7 +139,7 @@ Inbound SMTP listener. Receives bounce / DSN traffic from remote mail systems an
 Worker that consumes all `kannon.stats.*` events and persists them.
 
 **Tracker**:
-HTTP server that handles open and click tracking. Verifies signed tokens, redirects clicks to the original URL, serves the tracking pixel, and emits Opened / Clicked events to NATS.
+HTTP server that handles open and click tracking. Verifies signed tokens, redirects clicks to the original URL, serves the tracking pixel, and emits Opened / Clicked events to NATS. Every Domain's `stats.` host reaches the same Tracker, so it honours a token only on the `stats.` host of the Domain the token names, and redirects a click only to an http or https URL; anything else is a 404 with no event.
 _Avoid_: Bump (legacy package name, removed under PRD #322; the `bump:` config alias followed it under ADR 0012, leaving `tracker:` as the only spelling)
 
 ### Outcomes (per Delivery)

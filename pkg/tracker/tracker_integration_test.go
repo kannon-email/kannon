@@ -51,6 +51,8 @@ func TestTrackerIntegration(t *testing.T) {
 	t.Run("AnonymousEventsAreIndistinguishable", func(t *testing.T) { testAnonymousEventsAreIndistinguishable(t, ss) })
 	t.Run("ForgedModeClaimIsRefused", func(t *testing.T) { testForgedModeClaimIsRefused(t, ss) })
 	t.Run("ATokenReplayedOnTheOtherChannelIsRefused", func(t *testing.T) { testATokenReplayedOnTheOtherChannelIsRefused(t, ss) })
+	t.Run("ATokenIsServedOnlyOnItsDomainsStatsHost", func(t *testing.T) { testATokenIsServedOnlyOnItsDomainsStatsHost(t, ss) })
+	t.Run("AClickRedirectsOnlyToTheWeb", func(t *testing.T) { testAClickRedirectsOnlyToTheWeb(t, ss) })
 	t.Run("EngagementIsCountedByKind", func(t *testing.T) { testEngagementIsCountedByKind(t, ss) })
 }
 
@@ -90,11 +92,19 @@ type answer struct {
 // observes together with everything the tracker published for it.
 func engage(t *testing.T, ss statssec.StatsService, path string) (answer, []*statstypes.Stats) {
 	t.Helper()
+	return engageOn(t, ss, "stats."+testDomain, path)
+}
+
+// engageOn is engage against an explicit request host, the one the recipient's
+// client resolved the tracking link through.
+func engageOn(t *testing.T, ss statssec.StatsService, host, path string) (answer, []*statstypes.Stats) {
+	t.Helper()
 
 	pub := &fakePublisher{}
 	srv := newServer(pub, ss, Config{}, nil)
 
 	req := httptest.NewRequest(http.MethodGet, path, nil)
+	req.Host = host
 	req.Header.Set("User-Agent", testUserAgent)
 	req.Header.Set("X-Real-Ip", testIP)
 
@@ -356,6 +366,100 @@ func testATokenReplayedOnTheOtherChannelIsRefused(t *testing.T, ss statssec.Stat
 			resp, published := engage(t, ss, tc.path)
 			assert.Equal(t, http.StatusNotFound, resp.status, "a token minted for the other channel must be refused")
 			assert.Empty(t, published, "a refused request must publish no stat")
+		})
+	}
+}
+
+// testATokenIsServedOnlyOnItsDomainsStatsHost is the tenant boundary of the
+// Tracker: every Domain's stats host reaches the same server, so a token minted
+// for one Domain must not be honoured on another's. Otherwise a tenant mints a
+// link to a page of its own choosing and hands it out on a victim's stats host,
+// which then redirects there, such as `stats.victim-bank.com` answering 307 to
+// `https://evil.example/login`.
+func testATokenIsServedOnlyOnItsDomainsStatsHost(t *testing.T, ss statssec.StatsService) {
+	const attackerMessageID = "msg-1@attacker.example"
+	const phishingURL = "https://evil.example/login"
+
+	attackerLink, err := ss.CreateLinkToken(t.Context(), attackerMessageID, testRecipient, phishingURL, tracking.ModeFull)
+	require.NoError(t, err)
+	attackerOpen, err := ss.CreateOpenToken(t.Context(), attackerMessageID, testRecipient, tracking.ModeFull)
+	require.NoError(t, err)
+
+	refused := []struct {
+		name string
+		host string
+		path string
+	}{
+		{name: "ClickOnAnotherDomainsStatsHost", host: "stats.victim-bank.com", path: "/c/" + attackerLink},
+		{name: "OpenOnAnotherDomainsStatsHost", host: "stats.victim-bank.com", path: "/o/" + attackerOpen},
+		{name: "ClickOnTheBareDomain", host: "attacker.example", path: "/c/" + attackerLink},
+		{name: "ClickOnASuffixOfTheStatsHost", host: "xstats.attacker.example", path: "/c/" + attackerLink},
+		{name: "ClickWithNoHost", host: "", path: "/c/" + attackerLink},
+	}
+	for _, tc := range refused {
+		t.Run(tc.name, func(t *testing.T) {
+			resp, published := engageOn(t, ss, tc.host, tc.path)
+			assert.Equal(t, http.StatusNotFound, resp.status, "a token must not be served on a host other than its Domain's")
+			assert.Empty(t, resp.location, "a refused click must redirect nowhere")
+			assert.Empty(t, published, "a refused request must publish no stat")
+		})
+	}
+
+	served := []struct {
+		name string
+		host string
+	}{
+		{name: "OnItsOwnStatsHost", host: "stats.attacker.example"},
+		{name: "WithAPort", host: "stats.attacker.example:8443"},
+		{name: "InAnotherCase", host: "Stats.Attacker.Example"},
+	}
+	for _, tc := range served {
+		t.Run("Click"+tc.name, func(t *testing.T) {
+			resp, published := engageOn(t, ss, tc.host, "/c/"+attackerLink)
+			assert.Equal(t, http.StatusTemporaryRedirect, resp.status)
+			assert.Equal(t, phishingURL, resp.location)
+			assert.Len(t, published, 1)
+		})
+		t.Run("Open"+tc.name, func(t *testing.T) {
+			resp, published := engageOn(t, ss, tc.host, "/o/"+attackerOpen)
+			assert.Equal(t, http.StatusOK, resp.status)
+			assert.Len(t, published, 1)
+		})
+	}
+}
+
+// testAClickRedirectsOnlyToTheWeb: a tracked link sends the recipient to an http
+// or https page and nowhere else, whatever URL its token was minted with.
+func testAClickRedirectsOnlyToTheWeb(t *testing.T, ss statssec.StatsService) {
+	refused := []struct {
+		name string
+		url  string
+	}{
+		{name: "JavaScript", url: "javascript:alert(document.domain)"},
+		{name: "Data", url: "data:text/html,<script>alert(1)</script>"},
+		{name: "File", url: "file:///etc/passwd"},
+		{name: "SchemeRelative", url: "//evil.example/login"},
+		{name: "Relative", url: "/login"},
+	}
+	for _, tc := range refused {
+		t.Run("Refuses"+tc.name, func(t *testing.T) {
+			token, err := ss.CreateLinkToken(t.Context(), testMessageID, testRecipient, tc.url, tracking.ModeFull)
+			require.NoError(t, err)
+			resp, published := engage(t, ss, "/c/"+token)
+			assert.Equal(t, http.StatusNotFound, resp.status)
+			assert.Empty(t, resp.location, "a link outside the web must redirect nowhere")
+			assert.Empty(t, published, "a refused click must publish no stat")
+		})
+	}
+
+	for _, url := range []string{"http://example.com/landing", "HTTPS://example.com/landing"} {
+		t.Run("Follows"+url, func(t *testing.T) {
+			token, err := ss.CreateLinkToken(t.Context(), testMessageID, testRecipient, url, tracking.ModeFull)
+			require.NoError(t, err)
+			resp, published := engage(t, ss, "/c/"+token)
+			assert.Equal(t, http.StatusTemporaryRedirect, resp.status)
+			assert.Equal(t, url, resp.location)
+			assert.Len(t, published, 1)
 		})
 	}
 }

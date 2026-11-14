@@ -55,7 +55,10 @@ func newSMTPError(err error, isPermanent bool, code uint32) *smtpError {
 }
 
 type sender struct {
-	Hostname string
+	Hostname     string
+	allowPrivate bool
+	resolver     *net.Resolver
+	port         string
 }
 
 // SenderName implements sender name function
@@ -75,7 +78,7 @@ func (s *sender) Send(from, to string, msg []byte) SenderError {
 		return newSMTPError(err, true, 510)
 	}
 
-	mxs, lerr := lookupMXsContext(ctx, toDomain)
+	mxs, lerr := lookupMXsContext(ctx, s.resolver, toDomain)
 	if lerr != nil {
 		return lerr
 	}
@@ -86,7 +89,7 @@ func (s *sender) Send(from, to string, msg []byte) SenderError {
 
 	var lastErr *smtpError
 	for _, mx := range mxs {
-		err := deliver(ctx, from, to, msg, mx, false, s.Hostname)
+		err := s.deliver(ctx, from, to, msg, mx, false)
 		if err == nil {
 			return nil
 		}
@@ -101,9 +104,12 @@ func (s *sender) Send(from, to string, msg []byte) SenderError {
 	return newSMTPError(err, false, lastErr.Code())
 }
 
-func deliver(ctx context.Context, from, to string, msg []byte, mx string, insecure bool, domain string) *smtpError {
-	smtpURL := fmt.Sprintf("%v:%v", mx, smtpPort)
-	conn, err := (&net.Dialer{Timeout: smtpDialTimeout}).DialContext(ctx, "tcp", smtpURL)
+func (s *sender) deliver(ctx context.Context, from, to string, msg []byte, mx string, insecure bool) *smtpError {
+	conn, err := s.dialer().DialContext(ctx, "tcp", net.JoinHostPort(mx, s.dialPort()))
+	if blocked := (*blockedDestinationError)(nil); errors.As(err, &blocked) {
+		slog.Warn("refused SMTP destination", "mx", mx, "address", blocked.address)
+		return newSMTPError(blocked, true, 550)
+	}
 	if err != nil {
 		slog.Debug(fmt.Sprintf("Could not dial: %v", err))
 		// TODO: add error code
@@ -118,11 +124,26 @@ func deliver(ctx context.Context, from, to string, msg []byte, mx string, insecu
 		return newSMTPError(err, false, 111)
 	}
 
-	return deliverConn(ctx, conn, from, to, msg, mx, insecure, domain)
+	return s.deliverConn(ctx, conn, from, to, msg, mx, insecure)
+}
+
+func (s *sender) dialer() *net.Dialer {
+	d := &net.Dialer{Timeout: smtpDialTimeout, Resolver: s.resolver}
+	if !s.allowPrivate {
+		d.ControlContext = refusePrivateDestinations
+	}
+	return d
+}
+
+func (s *sender) dialPort() string {
+	if s.port == "" {
+		return smtpPort
+	}
+	return s.port
 }
 
 // deliverConn runs the SMTP exchange on an established connection.
-func deliverConn(ctx context.Context, conn net.Conn, from, to string, msg []byte, mx string, insecure bool, domain string) *smtpError {
+func (s *sender) deliverConn(ctx context.Context, conn net.Conn, from, to string, msg []byte, mx string, insecure bool) *smtpError {
 	c, err := smtp.NewClient(conn, mx)
 	if err != nil {
 		slog.Debug(fmt.Sprintf("Error creating client: %v", err))
@@ -130,7 +151,7 @@ func deliverConn(ctx context.Context, conn net.Conn, from, to string, msg []byte
 		return newSMTPError(err, false, 111)
 	}
 
-	if err = c.Hello(domain); err != nil {
+	if err = c.Hello(s.Hostname); err != nil {
 		slog.Debug(fmt.Sprintf("Error saying hello: %v", err))
 		// TODO: add error code
 		return newSMTPError(err, false, 111)
@@ -151,7 +172,7 @@ func deliverConn(ctx context.Context, conn net.Conn, from, to string, msg []byte
 				return newSMTPError(err, false, 111)
 			}
 			slog.Debug("TLS error, retrying insecurely\n")
-			return deliver(ctx, from, to, msg, mx, true, domain)
+			return s.deliver(ctx, from, to, msg, mx, true)
 		}
 	}
 
@@ -190,7 +211,7 @@ func deliverConn(ctx context.Context, conn net.Conn, from, to string, msg []byte
 	return nil
 }
 
-func lookupMXsContext(ctx context.Context, domain string) ([]string, *smtpError) {
+func lookupMXsContext(ctx context.Context, resolver *net.Resolver, domain string) ([]string, *smtpError) {
 	domain, err := idna.ToASCII(domain)
 	if err != nil {
 		// TODO: add error code
@@ -199,7 +220,7 @@ func lookupMXsContext(ctx context.Context, domain string) ([]string, *smtpError)
 
 	mxs := []string{}
 
-	mxRecords, err := net.DefaultResolver.LookupMX(ctx, domain)
+	mxRecords, err := resolver.LookupMX(ctx, domain)
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil, newSMTPError(ctx.Err(), false, 512)
