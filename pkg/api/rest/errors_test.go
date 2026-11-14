@@ -58,7 +58,7 @@ func TestCredentialLookupFailure(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			keys := apikeys.NewService(failingKeyRepository{err: tc.err})
 			h := rest.NewHandler(rest.Services{Domains: domains.NewService(failingDomainRepository{}), Token: admintoken.MustParse("secret"), Keys: keys})
-			r := httptest.NewRequest(http.MethodGet, "/v1beta1/domains", nil)
+			r := httptest.NewRequest(http.MethodGet, "/v1/domains", nil)
 			r.Header.Set("Authorization", "Bearer k_unknown")
 			w := httptest.NewRecorder()
 			h.ServeHTTP(w, r)
@@ -109,7 +109,7 @@ func TestApplicationErrorResponses(t *testing.T) {
 		})
 		t.Run(tc.name, func(t *testing.T) {
 			h := rest.NewHandler(rest.Services{Domains: domains.NewService(failingDomainRepository{err: tc.err}), Token: admintoken.MustParse("secret")})
-			r := httptest.NewRequest(http.MethodGet, "/v1beta1/domains", nil)
+			r := httptest.NewRequest(http.MethodGet, "/v1/domains", nil)
 			r.Header.Set("Authorization", "Bearer secret")
 			w := httptest.NewRecorder()
 			h.ServeHTTP(w, r)

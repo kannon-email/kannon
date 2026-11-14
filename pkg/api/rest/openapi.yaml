@@ -1,11 +1,11 @@
 openapi: 3.1.1
 info:
   title: Kannon REST API
-  version: v1beta1
+  version: v1
   description: Versioned REST contract of Kannon. Authenticate with the configured Admin Token or a Domain API Key as a
     Bearer token. Decisions are recorded in docs/rest-api-design.md.
 servers:
-- url: /v1beta1
+- url: /v1
 security:
 - bearerAuth: []
 tags:
@@ -2270,7 +2270,7 @@ components:
             type: string
 x-credential-storage: Retain the existing api_keys table and rows. No key replacement, reissuance, copying or backfill.
   Add role metadata in place; absent legacy metadata means sender on the existing Domain.
-x-compatibility: Compatible evolution within v1beta1. Breaking changes require a new version. Legacy gRPC receives
+x-compatibility: Compatible evolution within v1. Breaking changes require a new version. Legacy gRPC receives
   necessary fixes with no removal date fixed.
 x-time-format: RFC 3339 input with explicit timezone; UTC output. Fractional-second precision is not fixed.
 x-error-codes:

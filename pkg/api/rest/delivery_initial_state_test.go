@@ -58,7 +58,7 @@ func TestDeliveryInitialStateUsesAcceptanceClock(t *testing.T) {
 				h := rest.NewHandler(rest.Services{Domains: ds, Token: admintoken.MustParse("secret"), Ready: db.Ping, Inline: svc})
 				read := func(path string, into any) {
 					t.Helper()
-					r := httptest.NewRequest(http.MethodGet, "/v1beta1/domains/example.com/batches/"+receipt.ID+path, nil)
+					r := httptest.NewRequest(http.MethodGet, "/v1/domains/example.com/batches/"+receipt.ID+path, nil)
 					r.Header.Set("Authorization", "Bearer secret")
 					w := httptest.NewRecorder()
 					h.ServeHTTP(w, r)

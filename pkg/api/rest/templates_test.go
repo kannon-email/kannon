@@ -42,8 +42,8 @@ func TestPersistentTemplateJourney(t *testing.T) {
 		}
 		return w
 	}
-	call("secret", "POST", "/v1beta1/domains", `{"domain":"example.com"}`, 201)
-	base := "/v1beta1/domains/example.com/templates"
+	call("secret", "POST", "/v1/domains", `{"domain":"example.com"}`, 201)
+	base := "/v1/domains/example.com/templates"
 	for _, body := range []string{`{}`, `{"html":"body"}`, `{"title":"x"}`, `{"title":"x","html":""}`, `{"title":null,"html":"body"}`} {
 		call("secret", "POST", base, body, 422)
 	}
@@ -96,9 +96,9 @@ func TestPersistentTemplateJourney(t *testing.T) {
 	if len(second.Items) != 1 || second.Items[0].Id <= page.Items[0].Id {
 		t.Fatal(second)
 	}
-	call("secret", "GET", "/v1beta1/domains/other.com/templates?cursor="+*page.NextCursor, "", 400)
+	call("secret", "GET", "/v1/domains/other.com/templates?cursor="+*page.NextCursor, "", 400)
 	for _, role := range []string{"admin", "sender"} {
-		key := call("secret", "POST", "/v1beta1/domains/example.com/api-keys", `{"name":"test","roles":["`+role+`"]}`, 201)
+		key := call("secret", "POST", "/v1/domains/example.com/api-keys", `{"name":"test","roles":["`+role+`"]}`, 201)
 		var k rest.APIKeyCreated
 		if err := json.Unmarshal(key.Body.Bytes(), &k); err != nil {
 			t.Fatal(err)
@@ -108,8 +108,8 @@ func TestPersistentTemplateJourney(t *testing.T) {
 			status = 200
 		}
 		call(k.Secret, "GET", base, "", status)
-		call(k.Secret, "GET", "/v1beta1/domains/other.com/templates", "", 403)
-		call(k.Secret, "POST", "/v1beta1/domains/other.com/templates", `{"title":"x","html":"body"}`, 403)
+		call(k.Secret, "GET", "/v1/domains/other.com/templates", "", 403)
+		call(k.Secret, "POST", "/v1/domains/other.com/templates", `{"title":"x","html":"body"}`, 403)
 		if role == "admin" {
 			own := call(k.Secret, "POST", base, `{"title":"local","html":"local body"}`, 201)
 			ownLocation := own.Header().Get("Location")
@@ -117,7 +117,7 @@ func TestPersistentTemplateJourney(t *testing.T) {
 			call(k.Secret, "DELETE", ownLocation, "", 204)
 		}
 		for _, method := range []string{"GET", "PATCH", "DELETE"} {
-			call(k.Secret, method, "/v1beta1/domains/other.com/templates/"+resource.Id, `{"title":"x"}`, 403)
+			call(k.Secret, method, "/v1/domains/other.com/templates/"+resource.Id, `{"title":"x"}`, 403)
 		}
 		if role == "sender" {
 			for _, method := range []string{"GET", "PATCH", "DELETE"} {

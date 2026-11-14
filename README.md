@@ -53,7 +53,7 @@ A single `SendHTML` / `SendTemplate` API call creates one **Batch** with N **Del
 
 Kannon is composed of several microservices and workers:
 
-- **REST API**: the primary API under `/v1beta1` (Domains, Templates, API Keys, Batches, Deliveries, stats), on a listener of its own (`api.rest_port`).
+- **REST API**: the primary API under `/v1` (Domains, Templates, API Keys, Batches, Deliveries, stats), on a listener of its own (`api.rest_port`).
 - **Mailer API**: server that accepts `SendHTML` / `SendTemplate` and creates Batches with N Deliveries; together with the **Admin API** (Domains, Templates, API Keys), the **Stats API** and a **health** service, it forms the deprecated Connect surface on `api.port`.
 - **Validator**: Pulls Deliveries with status `to_validate`, validates the recipient address, and either schedules or rejects them.
 - **Dispatcher**: Pulls scheduled Deliveries, builds DKIM-signed Envelopes, and publishes them to NATS. Also consumes delivery / bounce / error events and updates Delivery state.
@@ -218,7 +218,7 @@ A process with nothing enabled refuses to boot rather than exit as if it had don
 | YAML key                     | Type     | Default        | Description                                      |
 | ---------------------------- | -------- | -------------- | ------------------------------------------------ |
 | `api.port`                   | int      | 50051          | Connect, gRPC and gRPC-Web API listen port       |
-| `api.rest_port`              | int      | 8081           | REST API (`/v1beta1`) listen port; must differ from `api.port` |
+| `api.rest_port`              | int      | 8081           | REST API (`/v1`) listen port; must differ from `api.port` |
 | `api.max_payload`            | size     | 500Ki          | Max Batch content (subject + HTML + base64 attachments, after field substitution); larger is refused with `message_too_large`, per Recipient when its own fields push it over. Set to ~70% of the NATS server's `max_payload` |
 | `sender.hostname`            | string   | (required)     | Hostname announced for outgoing mail             |
 | `sender.max_jobs`            | int      | 10             | Max parallel sending jobs                        |
@@ -300,7 +300,7 @@ See [`db/migrations/`](./db/migrations/) for full schema and migrations.
 
 Kannon serves its APIs on two HTTP listeners, so each can be exposed on its own:
 
-- **REST API** (`api.rest_port`, default `8081`): the primary API under `/v1beta1`. It publishes its OpenAPI contract unauthenticated at `GET /v1beta1/openapi.yaml`.
+- **REST API** (`api.rest_port`, default `8081`): the primary API under `/v1`. It publishes its OpenAPI contract unauthenticated at `GET /v1/openapi.yaml`. The same API is still served under the deprecated `/v1beta1` prefix, which will be removed; move clients to `/v1`.
 - **Connect APIs** (`api.port`, default `50051`): the deprecated Mailer, Admin and Stats services, built with [Connect](https://connectrpc.com) and serving the Connect, gRPC and gRPC-Web protocols over HTTP/1.1 and h2c. The simplest client is plain `curl` with JSON; any gRPC client works too.
 
 > The server does **not** register gRPC server reflection, so tools like `grpcurl` need the schema passed explicitly: `grpcurl -import-path .proto -proto kannon/mailer/apiv1/mailerapiv1.proto …`. The proto sources live in [`.proto/`](.proto/); `proto/` holds the generated Go code.
@@ -471,7 +471,7 @@ unsubscribe header does not belong on a password reset or a receipt.
 
 #### Reply-To
 
-A REST Batch (`POST /v1beta1/domains/{domain}/batches`) may state where replies
+A REST Batch (`POST /v1/domains/{domain}/batches`) may state where replies
 should go, for mail sent from an address with no inbox behind it:
 
 ```json

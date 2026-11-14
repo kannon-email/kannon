@@ -10,7 +10,7 @@ import (
 
 func registerBatches(mux *http.ServeMux, service *intake.InlineService) {
 	registerBatchHistory(mux, service)
-	mux.Handle("POST /v1beta1/domains/{domain}/batches", handler(func(w http.ResponseWriter, r *http.Request) error {
+	mux.Handle("POST /domains/{domain}/batches", handler(func(w http.ResponseWriter, r *http.Request) error {
 		if _, err := parseQuery(r.URL.RawQuery); err != nil {
 			return err
 		}
@@ -52,7 +52,7 @@ func registerBatches(mux *http.ServeMux, service *intake.InlineService) {
 			writeJSON(w, 200, BatchReplay{Id: receipt.ID, Domain: receipt.Domain, CreatedAt: receipt.CreatedAt, ScheduledAt: receipt.ScheduledAt, AcceptedCount: receipt.AcceptedCount, RejectedCount: receipt.RejectedCount})
 			return nil
 		}
-		w.Header().Set("Location", "/v1beta1/domains/"+receipt.Domain+"/batches/"+receipt.ID)
+		w.Header().Set("Location", versionedPath(r, "/domains/"+receipt.Domain+"/batches/"+receipt.ID))
 		writeJSON(w, 201, BatchCreated{Id: receipt.ID, Domain: receipt.Domain, CreatedAt: receipt.CreatedAt, ScheduledAt: receipt.ScheduledAt, AcceptedCount: receipt.AcceptedCount, RejectedCount: receipt.RejectedCount, RejectedRecipients: rejected, From: input.From, Subject: input.Request.Subject, Status: BatchCreatedStatusPending, DeliveryCounts: DeliveryCounts{Pending: receipt.AcceptedCount}})
 		return nil
 	}))

@@ -7,7 +7,7 @@ import (
 )
 
 func registerDeliveries(mux *http.ServeMux, service *intake.InlineService) {
-	mux.Handle("GET /v1beta1/domains/{domain}/batches/{batch_id}/deliveries/{delivery_id}", handler(func(w http.ResponseWriter, r *http.Request) error {
+	mux.Handle("GET /domains/{domain}/batches/{batch_id}/deliveries/{delivery_id}", handler(func(w http.ResponseWriter, r *http.Request) error {
 		if _, err := parseQuery(r.URL.RawQuery); err != nil {
 			return err
 		}

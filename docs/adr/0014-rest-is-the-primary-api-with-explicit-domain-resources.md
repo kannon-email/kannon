@@ -1,6 +1,7 @@
 # REST is the primary API, with explicit Domain resources
 
-Accepted during the REST API design interview.
+Accepted during the REST API design interview. The version prefix and the compatibility
+promise are superseded by ADR 0017: the paths below now live under `/v1`.
 
 REST becomes the primary application contract for administration, sending, and
 statistics. Existing gRPC APIs are deprecated but remain available during a

@@ -512,7 +512,7 @@ func waitForAPIServer(t *testing.T, infra *TestInfrastructure) {
 	}, 30*time.Second, 500*time.Millisecond, "API server should be ready within 30 seconds")
 
 	require.EventuallyWithT(t, func(tt *assert.CollectT) {
-		res, err := http.Get(fmt.Sprintf("http://localhost:%d/v1beta1/health", infra.restPort))
+		res, err := http.Get(fmt.Sprintf("http://localhost:%d/v1/health", infra.restPort))
 		if !assert.NoError(tt, err) {
 			return
 		}

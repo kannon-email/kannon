@@ -72,7 +72,7 @@ func TestHistoryExpiresAtThirtyDays(t *testing.T) {
 	h := rest.NewHandler(rest.Services{Domains: ds, Token: admintoken.MustParse("secret"), Ready: db.Ping, Inline: svc})
 	read := func(path string, status int) {
 		t.Helper()
-		r := httptest.NewRequest(http.MethodGet, "/v1beta1/domains/example.com/batches/"+path, nil)
+		r := httptest.NewRequest(http.MethodGet, "/v1/domains/example.com/batches/"+path, nil)
 		r.Header.Set("Authorization", "Bearer secret")
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, r)

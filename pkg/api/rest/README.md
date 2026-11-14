@@ -10,10 +10,20 @@ contract is never rewritten. Runtime validation must enforce the original contra
 Run `scripts/check-rest-contract.sh` to detect generation drift and application
 imports of transports. Generated models and interfaces belong only in this adapter.
 
-The adapter embeds `openapi.yaml` and serves it unauthenticated at
-`GET /v1beta1/openapi.yaml`, so documentation sites and client generators read the
+Routes are registered without a version prefix; `version.go` mounts the same
+handlers under every API version (`/v1`, and the deprecated `/v1beta1` until its
+removal) and `versionedPath` builds Location headers under the version of the
+request. `openapi.yaml` is the v1 contract and the generator input;
+`openapi_v1beta1.yaml` is the same contract with v1beta1 version and server and
+every operation marked deprecated, and a test keeps the two from diverging. Change
+both together. Removing v1beta1 means dropping its entry in `versions`, its
+contract file and `api/openapi/v1beta1.yaml`.
+
+The adapter embeds each contract and serves it unauthenticated at
+`GET /{version}/openapi.yaml`, so documentation sites and client generators read the
 contract of the running version. The route is not one of the 21 contract operations.
-Keep `api/openapi/v1beta1.yaml` identical to it.
+Keep `api/openapi/v1.yaml` and `api/openapi/v1beta1.yaml` identical to the embedded
+files.
 
 `NewHandler` returns the versioned routes; `pkg/api` serves them on their own listener (`api.rest_port`), apart from the Connect APIs. Extend its
 protected mux for dependent resource slices. Authenticate Bearer credentials to

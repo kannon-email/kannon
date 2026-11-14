@@ -31,7 +31,7 @@ func TestPublicReadiness(t *testing.T) {
 			return nil
 		}})
 		w := httptest.NewRecorder()
-		h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/v1beta1/health", nil))
+		h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/v1/health", nil))
 		want := 200
 		if !ready {
 			want = 503
@@ -50,17 +50,19 @@ func TestPublicReadiness(t *testing.T) {
 
 func TestPublicContract(t *testing.T) {
 	h := rest.NewHandler(rest.Services{Token: admintoken.MustParse("secret")})
-	w := httptest.NewRecorder()
-	h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/v1beta1/openapi.yaml", nil))
-	if w.Code != 200 || w.Header().Get("Content-Type") != "application/yaml" {
-		t.Fatalf("status %d content type %q", w.Code, w.Header().Get("Content-Type"))
-	}
-	want, err := os.ReadFile("openapi.yaml")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if w.Body.String() != string(want) {
-		t.Fatal("served contract differs from openapi.yaml")
+	for path, file := range map[string]string{"/v1/openapi.yaml": "openapi.yaml", "/v1beta1/openapi.yaml": "openapi_v1beta1.yaml"} {
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
+		if w.Code != 200 || w.Header().Get("Content-Type") != "application/yaml" {
+			t.Fatalf("%s: status %d content type %q", path, w.Code, w.Header().Get("Content-Type"))
+		}
+		want, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if w.Body.String() != string(want) {
+			t.Fatalf("%s: served contract differs from %s", path, file)
+		}
 	}
 }
 
@@ -70,12 +72,12 @@ func TestAuthenticationAndInvalidRequests(t *testing.T) {
 		method, path, body, token, code string
 		status                          int
 	}{
-		{"GET", "/v1beta1/domains", "", "", "unauthenticated", 401},
-		{"GET", "/v1beta1/domains?wat=1", "", "secret", "unknown_query_parameter", 400},
-		{"GET", "/v1beta1/domains?limit=1001", "", "secret", "invalid_query_parameter", 400},
-		{"GET", "/v1beta1/domains?cursor=garbage", "", "secret", "invalid_cursor", 400},
-		{"POST", "/v1beta1/domains", `{"domain":"example.com","name":"rename"}`, "secret", "malformed_request", 400},
-		{"PATCH", "/v1beta1/domains/example.com", `{"tracking":{"opens":"full"}}`, "secret", "validation_failed", 422},
+		{"GET", "/v1/domains", "", "", "unauthenticated", 401},
+		{"GET", "/v1/domains?wat=1", "", "secret", "unknown_query_parameter", 400},
+		{"GET", "/v1/domains?limit=1001", "", "secret", "invalid_query_parameter", 400},
+		{"GET", "/v1/domains?cursor=garbage", "", "secret", "invalid_cursor", 400},
+		{"POST", "/v1/domains", `{"domain":"example.com","name":"rename"}`, "secret", "malformed_request", 400},
+		{"PATCH", "/v1/domains/example.com", `{"tracking":{"opens":"full"}}`, "secret", "validation_failed", 422},
 	} {
 		t.Run(tc.code+tc.method, func(t *testing.T) {
 			r := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
@@ -124,9 +126,20 @@ func TestPersistentDomainJourney(t *testing.T) {
 		return w.Body.String()
 	}
 	for _, name := range []string{"b.example.com", "a.example.com"} {
-		call("POST", "/v1beta1/domains", `{"domain":"`+name+`"}`, 201)
+		call("POST", "/v1/domains", `{"domain":"`+name+`"}`, 201)
 	}
-	duplicate := call("POST", "/v1beta1/domains", `{"domain":"a.example.com"}`, 409)
+	for prefix, domain := range map[string]string{"/v1": "created-on-v1.example.org", "/v1beta1": "created-on-v1beta1.example.org"} {
+		r := httptest.NewRequest(http.MethodPost, prefix+"/domains", strings.NewReader(`{"domain":"`+domain+`"}`))
+		r.Header.Set("Authorization", "Bearer secret")
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		if want := prefix + "/domains/" + domain; w.Code != 201 || w.Header().Get("Location") != want {
+			t.Fatalf("%s: status %d Location %q, want %q", prefix, w.Code, w.Header().Get("Location"), want)
+		}
+		call("GET", "/v1/domains/"+domain, "", 200)
+		call("GET", "/v1beta1/domains/"+domain, "", 200)
+	}
+	duplicate := call("POST", "/v1/domains", `{"domain":"a.example.com"}`, 409)
 	if !strings.Contains(duplicate, `"code":"domain_already_exists"`) {
 		t.Fatalf("unexpected duplicate error: %s", duplicate)
 	}
@@ -134,22 +147,22 @@ func TestPersistentDomainJourney(t *testing.T) {
 		Items      []struct{ Domain string }
 		NextCursor string `json:"next_cursor"`
 	}
-	if err := json.Unmarshal([]byte(call("GET", "/v1beta1/domains?limit=1", "", 200)), &page); err != nil {
+	if err := json.Unmarshal([]byte(call("GET", "/v1/domains?limit=1", "", 200)), &page); err != nil {
 		t.Fatal(err)
 	}
 	if len(page.Items) != 1 || page.Items[0].Domain != "a.example.com" || page.NextCursor == "" {
 		t.Fatalf("unexpected page: %+v", page)
 	}
-	next := call("GET", "/v1beta1/domains?limit=1&cursor="+page.NextCursor, "", 200)
+	next := call("GET", "/v1/domains?limit=1&cursor="+page.NextCursor, "", 200)
 	if !strings.Contains(next, "b.example.com") || strings.Contains(next, "a.example.com") {
 		t.Fatal(next)
 	}
-	call("PATCH", "/v1beta1/domains/a.example.com", `{"tracking":{"opens":"anonymous","links":"off"}}`, 200)
-	body := call("GET", "/v1beta1/domains/a.example.com", "", 200)
+	call("PATCH", "/v1/domains/a.example.com", `{"tracking":{"opens":"anonymous","links":"off"}}`, 200)
+	body := call("GET", "/v1/domains/a.example.com", "", 200)
 	if !strings.Contains(body, `"opens":"anonymous"`) || !strings.Contains(body, "dkim_public_key") || strings.Contains(body, "private") {
 		t.Fatal(body)
 	}
-	call("GET", "/v1beta1/domains/missing.example.com", "", 404)
+	call("GET", "/v1/domains/missing.example.com", "", 404)
 }
 
 func TestApprovedContract(t *testing.T) {
