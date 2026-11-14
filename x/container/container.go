@@ -47,8 +47,9 @@ type Container struct {
 }
 
 type senderCfg struct {
-	Hostname   string `mapstructure:"hostname"`
-	DemoSender bool   `mapstructure:"demo_sender"`
+	Hostname                 string `mapstructure:"hostname"`
+	DemoSender               bool   `mapstructure:"demo_sender"`
+	AllowPrivateDestinations bool   `mapstructure:"allow_private_destinations"`
 }
 
 // New creates a Container from the root configuration the boot path has already
@@ -374,6 +375,10 @@ func (c *Container) Sender() smtp.Sender {
 		}
 		if sc.DemoSender {
 			return smtp.NewDemoSender(sc.Hostname), nil
+		}
+		if sc.AllowPrivateDestinations {
+			slog.Warn("sender.allow_private_destinations is on: SMTP delivery to loopback and private addresses is allowed")
+			return smtp.NewSender(sc.Hostname, smtp.AllowPrivateDestinations()), nil
 		}
 		return smtp.NewSender(sc.Hostname), nil
 	})
