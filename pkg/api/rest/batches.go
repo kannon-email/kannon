@@ -6,9 +6,10 @@ import (
 	"net/http"
 
 	"github.com/kannon-email/kannon/internal/intake"
+	"github.com/kannon-email/kannon/internal/mailflow"
 )
 
-func registerBatches(mux *http.ServeMux, service *intake.InlineService) {
+func registerBatches(mux *http.ServeMux, service *intake.InlineService, flow *mailflow.Metrics) {
 	registerBatchHistory(mux, service)
 	mux.Handle("POST /domains/{domain}/batches", handler(func(w http.ResponseWriter, r *http.Request) error {
 		if _, err := parseQuery(r.URL.RawQuery); err != nil {
@@ -40,6 +41,7 @@ func registerBatches(mux *http.ServeMux, service *intake.InlineService) {
 		}
 		if err != nil {
 			if errors.Is(err, intake.ErrNoRecipientsAccepted) {
+				flow.RecipientsDecided(mailflow.IntakeREST, 0, len(refusals))
 				fields := make([]FieldError, 0, len(rejected))
 				for _, v := range rejected {
 					fields = append(fields, FieldError{Code: v.Code, Pointer: v.Pointer, Detail: v.Detail})
@@ -52,6 +54,7 @@ func registerBatches(mux *http.ServeMux, service *intake.InlineService) {
 			writeJSON(w, 200, BatchReplay{Id: receipt.ID, Domain: receipt.Domain, CreatedAt: receipt.CreatedAt, ScheduledAt: receipt.ScheduledAt, AcceptedCount: receipt.AcceptedCount, RejectedCount: receipt.RejectedCount})
 			return nil
 		}
+		flow.BatchAccepted(mailflow.IntakeREST, receipt.AcceptedCount, len(refusals))
 		w.Header().Set("Location", versionedPath(r, "/domains/"+receipt.Domain+"/batches/"+receipt.ID))
 		writeJSON(w, 201, BatchCreated{Id: receipt.ID, Domain: receipt.Domain, CreatedAt: receipt.CreatedAt, ScheduledAt: receipt.ScheduledAt, AcceptedCount: receipt.AcceptedCount, RejectedCount: receipt.RejectedCount, RejectedRecipients: rejected, From: input.From, Subject: input.Request.Subject, Status: BatchCreatedStatusPending, DeliveryCounts: DeliveryCounts{Pending: receipt.AcceptedCount}})
 		return nil

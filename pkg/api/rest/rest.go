@@ -20,6 +20,7 @@ import (
 	"github.com/kannon-email/kannon/internal/httproute"
 	"github.com/kannon-email/kannon/internal/intake"
 	"github.com/kannon-email/kannon/internal/keyset"
+	"github.com/kannon-email/kannon/internal/mailflow"
 	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/internal/templates"
 	"github.com/kannon-email/kannon/internal/tracking"
@@ -44,6 +45,8 @@ type Services struct {
 	Templates *templates.Service
 	Inline    *intake.InlineService
 	Stats     *stats.Service
+	// Flow counts what REST Intake decides; nil counts nothing.
+	Flow *mailflow.Metrics
 }
 
 // NewHandler returns the REST handler for the supplied services, serving every API version.
@@ -58,7 +61,7 @@ func NewHandler(s Services) http.Handler {
 	}))
 	protected := http.NewServeMux()
 	if s.Inline != nil {
-		registerBatches(protected, s.Inline)
+		registerBatches(protected, s.Inline, s.Flow)
 		registerDeliveries(protected, s.Inline)
 	}
 	if s.Stats != nil {

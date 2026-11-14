@@ -166,6 +166,7 @@ func run(ctx context.Context, config Config, cnt *container.Container) error {
 		Keys:      apikeys.NewService(sq.NewAPIKeysRepository(db)),
 		Templates: templates.NewService(sq.NewTemplatesRepository(db)),
 		Inline:    intake.NewInlineService(sq.NewInlineStore(db), sq.NewDomainsRepository(db), cnt.BackoffPolicy(), cnt.RetryWindow(), int(config.MaxPayload)),
+		Flow:      flow,
 		Stats:     statsService,
 	})), nil)
 	slog.Info("Connect API server listening on " + connectServer.Addr)
