@@ -171,3 +171,9 @@ func TestTheConnectMuxDoesNotServeREST(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotFound, res.StatusCode)
 }
+
+func TestTheAPIRefusesToShareOnePortBetweenConnectAndREST(t *testing.T) {
+	err := run(t.Context(), Config{Port: 9000, RESTPort: 9000}, nil)
+
+	require.ErrorContains(t, err, "api.rest_port")
+}

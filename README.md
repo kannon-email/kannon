@@ -53,7 +53,8 @@ A single `SendHTML` / `SendTemplate` API call creates one **Batch** with N **Del
 
 Kannon is composed of several microservices and workers:
 
-- **Mailer API**: server that accepts `SendHTML` / `SendTemplate` and creates Batches with N Deliveries; together with the **Admin API** (Domains, Templates, API Keys), the **Stats API** and a **health** service, it forms the single HTTP API surface.
+- **REST API**: the primary API under `/v1beta1` (Domains, Templates, API Keys, Batches, Deliveries, stats), on a listener of its own (`api.rest_port`).
+- **Mailer API**: server that accepts `SendHTML` / `SendTemplate` and creates Batches with N Deliveries; together with the **Admin API** (Domains, Templates, API Keys), the **Stats API** and a **health** service, it forms the deprecated Connect surface on `api.port`.
 - **Validator**: Pulls Deliveries with status `to_validate`, validates the recipient address, and either schedules or rejects them.
 - **Dispatcher**: Pulls scheduled Deliveries, builds DKIM-signed Envelopes, and publishes them to NATS. Also consumes delivery / bounce / error events and updates Delivery state.
 - **SMTPSender**: Consumes Envelopes from NATS, performs the outbound SMTP transmission, and publishes Delivered / Bounced / transient-error stats.

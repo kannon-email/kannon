@@ -134,8 +134,8 @@ func run(ctx context.Context, config Config, cnt *container.Container) error {
 	// this point asks the configuration layer what authority a request has.
 	adminAuth := authzconnect.AdminTokenHandlerOptions(adminToken)
 
-	connectServer := newConnectServer(config.Port, recorder, newAPIMux(connectReadMaxBytes(config.MaxPayload), adminAuth, adminAPIService, mailAPIService, statsAPIService, statsV2APIService, hzAPIService))
-	restServer := newRESTServer(config.RESTPort, recorder, rest.NewHandler(rest.Services{
+	connectServer := newServer(config.Port, recorder, newAPIMux(connectReadMaxBytes(config.MaxPayload), adminAuth, adminAPIService, mailAPIService, statsAPIService, statsV2APIService, hzAPIService), connectProtocols())
+	restServer := newServer(config.RESTPort, recorder, rest.NewHandler(rest.Services{
 		Domains: domains.NewService(sq.NewDomainsRepository(db)),
 		Token:   adminToken,
 		Ready: func(ctx context.Context) error {
@@ -150,7 +150,7 @@ func run(ctx context.Context, config Config, cnt *container.Container) error {
 		Templates: templates.NewService(sq.NewTemplatesRepository(db)),
 		Inline:    intake.NewInlineService(sq.NewInlineStore(db), sq.NewDomainsRepository(db), cnt.BackoffPolicy(), cnt.RetryWindow(), int(config.MaxPayload)),
 		Stats:     statsService,
-	}))
+	}), nil)
 	slog.Info("Connect API server listening on " + connectServer.Addr)
 	slog.Info("REST API server listening on " + restServer.Addr)
 	return serveAll(ctx, connectServer, restServer)
@@ -249,22 +249,19 @@ func connectReadMaxBytes(maxPayload config.ByteSize) int {
 	return int(maxPayload) + connectReadHeadroom
 }
 
-func newConnectServer(port uint, recorder authz.Recorder, mux http.Handler) *http.Server {
+// connectProtocols adds h2c, which gRPC clients need to reach the Connect listener without TLS.
+func connectProtocols() *http.Protocols {
 	protocols := new(http.Protocols)
 	protocols.SetHTTP1(true)
 	protocols.SetUnencryptedHTTP2(true)
-	return newServer(port, withRecorder(recorder, mux), protocols)
-}
-
-func newRESTServer(port uint, recorder authz.Recorder, handler http.Handler) *http.Server {
-	return newServer(port, withRecorder(recorder, handler), nil)
+	return protocols
 }
 
 // newServer bounds header reads and idle connections without limiting body transfers.
-func newServer(port uint, handler http.Handler, protocols *http.Protocols) *http.Server {
+func newServer(port uint, recorder authz.Recorder, handler http.Handler, protocols *http.Protocols) *http.Server {
 	return &http.Server{
 		Addr:              fmt.Sprintf("0.0.0.0:%d", port),
-		Handler:           handler,
+		Handler:           withRecorder(recorder, handler),
 		Protocols:         protocols,
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
