@@ -175,8 +175,19 @@ func TestTheConnectMuxDoesNotServeREST(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, res.StatusCode)
 }
 
-func TestTheAPIRefusesToShareOnePortBetweenConnectAndREST(t *testing.T) {
-	err := run(t.Context(), Config{Port: 9000, RESTPort: 9000}, nil)
+func TestTheAPIRefusesToShareOnePortBetweenItsListeners(t *testing.T) {
+	for _, tc := range []struct {
+		config Config
+		keys   []string
+	}{
+		{Config{Port: 9000, RESTPort: 9000, HealthPort: 9002}, []string{"api.port", "api.rest_port"}},
+		{Config{Port: 9000, RESTPort: 9001, HealthPort: 9000}, []string{"api.port", "api.health_port"}},
+		{Config{Port: 9000, RESTPort: 9001, HealthPort: 9001}, []string{"api.rest_port", "api.health_port"}},
+	} {
+		err := run(t.Context(), tc.config, nil)
 
-	require.ErrorContains(t, err, "api.rest_port")
+		for _, key := range tc.keys {
+			require.ErrorContains(t, err, key)
+		}
+	}
 }

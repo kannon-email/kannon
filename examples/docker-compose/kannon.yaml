@@ -33,6 +33,7 @@ metrics:
 api:
   port: 50051
   rest_port: 8081
+  health_port: 8082
   # Authenticates the Admin API and both Stats APIs, and authorizes everything on every
   # Domain. Required whenever services.api.enabled is set, and refused at boot when shorter
   # than 32 characters or a known placeholder such as `change-me`. There is no fallback, even

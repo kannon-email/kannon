@@ -11,10 +11,11 @@ of the testing interfaces. A local copy is available in `docs/specs/rest-api-v1b
 The machine-readable contract is `api/openapi/v1.yaml` (OpenAPI 3.1.1). The REST API was
 first released as `/v1beta1`; ADR 0017 promoted the same contract to `/v1` and deprecated
 `/v1beta1` (`api/openapi/v1beta1.yaml`), which will be removed.
-It contains 21 operations across 13 paths and 48 schemas, and has passed structural
+It contains 20 operations across 12 paths and 48 schemas, and has passed structural
 OpenAPI validation. It is approved but not implemented: `x-design-review` records
 acceptance and the separate implementation follow-up.
-The specification covers application resources and the public health endpoint.
+The specification covers application resources. The readiness check is not part of it:
+ADR 0019 moved it to an internal listener.
 
 ## Existing interfaces
 
@@ -242,8 +243,9 @@ Confirmed decisions:
 31. Batch creation accepts at most 2,000 Recipients and a total HTTP body of
     10 MiB, including base64 attachment expansion. Excess recipients fail the
     request with 422, excess body size with 413. Neither is silently truncated.
-32. `GET /v1/health` is public: 200 when checks pass, 503 when not ready.
-    Responses are minimal and do not disclose infrastructure/database errors.
+32. The readiness check is not a REST operation. It is served at `GET /health`
+    on the internal `api.health_port` listener (ADR 0019): 200 when checks pass,
+    503 when not ready, without infrastructure/database error detail.
 33. Evolution within v1 remains compatible. Breaking changes require a new
     API version. gRPC stays in maintenance, with necessary fixes and no removal
     date fixed; new features target REST.
@@ -429,7 +431,6 @@ All paths below are relative to `/v1`.
 | GET | `/domains/{domain}/batches/{batch_id}/deliveries/{delivery_id}` | Read Delivery |
 | GET | `/domains/{domain}/stats/events` | Query detail events |
 | GET | `/domains/{domain}/stats/aggregated` | Query Domain counters |
-| GET | `/health` | Public minimal readiness result |
 
 Design interview complete: the consolidated contract, concrete schema names,
 replay representation and error identifiers are accepted. No handlers, generated

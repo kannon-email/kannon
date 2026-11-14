@@ -4,7 +4,6 @@ package rest
 //go:generate go run ./generate
 
 import (
-	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
@@ -34,13 +33,11 @@ const (
 )
 
 // Services are the application modules the REST adapter exposes; they are shared with other
-// transports and no HTTP types escape this package. Domain operations and readiness are always
-// mounted; every other nil member leaves its routes unmounted. Ready must check the configured
-// infrastructure, and a nil Ready reports the service as unavailable.
+// transports and no HTTP types escape this package. Domain operations are always mounted; every
+// other nil member leaves its routes unmounted.
 type Services struct {
 	Domains   *domains.Service
 	Token     admintoken.Token
-	Ready     func(context.Context) error
 	Keys      *apikeys.Service
 	Templates *templates.Service
 	Inline    *intake.InlineService
@@ -52,13 +49,6 @@ type Services struct {
 // NewHandler returns the REST handler for the supplied services, serving every API version.
 func NewHandler(s Services) http.Handler {
 	mux := http.NewServeMux()
-	mux.Handle("GET /health", handler(func(w http.ResponseWriter, r *http.Request) error {
-		if s.Ready == nil || s.Ready(r.Context()) != nil {
-			return problemError(503, "service_unavailable")
-		}
-		writeJSON(w, 200, map[string]string{statusKey: "ready"})
-		return nil
-	}))
 	protected := http.NewServeMux()
 	if s.Inline != nil {
 		registerBatches(protected, s.Inline, s.Flow)

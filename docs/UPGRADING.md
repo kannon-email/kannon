@@ -5,6 +5,25 @@ releases that change behaviour of an installation already in production appear
 here; everything else is in [`CHANGELOG.md`](../CHANGELOG.md), which is
 generated from commits.
 
+## Unreleased — Health check on an internal port
+
+### What changes
+
+The REST API no longer serves `GET /v1/health` or `GET /v1beta1/health`, and the
+health operation is gone from both OpenAPI contracts. The readiness check moved
+to a listener of its own, `api.health_port`, which defaults to `8082`, at
+`GET /health`: 200 `{"status":"ready"}` or 503 `{"status":"unavailable"}`.
+
+The API refuses to start when any two of `api.port`, `api.rest_port` and
+`api.health_port` are equal.
+
+### What you have to do
+
+Point readiness probes and monitors that called `/v1/health` or
+`/v1beta1/health` at `GET /health` on `api.health_port`, adding the port to the
+container. Do not route it from outside the cluster. Set `api.health_port` if
+`8082` is taken on the host.
+
 ## Unreleased — strong Admin Token required
 
 ### What changes
@@ -81,7 +100,7 @@ a Template.
 
 Every process that runs a component now serves Prometheus metrics on `GET /metrics`
 from a listener of its own, on port `9090` by default. A process whose `api.port`,
-`api.rest_port` or `tracker.port` is `9090` refuses to boot, naming both keys.
+`api.rest_port`, `api.health_port` or `tracker.port` is `9090` refuses to boot, naming both keys.
 
 ### What you have to do
 
