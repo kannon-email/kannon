@@ -100,3 +100,5 @@ FROM messages as m
     JOIN domains as d ON d.domain = m.domain
     LEFT JOIN batch_content_snapshots s ON s.batch_id = m.message_id
     WHERE m.message_id = @message_id;
+-- name: CountPoolByStatus :many
+SELECT status, count(*)::float8 AS deliveries FROM sending_pool_emails GROUP BY status;

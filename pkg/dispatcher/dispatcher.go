@@ -59,6 +59,7 @@ func run(ctx context.Context, cnt *container.Container, rp returnpath.Signer) er
 		js:      js,
 		flow:    mailflow.New(cnt.Metrics()),
 	}
+	mailflow.RegisterPool(cnt.Metrics(), q.DeliveriesByPoolStatus)
 
 	d.log().Info("🚀 Starting dispatcher")
 

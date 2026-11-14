@@ -27,6 +27,35 @@ func (q *Queries) CleanPool(ctx context.Context, arg CleanPoolParams) error {
 	return err
 }
 
+const countPoolByStatus = `-- name: CountPoolByStatus :many
+SELECT status, count(*)::float8 AS deliveries FROM sending_pool_emails GROUP BY status
+`
+
+type CountPoolByStatusRow struct {
+	Status     SendingPoolStatus
+	Deliveries float64
+}
+
+func (q *Queries) CountPoolByStatus(ctx context.Context) ([]CountPoolByStatusRow, error) {
+	rows, err := q.db.Query(ctx, countPoolByStatus)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CountPoolByStatusRow
+	for rows.Next() {
+		var i CountPoolByStatusRow
+		if err := rows.Scan(&i.Status, &i.Deliveries); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const createMessage = `-- name: CreateMessage :one
 INSERT INTO messages
     (message_id, subject, sender_email, sender_alias, template_id, domain, attachments, headers, tracking) VALUES

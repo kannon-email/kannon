@@ -51,6 +51,7 @@ func New(cnt *container.Container) container.Runnable {
 			claimer := pool.NewClaimer(sqlc.NewDeliveryRepository(cnt.DB(), cnt.BackoffPolicy(), cnt.RetryWindow()))
 
 			v := NewValidator(claimer, cnt.NatsPublisher(), mailflow.New(cnt.Metrics()))
+			mailflow.RegisterPool(cnt.Metrics(), cnt.Queries().DeliveriesByPoolStatus)
 
 			v.log().Info("🚀 Starting validator")
 
