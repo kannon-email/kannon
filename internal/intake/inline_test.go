@@ -159,6 +159,7 @@ func TestValidateInline(t *testing.T) {
 		{name: "global field name with NUL", key: "k", change: func(p *InlineRequest) { p.GlobalFields = map[string]string{"\x00": "a"} }, bad: true},
 		{name: "recipient field with NUL", key: "k", change: func(p *InlineRequest) { p.Recipients[0].Fields = map[string]string{"name": "a\x00"} }, bad: true},
 		{name: "recipient field name with NUL", key: "k", change: func(p *InlineRequest) { p.Recipients[0].Fields = map[string]string{"n\x00": "a"} }, bad: true},
+		{name: "template ID with NUL", key: "k", change: func(p *InlineRequest) { p.HTML, p.TemplateID = "", "tpl\x00" }, bad: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			p := inlineRequest()

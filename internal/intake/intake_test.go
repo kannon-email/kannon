@@ -2,6 +2,7 @@ package intake_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -253,8 +254,8 @@ func TestIntakeRejectsARecipientAddressedToAnInternalHost(t *testing.T) {
 	require.Equal(t, "ok@example.com", store.deliveries[0].Email())
 }
 
-// Postgres text cannot hold a NUL byte, so a send carrying one used to fail on insert as an
-// internal error. It is refused at Intake as invalid instead, before anything is stored.
+// Postgres text cannot hold a NUL byte, so a send carrying one is refused at Intake as invalid,
+// before anything is stored.
 func TestIntakeRefusesANULByte(t *testing.T) {
 	name := values.MustParse("example.com")
 	domain := domains.Load(domains.LoadParams{Domain: name})
@@ -270,6 +271,7 @@ func TestIntakeRefusesANULByte(t *testing.T) {
 		{"global field name", func(p *intake.Request) { p.GlobalFields = map[string]string{"na\x00me": "a"} }},
 		{"recipient field value", func(p *intake.Request) { p.Recipients[0].Fields = map[string]string{"name": "a\x00"} }},
 		{"recipient field name", func(p *intake.Request) { p.Recipients[0].Fields = map[string]string{"\x00": "a"} }},
+		{"template ID", func(p *intake.Request) { p.HTML, p.TemplateID = nil, "tpl\x00" }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			p := intake.Request{
@@ -285,9 +287,8 @@ func TestIntakeRefusesANULByte(t *testing.T) {
 	}
 }
 
-// A field substituted into the Subject could put a CR or LF there, which the Envelope build
-// refuses, so the Delivery retried until Failed. The Recipient is refused at Intake instead, as
-// REST refuses it, and the rest of the Batch goes ahead.
+// The Envelope build refuses a Subject with CR or LF, so a Recipient whose fields put one there
+// is refused at Intake, as REST refuses it, and the rest of the Batch goes ahead.
 func TestIntakeRejectsARecipientWhoseFieldsPutCRLFInTheSubject(t *testing.T) {
 	name := values.MustParse("example.com")
 	domain := domains.Load(domains.LoadParams{Domain: name})
@@ -310,4 +311,38 @@ func TestIntakeRejectsARecipientWhoseFieldsPutCRLFInTheSubject(t *testing.T) {
 		require.Len(t, store.deliveries, 1)
 		require.Equal(t, "ok@example.org", store.deliveries[0].Email())
 	}
+}
+
+// templateStore answers every template lookup with err.
+type templateStore struct {
+	unavailableStore
+	err error
+}
+
+func (s templateStore) FindByDomain(context.Context, values.DomainName, string) (*templates.Template, error) {
+	return nil, s.err
+}
+
+// An unknown Template is the caller's mistake and is refused as not found; a store that fails
+// is a fault whose cause stays in the chain for the log.
+func TestIntakeTemplateLookupFailures(t *testing.T) {
+	name := values.MustParse("example.com")
+	domain := domains.Load(domains.LoadParams{Domain: name})
+	ctx := authz.NewContext(t.Context(), authz.MustNewPrincipal("key", authz.MustNewGrant(authz.RoleSender, authz.DomainAnchor(name))))
+	p := intake.Request{
+		TemplateID: "missing", Subject: "Hello", Sender: batch.Sender{Email: "sender@example.com"},
+		Recipients: []intake.Recipient{{Recipient: batch.Recipient{Email: "r@example.org"}}},
+	}
+
+	_, err := intake.New(templateStore{err: templates.ErrTemplateNotFound}, nil, 0, 0).Accept(ctx, domain, p)
+	refusal, ok := apperr.As(err)
+	require.True(t, ok, "%v", err)
+	require.Equal(t, apperr.NotFound, refusal.Kind)
+	require.ErrorContains(t, err, "missing")
+
+	outage := errors.New("connection reset")
+	_, err = intake.New(templateStore{err: outage}, nil, 0, 0).Accept(ctx, domain, p)
+	require.ErrorIs(t, err, outage)
+	refusal, ok = apperr.As(err)
+	require.False(t, ok, "%v", refusal)
 }

@@ -193,11 +193,8 @@ func validateInline(key string, p InlineRequest) error {
 }
 
 func inlineContainsNUL(p InlineRequest) bool {
-	fieldSets := []map[string]string{p.GlobalFields}
-	for _, r := range p.Recipients {
-		fieldSets = append(fieldSets, r.Fields)
-	}
-	return containsNUL([]string{p.Subject, p.Sender.Alias, p.HTML}, fieldSets...)
+	texts := []string{p.Subject, p.Sender.Alias, p.HTML, p.TemplateID}
+	return containsNUL(texts, p.GlobalFields, p.Recipients, func(r InlineRecipient) map[string]string { return r.Fields })
 }
 
 // maxRecipients bounds one Batch, from either intake. Each Recipient is measured against the

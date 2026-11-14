@@ -146,7 +146,7 @@ func (s *Service) accept(ctx context.Context, domain *domains.Domain, p Request)
 	} else {
 		tpl, err = s.store.FindByDomain(ctx, domain.Name(), p.TemplateID)
 		if err != nil {
-			return nil, fmt.Errorf("cannot find template with id: %v", p.TemplateID)
+			return nil, fmt.Errorf("cannot find template with id %q: %w", p.TemplateID, err)
 		}
 		html, ok := utils.ReplaceCustomFieldsWithin(tpl.Html(), p.GlobalFields, room-len(p.Subject))
 		if !ok {
@@ -311,15 +311,11 @@ func (s *Service) decide(domain *domains.Domain, b *batch.Batch, html string, ro
 }
 
 func requestContainsNUL(p Request) bool {
-	texts := []string{p.Subject, p.Sender.Alias}
+	texts := []string{p.Subject, p.Sender.Alias, p.TemplateID}
 	if p.HTML != nil {
 		texts = append(texts, *p.HTML)
 	}
-	fieldSets := []map[string]string{p.GlobalFields}
-	for _, r := range p.Recipients {
-		fieldSets = append(fieldSets, r.Fields)
-	}
-	return containsNUL(texts, fieldSets...)
+	return containsNUL(texts, p.GlobalFields, p.Recipients, func(r Recipient) map[string]string { return r.Fields })
 }
 
 // recipientFits reports whether one Recipient's message, personalised the way the Builder
