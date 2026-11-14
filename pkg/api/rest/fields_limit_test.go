@@ -31,7 +31,7 @@ func newFieldsClient(t *testing.T) fieldsClient {
 		require.NoError(t, cleanup())
 	})
 	service := intake.NewInlineService(sqlc.NewInlineStore(db), sqlc.NewDomainsRepository(db), nil, 0, 0)
-	c := fieldsClient{t: t, h: rest.NewHandler(rest.Services{Domains: domains.NewService(sqlc.NewDomainsRepository(db)), Token: admintoken.MustParse("secret"), Ready: db.Ping, Inline: service})}
+	c := fieldsClient{t: t, h: rest.NewHandler(rest.Services{Domains: domains.NewService(sqlc.NewDomainsRepository(db)), Token: admintoken.MustParse(testAdminToken), Ready: db.Ping, Inline: service})}
 	c.do(http.MethodPost, "/v1/domains", "", `{"domain":"example.com"}`, 201)
 	return c
 }
@@ -39,7 +39,7 @@ func newFieldsClient(t *testing.T) fieldsClient {
 func (c fieldsClient) do(method, path, key, body string, status int) map[string]any {
 	c.t.Helper()
 	r := httptest.NewRequest(method, path, strings.NewReader(body))
-	r.Header.Set("Authorization", "Bearer secret")
+	r.Header.Set("Authorization", "Bearer "+testAdminToken)
 	if key != "" {
 		r.Header.Set("Idempotency-Key", key)
 	}
