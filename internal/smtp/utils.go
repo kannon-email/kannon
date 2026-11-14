@@ -23,8 +23,9 @@ func Validate(addr string) bool {
 // has no MX to resolve, so the SMTPSender would dial the host itself, which
 // lets a tenant aim a Delivery at an internal service.
 //
-// A top-level label made only of digits is never a real TLD (RFC 3696 §2), and
-// rejecting it also catches the shortened IPv4 forms such as 127.1.
+// A top-level label that is a number is never a real TLD (RFC 3696 §2), and
+// rejecting it also catches the shortened and inet_aton forms of IPv4 that a
+// resolver may accept, such as 127.1 or 0x7f.0x1.
 func NamesHostDirectly(addr string) bool {
 	domain := strings.ToLower(strings.TrimSuffix(addr[strings.LastIndex(addr, "@")+1:], "."))
 	if strings.ContainsAny(domain, "[]:") || net.ParseIP(domain) != nil {
@@ -33,8 +34,14 @@ func NamesHostDirectly(addr string) bool {
 	if domain == "localhost" || strings.HasSuffix(domain, ".localhost") {
 		return true
 	}
-	tld := domain[strings.LastIndex(domain, ".")+1:]
-	return strings.Trim(tld, "0123456789") == ""
+	return isNumericLabel(domain[strings.LastIndex(domain, ".")+1:])
+}
+
+func isNumericLabel(label string) bool {
+	if hex, ok := strings.CutPrefix(label, "0x"); ok {
+		return strings.Trim(hex, "0123456789abcdef") == ""
+	}
+	return strings.Trim(label, "0123456789") == ""
 }
 
 // GetEmailDomain extracts domain host from a given email address

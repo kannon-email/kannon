@@ -90,6 +90,8 @@ var internalHostAddresses = []string{
 	"x@[10.0.0.5]",
 	"x@169.254.169.254",
 	"x@127.1",
+	"x@0x7f.0x1",
+	"x@0X7F.0.0.0X1",
 	"x@[IPv6:::1]",
 	"x@[IPv6:::ffff:127.0.0.1]",
 	"x@[::1]",

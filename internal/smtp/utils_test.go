@@ -19,6 +19,10 @@ func TestValidate(t *testing.T) {
 		{"a@b.com\nBcc: evil@x.com", false},
 		{"prefix a@b.com", false},
 		{"a@b.com suffix", false},
+		{"x@127.1", false},
+		{"x@0x7f.0x1", false},
+		{"x@0x7f.0.0.0x1", false},
+		{"x@0xcafe.com", true},
 	}
 
 	for _, tt := range examples {
