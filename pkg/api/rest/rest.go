@@ -17,7 +17,6 @@ import (
 	"github.com/kannon-email/kannon/internal/apikeys"
 	"github.com/kannon-email/kannon/internal/authz"
 	"github.com/kannon-email/kannon/internal/domains"
-	"github.com/kannon-email/kannon/internal/httproute"
 	"github.com/kannon-email/kannon/internal/intake"
 	"github.com/kannon-email/kannon/internal/keyset"
 	"github.com/kannon-email/kannon/internal/mailflow"
@@ -25,6 +24,7 @@ import (
 	"github.com/kannon-email/kannon/internal/templates"
 	"github.com/kannon-email/kannon/internal/tracking"
 	"github.com/kannon-email/kannon/internal/values"
+	"github.com/kannon-email/kannon/pkg/api/httproute"
 )
 
 const (

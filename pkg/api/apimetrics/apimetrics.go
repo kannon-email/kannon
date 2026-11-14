@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"github.com/kannon-email/kannon/internal/httproute"
+	"github.com/kannon-email/kannon/pkg/api/httproute"
 	"github.com/kannon-email/kannon/x/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 )

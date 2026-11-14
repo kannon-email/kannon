@@ -202,7 +202,7 @@ Kannon is a cloud-native, scalable SMTP mail sender designed for Kubernetes and 
 
 #### `pkg/api/apimetrics/`
 
-- Counts and times every call to the APIs: `kannon_api_requests_total{api, operation, code}` and `kannon_api_request_duration_seconds{api, operation}`. A Connect interceptor on every handler labels by procedure and Connect code, and `ConnectService` around each generated service handler counts the calls connect-go refuses before any interceptor runs (oversized or undecodable body, unsupported protocol, unknown procedure as `unmatched`); a middleware around the REST handler labels by the route pattern the ServeMux matched and the status class, never the raw path. The pattern is carried out of the nested muxes by `internal/httproute`, since a mux sets `Request.Pattern` only on the request it dispatches.
+- Counts and times every call to the APIs: `kannon_api_requests_total{api, operation, code}` and `kannon_api_request_duration_seconds{api, operation}`. A Connect interceptor on every handler labels by procedure and Connect code, and `ConnectService` around each generated service handler counts the calls connect-go refuses before any interceptor runs (oversized or undecodable body, unsupported protocol, unknown procedure as `unmatched`); a middleware around the REST handler labels by the route pattern the ServeMux matched and the status class, never the raw path. The pattern is carried out of the nested muxes by `pkg/api/httproute`, since a mux sets `Request.Pattern` only on the request it dispatches.
 
 #### `pkg/api/hzapi/`
 

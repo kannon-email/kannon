@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/kannon-email/kannon/internal/httproute"
+	"github.com/kannon-email/kannon/pkg/api/httproute"
 )
 
 type apiVersion struct {
