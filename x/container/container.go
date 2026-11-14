@@ -18,6 +18,7 @@ import (
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 // Container implements the Dependency Injection (DI) pattern for Go.
@@ -37,6 +38,7 @@ type Container struct {
 	nats               *singleton[*nats.Conn]
 	embeddedNatsServer *singleton[*server.Server]
 	sender             *singleton[smtp.Sender]
+	metrics            *prometheus.Registry
 
 	// mu guards closers and hzs, which are appended to from singleton factory
 	// callbacks that may run concurrently across runnable goroutines.
@@ -71,6 +73,7 @@ func New(ctx context.Context, cfg config.RootConfig) *Container {
 		nats:               &singleton[*nats.Conn]{},
 		embeddedNatsServer: &singleton[*server.Server]{},
 		sender:             &singleton[smtp.Sender]{},
+		metrics:            newMetricsRegistry(),
 	}
 }
 
@@ -114,6 +117,7 @@ func NewForTest(ctx context.Context, opts ...TestOption) *Container {
 		nats:               &singleton[*nats.Conn]{},
 		embeddedNatsServer: &singleton[*server.Server]{},
 		sender:             &singleton[smtp.Sender]{},
+		metrics:            newMetricsRegistry(),
 	}
 	for _, opt := range opts {
 		opt(c)
