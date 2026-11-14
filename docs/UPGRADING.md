@@ -5,6 +5,33 @@ releases that change behaviour of an installation already in production appear
 here; everything else is in [`CHANGELOG.md`](../CHANGELOG.md), which is
 generated from commits.
 
+## Unreleased — API errors no longer carry internal detail
+
+### What changes
+
+The Connect `HZService` answers `"ok"` or `"unavailable"` per component, where
+it used to answer `"OK"` or the raw error (which named the database user,
+database and host). The detail is logged as `health check failed`.
+
+A Connect call that fails on an internal error now answers code `internal`
+with the message `internal` and an `X-Request-ID` in the error metadata; the
+cause is logged under that ID as `Connect request failed`. A REST 500 logs its
+cause under the Problem's `request_id` as `REST request failed`, and every REST
+401 logs `REST authentication failed` with the peer address, path and request
+ID.
+
+Intake refuses a NUL byte in the Subject, sender alias, HTML or any field with
+`validation_failed` (REST 422, Connect `invalid_argument`), where it used to
+fail on insert as an internal error. A legacy send Rejects a Recipient whose
+fields put a CR or LF into the Subject, with reason `reserved_field`, instead
+of accepting a Delivery that could never be built.
+
+### What you have to do
+
+Monitors that compare an `HZService` status with `"OK"` must accept `"ok"`.
+Clients that parsed a Connect internal error's message must not: quote its
+`X-Request-ID` to find the cause in the API's log.
+
 ## Unreleased — Health check on an internal port
 
 ### What changes
