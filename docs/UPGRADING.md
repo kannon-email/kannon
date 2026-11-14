@@ -19,6 +19,23 @@ Nothing, unless your recipients' mail is relayed through a host on a private
 network (a self-hosted MX, a test relay). Then set
 `sender.allow_private_destinations: true` on the sender.
 
+## Unreleased — Fields bounded per REST Batch
+
+### What changes
+
+`POST .../batches` refuses a request whose fields would multiply out of
+proportion, since global fields are copied into every Recipient and stored with
+each Delivery. A Recipient may carry at most 1000 fields, global fields
+included (422 `too_many_fields`), and all Recipients' fields, keys and values,
+with global fields counted once per Recipient, may total at most 10 MiB (422
+`fields_too_large`). The legacy Mailer API is unchanged.
+
+### What you have to do
+
+Nothing, unless a client sends more fields than that: split such a Batch into
+smaller ones, or move large shared content from `global_fields` into the HTML or
+a Template.
+
 ## Unreleased — REST API v1
 
 ### What changes

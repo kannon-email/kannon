@@ -29,6 +29,8 @@ var (
 	ErrIdempotencyConflict         = apperr.New(apperr.Conflict, "idempotency_conflict", "")
 	ErrIdempotencyInProgress       = apperr.New(apperr.Conflict, "idempotency_in_progress", "")
 	ErrNoRecipientsAccepted        = apperr.New(apperr.Invalid, "no_recipients_accepted", "")
+	ErrTooManyFields               = apperr.New(apperr.Invalid, "too_many_fields", "")
+	ErrFieldsTooLarge              = apperr.New(apperr.Invalid, "fields_too_large", "")
 )
 
 // Attachment is one named file supplied with a Batch.
@@ -186,7 +188,7 @@ func validateInline(key string, p InlineRequest) error {
 	if _, reserved := p.GlobalFields["email"]; reserved {
 		return invalid(errors.New("email is reserved"))
 	}
-	return nil
+	return checkFieldsBudget(p)
 }
 
 // maxRecipients bounds one Batch, from either intake. Each Recipient is measured against the

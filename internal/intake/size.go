@@ -56,3 +56,38 @@ func unsubscribeURLFits(u batch.OneClickUnsubscribe, fields map[string]string, r
 	_, ok := utils.ReplaceCustomFieldsInURLWithin(u.URLTemplate, fields, room)
 	return ok
 }
+
+// MaxFieldsPerRecipient bounds the fields one Recipient carries, its global fields included.
+const MaxFieldsPerRecipient = 1000
+
+// MaxFieldsBytes bounds the fields of one Batch, keys and values, summed over its Recipients
+// with the global fields counted once for each. It matches the REST body limit, so a Batch never
+// stores more fields than one request could carry without global fields.
+const MaxFieldsBytes = 10 << 20
+
+// checkFieldsBudget refuses a Batch whose fields would be expensive to copy, before any copy is
+// made: global fields are merged into every Recipient and stored with each Delivery, so a request
+// that is small on the wire multiplies by the number of Recipients. A global field a Recipient
+// overrides is counted twice, which keeps the measure an upper bound computed without merging.
+func checkFieldsBudget(p InlineRequest) error {
+	global := fieldsSize(p.GlobalFields)
+	total := 0
+	for _, r := range p.Recipients {
+		if len(p.GlobalFields)+len(r.Fields) > MaxFieldsPerRecipient {
+			return ErrTooManyFields
+		}
+		total += global + fieldsSize(r.Fields)
+		if total > MaxFieldsBytes {
+			return ErrFieldsTooLarge
+		}
+	}
+	return nil
+}
+
+func fieldsSize(fields map[string]string) int {
+	size := 0
+	for k, v := range fields {
+		size += len(k) + len(v)
+	}
+	return size
+}
