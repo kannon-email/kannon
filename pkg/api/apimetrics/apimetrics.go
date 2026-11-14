@@ -57,6 +57,7 @@ func (i *interceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
 		if req.Spec().IsClient {
 			return next(ctx, req)
 		}
+		markIntercepted(ctx)
 		start := time.Now()
 		res, err := next(ctx, req)
 		i.m.observe("connect", req.Spec().Procedure, connectCode(err), start)
@@ -70,6 +71,7 @@ func (i *interceptor) WrapStreamingClient(next connect.StreamingClientFunc) conn
 
 func (i *interceptor) WrapStreamingHandler(next connect.StreamingHandlerFunc) connect.StreamingHandlerFunc {
 	return func(ctx context.Context, conn connect.StreamingHandlerConn) error {
+		markIntercepted(ctx)
 		start := time.Now()
 		err := next(ctx, conn)
 		i.m.observe("connect", conn.Spec().Procedure, connectCode(err), start)

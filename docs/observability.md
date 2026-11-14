@@ -25,6 +25,12 @@ collectors (`go_*`, `process_*`). A counter series appears once it has been incr
 | `kannon_api_requests_total` | counter | `api` = `connect` \| `rest`; `operation` = the Connect procedure (`/pkg.kannon.admin.apiv1.Api/GetDomains`) or the REST route pattern (`GET /domains/{domain}`), `unmatched` when no route matched; `code` = the Connect code (`ok`, `invalid_argument`, ...) for Connect, the status class (`2xx`, `4xx`, `5xx`) for REST |
 | `kannon_api_request_duration_seconds` | histogram | `api`, `operation` |
 
+Connect calls refused before they reach a handler — a body over the read limit or one that cannot be
+decoded, an unsupported protocol or content type — are counted too, with the code the caller was
+answered with (`resource_exhausted`, `invalid_argument`, `unknown` for an HTTP-level refusal such as
+an unsupported content type). A path naming no procedure of a served service is
+`operation="unmatched"`.
+
 ### Mail flow
 
 | Metric | Type | Labels | Counted by |

@@ -306,11 +306,11 @@ func newAPIMux(readMaxBytes int, adminAuth []connect.HandlerOption, calls *apime
 	common := []connect.HandlerOption{connect.WithReadMaxBytes(readMaxBytes), connect.WithInterceptors(calls.Connect())}
 	admin := append(slices.Clone(common), adminAuth...)
 
-	adminPath, adminHandler := adminv1connect.NewApiHandler(adminServer, admin...)
-	mailerPath, mailerHandler := mailerv1connect.NewMailerHandler(mailerServer, common...)
-	statsPath, statsHandler := statsv1connect.NewStatsApiV1Handler(statsServer, admin...)
-	statsV2Path, statsV2Handler := statsv2connect.NewStatsApiV2Handler(statsV2Server, admin...)
-	hzPath, hzHandler := adminv1connect.NewHZServiceHandler(hzServer, common...)
+	adminPath, adminHandler := calls.ConnectService(adminv1connect.NewApiHandler(adminServer, admin...))
+	mailerPath, mailerHandler := calls.ConnectService(mailerv1connect.NewMailerHandler(mailerServer, common...))
+	statsPath, statsHandler := calls.ConnectService(statsv1connect.NewStatsApiV1Handler(statsServer, admin...))
+	statsV2Path, statsV2Handler := calls.ConnectService(statsv2connect.NewStatsApiV2Handler(statsV2Server, admin...))
+	hzPath, hzHandler := calls.ConnectService(adminv1connect.NewHZServiceHandler(hzServer, common...))
 
 	mux.Handle(adminPath, adminHandler)
 	mux.Handle(mailerPath, mailerHandler)
