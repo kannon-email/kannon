@@ -4,8 +4,6 @@ package metrics
 
 import (
 	"fmt"
-	"maps"
-	"slices"
 
 	"github.com/kannon-email/kannon/x/config"
 )
@@ -43,15 +41,21 @@ func LoadConfig() (Config, error) {
 	return cfg, nil
 }
 
-// RequireOwnPort refuses a metrics listener asked to share a port with another listener of the same
-// process, named by the config key that sets its port.
-func (c Config) RequireOwnPort(others map[string]uint) error {
+// ListenPort is a port another listener of the process opens, with the config key that sets it.
+type ListenPort struct {
+	Key  string
+	Port uint
+}
+
+// RequireOwnPort refuses a metrics listener asked to share a port with another listener the process
+// runs, naming the config key that sets it.
+func (c Config) RequireOwnPort(others []ListenPort) error {
 	if !c.Enabled {
 		return nil
 	}
-	for _, key := range slices.Sorted(maps.Keys(others)) {
-		if others[key] == c.Port {
-			return fmt.Errorf("%s and %s are both %d: the metrics listener needs a port of its own", PortKey, key, c.Port)
+	for _, other := range others {
+		if other.Port == c.Port {
+			return fmt.Errorf("%s and %s are both %d: the metrics listener needs a port of its own", PortKey, other.Key, c.Port)
 		}
 	}
 	return nil

@@ -2,7 +2,10 @@
 
 Every Kannon process that runs at least one Component serves Prometheus metrics on `GET /metrics`,
 on a listener of its own configured by the top-level `metrics` section (`enabled`, default `true`;
-`port`, default `9090`). It is never served on the Connect or REST ports. See
+`port`, default `9090`). It is never served on the Connect or REST ports. A `metrics.port` equal to
+the port of a listener the process runs (`api.port`, `api.rest_port` when it runs the API,
+`tracker.port` when it runs the tracker) refuses the boot; ports of Components it does not run are
+not checked. See
 [ADR 0018](adr/0018-metrics-are-prometheus-on-a-dedicated-listener-with-no-tenant-label.md).
 
 Each process exposes only the metrics of the Components it runs, plus the standard Go and process

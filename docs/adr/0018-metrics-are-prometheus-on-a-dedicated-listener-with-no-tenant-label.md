@@ -36,8 +36,9 @@ metrics:
 It is not a Component and has no entry under `services`: it runs in every process that runs at
 least one Component, and `metrics.enabled: false` opens no listener at all. It shuts down through
 `container.ServeHTTP` like every other listener. A `metrics.port` equal to the port of a listener
-the same process opens — `api.port`, `api.rest_port` or `tracker.port` — refuses the boot, naming
-both keys.
+the same process actually runs — `api.port` and `api.rest_port` when it runs the API, `tracker.port`
+when it runs the tracker — refuses the boot, naming both keys. The check covers only those
+listeners: the port of a Component the process does not run is not compared, since it opens nothing.
 
 **No `domain` label, nor any other unbounded one.** A label is allowed only if its values are a
 bounded enum written down in the code: the API, the procedure or route pattern, an outcome. Never a

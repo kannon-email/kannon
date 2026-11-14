@@ -34,6 +34,7 @@ import (
 	statsv2connect "github.com/kannon-email/kannon/proto/kannon/stats/apiv2/apiv2connect"
 	"github.com/kannon-email/kannon/x/config"
 	"github.com/kannon-email/kannon/x/container"
+	"github.com/kannon-email/kannon/x/metrics"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -90,22 +91,29 @@ func adminTokenError(err error) error {
 		config.APIAdminTokenKey, err)
 }
 
-// ListenPorts reads the ports the API listens on, keyed by the config key that sets each, so the
-// boot path can refuse another listener asked to share one.
-func ListenPorts() (map[string]uint, error) {
+const (
+	configKey = "api"
+	// PortKey and RESTPortKey name the keys the API's ports are read from.
+	PortKey     = configKey + ".port"
+	RESTPortKey = configKey + ".rest_port"
+)
+
+// ListenPorts reads the ports the API listens on, so the boot path can refuse another listener asked
+// to share one.
+func ListenPorts() ([]metrics.ListenPort, error) {
 	var cfg Config
-	if err := config.TryLoadSection("api", &cfg); err != nil {
+	if err := config.TryLoadSection(configKey, &cfg); err != nil {
 		return nil, err
 	}
 	cfg.setDefaults()
-	return map[string]uint{"api.port": cfg.Port, "api.rest_port": cfg.RESTPort}, nil
+	return []metrics.ListenPort{{Key: PortKey, Port: cfg.Port}, {Key: RESTPortKey, Port: cfg.RESTPort}}, nil
 }
 
 // New constructs the API runnable, loading its slice of configuration from
 // viper under the "api" key.
 func New(cnt *container.Container) container.Runnable {
 	var cfg Config
-	config.LoadSection("api", &cfg)
+	config.LoadSection(configKey, &cfg)
 	cfg.setDefaults()
 	return container.Runnable{
 		Name: "api",
@@ -117,7 +125,7 @@ func New(cnt *container.Container) container.Runnable {
 
 func run(ctx context.Context, config Config, cnt *container.Container) error {
 	if config.Port == config.RESTPort {
-		return fmt.Errorf("api.port and api.rest_port are both %d: the Connect and REST APIs need a port each", config.Port)
+		return fmt.Errorf("%s and %s are both %d: the Connect and REST APIs need a port each", PortKey, RESTPortKey, config.Port)
 	}
 
 	// Resolved before the listener opens, and again here rather than only in the boot path: a
