@@ -5,6 +5,20 @@ releases that change behaviour of an installation already in production appear
 here; everything else is in [`CHANGELOG.md`](../CHANGELOG.md), which is
 generated from commits.
 
+## Unreleased — Prometheus metrics on port 9090
+
+### What changes
+
+Every process that runs a component now serves Prometheus metrics on `GET /metrics`
+from a listener of its own, on port `9090` by default. A process whose `api.port`,
+`api.rest_port` or `tracker.port` is `9090` refuses to boot, naming both keys.
+
+### What you have to do
+
+Nothing, unless port `9090` is taken where Kannon runs: then set `metrics.port`, or
+turn the listener off with `metrics.enabled: false`. To scrape it, expose the port
+to your scraper only; it is not meant to be published.
+
 ## Unreleased — REST API v1
 
 ### What changes

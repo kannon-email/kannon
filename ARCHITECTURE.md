@@ -18,7 +18,11 @@ Kannon is a cloud-native, scalable SMTP mail sender designed for Kubernetes and 
 
 #### `x/container/`
 
-- Dependency injection container. Manages singletons for DB, NATS, and other shared resources.
+- Dependency injection container. Manages singletons for DB, NATS, and other shared resources. Owns the process's one Prometheus registry (`Metrics()`), with the Go and process collectors on it; every Component registers its own collectors there.
+
+#### `x/metrics/`
+
+- Reads the top-level `metrics` section (`enabled`, default `true`; `port`, default `9090`) and serves the container's registry on `GET /metrics` from a listener of its own, in every process that runs at least one Component. Not on the Connect or REST ports, which are meant to be published, and not a Component: the workers have no other HTTP listener. `metrics.Register` lets a Component built twice reuse its collectors. No metric carries a `domain` label or any other unbounded one. See [ADR 0018](./docs/adr/0018-metrics-are-prometheus-on-a-dedicated-listener-with-no-tenant-label.md).
 
 #### `internal/db/`
 
@@ -191,6 +195,10 @@ Kannon is a cloud-native, scalable SMTP mail sender designed for Kubernetes and 
 #### `pkg/api/mailapi/`
 
 - Implements the Mailer API: handles SendHTML/SendTemplate requests, validates auth, and enqueues emails. Owns the intake of a Batch, and with it the Tracking Policy cascade: it resolves the Domain, Batch and Recipient statements once, per Recipient, and freezes the concrete result on each Delivery, so a Delivery records the Policy that actually governed it (ADR 0003). A Batch asking for more than its Domain allows fails the call; a single Recipient asking for more is Rejected on its own, with a stable reason returned in `SendRes.rejected_recipients` alongside the accepted and rejected counts.
+
+#### `pkg/api/apimetrics/`
+
+- Counts and times every call to the APIs: `kannon_api_requests_total{api, operation, code}` and `kannon_api_request_duration_seconds{api, operation}`. A Connect interceptor on every handler labels by procedure and Connect code; a middleware around the REST handler labels by the route pattern the ServeMux matched and the status class, never the raw path. The pattern is carried out of the nested muxes by `internal/httproute`, since a mux sets `Request.Pattern` only on the request it dispatches.
 
 #### `pkg/api/hzapi/`
 
