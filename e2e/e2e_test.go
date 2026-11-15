@@ -497,8 +497,8 @@ func waitHZ(t *testing.T, clientFactory *clientFactory, infra *TestInfrastructur
 
 		slog.Info(fmt.Sprintf("HZ results: %+v", results))
 
-		assert.Equal(t, "", results["db"])
-		assert.Equal(t, "", results["nats"])
+		assert.Equal(t, "ok", results["db"])
+		assert.Equal(t, "ok", results["nats"])
 	}, 60*time.Second, 2*time.Second, "HZ should be ready within 60 seconds")
 }
 

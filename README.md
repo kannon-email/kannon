@@ -337,7 +337,7 @@ Kannon serves its APIs on two HTTP listeners, so each can be exposed on its own,
 - **Stats API v2** — `kannon.stats.apiv2.StatsApiV2` ([proto](./.proto/kannon/stats/apiv2/statsapiv2.proto))
   - `GetAggregatedStats`: hourly buckets served from `aggregated_stats`
 - **Health** — `pkg.kannon.admin.apiv1.HZService` ([proto](./.proto/kannon/admin/apiv1/hz.proto))
-  - `HZ`: per-dependency status map, `"OK"` or the error string
+  - `HZ`: per-dependency status map, `"ok"` or `"unavailable"`; the failure detail goes to the server log
 
 ### Authentication
 

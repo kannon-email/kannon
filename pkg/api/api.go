@@ -22,6 +22,7 @@ import (
 	"github.com/kannon-email/kannon/internal/templates"
 	"github.com/kannon-email/kannon/pkg/api/adminapi"
 	"github.com/kannon-email/kannon/pkg/api/apimetrics"
+	"github.com/kannon-email/kannon/pkg/api/connecterr"
 	"github.com/kannon-email/kannon/pkg/api/health"
 	"github.com/kannon-email/kannon/pkg/api/hzapi"
 	"github.com/kannon-email/kannon/pkg/api/mailapi"
@@ -336,7 +337,7 @@ func serveAll(ctx context.Context, servers ...*http.Server) error {
 func newAPIMux(readMaxBytes int, adminAuth []connect.HandlerOption, calls *apimetrics.Metrics, adminServer adminv1connect.ApiHandler, mailerServer mailerv1connect.MailerHandler, statsServer statsv1connect.StatsApiV1Handler, statsV2Server statsv2connect.StatsApiV2Handler, hzServer adminv1connect.HZServiceHandler) *http.ServeMux {
 	mux := http.NewServeMux()
 
-	common := []connect.HandlerOption{connect.WithReadMaxBytes(readMaxBytes), connect.WithInterceptors(calls.Connect())}
+	common := []connect.HandlerOption{connect.WithReadMaxBytes(readMaxBytes), connect.WithInterceptors(calls.Connect(), connecterr.Interceptor())}
 	admin := append(slices.Clone(common), adminAuth...)
 
 	adminPath, adminHandler := calls.ConnectService(adminv1connect.NewApiHandler(adminServer, admin...))

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/kannon-email/kannon/internal/apperr"
 	"github.com/nrednav/cuid2"
 )
 
@@ -21,10 +22,10 @@ func NewID() ID {
 // ParseID validates and parses a string into an ID
 func ParseID(s string) (ID, error) {
 	if s == "" {
-		return "", errors.New("API key ID is required")
+		return "", apperr.Wrap(apperr.Invalid, "validation_failed", errors.New("API key ID is required"))
 	}
 	if !strings.HasPrefix(s, IDPrefix) {
-		return "", fmt.Errorf("invalid API key ID format: must start with %s", IDPrefix)
+		return "", apperr.Wrap(apperr.Invalid, "validation_failed", fmt.Errorf("invalid API key ID format: must start with %s", IDPrefix))
 	}
 	return ID(s), nil
 }

@@ -170,6 +170,9 @@ func validateInline(key string, p InlineRequest) error {
 	if p.Subject == "" || strings.ContainsAny(p.Subject+p.Sender.Alias, "\r\n") || len(p.Recipients) < 1 || (p.HTML == "") == (p.TemplateID == "") {
 		return invalid(errors.New("invalid or unsupported inline request"))
 	}
+	if inlineContainsNUL(p) {
+		return errNUL
+	}
 	for _, list := range [][]string{p.Headers.To, p.Headers.Cc} {
 		for _, address := range list {
 			if strings.ContainsAny(address, "\r\n") {
@@ -187,6 +190,11 @@ func validateInline(key string, p InlineRequest) error {
 		return invalid(errors.New("email is reserved"))
 	}
 	return checkFieldsBudget(p)
+}
+
+func inlineContainsNUL(p InlineRequest) bool {
+	texts := []string{p.Subject, p.Sender.Alias, p.HTML, p.TemplateID}
+	return containsNUL(texts, p.GlobalFields, p.Recipients, func(r InlineRecipient) map[string]string { return r.Fields })
 }
 
 // maxRecipients bounds one Batch, from either intake. Each Recipient is measured against the
@@ -299,12 +307,14 @@ func inlineAttachments(as []Attachment) (batch.Attachments, []AttachmentMetadata
 	return attachments, metadata, nil
 }
 
-// REST-only Recipient refusals. They are wire codes of the REST contract
+// REST Recipient refusals. They are wire codes of the REST contract
 // (x-recipient-rejection-codes), beside the reasons REST shares with legacy intake.
 const (
 	ReasonDuplicateRecipient    RejectionReason = "duplicate_recipient"
 	ReasonUnresolvedPlaceholder RejectionReason = "unresolved_placeholder"
-	ReasonReservedField         RejectionReason = "reserved_field"
+	// ReasonReservedField is also legacy intake's refusal of fields that put a CR or LF into
+	// the Subject.
+	ReasonReservedField RejectionReason = "reserved_field"
 )
 
 // inlineRecipient is one accepted Recipient, ready to become a Delivery.

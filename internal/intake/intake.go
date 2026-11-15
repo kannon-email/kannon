@@ -108,6 +108,9 @@ func (s *Service) Accept(ctx context.Context, domain *domains.Domain, p Request)
 	if strings.ContainsAny(p.Sender.Alias, "\r\n") {
 		return nil, invalid(errors.New("sender alias contains forbidden CR/LF"))
 	}
+	if requestContainsNUL(p) {
+		return nil, errNUL
+	}
 	host, err := smtputils.GetEmailDomain(p.Sender.Email)
 	if err != nil {
 		return nil, invalid(fmt.Errorf("invalid sender email %q: %w", p.Sender.Email, err))
@@ -143,7 +146,7 @@ func (s *Service) accept(ctx context.Context, domain *domains.Domain, p Request)
 	} else {
 		tpl, err = s.store.FindByDomain(ctx, domain.Name(), p.TemplateID)
 		if err != nil {
-			return nil, fmt.Errorf("cannot find template with id: %v", p.TemplateID)
+			return nil, fmt.Errorf("cannot find template with id %q: %w", p.TemplateID, err)
 		}
 		html, ok := utils.ReplaceCustomFieldsWithin(tpl.Html(), p.GlobalFields, room-len(p.Subject))
 		if !ok {
@@ -280,6 +283,10 @@ func (s *Service) decide(domain *domains.Domain, b *batch.Batch, html string, ro
 			taken.reject(r.Email, ReasonMessageTooLarge, "personalised content exceeds the maximum payload")
 			continue
 		}
+		if strings.ContainsAny(utils.ReplaceCustomFields(b.Subject(), utils.EffectiveFields(r.Email, r.Fields)), "\r\n") {
+			taken.reject(r.Email, ReasonReservedField, "fields put a CR or LF into the subject")
+			continue
+		}
 		if detail, ok := unresolvedUnsubscribeURL(b.OneClickUnsubscribe(), r.Recipient); !ok {
 			taken.reject(r.Email, ReasonUnsubscribeURLUnresolved, detail)
 			continue
@@ -301,6 +308,14 @@ func (s *Service) decide(domain *domains.Domain, b *batch.Batch, html string, ro
 		taken.deliveries = append(taken.deliveries, d)
 	}
 	return taken
+}
+
+func requestContainsNUL(p Request) bool {
+	texts := []string{p.Subject, p.Sender.Alias, p.TemplateID}
+	if p.HTML != nil {
+		texts = append(texts, *p.HTML)
+	}
+	return containsNUL(texts, p.GlobalFields, p.Recipients, func(r Recipient) map[string]string { return r.Fields })
 }
 
 // recipientFits reports whether one Recipient's message, personalised the way the Builder

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/kannon-email/kannon/internal/apperr"
 )
 
 // maxLength matches domains.domain, the narrowest column a domain name lands in, so nothing this
@@ -28,6 +30,14 @@ type DomainName struct {
 // Resource path or an identifier embedding a name, and rejects a single-label name, which could
 // equal a segment of the tree; every real mail domain carries a dot, so nothing real is lost.
 func Parse(s string) (DomainName, error) {
+	n, err := parse(s)
+	if err != nil {
+		return DomainName{}, apperr.Wrap(apperr.Invalid, "validation_failed", err)
+	}
+	return n, nil
+}
+
+func parse(s string) (DomainName, error) {
 	s = strings.ToLower(strings.TrimSpace(s))
 
 	if s == "" {

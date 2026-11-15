@@ -29,6 +29,12 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+// errUnauthenticated keeps the message legacy clients read; a fresh error each time, since a
+// caller may attach metadata to it.
+func errUnauthenticated() error {
+	return connect.NewError(connect.CodeUnauthenticated, errors.New("invalid or wrong auth"))
+}
+
 type mailAPIService struct {
 	domains domains.Repository
 	apiKeys *apikeys.Service
@@ -39,7 +45,7 @@ type mailAPIService struct {
 func (s mailAPIService) SendHTML(ctx context.Context, req *connect.Request[pb.SendHTMLReq]) (*connect.Response[pb.SendRes], error) {
 	ctx, domain, err := s.authenticate(ctx, req.Header())
 	if err != nil {
-		return nil, errors.New("invalid or wrong auth")
+		return nil, errUnauthenticated()
 	}
 	msg := &pb.SendTemplateReq{
 		Sender: req.Msg.Sender, Subject: req.Msg.Subject, ScheduledTime: req.Msg.ScheduledTime,
@@ -52,7 +58,7 @@ func (s mailAPIService) SendHTML(ctx context.Context, req *connect.Request[pb.Se
 func (s mailAPIService) SendTemplate(ctx context.Context, req *connect.Request[pb.SendTemplateReq]) (*connect.Response[pb.SendRes], error) {
 	ctx, domain, err := s.authenticate(ctx, req.Header())
 	if err != nil {
-		return nil, errors.New("invalid or wrong auth")
+		return nil, errUnauthenticated()
 	}
 	return s.accept(ctx, domain, req.Msg, nil)
 }

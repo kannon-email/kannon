@@ -2,6 +2,7 @@ package mailapi_test
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -109,7 +110,8 @@ func TestSendMail_RefusesWithoutCredential(t *testing.T) {
 	t.Run("no Authorization header", func(t *testing.T) {
 		_, err := ts.SendHTML(t.Context(), newReq())
 		require.Error(t, err)
-		assert.Equal(t, "invalid or wrong auth", err.Error())
+		assert.Equal(t, connect.CodeUnauthenticated, connect.CodeOf(err))
+		assert.Equal(t, "invalid or wrong auth", connectMessage(err))
 	})
 
 	t.Run("wrong key for a real Domain", func(t *testing.T) {
@@ -119,7 +121,8 @@ func TestSendMail_RefusesWithoutCredential(t *testing.T) {
 
 		_, err := ts.SendHTML(t.Context(), req)
 		require.Error(t, err)
-		assert.Equal(t, "invalid or wrong auth", err.Error())
+		assert.Equal(t, connect.CodeUnauthenticated, connect.CodeOf(err))
+		assert.Equal(t, "invalid or wrong auth", connectMessage(err))
 	})
 }
 
@@ -161,7 +164,8 @@ func TestSendMail_IgnoresAnAdminPrincipalInTheContext(t *testing.T) {
 
 	_, err = ts.SendHTML(adminCtx, unauthenticated)
 	require.Error(t, err)
-	assert.Equal(t, "invalid or wrong auth", err.Error())
+	assert.Equal(t, connect.CodeUnauthenticated, connect.CodeOf(err))
+	assert.Equal(t, "invalid or wrong auth", connectMessage(err))
 }
 
 func TestSendMail_AcceptsSenderFromParentDomain(t *testing.T) {
@@ -1177,4 +1181,12 @@ func TestSendTemplateWithGlobalFields(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotEqual(t, tmp.ID, template.ID)
 	assert.Equal(t, "Hello Global", template.Html)
+}
+
+func connectMessage(err error) string {
+	var ce *connect.Error
+	if errors.As(err, &ce) {
+		return ce.Message()
+	}
+	return err.Error()
 }
