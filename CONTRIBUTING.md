@@ -147,7 +147,7 @@ Releases are automated with [release-please](https://github.com/googleapis/relea
 - `<type>` is mandatory and lowercase; see the table below.
 - `(scope)` is optional but recommended: the package or component touched, e.g. `dispatcher`, `sender`, `smtp`, `db`, `envelope`, `deps`, `ci`.
 - `<description>` is a short imperative summary, lowercase (proper nouns such as `NATS` or `Postgres` excepted) and without a trailing period.
-- Append `!` after the type/scope (and/or add a `BREAKING CHANGE:` footer explaining the migration) for anything that breaks compatibility. release-please gives it its own changelog section and bumps the version accordingly.
+- Append `!` after the type/scope (and/or add a `BREAKING CHANGE:` footer explaining the migration) for anything that breaks compatibility. release-please gives it its own changelog section and bumps the version accordingly: a minor bump while Kannon is below 1.0.0 (`bump-minor-pre-major` in `release-please-config.json`), a major bump afterwards.
 - Reference issues in the body or footer (`Fixes #123`), not in the type.
 
 | Type       | Use for                                                     | Release effect        |
@@ -208,7 +208,7 @@ The project uses several GitHub Actions workflows:
 
 - **`dependabot-auto-merge.yaml`**: Automatically merges Dependabot PRs for minor/patch updates after CI passes
 
-- **`release-please.yml`**: On every push to `main`, opens/updates the release PR (version bump + `CHANGELOG.md`) from the Conventional Commit history; merging it tags the release
+- **`release-please.yml`**: On every push to `main`, opens/updates the release PR (version bump + `CHANGELOG.md`) from the Conventional Commit history, following `release-please-config.json` and `.release-please-manifest.json`; merging it tags the release
 
 - **`release.yaml`**: On `v*` tags, builds and publishes the release artifacts with GoReleaser
 
