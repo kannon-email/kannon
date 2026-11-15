@@ -23,11 +23,13 @@ var databaseImports = []string{
 
 // mayTalkToTheDatabase are the directories whose production code is allowed to import a database
 // package for good: the sqlc adapters themselves, the schema and migrations, the composition root
-// that builds the pool, and the fixture that starts a Postgres for tests.
+// that builds the pool, the fixture that starts a Postgres for tests, and the classifier that reads
+// the driver's error types to tell a transient failure from a permanent one.
 var mayTalkToTheDatabase = []string{
 	"db",
 	"internal/db",
 	"internal/tests",
+	"internal/transient",
 	"x/container",
 }
 
