@@ -49,9 +49,9 @@ func run(ctx context.Context, cnt *container.Container, rp returnpath.Signer, re
 	}
 	mailflow.RegisterPool(cnt.Metrics(), sqlc.NewPoolCensus(cnt.DB()))
 
-	errored := d.consumer(ctx, erroredSubject, erroredConsumer)
-	delivered := d.consumer(ctx, deliveredSubject, deliveredConsumer)
-	bounced := d.consumer(ctx, bouncedSubject, bouncedConsumer)
+	errored := d.consumer(ctx, erroredFeed)
+	delivered := d.consumer(ctx, deliveredFeed)
+	bounced := d.consumer(ctx, bouncedFeed)
 
 	d.log().Info("🚀 Starting dispatcher")
 	ready()

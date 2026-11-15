@@ -46,7 +46,7 @@ func (r *Registry) Names() []string {
 func (r *Registry) Run(ctx context.Context, onReady func()) error {
 	var pending atomic.Int64
 	pending.Store(int64(len(r.runnables)))
-	declare := func() {
+	countReady := func() {
 		if pending.Add(-1) == 0 && onReady != nil {
 			onReady()
 		}
@@ -57,7 +57,7 @@ func (r *Registry) Run(ctx context.Context, onReady func()) error {
 
 	g, gctx := errgroup.WithContext(ctx)
 	for _, run := range r.runnables {
-		ready := sync.OnceFunc(declare)
+		ready := sync.OnceFunc(countReady)
 		g.Go(func() error {
 			err := run.Run(gctx, ready)
 			if errors.Is(err, context.Canceled) && gctx.Err() != nil {

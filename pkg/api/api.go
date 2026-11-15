@@ -238,7 +238,7 @@ func run(ctx context.Context, config Config, cnt *container.Container, adminToke
 	slog.Info("REST API server listening on " + l.REST.Addr().String())
 	slog.Info("health server listening on " + l.Health.Addr().String())
 	ready()
-	return serveAll(ctx, served{connectServer, l.Connect}, served{restServer, l.REST}, served{healthServer, l.Health})
+	return serveAll(ctx, endpoint{connectServer, l.Connect}, endpoint{restServer, l.REST}, endpoint{healthServer, l.Health})
 }
 
 // startAuditRecording resolves the Recorder every authorization decision on this process reports to,
@@ -340,15 +340,16 @@ func newServer(recorder authz.Recorder, handler http.Handler, protocols *http.Pr
 
 // serveAll serves every server until ctx is done or one of them fails, which stops the others: a
 // process that has lost one of its APIs must not go on looking healthy through the other.
-func serveAll(ctx context.Context, servers ...served) error {
+func serveAll(ctx context.Context, endpoints ...endpoint) error {
 	g, ctx := errgroup.WithContext(ctx)
-	for _, s := range servers {
-		g.Go(func() error { return container.ServeHTTP(ctx, s.server, s.listener) })
+	for _, e := range endpoints {
+		g.Go(func() error { return container.ServeHTTP(ctx, e.server, e.listener) })
 	}
 	return g.Wait()
 }
 
-type served struct {
+// endpoint is an HTTP server with the listener it serves on.
+type endpoint struct {
 	server   *http.Server
 	listener net.Listener
 }

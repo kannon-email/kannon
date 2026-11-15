@@ -246,18 +246,21 @@ func (d *disp) parsBouncedFunc(ctx context.Context, e stats.Event) error {
 
 type parseFunc func(ctx context.Context, e stats.Event) error
 
-const (
-	erroredSubject    = "kannon.stats.error"
-	erroredConsumer   = "dispatcher-error"
-	deliveredSubject  = "kannon.stats.delivered"
-	deliveredConsumer = "dispatcher-delivered"
-	bouncedSubject    = "kannon.stats.bounced"
-	bouncedConsumer   = "dispatcher-bounced"
+// statFeed is a stat subject the Dispatcher settles Deliveries from, with the durable consumer it
+// reads the subject under.
+type statFeed struct {
+	subject, consumer string
+}
+
+var (
+	erroredFeed   = statFeed{subject: "kannon.stats.error", consumer: "dispatcher-error"}
+	deliveredFeed = statFeed{subject: "kannon.stats.delivered", consumer: "dispatcher-delivered"}
+	bouncedFeed   = statFeed{subject: "kannon.stats.bounced", consumer: "dispatcher-bounced"}
 )
 
-// consumer subscribes to one of the stat subjects the Dispatcher settles Deliveries from.
-func (d *disp) consumer(ctx context.Context, subject, name string) jetstream.Consumer {
-	return utils.MustGetPullSubscriber(ctx, d.js, stats.StreamName, subject, name)
+// consumer subscribes to one of the stat feeds the Dispatcher settles Deliveries from.
+func (d *disp) consumer(ctx context.Context, f statFeed) jetstream.Consumer {
+	return utils.MustGetPullSubscriber(ctx, d.js, stats.StreamName, f.subject, f.consumer)
 }
 
 // handleMsg is the one place the Dispatcher decodes a stat message, so the
