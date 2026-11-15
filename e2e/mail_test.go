@@ -11,11 +11,11 @@ import (
 
 	"mime/quotedprintable"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type ParsedEmail struct {
+	ReturnPath  string
 	From        string
 	To          string
 	Cc          string
@@ -24,7 +24,7 @@ type ParsedEmail struct {
 	Attachments []Attachment
 }
 
-func parseEmail(t *assert.CollectT, body []byte) ParsedEmail {
+func parseEmail(t require.TestingT, body []byte) ParsedEmail {
 	msg, err := mail.ReadMessage(bytes.NewReader(body))
 	require.NoError(t, err)
 
@@ -66,7 +66,7 @@ type Attachment struct {
 }
 
 // readDecodedPartContent reads and decodes the content of a MIME part based on its encoding.
-func readDecodedPartContent(p *multipart.Part, t *assert.CollectT) ([]byte, string, string) {
+func readDecodedPartContent(p *multipart.Part, t require.TestingT) ([]byte, string, string) {
 	contentType := p.Header.Get("Content-Type")
 	disposition := p.Header.Get("Content-Disposition")
 	contentEncoding := strings.ToLower(p.Header.Get("Content-Transfer-Encoding"))
@@ -112,7 +112,7 @@ func parseBase64Content(p *multipart.Part) ([]byte, error) {
 }
 
 // parseMultipartEmail parses the body and attachments from a multipart email.
-func parseMultipartEmail(t *assert.CollectT, body io.Reader, boundary string) (string, []Attachment) {
+func parseMultipartEmail(t require.TestingT, body io.Reader, boundary string) (string, []Attachment) {
 	mr := multipart.NewReader(body, boundary)
 	var attachments []Attachment
 	var emailBody string
@@ -144,7 +144,7 @@ func parseMultipartEmail(t *assert.CollectT, body io.Reader, boundary string) (s
 // decoding the Content-Transfer-Encoding if present so callers see the
 // original payload (e.g. tracking-pixel URLs aren't broken across QP
 // soft line breaks).
-func parseSimpleEmailBody(t *assert.CollectT, body io.Reader, encoding string) string {
+func parseSimpleEmailBody(t require.TestingT, body io.Reader, encoding string) string {
 	var r = body
 	switch encoding {
 	case "quoted-printable":
