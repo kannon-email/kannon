@@ -234,9 +234,9 @@ func run(ctx context.Context, config Config, cnt *container.Container, adminToke
 		}
 		return nil
 	})), nil)
-	slog.Info("Connect API server listening on " + l.Connect.Addr().String())
-	slog.Info("REST API server listening on " + l.REST.Addr().String())
-	slog.Info("health server listening on " + l.Health.Addr().String())
+	slog.Info("Connect API server listening", "addr", l.Connect.Addr().String())
+	slog.Info("REST API server listening", "addr", l.REST.Addr().String())
+	slog.Info("health server listening", "addr", l.Health.Addr().String())
 	ready()
 	return serveAll(ctx, endpoint{connectServer, l.Connect}, endpoint{restServer, l.REST}, endpoint{healthServer, l.Health})
 }
@@ -270,7 +270,7 @@ func startAuditRecording(ctx context.Context, cnt *container.Container) authz.Re
 	// right — a NATS they cannot reach is fatal to their whole job — and for the API is not. Before
 	// this feature the API never touched NATS at all, so exiting here would mean enabling an audit
 	// trail bought an API that crash-loops whenever NATS is slow to come up (#365).
-	js, err := cnt.TryNatsJetStream()
+	js, err := cnt.TryNatsJetStream(ctx)
 	if err != nil {
 		slog.Error("cannot reach NATS, so authorization decisions stay in the log rather than "+
 			"reaching the audit table; the API is serving regardless", "err", err)

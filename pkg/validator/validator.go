@@ -8,6 +8,9 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/kannon-email/kannon/internal/transient"
+	"github.com/kannon-email/kannon/internal/utils"
+
 	sqlc "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/delivery"
 	"github.com/kannon-email/kannon/internal/mailflow"
@@ -49,17 +52,17 @@ func New(cnt *container.Container) container.Runnable {
 			v := NewValidator(claimer, cnt.NatsPublisher(), mailflow.New(cnt.Metrics()))
 			mailflow.RegisterPool(cnt.Metrics(), sqlc.NewPoolCensus(cnt.DB()))
 
-			v.log().Info("🚀 Starting validator")
+			v.log().Info("starting validator")
 			ready()
 
 			eg, ctx := errgroup.WithContext(ctx)
 
 			eg.Go(func() error {
-				return runner.Run(ctx, v.Cycle, runner.WaitLoop(1*time.Second))
+				return runner.Run(ctx, runner.Tolerate(v.log().With("cycle", "validate"), v.Cycle), runner.WaitLoop(1*time.Second))
 			})
 
 			eg.Go(func() error {
-				return runner.Run(ctx, v.reclaimLoop, runner.WaitLoop(pool.ReclaimInterval))
+				return runner.Run(ctx, runner.Tolerate(v.log().With("cycle", "reclaim"), v.ReclaimCycle), runner.WaitLoop(pool.ReclaimInterval))
 			})
 
 			return eg.Wait()
@@ -75,11 +78,11 @@ func (d *Validator) Cycle(pctx context.Context) error {
 		return fmt.Errorf("cannot prepare emails for send: %w", err)
 	}
 
-	d.log().Debug(fmt.Sprintf("validating %d emails", len(emails)))
+	d.log().Debug("validating claimed deliveries", "count", len(emails))
 
 	for _, dlv := range emails {
 		if err := d.handleDelivery(ctx, dlv); err != nil {
-			d.log().Error("error handling delivery", "batch", dlv.BatchID(), "email", dlv.Email(), "err", err)
+			d.log().Log(ctx, transient.Level(err), "cannot settle validated delivery", "batch_id", dlv.BatchID().String(), "email", utils.ObfuscateEmail(dlv.Email()), "err", err)
 		}
 	}
 	return nil
@@ -112,7 +115,7 @@ func (d *Validator) handleDelivery(ctx context.Context, dlv *delivery.Delivery) 
 
 func validateDelivery(d *delivery.Delivery) error {
 	if err := validateEmail(d.Email()); err != nil {
-		slog.Error("invalid email", "email", d.Email(), "err", err)
+		slog.Info("rejecting invalid recipient", "component", "validator", "email", utils.ObfuscateEmail(d.Email()), "batch_id", d.BatchID().String(), "err", err)
 		return err
 	}
 	return nil

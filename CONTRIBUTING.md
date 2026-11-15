@@ -105,6 +105,30 @@ files. Use `make lint-fix` to explicitly apply golangci-lint fixes, then rerun
 The project's coding standards, including where each kind of test belongs and
 the black-box rule for the e2e suite, are in [CODING_STANDARDS.md](CODING_STANDARDS.md).
 
+### Logging
+
+Kannon logs through `log/slog` only, as logfmt on stderr, so that every line can be parsed and
+queried by its attributes.
+
+- The message is a constant, lowercase phrase saying what happened (`"email delivered"`,
+  `"cannot insert stat, will retry"`). No `fmt.Sprintf`, no string concatenation, no emoji, no
+  trailing newline: everything that varies goes in an attribute.
+- Attribute keys are `snake_case` and reused across the codebase: `component`, `err`, `email`
+  (always through `utils.ObfuscateEmail`), `email_id`, `batch_id`, `domain`, `stream`, `consumer`,
+  `subject`, `addr`.
+- Each runnable tags its lines with `component`, usually through a `log()` helper returning
+  `slog.With("component", …)`.
+- Levels:
+  - `debug`: diagnostics, and a failure that is being retried and has not outlasted its retries.
+  - `info`: lifecycle (listening, starting, stopping) and mail-flow events.
+  - `warn`: something degraded that Kannon is still handling, such as a transient failure that
+    persists past its retries, or a client refused for a reason worth a look.
+  - `error`: something an operator has to act on, or work that was dropped.
+- A Postgres or NATS failure that can heal by itself is not an error the first time it happens.
+  Retry it at debug and report it only once it persists: `transient.Do` for an operation retried in
+  place, `runner.Tolerate` for a periodic cycle, and `utils.RedeliveryLevel` for a JetStream message
+  that is Nak'ed for redelivery. `transient.Is` decides which failures count as transient.
+
 ## Submitting Issues & Feature Requests
 
 - Use [GitHub Issues](https://github.com/kannon-email/kannon/issues) for bugs, enhancements, and questions.
@@ -126,7 +150,7 @@ Releases are automated with [release-please](https://github.com/googleapis/relea
 - `<type>` is mandatory and lowercase; see the table below.
 - `(scope)` is optional but recommended: the package or component touched, e.g. `dispatcher`, `sender`, `smtp`, `db`, `envelope`, `deps`, `ci`.
 - `<description>` is a short imperative summary, lowercase (proper nouns such as `NATS` or `Postgres` excepted) and without a trailing period.
-- Append `!` after the type/scope (and/or add a `BREAKING CHANGE:` footer explaining the migration) for anything that breaks compatibility. release-please gives it its own changelog section and bumps the version accordingly.
+- Append `!` after the type/scope (and/or add a `BREAKING CHANGE:` footer explaining the migration) for anything that breaks compatibility. release-please gives it its own changelog section and bumps the version accordingly: a minor bump while Kannon is below 1.0.0 (`bump-minor-pre-major` in `release-please-config.json`), a major bump afterwards.
 - Reference issues in the body or footer (`Fixes #123`), not in the type.
 
 | Type       | Use for                                                     | Release effect        |
@@ -187,7 +211,7 @@ The project uses several GitHub Actions workflows:
 
 - **`dependabot-auto-merge.yaml`**: Automatically merges Dependabot PRs for minor/patch updates after CI passes
 
-- **`release-please.yml`**: On every push to `main`, opens/updates the release PR (version bump + `CHANGELOG.md`) from the Conventional Commit history; merging it tags the release
+- **`release-please.yml`**: On every push to `main`, opens/updates the release PR (version bump + `CHANGELOG.md`) from the Conventional Commit history, following `release-please-config.json` and `.release-please-manifest.json`; merging it tags the release
 
 - **`release.yaml`**: On `v*` tags, builds and publishes the release artifacts with GoReleaser
 

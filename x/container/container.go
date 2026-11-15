@@ -14,6 +14,7 @@ import (
 	"github.com/kannon-email/kannon/internal/delivery"
 	"github.com/kannon-email/kannon/internal/publisher"
 	"github.com/kannon-email/kannon/internal/smtp"
+	"github.com/kannon-email/kannon/internal/transient"
 	"github.com/kannon-email/kannon/x/config"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
@@ -148,7 +149,7 @@ func (c *Container) EmbeddedNatsServer() *server.Server {
 }
 
 func (c *Container) startEmbeddedNatsServer(context.Context) (*server.Server, error) {
-	slog.Info("Starting embedded NATS server...")
+	slog.Info("starting embedded NATS server")
 
 	opts := &server.Options{
 		Host:      "127.0.0.1",
@@ -169,11 +170,11 @@ func (c *Container) startEmbeddedNatsServer(context.Context) (*server.Server, er
 		return nil, errors.New("NATS server not ready after 10 seconds")
 	}
 
-	slog.Info("Embedded NATS server started at " + ns.ClientURL())
+	slog.Info("embedded NATS server started", "url", ns.ClientURL())
 
 	c.mu.Lock()
 	c.finalClosers = append(c.finalClosers, func(ctx context.Context) error {
-		slog.Info("Shutting down embedded NATS server...")
+		slog.Info("shutting down embedded NATS server")
 		ns.Shutdown()
 		ns.WaitForShutdown()
 		return nil
@@ -201,11 +202,14 @@ func (c *Container) Nats() *nats.Conn {
 //
 // Nats itself keeps exiting, deliberately: for every worker in Kannon a NATS it cannot reach really
 // is fatal, and there is nothing for those callers to do with an error.
-func (c *Container) TryNats() (*nats.Conn, error) {
-	return c.nats.Get(c.ctx, c.connectNats)
+//
+// ctx bounds the retries while NATS is unreachable, for a caller that must give up when it is asked
+// to stop rather than when the container is closed.
+func (c *Container) TryNats(ctx context.Context) (*nats.Conn, error) {
+	return c.nats.Get(ctx, c.connectNats)
 }
 
-func (c *Container) connectNats(context.Context) (*nats.Conn, error) {
+func (c *Container) connectNats(ctx context.Context) (*nats.Conn, error) {
 	natsURL := c.natsURL
 	if c.useEmbeddedNats {
 		// The embedded server's failure is reported rather than exited on, so that TryNats
@@ -217,14 +221,28 @@ func (c *Container) connectNats(context.Context) (*nats.Conn, error) {
 		natsURL = ns.ClientURL()
 	}
 
-	slog.Debug("connecting to NATS: " + natsURL)
+	log := slog.With("component", "nats")
+	watch := newNatsWatch(log)
 	closed := make(chan struct{})
-	nc, err := nats.Connect(natsURL, nats.ClosedHandler(func(*nats.Conn) { close(closed) }))
+	var closeOnce sync.Once
+	opts := append(watch.options(),
+		nats.Name("kannon"),
+		// Once connected, never give up reconnecting: a worker whose connection closed for good
+		// would sit idle and healthy-looking until restarted, where one that keeps trying recovers
+		// as soon as NATS is back, and reports itself unhealthy meanwhile.
+		nats.MaxReconnects(-1),
+		nats.ClosedHandler(func(*nats.Conn) { closeOnce.Do(func() { close(closed) }) }),
+	)
+	nc, err := transient.Do(ctx, log, transient.Startup, func(context.Context) (*nats.Conn, error) {
+		return nats.Connect(natsURL, opts...)
+	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot connect to NATS: %w", err)
 	}
+	log.Debug("connected", "url", nc.ConnectedUrlRedacted())
 
 	c.addClosers(func(ctx context.Context) error {
+		watch.stop()
 		defer nc.Close()
 		if err := nc.Drain(); err != nil {
 			return err
@@ -260,7 +278,6 @@ func (c *Container) connectNats(context.Context) (*nats.Conn, error) {
 }
 
 func (c *Container) NatsPublisher() publisher.Publisher {
-	slog.Debug("[nats] creating publisher")
 	return &publisherWithDebug{
 		nc: c.Nats(),
 	}
@@ -269,7 +286,7 @@ func (c *Container) NatsPublisher() publisher.Publisher {
 func (c *Container) NatsJetStream() jetstream.JetStream {
 	js, err := c.jetStream(c.Nats())
 	if err != nil {
-		slog.Error("Failed to create NATS JetStream", "err", err)
+		slog.Error("cannot create NATS JetStream context", "err", err)
 		os.Exit(1)
 	}
 	return js
@@ -277,8 +294,8 @@ func (c *Container) NatsJetStream() jetstream.JetStream {
 
 // TryNatsJetStream is NatsJetStream without the exit, for the caller whose use of NATS is optional.
 // See TryNats for why one exists: an opt-in feature must not be able to stop the API from serving.
-func (c *Container) TryNatsJetStream() (jetstream.JetStream, error) {
-	nc, err := c.TryNats()
+func (c *Container) TryNatsJetStream(ctx context.Context) (jetstream.JetStream, error) {
+	nc, err := c.TryNats(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -372,6 +389,6 @@ type publisherWithDebug struct {
 }
 
 func (p *publisherWithDebug) Publish(subj string, data []byte) error {
-	slog.Debug("[nats] publishing message", "subj", subj)
+	slog.Debug("publishing NATS message", "subject", subj)
 	return p.nc.Publish(subj, data)
 }

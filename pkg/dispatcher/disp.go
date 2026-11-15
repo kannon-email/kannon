@@ -16,6 +16,7 @@ import (
 	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/internal/statspb"
 	"github.com/kannon-email/kannon/internal/statssec"
+	"github.com/kannon-email/kannon/internal/transient"
 	"github.com/kannon-email/kannon/internal/utils"
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -63,13 +64,12 @@ func (d *disp) DispatchCycle(ctx context.Context) error {
 		return fmt.Errorf("cannot prepare emails for send: %w", err)
 	}
 
-	d.log().Debug(fmt.Sprintf("seding %d emails", len(emails)))
+	d.log().Debug("dispatching claimed deliveries", "count", len(emails))
 
 	for _, dlv := range emails {
 		d.dispatchOne(ctx, dlv)
 	}
 
-	d.log().Debug("done sending emails")
 	return nil
 }
 
@@ -98,7 +98,7 @@ func (d *disp) dispatchOne(ctx context.Context, dlv *delivery.Delivery) {
 	env, err := d.eb.Build(buildCtx, dlv)
 	if err != nil {
 		d.flow.Dispatched(mailflow.DispatchBuildError)
-		log.With("err", err).Error("Cannot send email")
+		log.Error("cannot build envelope", "err", err)
 		d.reschedule(ctx, dlv, log)
 		return
 	}
@@ -107,13 +107,13 @@ func (d *disp) dispatchOne(ctx context.Context, dlv *delivery.Delivery) {
 
 	if err := publisher.SendEmail(d.pub, env); err != nil {
 		d.flow.Dispatched(mailflow.DispatchPublishError)
-		log.With("err", err).Error("Cannot send email")
+		log.Log(ctx, transient.Level(err), "cannot publish envelope, rescheduling", "err", err)
 		d.reschedule(ctx, dlv, log)
 		return
 	}
 
 	d.flow.Dispatched(mailflow.DispatchOK)
-	log.Info("[✅ accepted]")
+	log.Info("envelope dispatched")
 }
 
 // reschedule is dispatchOne's side of the chokepoint. It logs what retryOrFail
@@ -122,7 +122,7 @@ func (d *disp) dispatchOne(ctx context.Context, dlv *delivery.Delivery) {
 // (#400) — whereas the error-stat consumer needs the error to drive Nak/Ack.
 func (d *disp) reschedule(ctx context.Context, dlv *delivery.Delivery, log *slog.Logger) {
 	if err := d.retryOrFail(ctx, dlv, reasonBudgetSpentDispatching); err != nil {
-		log.With("err", err).Error("Cannot hand delivery back to the pool after dispatch failure")
+		log.Error("cannot hand delivery back to the pool after dispatch failure", "err", err)
 	}
 }
 
@@ -186,7 +186,7 @@ func (d *disp) fail(ctx context.Context, dlv *delivery.Delivery, reason string) 
 		return fmt.Errorf("cannot drop delivery with a spent retry budget: %w", err)
 	}
 
-	d.log().Warn("[❌ failed] retry budget exhausted",
+	d.log().Warn("delivery failed: retry budget exhausted",
 		"email", utils.ObfuscateEmail(dlv.Email()),
 		"batch_id", dlv.BatchID().String(),
 		"send_attempts", dlv.SendAttempts(),
@@ -285,7 +285,7 @@ func (d *disp) handleMsg(ctx context.Context, con jetstream.Consumer, parse pars
 	}()
 
 	<-ctx.Done()
-	d.log().Info(fmt.Sprintf("Consumer %s stopped", subName))
+	d.log().Info("consumer stopped", "consumer", subName)
 	return ctx.Err()
 }
 
@@ -301,7 +301,7 @@ func (d *disp) handleWithAck(ctx context.Context, msg jetstream.Msg, f func(ctx 
 	switch {
 	case err == nil:
 		if err := msg.Ack(); err != nil {
-			d.log().Error("Cannot ack msg to nats", "err", err)
+			d.log().Error("cannot ack message", "err", err)
 		}
 	case errors.Is(err, delivery.ErrDeliveryNotFound):
 		// Permanent: the delivery row is gone from the pool, so no amount of
@@ -309,11 +309,12 @@ func (d *disp) handleWithAck(ctx context.Context, msg jetstream.Msg, f func(ctx 
 		// consumer from spinning.
 		d.log().Debug("dropping stat for unknown delivery", "err", err)
 		if err := msg.Term(); err != nil {
-			d.log().Error("Cannot term msg to nats", "err", err)
+			d.log().Error("cannot term message", "err", err)
 		}
 	default:
+		d.log().Log(ctx, utils.RedeliveryLevel(msg, err), "cannot process stat, will retry", "subject", msg.Subject(), "err", err)
 		if err := msg.NakWithDelay(nakDelay); err != nil {
-			d.log().Error("Cannot nak msg to nats", "err", err)
+			d.log().Error("cannot nak message", "err", err)
 		}
 	}
 }

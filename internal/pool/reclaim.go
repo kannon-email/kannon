@@ -85,24 +85,12 @@ func (r Reclaimer) Cycle(ctx context.Context) error {
 	// logged individually, and the cycle carries the count.
 	log := r.log.With("in_flight", r.inFlight.String(), "threshold", r.olderThan)
 	for _, dlv := range reclaimed {
-		log.Warn("[reclaimed stranded delivery]",
+		log.Warn("reclaimed stranded delivery",
 			"email", utils.ObfuscateEmail(dlv.Email()),
 			"batch_id", dlv.BatchID().String(),
 			"send_attempts", dlv.SendAttempts())
 	}
 	log.Warn("reclaimed stranded deliveries", "count", len(reclaimed))
 
-	return nil
-}
-
-// Loop is Cycle as a runner loop body. It logs the error rather than returning
-// it: runner.Run stops at the first error and every runnable in the process
-// shares one errgroup (x/container.Registry.Run), so a Postgres blip inside a
-// best-effort recovery would take the whole of Kannon down with it. The next
-// cycle is ReclaimInterval away.
-func (r Reclaimer) Loop(ctx context.Context) error {
-	if err := r.Cycle(ctx); err != nil {
-		r.log.Error("reclaim cycle failed, stranded claims stay until the next one", "err", err)
-	}
 	return nil
 }

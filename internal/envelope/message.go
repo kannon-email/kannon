@@ -92,7 +92,7 @@ func renderMsg(html string, hdrs headers, attachments Attachments) ([]byte, erro
 
 	var buf bytes.Buffer
 	if err := writeMessage(&buf, h, html, attachments); err != nil {
-		slog.Warn(fmt.Sprintf("🤢 Error writing message: %v\n", err))
+		slog.Warn("cannot write message", "err", err)
 		return nil, err
 	}
 	return buf.Bytes(), nil

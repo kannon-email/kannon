@@ -2,7 +2,6 @@ package tracker
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -13,6 +12,7 @@ import (
 	"github.com/kannon-email/kannon/internal/publisher"
 	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/internal/statssec"
+	"github.com/kannon-email/kannon/internal/transient"
 	"github.com/kannon-email/kannon/internal/utils"
 )
 
@@ -24,24 +24,24 @@ func (s *srv) handleClick(w http.ResponseWriter, r *http.Request) {
 	token := strings.Replace(r.URL.Path, "/c/", "", 1)
 	claims, err := s.ss.VerifyLinkToken(ctx, token)
 	if err != nil {
-		slog.Error("cannot verify click token", "err", err)
+		slog.Warn("rejecting click: token does not verify", "component", "tracker", "host", r.Host, "err", err)
 		http.NotFound(w, r)
 		return
 	}
 
 	domain, err := utils.ExtractDomainFromMessageID(claims.MessageID)
 	if err != nil {
-		slog.Error("cannot verify click token", "err", err)
+		slog.Warn("rejecting click: token names no domain", "component", "tracker", "host", r.Host, "err", err)
 		http.NotFound(w, r)
 		return
 	}
 	if !servesDomain(r, domain) {
-		slog.Warn("click token presented on another Domain's host", "host", r.Host, "domain", domain)
+		slog.Warn("rejecting click: token presented on another Domain's host", "component", "tracker", "host", r.Host, "domain", domain)
 		http.NotFound(w, r)
 		return
 	}
 	if !isWebURL(claims.URL) {
-		slog.Warn("click token names a non-web URL", "domain", domain)
+		slog.Warn("rejecting click: token names a non-web URL", "component", "tracker", "domain", domain)
 		http.NotFound(w, r)
 		return
 	}
@@ -54,12 +54,13 @@ func (s *srv) handleClick(w http.ResponseWriter, r *http.Request) {
 	event := buildClickEvent(claims, kept, domain)
 
 	if err := publisher.PublishStat(s.pub, event); err != nil {
-		slog.Error("cannot send message on nats", "err", err)
+		slog.Log(ctx, transient.Level(err), "cannot publish click stat", "component", "tracker", "batch_id", claims.MessageID, "err", err)
 		return
 	}
 	s.flow.Engaged(mailflow.Clicked)
 
-	slog.Info(fmt.Sprintf("🔗 %s %s %s %s %s %s", r.Method, claims.URL, claims.MessageID, kept.userAgent, r.Host, kept.ip))
+	// The link's host and not the whole URL: a query string can carry the recipient's own tokens.
+	slog.Info("click tracked", append(kept.logAttrs(), "component", "tracker", "batch_id", claims.MessageID, "host", r.Host, "link_host", linkHost(claims.URL))...)
 }
 
 func isWebURL(raw string) bool {

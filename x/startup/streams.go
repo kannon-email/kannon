@@ -21,7 +21,7 @@ import (
 // is silently lost.
 func configureStreams(ctx context.Context, cnt *container.Container, services config.Services) error {
 	if usesStatsStream(services) {
-		js, err := cnt.TryNatsJetStream()
+		js, err := cnt.TryNatsJetStream(ctx)
 		if err != nil {
 			return fmt.Errorf("cannot reach NATS: %w", err)
 		}
@@ -66,7 +66,7 @@ func configureAuditStream(ctx context.Context, cnt *container.Container, service
 	if !cfg.Enabled {
 		return nil
 	}
-	js, err := cnt.TryNatsJetStream()
+	js, err := cnt.TryNatsJetStream(ctx)
 	if err != nil {
 		return tolerate(fmt.Errorf("cannot reach NATS: %w", err))
 	}

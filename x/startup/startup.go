@@ -59,6 +59,7 @@ type options struct {
 	container         []container.Option
 	standalone        bool
 	logLevel          *slog.LevelVar
+	version           string
 	senderConcurrency uint
 	extra             []container.Runnable
 }
@@ -93,6 +94,11 @@ func Standalone() Option {
 // WithLogLevel is the level the config file's `debug` key raises to Debug.
 func WithLogLevel(l *slog.LevelVar) Option {
 	return func(o *options) { o.logLevel = l }
+}
+
+// WithVersion is the build version Start logs when it starts the components.
+func WithVersion(v string) Option {
+	return func(o *options) { o.version = v }
 }
 
 // withRunnable runs r beside the components the configuration selects, so a test can hold the
@@ -210,7 +216,7 @@ func Start(ctx context.Context, configPath string, opts ...Option) (Instance, er
 		reg.Register(r)
 	}
 
-	slog.Info(fmt.Sprintf("Starting Kannon runnables: %v", reg.Names()))
+	slog.Info("starting kannon", "version", o.version, "runnables", reg.Names())
 
 	inst.launch(ctx, reg)
 	return inst, nil

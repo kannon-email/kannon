@@ -2,7 +2,6 @@ package stats
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"time"
 
@@ -36,6 +35,10 @@ func (c *Config) setDefaults() {
 	if c.AggregatedRetention <= 0 {
 		c.AggregatedRetention = 8760 * time.Hour // 1 year
 	}
+}
+
+func log() *slog.Logger {
+	return slog.With("component", "stats")
 }
 
 type statsHandler struct {
@@ -94,7 +97,7 @@ func run(ctx context.Context, cnt *container.Container, cfg Config, ready func()
 	})
 
 	eg.Go(func() error {
-		return runner.Run(ctx, h.cleanupCycle, runner.WaitLoop(10*time.Minute))
+		return runner.Run(ctx, runner.Tolerate(log().With("cycle", "cleanup"), h.cleanupCycle), runner.WaitLoop(10*time.Minute))
 	})
 
 	return eg.Wait()
@@ -148,10 +151,13 @@ func (h *statsHandler) cleanupCycle(ctx context.Context) error {
 		return err
 	}
 
-	if deletedStats > 0 || deletedAggregated > 0 || deletedMarkers > 0 || deletedKeys > 0 {
-		slog.Info(fmt.Sprintf("stats cleanup: deleted %d stats, %d aggregated counters, %d counting markers and %d expired keys",
-			deletedStats, deletedAggregated, deletedMarkers, deletedKeys))
+	level := slog.LevelDebug
+	if deletedStats > 0 || deletedAggregated > 0 {
+		level = slog.LevelInfo
 	}
+	log().Log(ctx, level, "stats cleanup done",
+		"deleted_stats", deletedStats, "deleted_aggregated", deletedAggregated,
+		"deleted_counting_markers", deletedMarkers, "deleted_expired_keys", deletedKeys)
 
 	return nil
 }
@@ -168,7 +174,7 @@ func (h *statsHandler) consumeStats(ctx context.Context, con jetstream.Consumer,
 	name := con.CachedInfo().Name
 	c, err := con.Consume(func(msg jetstream.Msg) {
 		if err := handle(ctx, msg); err != nil {
-			slog.Error("Cannot handle stats msg", "consumer", name, "err", err)
+			log().Error("cannot settle stat message", "consumer", name, "err", err)
 		}
 	})
 	if err != nil {
@@ -196,12 +202,13 @@ func (h *statsHandler) handleAggregatedStatsMsg(ctx context.Context, msg jetstre
 
 	metadata, err := msg.Metadata()
 	if err != nil {
-		slog.Error("cannot read stored stat event metadata", "err", err)
+		log().Error("cannot read stored stat event metadata", "err", err)
 		return msg.Nak()
 	}
 	id := stats.StoredEventID{Stream: metadata.Stream, StoredAt: metadata.Timestamp, Sequence: metadata.Sequence.Stream}
 	if err := h.counter.Count(ctx, id, domain, event.Timestamp, event.Outcome.Type()); err != nil {
-		slog.Error("cannot increment aggregated stat", "err", err)
+		log().Log(ctx, utils.RedeliveryLevel(msg, err), "cannot increment aggregated stat, will retry",
+			"domain", domain.String(), "batch_id", event.MessageID, "err", err)
 		return msg.Nak()
 	}
 
@@ -224,8 +231,8 @@ func decodeEvent(msg jetstream.Msg) (stats.Event, bool) {
 func eventDomain(event stats.Event) (values.DomainName, bool) {
 	domain, err := values.Parse(event.Domain)
 	if err != nil {
-		slog.Error("stat event carries a non-canonical domain",
-			"domain", event.Domain, "batch", event.MessageID, "err", err)
+		log().Error("stat event carries a non-canonical domain",
+			"domain", event.Domain, "batch_id", event.MessageID, "err", err)
 		return values.DomainName{}, false
 	}
 	return domain, true
@@ -250,22 +257,23 @@ func (h *statsHandler) handleStatsMsg(ctx context.Context, msg jetstream.Msg) er
 	mode := event.TrackingMode
 
 	if mode == tracking.ModeAnonymous {
-		slog.Debug("anonymous event: counted in aggregate, no per-recipient row",
-			"type", stat.Type, "batch", event.MessageID, "domain", event.Domain)
+		log().Debug("anonymous event: counted in aggregate, no per-recipient row",
+			"type", stat.Type, "batch_id", event.MessageID, "domain", event.Domain)
 		return msg.Ack()
 	}
 
 	if tracking.NamesNobody(event.Email, event.Domain) {
-		slog.Error("stat event carries no recipient identity and is not anonymous",
-			"type", stat.Type, "batch", event.MessageID, "domain", event.Domain, "tracking_mode", mode)
+		log().Error("stat event carries no recipient identity and is not anonymous",
+			"type", stat.Type, "batch_id", event.MessageID, "domain", event.Domain, "tracking_mode", mode)
 		return msg.Term()
 	}
 
-	slog.Info(fmt.Sprintf("[%s] %s %s", stats.DisplayName[stat.Type], utils.ObfuscateEmail(event.Email), event.MessageID))
 	if err := h.service.InsertStat(ctx, stat); err != nil {
-		slog.Error("cannot insert stat", "type", stat.Type, "err", err)
+		log().Log(ctx, utils.RedeliveryLevel(msg, err), "cannot insert stat, will retry",
+			"type", stat.Type, "batch_id", event.MessageID, "err", err)
 		return msg.Nak()
 	}
+	log().Info("stat recorded", "type", stat.Type, "email", utils.ObfuscateEmail(event.Email), "batch_id", event.MessageID)
 
 	return msg.Ack()
 }

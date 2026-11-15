@@ -3,7 +3,6 @@ package smtp
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net"
 	"time"
@@ -50,7 +49,7 @@ func run(ctx context.Context, l net.Listener, nc *nats.Conn, config Config, rp r
 	s := buildServer(config, nc, rp, flow)
 	defer s.Close()
 
-	slog.Info(fmt.Sprintf("Starting server at: %v", l.Addr()))
+	slog.Info("SMTP server listening", "addr", l.Addr().String())
 
 	done := make(chan struct{})
 	stopped := make(chan error, 1)
@@ -92,6 +91,7 @@ func buildServer(config Config, nc *nats.Conn, rp returnpath.Signer, flow *mailf
 	s.MaxMessageBytes = int64(config.MaxPayloadBytes)
 	s.MaxRecipients = int(config.MaxRecipients)
 	s.AllowInsecureAuth = true
+	s.ErrorLog = newErrorLog()
 
 	return s
 }

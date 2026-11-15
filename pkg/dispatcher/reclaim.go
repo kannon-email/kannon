@@ -42,8 +42,3 @@ func (d *disp) reclaimer() pool.Reclaimer {
 func (d *disp) ReclaimCycle(ctx context.Context) error {
 	return d.reclaimer().Cycle(ctx)
 }
-
-// reclaimLoop is the loop body wired into the dispatcher's run loop.
-func (d *disp) reclaimLoop(ctx context.Context) error {
-	return d.reclaimer().Loop(ctx)
-}

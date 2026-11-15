@@ -29,7 +29,7 @@ func Listener(l net.Listener, g prometheus.Gatherer) container.Runnable {
 	return container.Runnable{
 		Name: "metrics",
 		Run: func(ctx context.Context, ready func()) error {
-			slog.Info("Metrics listening on " + l.Addr().String())
+			slog.Info("metrics listening", "addr", l.Addr().String())
 			ready()
 			return container.ServeHTTP(ctx, server, l)
 		},

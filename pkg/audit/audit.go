@@ -103,7 +103,7 @@ func run(ctx context.Context, cnt *container.Container, cfg audit.Config, ready 
 func (h *auditHandler) handleRecords(ctx context.Context, con jetstream.Consumer) error {
 	c, err := con.Consume(func(msg jetstream.Msg) {
 		if err := h.handleRecordMsg(ctx, msg); err != nil {
-			slog.Error("Cannot handle audit record msg", "err", err)
+			slog.Error("cannot settle audit record message", "err", err)
 		}
 	})
 	if err != nil {
@@ -137,7 +137,7 @@ func (h *auditHandler) handleRecordMsg(ctx context.Context, msg jetstream.Msg) e
 	// redelivery — after this Nak, or after a crash between the write and the acknowledgement —
 	// costs a statement rather than one decision written down twice.
 	if err := h.repo.Insert(ctx, record); err != nil {
-		slog.Error("cannot insert an Audit Record", "id", record.ID, "err", err)
+		slog.Log(ctx, utils.RedeliveryLevel(msg, err), "cannot insert an Audit Record, will retry", "id", record.ID, "err", err)
 		return msg.Nak()
 	}
 

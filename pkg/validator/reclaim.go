@@ -44,8 +44,3 @@ func (v *Validator) reclaimer() pool.Reclaimer {
 func (v *Validator) ReclaimCycle(ctx context.Context) error {
 	return v.reclaimer().Cycle(ctx)
 }
-
-// reclaimLoop is the loop body wired into the validator's run loop.
-func (v *Validator) reclaimLoop(ctx context.Context) error {
-	return v.reclaimer().Loop(ctx)
-}

@@ -101,7 +101,10 @@ func writeError(w http.ResponseWriter, r *http.Request, err error) {
 func logError(r *http.Request, requestID string, status int, err error) {
 	switch {
 	case status == http.StatusUnauthorized:
-		slog.Warn("REST authentication failed", "peer", r.RemoteAddr, "path", versionedPath(r, r.URL.Path), "request_id", requestID)
+		// forwarded_for is what the proxy in front says, unverified: behind an ingress the peer is
+		// always the proxy, and the header is the only trace of the client that failed.
+		slog.Warn("REST authentication failed", "peer", r.RemoteAddr, "forwarded_for", r.Header.Get("X-Forwarded-For"),
+			"path", versionedPath(r, r.URL.Path), "request_id", requestID)
 	case status >= http.StatusInternalServerError:
 		slog.Error("REST request failed", "method", r.Method, "path", versionedPath(r, r.URL.Path), "request_id", requestID, "err", err)
 	}

@@ -51,13 +51,13 @@ func serve(ctx context.Context, opts ...startup.Option) error {
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	inst, err := startup.Start(ctx, cfgFile, append(opts, startup.WithLogLevel(logLevel))...)
+	inst, err := startup.Start(ctx, cfgFile, append(opts, startup.WithLogLevel(logLevel), startup.WithVersion(Version))...)
 	if err != nil {
 		return err
 	}
 	runErr := inst.Wait()
 	if err := inst.Close(); err != nil {
-		slog.Error("Shutdown errors", "err", err)
+		slog.Error("shutdown errors", "err", err)
 	}
 	return runErr
 }
