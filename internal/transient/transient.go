@@ -99,7 +99,10 @@ type Policy struct {
 // Startup is the policy for reaching a dependency while a process boots: in Kubernetes the pods of
 // Postgres, NATS and Kannon routinely come up in any order, so the first attempts are expected to
 // fail. Roughly two minutes in all before the process gives up and lets its supervisor restart it.
-var Startup = Policy{Attempts: 12, Base: 500 * time.Millisecond, Max: 15 * time.Second, Quiet: 20 * time.Second}
+//
+// The first retries are close together because the usual wait is short: a NetworkPolicy reaching a
+// new pod's IP takes about a second, and a coarse first step would add most of a second on top.
+var Startup = Policy{Attempts: 15, Base: 100 * time.Millisecond, Max: 15 * time.Second, Quiet: 20 * time.Second}
 
 func (p Policy) delay(attempt int) time.Duration {
 	d := p.Base << attempt

@@ -60,6 +60,7 @@ type options struct {
 	standalone        bool
 	logLevel          *slog.LevelVar
 	version           string
+	commit            string
 	senderConcurrency uint
 	extra             []container.Runnable
 }
@@ -96,9 +97,12 @@ func WithLogLevel(l *slog.LevelVar) Option {
 	return func(o *options) { o.logLevel = l }
 }
 
-// WithVersion is the build version Start logs when it starts the components.
-func WithVersion(v string) Option {
-	return func(o *options) { o.version = v }
+// WithVersion is the build version and commit Start logs when it starts the components.
+func WithVersion(version, commit string) Option {
+	return func(o *options) {
+		o.version = version
+		o.commit = commit
+	}
 }
 
 // withRunnable runs r beside the components the configuration selects, so a test can hold the
@@ -216,7 +220,7 @@ func Start(ctx context.Context, configPath string, opts ...Option) (Instance, er
 		reg.Register(r)
 	}
 
-	slog.Info("starting kannon", "version", o.version, "runnables", reg.Names())
+	slog.Info("starting kannon", "version", o.version, "commit", o.commit, "runnables", reg.Names())
 
 	inst.launch(ctx, reg)
 	return inst, nil

@@ -51,7 +51,7 @@ func serve(ctx context.Context, opts ...startup.Option) error {
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	inst, err := startup.Start(ctx, cfgFile, append(opts, startup.WithLogLevel(logLevel), startup.WithVersion(Version))...)
+	inst, err := startup.Start(ctx, cfgFile, append(opts, startup.WithLogLevel(logLevel), startup.WithVersion(Version, Commit))...)
 	if err != nil {
 		return err
 	}

@@ -87,7 +87,7 @@ func NewSMTPSender(publisher publisher.Publisher, js jetstream.JetStream, s smtp
 
 func (s *smtpSender) Run(ctx context.Context, ready func()) error {
 	slog.With("hostname", s.sender.SenderName(), "max_jobs", s.cfg.MaxJobs).
-		Info("Starting SMTPSender Service")
+		Info("starting SMTP sender")
 
 	s.guard = mustGetSendGuard(ctx, s.js)
 	consumer := s.mustSendingConsumer(ctx)
