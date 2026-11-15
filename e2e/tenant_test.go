@@ -168,7 +168,7 @@ func (tn *tenant) Events(c require.TestingT) []event {
 	for {
 		res, err := tn.api.ListStatsEventsWithResponse(tn.ctx, tn.Domain, params)
 		requireRead(c, err)
-		requireStatus(c, res.StatusCode(), http.StatusOK, res.Body)
+		requireOK(c, res.StatusCode(), res.Body)
 		for _, item := range res.JSON200.Items {
 			raw, err := item.MarshalJSON()
 			require.NoError(c, err)
@@ -210,7 +210,7 @@ func (tn *tenant) Await(t *testing.T, rcpt string, o outcome) event {
 func (tn *tenant) BatchHistory(c require.TestingT, id string) *restclient.Batch {
 	res, err := tn.api.GetBatchWithResponse(tn.ctx, tn.Domain, id, &restclient.GetBatchParams{})
 	requireRead(c, err)
-	requireStatus(c, res.StatusCode(), http.StatusOK, res.Body)
+	requireOK(c, res.StatusCode(), res.Body)
 	return res.JSON200
 }
 
@@ -232,7 +232,7 @@ func (tn *tenant) Deliveries(c require.TestingT, id string) []restclient.Deliver
 	for {
 		res, err := tn.api.ListDeliveriesWithResponse(tn.ctx, tn.Domain, id, params)
 		requireRead(c, err)
-		requireStatus(c, res.StatusCode(), http.StatusOK, res.Body)
+		requireOK(c, res.StatusCode(), res.Body)
 		out = append(out, res.JSON200.Items...)
 		if res.JSON200.NextCursor == nil {
 			return out
@@ -250,7 +250,7 @@ func (tn *tenant) Aggregated(c require.TestingT) map[outcome]int {
 		ParameterGroupBy: "1h",
 	})
 	requireRead(c, err)
-	requireStatus(c, res.StatusCode(), http.StatusOK, res.Body)
+	requireOK(c, res.StatusCode(), res.Body)
 	sum := map[outcome]int{}
 	for _, b := range res.JSON200.Buckets {
 		sum[Validated] += b.Counts.Validated

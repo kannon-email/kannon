@@ -244,7 +244,7 @@ func (e *env) Metrics(c require.TestingT) scrape {
 	res, err := http.Get(e.metrics) //nolint:noctx // a scrape is bounded by the wait that runs it
 	requireRead(c, err)
 	defer func() { _ = res.Body.Close() }()
-	requireStatus(c, res.StatusCode, http.StatusOK, nil)
+	requireOK(c, res.StatusCode, nil)
 	parser := expfmt.NewTextParser(model.UTF8Validation)
 	families, err := parser.TextToMetricFamilies(res.Body)
 	require.NoError(c, err)

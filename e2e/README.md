@@ -33,7 +33,7 @@ The capturing MX answers by the Recipient's local-part: `bounce.*` is refused wi
 
 ## Waiting policy
 
-Every wait polls every 100ms for up to 30s, and every hold lasts 2s. Both scale with `KANNON_E2E_TIMEOUT_SCALE` (for example `KANNON_E2E_TIMEOUT_SCALE=3` on a slow runner). A failing evaluation, transient API errors included, is retried until the timeout; only the last evaluation's failures are reported. A hold fails on the first evaluation that finds its condition false; an evaluation whose read failed (a transport error or a 5xx, through `requireRead` and `requireStatus`) is retried instead.
+Every wait polls every 100ms for up to 30s, and every hold lasts 2s. Both scale with `KANNON_E2E_TIMEOUT_SCALE` (for example `KANNON_E2E_TIMEOUT_SCALE=3` on a slow runner). A failing evaluation, transient API errors included, is retried until the timeout; only the last evaluation's failures are reported. A hold fails on the first evaluation that finds its condition false; an evaluation whose read failed (a transport error or a 5xx, through `requireRead` and `requireOK`) is retried instead.
 
 ## Layout
 

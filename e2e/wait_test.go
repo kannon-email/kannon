@@ -58,7 +58,7 @@ func (p *probe) FailNow() {
 	runtime.Goexit()
 }
 
-func (p *probe) readFailed(format string, args ...any) {
+func (p *probe) readFailedf(format string, args ...any) {
 	p.inconclusive = true
 	p.failures = append(p.failures, fmt.Sprintf(format, args...))
 	runtime.Goexit()
@@ -76,18 +76,18 @@ func (p *probe) String() string {
 // ends the evaluation as inconclusive, to be retried.
 func requireRead(c require.TestingT, err error) {
 	if p, ok := c.(*probe); ok && err != nil {
-		p.readFailed("read failed: %v", err)
+		p.readFailedf("read failed: %v", err)
 	}
 	require.NoError(c, err)
 }
 
-// requireStatus checks the status a read was answered with. Inside a wait, a 5xx ends the evaluation
-// as inconclusive, to be retried; any other unexpected status is a failure of the condition.
-func requireStatus(c require.TestingT, got, want int, body []byte) {
+// requireOK checks that a read was answered 200. Inside a wait, a 5xx ends the evaluation as
+// inconclusive, to be retried; any other status is a failure of the condition.
+func requireOK(c require.TestingT, got int, body []byte) {
 	if p, ok := c.(*probe); ok && got >= http.StatusInternalServerError {
-		p.readFailed("read answered %d: %s", got, body)
+		p.readFailedf("read answered %d: %s", got, body)
 	}
-	require.Equal(c, want, got, string(body))
+	require.Equal(c, http.StatusOK, got, string(body))
 }
 
 // evaluate runs one evaluation to completion before returning, so no condition outlives the wait

@@ -130,14 +130,19 @@ func TestCloseClosesAListenerNoComponentServed(t *testing.T) {
 		t.Fatal(err)
 	}
 	reg := &container.Registry{}
+	gaveUp := errors.New("gave up before serving")
 	reg.Register(container.Runnable{Name: "early-return", Run: func(context.Context, func()) error {
-		return errors.New("gave up before serving")
+		return gaveUp
 	}})
 
 	inst := newInstance(Addrs{}, []io.Closer{l}, func() error { return nil })
 	inst.launch(t.Context(), reg)
-	_ = inst.Wait()
-	_ = inst.Close()
+	if err := inst.Wait(); !errors.Is(err, gaveUp) {
+		t.Fatalf("Wait = %v, want %v", err, gaveUp)
+	}
+	if err := inst.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
 
 	if _, err := l.Accept(); !errors.Is(err, net.ErrClosed) {
 		t.Fatalf("Accept after Close = %v, want %v", err, net.ErrClosed)

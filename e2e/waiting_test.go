@@ -16,7 +16,7 @@ func TestHoldsRetriesAReadThatFailed(t *testing.T) {
 		case 1:
 			requireRead(c, errors.New("connection refused"))
 		case 2:
-			requireStatus(c, http.StatusServiceUnavailable, http.StatusOK, []byte("try later"))
+			requireOK(c, http.StatusServiceUnavailable, []byte("try later"))
 		}
 		require.True(c, true)
 	})

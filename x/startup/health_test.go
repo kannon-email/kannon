@@ -21,7 +21,11 @@ func TestHealthIsUnavailableUntilEveryComponentIsReady(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = purge() })
+	t.Cleanup(func() {
+		if err := purge(); err != nil {
+			t.Logf("cannot remove postgres: %v", err)
+		}
+	})
 
 	path := filepath.Join(t.TempDir(), "kannon.yaml")
 	config := fmt.Sprintf(`
