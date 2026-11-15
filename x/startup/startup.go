@@ -38,8 +38,9 @@ const shutdownTimeout = 30 * time.Second
 type Instance interface {
 	// Addrs reports the address each listener is bound to.
 	Addrs() Addrs
-	// Ready is closed once every component is ready.
-	Ready() <-chan struct{}
+	// Ready blocks until every component is ready. It fails with the instance's failure when the
+	// instance stops first, and with ctx's error when ctx is done first.
+	Ready(ctx context.Context) error
 	// Wait blocks until every component has returned, and reports the first failure.
 	Wait() error
 	// Close stops every component, waits for them to return, then closes the container.
@@ -157,7 +158,7 @@ func Start(ctx context.Context, configPath string, opts ...Option) (Instance, er
 	cnt := container.New(context.WithoutCancel(ctx), cfg, o.container...)
 	closeContainer := func() error { return cnt.CloseWithTimeout(shutdownTimeout) }
 
-	instanceReady := make(chan struct{})
+	inst := newInstance(l.addrs(), closeContainer)
 	reg := &container.Registry{}
 	if l.metrics != nil {
 		reg.Register(metrics.Listener(l.metrics, cnt.Metrics()))
@@ -178,7 +179,7 @@ func Start(ctx context.Context, configPath string, opts ...Option) (Instance, er
 		reg.Register(tracker.New(cnt, l.tracker))
 	}
 	if services.API.Enabled {
-		reg.Register(api.New(cnt, token, l.api, instanceReady))
+		reg.Register(api.New(cnt, token, l.api, inst.ready))
 	}
 	if services.SMTP.Enabled {
 		reg.Register(ksmtp.New(cnt, l.smtp))
@@ -189,11 +190,7 @@ func Start(ctx context.Context, configPath string, opts ...Option) (Instance, er
 
 	slog.Info(fmt.Sprintf("Starting Kannon runnables: %v", reg.Names()))
 
-	inst := launch(ctx, reg, l.addrs(), closeContainer)
-	go func() {
-		<-inst.Ready()
-		close(instanceReady)
-	}()
+	inst.launch(ctx, reg)
 	return inst, nil
 }
 

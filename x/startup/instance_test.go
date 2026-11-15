@@ -27,11 +27,14 @@ func TestCloseWaitsForEveryComponentBeforeClosingTheContainer(t *testing.T) {
 	}
 
 	var stillRunningAtClose int32 = -1
-	inst := launch(t.Context(), reg, Addrs{}, func() error {
+	inst := newInstance(Addrs{}, func() error {
 		stillRunningAtClose = running.Load()
 		return nil
 	})
-	<-inst.Ready()
+	inst.launch(t.Context(), reg)
+	if err := inst.Ready(t.Context()); err != nil {
+		t.Fatalf("Ready: %v", err)
+	}
 
 	if err := inst.Close(); err != nil {
 		t.Fatalf("Close: %v", err)
@@ -49,15 +52,72 @@ func TestWaitReportsTheComponentThatFailed(t *testing.T) {
 	reg := &container.Registry{}
 	reg.Register(container.Runnable{Name: "failing", Run: func(context.Context, func()) error { return boom }})
 
-	inst := launch(t.Context(), reg, Addrs{}, func() error { return nil })
+	inst := newInstance(Addrs{}, func() error { return nil })
+	inst.launch(t.Context(), reg)
 	t.Cleanup(func() { _ = inst.Close() })
 
 	if err := inst.Wait(); !errors.Is(err, boom) {
 		t.Fatalf("Wait = %v, want %v", err, boom)
 	}
-	select {
-	case <-inst.Ready():
-		t.Fatal("an instance whose component never declared readiness must not be ready")
-	default:
+}
+
+func TestReadyReportsAComponentThatFailedBeforeBeingReady(t *testing.T) {
+	boom := errors.New("boom")
+	reg := &container.Registry{}
+	reg.Register(container.Runnable{Name: "healthy", Run: func(ctx context.Context, ready func()) error {
+		ready()
+		<-ctx.Done()
+		return nil
+	}})
+	reg.Register(container.Runnable{Name: "failing", Run: func(context.Context, func()) error { return boom }})
+
+	inst := newInstance(Addrs{}, func() error { return nil })
+	inst.launch(t.Context(), reg)
+	t.Cleanup(func() { _ = inst.Close() })
+
+	if err := readyWithin(t, inst); !errors.Is(err, boom) {
+		t.Fatalf("Ready = %v, want %v", err, boom)
 	}
+}
+
+func TestReadyFailsWhenAComponentReturnsWithoutBeingReady(t *testing.T) {
+	reg := &container.Registry{}
+	reg.Register(container.Runnable{Name: "quitter", Run: func(context.Context, func()) error { return nil }})
+
+	inst := newInstance(Addrs{}, func() error { return nil })
+	inst.launch(t.Context(), reg)
+	t.Cleanup(func() { _ = inst.Close() })
+
+	if err := readyWithin(t, inst); err == nil {
+		t.Fatal("an instance that stopped before every component was ready must not report ready")
+	}
+}
+
+func TestReadyStopsWaitingWhenItsContextIsDone(t *testing.T) {
+	reg := &container.Registry{}
+	reg.Register(container.Runnable{Name: "never-ready", Run: func(ctx context.Context, _ func()) error {
+		<-ctx.Done()
+		return nil
+	}})
+
+	inst := newInstance(Addrs{}, func() error { return nil })
+	inst.launch(t.Context(), reg)
+	t.Cleanup(func() { _ = inst.Close() })
+
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
+	defer cancel()
+	if err := inst.Ready(ctx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Ready = %v, want %v", err, context.DeadlineExceeded)
+	}
+}
+
+func readyWithin(t *testing.T, inst *instance) error {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	err := inst.Ready(ctx)
+	if errors.Is(err, context.DeadlineExceeded) {
+		t.Fatal("Ready kept waiting on an instance that had already stopped")
+	}
+	return err
 }

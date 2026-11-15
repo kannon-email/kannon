@@ -127,14 +127,10 @@ func startEnv(t *testing.T) *env {
 		}
 	})
 
-	failed := make(chan error, 1)
-	go func() { failed <- inst.Wait() }()
-	select {
-	case <-inst.Ready():
-	case err := <-failed:
-		t.Fatalf("kannon stopped before it was ready: %v", err)
-	case <-time.After(scaled(defaultTimeout)):
-		t.Fatal("kannon was not ready in time")
+	readyCtx, cancel := context.WithTimeout(t.Context(), scaled(defaultTimeout))
+	defer cancel()
+	if err := inst.Ready(readyCtx); err != nil {
+		t.Fatalf("kannon was not ready: %v", err)
 	}
 
 	addrs := inst.Addrs()

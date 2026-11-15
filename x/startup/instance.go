@@ -2,10 +2,15 @@ package startup
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	"github.com/kannon-email/kannon/x/container"
 )
+
+// errStoppedBeforeReady is what Ready reports for an instance whose components all returned, without
+// failing, before every one of them was ready.
+var errStoppedBeforeReady = errors.New("kannon stopped before every component was ready")
 
 type instance struct {
 	addrs          Addrs
@@ -18,27 +23,47 @@ type instance struct {
 	closeErr       error
 }
 
-// launch runs every component of reg and returns at once. closeContainer runs on Close, once every
-// component has returned.
-func launch(ctx context.Context, reg *container.Registry, addrs Addrs, closeContainer func() error) *instance {
-	ctx, cancel := context.WithCancel(ctx)
-	inst := &instance{
+// newInstance prepares an instance whose ready channel can be handed to components before launch.
+// closeContainer runs on Close, once every component has returned.
+func newInstance(addrs Addrs, closeContainer func() error) *instance {
+	return &instance{
 		addrs:          addrs,
 		ready:          make(chan struct{}),
 		done:           make(chan struct{}),
-		cancel:         cancel,
+		cancel:         func() {},
 		closeContainer: closeContainer,
 	}
+}
+
+// launch runs every component of reg and returns at once.
+func (i *instance) launch(ctx context.Context, reg *container.Registry) {
+	ctx, i.cancel = context.WithCancel(ctx)
 	go func() {
-		defer close(inst.done)
-		inst.runErr = reg.Run(ctx, func() { close(inst.ready) })
+		defer close(i.done)
+		i.runErr = reg.Run(ctx, func() { close(i.ready) })
 	}()
-	return inst
 }
 
 func (i *instance) Addrs() Addrs { return i.addrs }
 
-func (i *instance) Ready() <-chan struct{} { return i.ready }
+func (i *instance) Ready(ctx context.Context) error {
+	select {
+	case <-i.ready:
+		return nil
+	case <-i.done:
+		select {
+		case <-i.ready:
+			return nil
+		default:
+		}
+		if i.runErr != nil {
+			return i.runErr
+		}
+		return errStoppedBeforeReady
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
 
 func (i *instance) Wait() error {
 	<-i.done

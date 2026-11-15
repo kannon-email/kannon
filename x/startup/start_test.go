@@ -1,6 +1,7 @@
 package startup_test
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/http"
@@ -109,10 +110,10 @@ metrics:
 	}
 	t.Cleanup(func() { _ = inst.Close() })
 
-	select {
-	case <-inst.Ready():
-	case <-time.After(30 * time.Second):
-		t.Fatal("the instance never became ready")
+	readyCtx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+	if err := inst.Ready(readyCtx); err != nil {
+		t.Fatalf("the instance never became ready: %v", err)
 	}
 
 	addrs := inst.Addrs()
