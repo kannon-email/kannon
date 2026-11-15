@@ -21,13 +21,10 @@ const streamMaxAge = 7 * 24 * time.Hour
 const backlogCheckInterval = 5 * time.Minute
 
 // ConfigureStream ensures the audit stream exists. The one place this stream's configuration is
-// written down, and called at startup by both the process that publishes Records and the one that
+// written down, and called at startup, before any component runs, by both the process that publishes Records and the one that
 // consumes them: CreateOrUpdateStream is idempotent, and neither may depend on the other's boot order
 // — the producer must not publish into a stream that does not exist, and the consumer must not
 // require the API to have come up.
-//
-// It is deliberately absent from the embedded-NATS provisioning list, which creates streams with no
-// MaxAge and would be a second definition of exactly what this function holds.
 func ConfigureStream(ctx context.Context, sc utils.StreamCreator) error {
 	return utils.ConfigureStream(ctx, sc, jetstream.StreamConfig{
 		Name:        StreamName,

@@ -21,12 +21,9 @@ const (
 const StreamMaxAge = 7 * 24 * time.Hour
 
 // ConfigureStream ensures the stats stream exists. The one place this stream's configuration is
-// written down, called at startup by every process that publishes stat events or consumes them:
+// written down, called at startup, before any component runs, by every process that publishes stat events or consumes them:
 // CreateOrUpdateStream is idempotent, and none of them may depend on another's boot order — a stat
 // is published with a plain NATS publish, so one sent before the stream exists is silently lost.
-//
-// It is deliberately absent from the embedded-NATS provisioning list, which creates streams with no
-// MaxAge and would be a second definition of exactly what this function holds.
 func ConfigureStream(ctx context.Context, sc utils.StreamCreator) error {
 	return utils.ConfigureStream(ctx, sc, jetstream.StreamConfig{
 		Name:        StreamName,

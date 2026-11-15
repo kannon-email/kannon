@@ -56,12 +56,18 @@ var sendAckPolicy = utils.AckPolicy{
 	15 * time.Minute,
 }
 
-// New constructs the SMTPSender runnable, loading its slice of configuration
-// from viper under the "sender" key.
-func New(cnt *container.Container) container.Runnable {
+// LoadConfig reads the "sender" section, defaults filled in.
+func LoadConfig() (Config, error) {
 	var cfg Config
-	config.LoadSection("sender", &cfg)
+	if err := config.TryLoadSection("sender", &cfg); err != nil {
+		return Config{}, err
+	}
 	cfg.setDefaults()
+	return cfg, nil
+}
+
+// New constructs the SMTPSender runnable, configured by cfg.
+func New(cnt *container.Container, cfg Config) container.Runnable {
 	s := NewSMTPSender(cnt.NatsPublisher(), cnt.NatsJetStream(), cnt.Sender(), cfg, mailflow.New(cnt.Metrics()))
 	return container.Runnable{
 		Name: "smtpsender",
@@ -79,22 +85,20 @@ func NewSMTPSender(publisher publisher.Publisher, js jetstream.JetStream, s smtp
 	}
 }
 
-func (s *smtpSender) Run(ctx context.Context) error {
+func (s *smtpSender) Run(ctx context.Context, ready func()) error {
 	slog.With("hostname", s.sender.SenderName(), "max_jobs", s.cfg.MaxJobs).
 		Info("starting SMTP sender")
-	if err := stats.ConfigureStream(ctx, s.js); err != nil {
-		return fmt.Errorf("cannot configure stats stream: %w", err)
-	}
 
 	s.guard = mustGetSendGuard(ctx, s.js)
 	consumer := s.mustSendingConsumer(ctx)
+	ready()
 
 	return s.handleSend(ctx, consumer)
 }
 
 // mustSendingConsumer subscribes to the Envelopes waiting to be transmitted.
 func (s *smtpSender) mustSendingConsumer(ctx context.Context) jetstream.Consumer {
-	return utils.MustGetPullSubscriber(ctx, s.js, "kannon-sending", "kannon.sending", "kannon-sending-pool",
+	return utils.MustGetPullSubscriber(ctx, s.js, publisher.SendingStreamName, publisher.SendingSubject, "kannon-sending-pool",
 		utils.WithAckPolicy(sendAckPolicy))
 }
 

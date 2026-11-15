@@ -20,7 +20,7 @@ import (
 // nothing and counts nothing.
 func testEngagementIsCountedByKind(t *testing.T, ss statssec.StatsService) {
 	reg := prometheus.NewRegistry()
-	srv := newServer(&fakePublisher{}, ss, Config{}, mailflow.New(reg))
+	srv := newServer(&fakePublisher{}, ss, mailflow.New(reg))
 	get := func(path string) {
 		req := httptest.NewRequest(http.MethodGet, path, nil)
 		req.Host = "stats." + testDomain

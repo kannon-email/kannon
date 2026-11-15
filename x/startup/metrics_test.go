@@ -1,10 +1,11 @@
-package cmd
+package startup
 
 import (
 	"strings"
 	"testing"
 
 	"github.com/kannon-email/kannon/x/config"
+	"github.com/kannon-email/kannon/x/metrics"
 	"github.com/spf13/viper"
 )
 
@@ -63,7 +64,7 @@ func TestRequireOwnMetricsPort(t *testing.T) {
 				viper.Set(k, v)
 			}
 
-			_, err := loadMetrics(tc.services)
+			_, err := loadSections(tc.services)
 			if tc.wantKey == "" {
 				if err != nil {
 					t.Fatalf("expected the boot to be allowed, got %v", err)
@@ -79,5 +80,26 @@ func TestRequireOwnMetricsPort(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestDisabledMetricsOpenNoListener(t *testing.T) {
+	l, err := listen(config.Services{}, sections{metrics: metrics.Config{Enabled: false}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if l.metrics != nil || l.addrs().Metrics != nil {
+		t.Fatalf("expected no metrics listener when metrics are disabled, got %v", l.addrs().Metrics)
+	}
+}
+
+func TestEnabledMetricsOpenAListener(t *testing.T) {
+	l, err := listen(config.Services{}, sections{metrics: metrics.Config{Enabled: true, Port: 0}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = l.metrics.Close() })
+	if l.addrs().Metrics == nil {
+		t.Fatal("expected a metrics listener when metrics are enabled")
 	}
 }

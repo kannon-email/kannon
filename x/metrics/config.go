@@ -22,23 +22,17 @@ type Config struct {
 	Port    uint
 }
 
-// LoadConfig reads the `metrics` section: enabled on port 9090 unless the file says otherwise.
+// LoadConfig reads the `metrics` section: enabled on port 9090 unless the file says otherwise. Port 0
+// lets the system pick one.
 func LoadConfig() (Config, error) {
 	var raw struct {
 		Enabled *bool `mapstructure:"enabled"`
-		Port    uint  `mapstructure:"port"`
+		Port    *uint `mapstructure:"port"`
 	}
 	if err := config.TryLoadSection(sectionKey, &raw); err != nil {
 		return Config{}, err
 	}
-	cfg := Config{Enabled: true, Port: raw.Port}
-	if raw.Enabled != nil {
-		cfg.Enabled = *raw.Enabled
-	}
-	if cfg.Port == 0 {
-		cfg.Port = defaultPort
-	}
-	return cfg, nil
+	return Config{Enabled: config.Or(raw.Enabled, true), Port: config.Or(raw.Port, defaultPort)}, nil
 }
 
 // ListenPort is a port another listener of the process opens, with the config key that sets it.
@@ -48,9 +42,10 @@ type ListenPort struct {
 }
 
 // RequireOwnPort refuses a metrics listener asked to share a port with another listener the process
-// runs, naming the config key that sets it.
+// runs, naming the config key that sets it. Port 0 collides with nothing: each listener asking for it
+// is given a free port of its own.
 func (c Config) RequireOwnPort(others []ListenPort) error {
-	if !c.Enabled {
+	if !c.Enabled || c.Port == 0 {
 		return nil
 	}
 	for _, other := range others {

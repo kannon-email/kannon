@@ -194,10 +194,8 @@ func (d *disp) fail(ctx context.Context, dlv *delivery.Delivery, reason string) 
 	return nil
 }
 
-func (d *disp) handleErrors(ctx context.Context) error {
-	sbj := "kannon.stats.error"
-	subName := "dispatcher-error"
-	return d.handleMsg(ctx, sbj, subName, d.parseErrorsFunc)
+func (d *disp) handleErrors(ctx context.Context, con jetstream.Consumer) error {
+	return d.handleMsg(ctx, con, d.parseErrorsFunc)
 }
 
 func (d *disp) parseErrorsFunc(ctx context.Context, e stats.Event) error {
@@ -215,10 +213,8 @@ func (d *disp) parseErrorsFunc(ctx context.Context, e stats.Event) error {
 	return nil
 }
 
-func (d *disp) handleDelivers(ctx context.Context) error {
-	sbj := "kannon.stats.delivered"
-	subName := "dispatcher-delivered"
-	return d.handleMsg(ctx, sbj, subName, d.parsDeliveredFunc)
+func (d *disp) handleDelivers(ctx context.Context, con jetstream.Consumer) error {
+	return d.handleMsg(ctx, con, d.parsDeliveredFunc)
 }
 
 func (d *disp) parsDeliveredFunc(ctx context.Context, e stats.Event) error {
@@ -232,10 +228,8 @@ func (d *disp) parsDeliveredFunc(ctx context.Context, e stats.Event) error {
 	return nil
 }
 
-func (d *disp) handleBounced(ctx context.Context) error {
-	sbj := "kannon.stats.bounced"
-	subName := "dispatcher-bounced"
-	return d.handleMsg(ctx, sbj, subName, d.parsBouncedFunc)
+func (d *disp) handleBounced(ctx context.Context, con jetstream.Consumer) error {
+	return d.handleMsg(ctx, con, d.parsBouncedFunc)
 }
 
 func (d *disp) parsBouncedFunc(ctx context.Context, e stats.Event) error {
@@ -252,10 +246,27 @@ func (d *disp) parsBouncedFunc(ctx context.Context, e stats.Event) error {
 
 type parseFunc func(ctx context.Context, e stats.Event) error
 
+// statFeed is a stat subject the Dispatcher settles Deliveries from, with the durable consumer it
+// reads the subject under.
+type statFeed struct {
+	subject, consumer string
+}
+
+var (
+	erroredFeed   = statFeed{subject: "kannon.stats.error", consumer: "dispatcher-error"}
+	deliveredFeed = statFeed{subject: "kannon.stats.delivered", consumer: "dispatcher-delivered"}
+	bouncedFeed   = statFeed{subject: "kannon.stats.bounced", consumer: "dispatcher-bounced"}
+)
+
+// consumer subscribes to one of the stat feeds the Dispatcher settles Deliveries from.
+func (d *disp) consumer(ctx context.Context, f statFeed) jetstream.Consumer {
+	return utils.MustGetPullSubscriber(ctx, d.js, stats.StreamName, f.subject, f.consumer)
+}
+
 // handleMsg is the one place the Dispatcher decodes a stat message, so the
 // handlers above work in domain types and the proto stays at this edge.
-func (d *disp) handleMsg(ctx context.Context, sbj, subName string, parse parseFunc) error {
-	con := utils.MustGetPullSubscriber(ctx, d.js, stats.StreamName, sbj, subName)
+func (d *disp) handleMsg(ctx context.Context, con jetstream.Consumer, parse parseFunc) error {
+	subName := con.CachedInfo().Name
 	c, err := con.Consume(func(msg jetstream.Msg) {
 		d.handleWithAck(ctx, msg, func(ctx context.Context, msg jetstream.Msg) error {
 			event, err := statspb.UnmarshalEvent(msg.Data())
@@ -266,7 +277,7 @@ func (d *disp) handleMsg(ctx context.Context, sbj, subName string, parse parseFu
 		})
 	})
 	if err != nil {
-		return fmt.Errorf("cannot consume %s for %s: %w", sbj, subName, err)
+		return fmt.Errorf("cannot consume for %s: %w", subName, err)
 	}
 	defer func() {
 		c.Drain()

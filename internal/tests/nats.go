@@ -20,6 +20,26 @@ import (
 func NatsJetStream(t *testing.T) jetstream.JetStream {
 	t.Helper()
 
+	nc, err := nats.Connect(NatsURL(t))
+	if err != nil {
+		t.Fatalf("cannot connect to embedded NATS server: %v", err)
+	}
+	t.Cleanup(nc.Close)
+
+	js, err := jetstream.New(nc)
+	if err != nil {
+		t.Fatalf("cannot create JetStream context: %v", err)
+	}
+
+	return js
+}
+
+// NatsURL starts an in-process NATS server with JetStream enabled and returns
+// the URL to reach it. Server and store directory are torn down when the test
+// ends.
+func NatsURL(t *testing.T) string {
+	t.Helper()
+
 	ns, err := server.NewServer(&server.Options{
 		Host:      "127.0.0.1",
 		Port:      -1, // random available port
@@ -36,22 +56,10 @@ func NatsJetStream(t *testing.T) jetstream.JetStream {
 		t.Fatal("embedded NATS server not ready")
 	}
 
-	nc, err := nats.Connect(ns.ClientURL())
-	if err != nil {
-		ns.Shutdown()
-		t.Fatalf("cannot connect to embedded NATS server: %v", err)
-	}
-
 	t.Cleanup(func() {
-		nc.Close()
 		ns.Shutdown()
 		ns.WaitForShutdown()
 	})
 
-	js, err := jetstream.New(nc)
-	if err != nil {
-		t.Fatalf("cannot create JetStream context: %v", err)
-	}
-
-	return js
+	return ns.ClientURL()
 }

@@ -2,8 +2,10 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"slices"
 	"time"
@@ -42,36 +44,45 @@ import (
 
 type Config struct {
 	// Port serves the Connect, gRPC and gRPC-Web APIs.
-	Port uint `mapstructure:"port"`
+	Port uint
 	// RESTPort serves the REST API on a listener of its own, so it can be published without the
 	// Connect Admin and Stats services that share Port.
-	RESTPort uint `mapstructure:"rest_port"`
+	RESTPort uint
 	// HealthPort serves the readiness check for probes inside the cluster. It must not be
 	// published: the check is kept off the REST API so the internet cannot poll it.
-	HealthPort uint `mapstructure:"health_port"`
+	HealthPort uint
 	// MaxPayload is the largest content, in bytes, a Batch may carry: its HTML plus each
 	// attachment as base64. Each Envelope travels as one NATS message, so set it to about 70% of
 	// the NATS server's max_payload, leaving room for the headers, DKIM signature and tracking
 	// links building adds.
-	MaxPayload config.ByteSize `mapstructure:"max_payload"`
+	MaxPayload config.ByteSize
 }
 
 // defaultMaxPayload is 500KiB, under 70% of the 1MiB max_payload a NATS server has by default.
 const defaultMaxPayload config.ByteSize = 500 << 10
 
-func (c *Config) setDefaults() {
-	if c.Port == 0 {
-		c.Port = 50051
+// LoadConfig reads the "api" section. An unset port takes its default; port 0 lets the system pick
+// one.
+func LoadConfig() (Config, error) {
+	var raw struct {
+		Port       *uint           `mapstructure:"port"`
+		RESTPort   *uint           `mapstructure:"rest_port"`
+		HealthPort *uint           `mapstructure:"health_port"`
+		MaxPayload config.ByteSize `mapstructure:"max_payload"`
 	}
-	if c.RESTPort == 0 {
-		c.RESTPort = 8081
+	if err := config.TryLoadSection(configKey, &raw); err != nil {
+		return Config{}, err
 	}
-	if c.HealthPort == 0 {
-		c.HealthPort = 8082
+	cfg := Config{
+		Port:       config.Or(raw.Port, 50051),
+		RESTPort:   config.Or(raw.RESTPort, 8081),
+		HealthPort: config.Or(raw.HealthPort, 8082),
+		MaxPayload: raw.MaxPayload,
 	}
-	if c.MaxPayload <= 0 {
-		c.MaxPayload = defaultMaxPayload
+	if cfg.MaxPayload <= 0 {
+		cfg.MaxPayload = defaultMaxPayload
 	}
+	return cfg, nil
 }
 
 // AdminToken resolves the credential that authenticates the Admin API and both Stats API versions.
@@ -107,26 +118,17 @@ const (
 	HealthPortKey = configKey + ".health_port"
 )
 
-// ListenPorts reads the ports the API listens on, so the boot path can refuse another listener asked
+// ListenPorts are the ports the API listens on, so the boot path can refuse another listener asked
 // to share one.
-func ListenPorts() ([]metrics.ListenPort, error) {
-	var cfg Config
-	if err := config.TryLoadSection(configKey, &cfg); err != nil {
-		return nil, err
-	}
-	cfg.setDefaults()
-	return cfg.listenPorts(), nil
-}
-
-func (c Config) listenPorts() []metrics.ListenPort {
+func (c Config) ListenPorts() []metrics.ListenPort {
 	return []metrics.ListenPort{{Key: PortKey, Port: c.Port}, {Key: RESTPortKey, Port: c.RESTPort}, {Key: HealthPortKey, Port: c.HealthPort}}
 }
 
 func (c Config) checkPorts() error {
-	ports := c.listenPorts()
+	ports := c.ListenPorts()
 	for i, a := range ports {
 		for _, b := range ports[i+1:] {
-			if a.Port == b.Port {
+			if a.Port != 0 && a.Port == b.Port {
 				return fmt.Errorf("%s and %s are both %d: the Connect API, the REST API and the health check need a port each", a.Key, b.Key, a.Port)
 			}
 		}
@@ -134,33 +136,63 @@ func (c Config) checkPorts() error {
 	return nil
 }
 
-// New constructs the API runnable, loading its slice of configuration from
-// viper under the "api" key.
-func New(cnt *container.Container) container.Runnable {
-	var cfg Config
-	config.LoadSection(configKey, &cfg)
-	cfg.setDefaults()
+// Listeners are the API's three listeners, bound before the runnable starts.
+type Listeners struct {
+	Connect, REST, Health net.Listener
+}
+
+// Close closes every listener, for a boot that fails after binding them.
+func (l Listeners) Close() error {
+	return errors.Join(l.Connect.Close(), l.REST.Close(), l.Health.Close())
+}
+
+// Listen binds the API's listeners on cfg's ports, refusing two of them on one port.
+func Listen(cfg Config) (Listeners, error) {
+	if err := cfg.checkPorts(); err != nil {
+		return Listeners{}, err
+	}
+	var bound []net.Listener
+	for _, port := range []uint{cfg.Port, cfg.RESTPort, cfg.HealthPort} {
+		l, err := container.Listen(port)
+		if err != nil {
+			for _, b := range bound {
+				_ = b.Close()
+			}
+			return Listeners{}, err
+		}
+		bound = append(bound, l)
+	}
+	return Listeners{Connect: bound[0], REST: bound[1], Health: bound[2]}, nil
+}
+
+// New constructs the API runnable serving on l, configured by cfg. token is the admin credential the boot path has
+// already resolved, and instanceReady closes once the whole process is ready: until then the health
+// check answers unavailable.
+func New(cnt *container.Container, cfg Config, token admintoken.Token, l Listeners, instanceReady <-chan struct{}) container.Runnable {
 	return container.Runnable{
 		Name: "api",
-		Run: func(ctx context.Context) error {
-			return run(ctx, cfg, cnt)
+		Run: func(ctx context.Context, ready func()) error {
+			return run(ctx, cfg, cnt, token, l, instanceReady, ready)
 		},
 	}
 }
 
-func run(ctx context.Context, config Config, cnt *container.Container) error {
-	if err := config.checkPorts(); err != nil {
-		return err
-	}
+// errNotReady is what the health check reports before every component of the process is ready.
+var errNotReady = errors.New("the instance is not ready yet")
 
-	// Resolved before the listener opens, and again here rather than only in the boot path: a
-	// caller registering this runnable directly — the e2e suite does — must not be able to
-	// stand up an Admin API whose credential nobody checked.
-	adminToken, err := AdminToken()
-	if err != nil {
-		return err
+// readiness reports the process unavailable until instanceReady closes, and dependency health after.
+func readiness(instanceReady <-chan struct{}, dependencies func(context.Context) error) func(context.Context) error {
+	return func(ctx context.Context) error {
+		select {
+		case <-instanceReady:
+			return dependencies(ctx)
+		default:
+			return errNotReady
+		}
 	}
+}
 
+func run(ctx context.Context, config Config, cnt *container.Container, adminToken admintoken.Token, l Listeners, instanceReady <-chan struct{}, ready func()) error {
 	db := cnt.DB()
 
 	statsRepo := sq.NewStatsRepository(db)
@@ -184,8 +216,8 @@ func run(ctx context.Context, config Config, cnt *container.Container) error {
 
 	calls := apimetrics.New(cnt.Metrics())
 
-	connectServer := newServer(config.Port, recorder, newAPIMux(connectReadMaxBytes(config.MaxPayload), adminAuth, calls, adminAPIService, mailAPIService, statsAPIService, statsV2APIService, hzAPIService), connectProtocols())
-	restServer := newServer(config.RESTPort, recorder, calls.REST(rest.NewHandler(rest.Services{
+	connectServer := newServer(recorder, newAPIMux(connectReadMaxBytes(config.MaxPayload), adminAuth, calls, adminAPIService, mailAPIService, statsAPIService, statsV2APIService, hzAPIService), connectProtocols())
+	restServer := newServer(recorder, calls.REST(rest.NewHandler(rest.Services{
 		Domains:   domains.NewService(sq.NewDomainsRepository(db)),
 		Token:     adminToken,
 		Keys:      apikeys.NewService(sq.NewAPIKeysRepository(db)),
@@ -194,18 +226,19 @@ func run(ctx context.Context, config Config, cnt *container.Container) error {
 		Flow:      flow,
 		Stats:     statsService,
 	})), nil)
-	healthServer := newServer(config.HealthPort, nil, health.NewHandler(func(ctx context.Context) error {
+	healthServer := newServer(nil, health.NewHandler(readiness(instanceReady, func(ctx context.Context) error {
 		for _, err := range hz.NewHZ(cnt).HZ(ctx) {
 			if err != nil {
 				return err
 			}
 		}
 		return nil
-	}), nil)
-	slog.Info("Connect API server listening", "addr", connectServer.Addr)
-	slog.Info("REST API server listening", "addr", restServer.Addr)
-	slog.Info("health server listening", "addr", healthServer.Addr)
-	return serveAll(ctx, connectServer, restServer, healthServer)
+	})), nil)
+	slog.Info("Connect API server listening", "addr", l.Connect.Addr().String())
+	slog.Info("REST API server listening", "addr", l.REST.Addr().String())
+	slog.Info("health server listening", "addr", l.Health.Addr().String())
+	ready()
+	return serveAll(ctx, endpoint{connectServer, l.Connect}, endpoint{restServer, l.REST}, endpoint{healthServer, l.Health})
 }
 
 // startAuditRecording resolves the Recorder every authorization decision on this process reports to,
@@ -237,25 +270,11 @@ func startAuditRecording(ctx context.Context, cnt *container.Container) authz.Re
 	// right — a NATS they cannot reach is fatal to their whole job — and for the API is not. Before
 	// this feature the API never touched NATS at all, so exiting here would mean enabling an audit
 	// trail bought an API that crash-loops whenever NATS is slow to come up (#365).
-	js, err := cnt.TryNatsJetStream()
+	js, err := cnt.TryNatsJetStream(ctx)
 	if err != nil {
 		slog.Error("cannot reach NATS, so authorization decisions stay in the log rather than "+
 			"reaching the audit table; the API is serving regardless", "err", err)
 		return nil
-	}
-
-	// Configured here as well as in the audit runnable. CreateOrUpdateStream is idempotent, and
-	// neither process may depend on the other's boot order: a publish must not go into a stream
-	// that does not exist, and the worker must not require the API to have come up.
-	//
-	// A failure is logged and the Recorder installed anyway. The worker configures the same stream,
-	// so this having failed does not mean the stream never appears — and refusing to serve mail
-	// because NATS was slow would answer a gap in the register with an interruption of service.
-	// Decisions published before the stream exists are the unconfirmed loss the ADR already records
-	// as the cost of a core publish, and the pending-with-no-consumers warning is what watches for it.
-	if err := audit.ConfigureStream(ctx, js); err != nil {
-		slog.Error("cannot configure the audit stream; recording anyway, and the audit writer will "+
-			"configure it when it starts", "err", err)
 	}
 
 	// Beside the server rather than on the request path, and its failure is logged rather than
@@ -310,9 +329,8 @@ func connectProtocols() *http.Protocols {
 }
 
 // newServer bounds header reads and idle connections without limiting body transfers.
-func newServer(port uint, recorder authz.Recorder, handler http.Handler, protocols *http.Protocols) *http.Server {
+func newServer(recorder authz.Recorder, handler http.Handler, protocols *http.Protocols) *http.Server {
 	return &http.Server{
-		Addr:              fmt.Sprintf("0.0.0.0:%d", port),
 		Handler:           withRecorder(recorder, handler),
 		Protocols:         protocols,
 		ReadHeaderTimeout: 5 * time.Second,
@@ -322,12 +340,18 @@ func newServer(port uint, recorder authz.Recorder, handler http.Handler, protoco
 
 // serveAll serves every server until ctx is done or one of them fails, which stops the others: a
 // process that has lost one of its APIs must not go on looking healthy through the other.
-func serveAll(ctx context.Context, servers ...*http.Server) error {
+func serveAll(ctx context.Context, endpoints ...endpoint) error {
 	g, ctx := errgroup.WithContext(ctx)
-	for _, server := range servers {
-		g.Go(func() error { return container.ServeHTTP(ctx, server) })
+	for _, e := range endpoints {
+		g.Go(func() error { return container.ServeHTTP(ctx, e.server, e.listener) })
 	}
 	return g.Wait()
+}
+
+// endpoint is an HTTP server with the listener it serves on.
+type endpoint struct {
+	server   *http.Server
+	listener net.Listener
 }
 
 // newAPIMux routes every Connect handler. readMaxBytes bounds every Connect handler, the unauthenticated

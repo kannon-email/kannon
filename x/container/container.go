@@ -33,6 +33,7 @@ type Container struct {
 	useEmbeddedNats bool
 	backoff         delivery.BackoffPolicy
 	retryWindow     time.Duration
+	senderOverride  smtp.Sender
 
 	// singleton instances
 	db                 *singleton[*pgxpool.Pool]
@@ -63,8 +64,8 @@ type senderCfg struct {
 // reported by the boot path as a message, before a container exists to fail
 // halfway through building. Nothing else is read here for the same reason turned
 // around: a section this process may have no use for must not be able to stop it.
-func New(ctx context.Context, cfg config.RootConfig) *Container {
-	return &Container{
+func New(ctx context.Context, cfg config.RootConfig, opts ...Option) *Container {
+	c := &Container{
 		ctx:                ctx,
 		dbURL:              cfg.DatabaseURL,
 		natsURL:            cfg.NatsURL,
@@ -77,25 +78,25 @@ func New(ctx context.Context, cfg config.RootConfig) *Container {
 		sender:             &singleton[smtp.Sender]{},
 		metrics:            newMetricsRegistry(),
 	}
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c
 }
 
-// TestOption configures a test container produced by NewForTest.
-type TestOption func(*Container)
+// Option replaces one of the Container's edges or time settings. None of them is a
+// config key: they are wiring points for tests (ADR 0001).
+type Option func(*Container)
 
-// WithDBURL overrides the database URL used by the test container.
-func WithDBURL(url string) TestOption {
-	return func(c *Container) { c.dbURL = url }
-}
-
-// WithNatsURL overrides the NATS URL used by the test container.
-func WithNatsURL(url string) TestOption {
-	return func(c *Container) { c.natsURL = url }
+// WithSender replaces the outbound Sender the `sender` section would build.
+func WithSender(s smtp.Sender) Option {
+	return func(c *Container) { c.senderOverride = s }
 }
 
 // WithBackoff overrides the retry backoff policy. Tests use this to collapse
 // the production multi-minute curve into milliseconds without mutating
 // per-package internals.
-func WithBackoff(p delivery.BackoffPolicy) TestOption {
+func WithBackoff(p delivery.BackoffPolicy) Option {
 	return func(c *Container) { c.backoff = p }
 }
 
@@ -103,28 +104,8 @@ func WithBackoff(p delivery.BackoffPolicy) TestOption {
 // WithBackoff — the window has to be scaled by the same factor as the backoff
 // base, or a collapsed curve would race through the whole budget in
 // milliseconds and terminate every Delivery in the suite.
-func WithRetryWindow(w time.Duration) TestOption {
+func WithRetryWindow(w time.Duration) Option {
 	return func(c *Container) { c.retryWindow = w }
-}
-
-// NewForTest builds a Container without reading viper, applying the supplied
-// options. Tests use this to wire a synthetic container without inventing
-// per-package backdoors.
-func NewForTest(ctx context.Context, opts ...TestOption) *Container {
-	c := &Container{
-		ctx:                ctx,
-		backoff:            delivery.DefaultBackoff,
-		retryWindow:        delivery.DefaultRetryWindow,
-		db:                 &singleton[*pgxpool.Pool]{},
-		nats:               &singleton[*nats.Conn]{},
-		embeddedNatsServer: &singleton[*server.Server]{},
-		sender:             &singleton[smtp.Sender]{},
-		metrics:            newMetricsRegistry(),
-	}
-	for _, opt := range opts {
-		opt(c)
-	}
-	return c
 }
 
 // DB returns a singleton DB connection.
@@ -221,11 +202,14 @@ func (c *Container) Nats() *nats.Conn {
 //
 // Nats itself keeps exiting, deliberately: for every worker in Kannon a NATS it cannot reach really
 // is fatal, and there is nothing for those callers to do with an error.
-func (c *Container) TryNats() (*nats.Conn, error) {
-	return c.nats.Get(c.ctx, c.connectNats)
+//
+// ctx bounds the retries while NATS is unreachable, for a caller that must give up when it is asked
+// to stop rather than when the container is closed.
+func (c *Container) TryNats(ctx context.Context) (*nats.Conn, error) {
+	return c.nats.Get(ctx, c.connectNats)
 }
 
-func (c *Container) connectNats(context.Context) (*nats.Conn, error) {
+func (c *Container) connectNats(ctx context.Context) (*nats.Conn, error) {
 	natsURL := c.natsURL
 	if c.useEmbeddedNats {
 		// The embedded server's failure is reported rather than exited on, so that TryNats
@@ -249,7 +233,7 @@ func (c *Container) connectNats(context.Context) (*nats.Conn, error) {
 		nats.MaxReconnects(-1),
 		nats.ClosedHandler(func(*nats.Conn) { closeOnce.Do(func() { close(closed) }) }),
 	)
-	nc, err := transient.Do(c.ctx, log, transient.Startup, func(context.Context) (*nats.Conn, error) {
+	nc, err := transient.Do(ctx, log, transient.Startup, func(context.Context) (*nats.Conn, error) {
 		return nats.Connect(natsURL, opts...)
 	})
 	if err != nil {
@@ -290,12 +274,6 @@ func (c *Container) connectNats(context.Context) (*nats.Conn, error) {
 		return nil
 	})
 
-	if c.useEmbeddedNats {
-		if err := provisionEmbeddedJetStreams(nc); err != nil {
-			return nil, fmt.Errorf("failed to provision JetStream streams: %w", err)
-		}
-	}
-
 	return nc, nil
 }
 
@@ -316,8 +294,8 @@ func (c *Container) NatsJetStream() jetstream.JetStream {
 
 // TryNatsJetStream is NatsJetStream without the exit, for the caller whose use of NATS is optional.
 // See TryNats for why one exists: an opt-in feature must not be able to stop the API from serving.
-func (c *Container) TryNatsJetStream() (jetstream.JetStream, error) {
-	nc, err := c.TryNats()
+func (c *Container) TryNatsJetStream(ctx context.Context) (jetstream.JetStream, error) {
+	nc, err := c.TryNats(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -386,6 +364,9 @@ func (c *Container) RetryWindow() time.Duration {
 // so for the process that does send, an unresolvable reference is still a boot
 // failure and not a surprise mid-delivery.
 func (c *Container) Sender() smtp.Sender {
+	if c.senderOverride != nil {
+		return c.senderOverride
+	}
 	return c.sender.MustGet(c.ctx, func(ctx context.Context) (smtp.Sender, error) {
 		var sc senderCfg
 		if err := config.TryLoadSection("sender", &sc); err != nil {
@@ -401,46 +382,6 @@ func (c *Container) Sender() smtp.Sender {
 		}
 		return smtp.NewSender(sc.Hostname, opts...), nil
 	})
-}
-
-// provisionEmbeddedJetStreams creates the JetStream streams Kannon's runnables
-// expect before any of them has configured it. Called once when the container
-// connects to its embedded NATS server; idempotent against an existing stream.
-//
-// Only kannon-sending is here, so that the sender can subscribe before the
-// dispatcher has configured it. kannon-stats and kannon-audit are deliberately
-// absent: each is configured, with its age limit, by every process using it
-// (stats.ConfigureStream, audit.ConfigureStream), and a stream created here
-// would be a second, unbounded definition.
-func provisionEmbeddedJetStreams(nc *nats.Conn) error {
-	js, err := nc.JetStream()
-	if err != nil {
-		return fmt.Errorf("get JetStream context: %w", err)
-	}
-
-	streams := []struct {
-		name     string
-		subjects []string
-	}{
-		{name: "kannon-sending", subjects: []string{"kannon.sending"}},
-	}
-
-	for _, s := range streams {
-		if _, err := js.StreamInfo(s.name); err == nil {
-			slog.Debug("JetStream stream already exists", "stream", s.name)
-			continue
-		}
-		slog.Info("creating JetStream stream", "stream", s.name)
-		if _, err := js.AddStream(&nats.StreamConfig{
-			Name:     s.name,
-			Subjects: s.subjects,
-			Storage:  nats.FileStorage,
-		}); err != nil {
-			return fmt.Errorf("create stream %s: %w", s.name, err)
-		}
-	}
-
-	return nil
 }
 
 type publisherWithDebug struct {

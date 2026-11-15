@@ -2,7 +2,6 @@ package tracker
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
@@ -20,24 +19,22 @@ import (
 type srv struct {
 	pub  publisher.Publisher
 	ss   statssec.StatsService
-	cfg  Config
 	flow *mailflow.Metrics
 }
 
-func NewServer(cnt *container.Container, cfg Config) *srv {
+func NewServer(cnt *container.Container) *srv {
 	q := cnt.Queries()
 	ss := statssec.NewStatsService(q)
 
-	return newServer(cnt.Nats(), ss, cfg, mailflow.New(cnt.Metrics()))
+	return newServer(cnt.Nats(), ss, mailflow.New(cnt.Metrics()))
 }
 
 // newServer wires a tracker against explicit dependencies, so the handlers can
 // be driven over HTTP without a container behind them.
-func newServer(pub publisher.Publisher, ss statssec.StatsService, cfg Config, flow *mailflow.Metrics) *srv {
+func newServer(pub publisher.Publisher, ss statssec.StatsService, flow *mailflow.Metrics) *srv {
 	return &srv{
 		pub:  pub,
 		ss:   ss,
-		cfg:  cfg,
 		flow: flow,
 	}
 }
@@ -53,18 +50,16 @@ func (s *srv) handler() http.Handler {
 	return mux
 }
 
-func (s *srv) Run(ctx context.Context) error {
-	addr := fmt.Sprintf("0.0.0.0:%d", s.cfg.Port)
-	slog.Info("tracker listening", "addr", addr)
+func (s *srv) Run(ctx context.Context, l net.Listener) error {
+	slog.Info("tracker listening", "addr", l.Addr().String())
 
 	server := &http.Server{
-		Addr:              addr,
 		Handler:           s.handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
 
-	return container.ServeHTTP(ctx, server)
+	return container.ServeHTTP(ctx, server, l)
 }
 
 // servesDomain reports whether the request arrived on the stats host of the

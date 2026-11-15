@@ -8,6 +8,7 @@ import (
 	"os"
 
 	dbschema "github.com/kannon-email/kannon/db"
+	"github.com/kannon-email/kannon/x/config"
 	"github.com/spf13/cobra"
 )
 
@@ -16,7 +17,8 @@ var migrateMainCmd = &cobra.Command{
 	Use:   "main",
 	Short: "Migrate Main Database to last version",
 	Run: func(_ *cobra.Command, _ []string) {
-		cfg, err := readConfig()
+		config.Prepare(cfgFile)
+		cfg, err := config.Read()
 		if err != nil {
 			slog.Error("error in reading config", "err", err)
 			os.Exit(1)

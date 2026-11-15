@@ -184,7 +184,7 @@ func TestTheAPIRefusesToShareOnePortBetweenItsListeners(t *testing.T) {
 		{Config{Port: 9000, RESTPort: 9001, HealthPort: 9000}, []string{"api.port", "api.health_port"}},
 		{Config{Port: 9000, RESTPort: 9001, HealthPort: 9001}, []string{"api.rest_port", "api.health_port"}},
 	} {
-		err := run(t.Context(), tc.config, nil)
+		_, err := Listen(tc.config)
 
 		for _, key := range tc.keys {
 			require.ErrorContains(t, err, key)

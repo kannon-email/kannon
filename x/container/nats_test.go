@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kannon-email/kannon/x/config"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/assert"
@@ -39,7 +40,7 @@ func TestNatsWaitsForAServerThatComesUpLate(t *testing.T) {
 	ns := newNatsServer(t, port)
 	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
-	c := NewForTest(ctx, WithNatsURL(fmt.Sprintf("nats://127.0.0.1:%d", port)))
+	c := New(ctx, config.RootConfig{NatsURL: fmt.Sprintf("nats://127.0.0.1:%d", port)})
 	t.Cleanup(func() { assert.NoError(t, c.CloseWithTimeout(5*time.Second)) })
 
 	go func() {
@@ -47,7 +48,7 @@ func TestNatsWaitsForAServerThatComesUpLate(t *testing.T) {
 		ns.Start()
 	}()
 
-	nc, err := c.TryNats()
+	nc, err := c.TryNats(ctx)
 
 	require.NoError(t, err)
 	assert.Equal(t, nats.CONNECTED, nc.Status())
@@ -56,9 +57,9 @@ func TestNatsWaitsForAServerThatComesUpLate(t *testing.T) {
 func TestNatsGivesUpWhenTheContextEnds(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 500*time.Millisecond)
 	defer cancel()
-	c := NewForTest(ctx, WithNatsURL(fmt.Sprintf("nats://127.0.0.1:%d", freePort(t))))
+	c := New(t.Context(), config.RootConfig{NatsURL: fmt.Sprintf("nats://127.0.0.1:%d", freePort(t))})
 
-	_, err := c.TryNats()
+	_, err := c.TryNats(ctx)
 
 	assert.Error(t, err)
 }

@@ -47,3 +47,24 @@ func TestLoadConfigRefusesAnUnsetReference(t *testing.T) {
 		t.Fatal("expected an unset reference to be refused")
 	}
 }
+
+func TestLoadConfigKeepsPortZero(t *testing.T) {
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+	viper.Set("metrics.port", 0)
+
+	cfg, err := metrics.LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	if cfg.Port != 0 {
+		t.Fatalf("got port %d, want 0 so the system picks one", cfg.Port)
+	}
+}
+
+func TestPortZeroCollidesWithNothing(t *testing.T) {
+	cfg := metrics.Config{Enabled: true, Port: 0}
+	if err := cfg.RequireOwnPort([]metrics.ListenPort{{Key: "api.port", Port: 0}}); err != nil {
+		t.Fatalf("two listeners on port 0 get a port each, got %v", err)
+	}
+}

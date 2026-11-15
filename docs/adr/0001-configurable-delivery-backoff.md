@@ -4,6 +4,12 @@
 
 Accepted (2026-05-03).
 
+Note (2026-11-15, #518): `container.NewForTest` and its `TestOption` type are
+gone. There is one constructor, `container.New(ctx, cfg, opts...)`, and
+`container.WithBackoff` is one of its options; the e2e suite reaches it through
+`startup.WithBackoff` when it boots Kannon with `startup.Start`. The decision
+below is unchanged: backoff is still a wiring point and not a config key.
+
 ## Context
 
 `Delivery` (per `CONTEXT.md`) is the per-recipient transmission unit. When a

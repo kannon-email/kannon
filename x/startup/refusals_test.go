@@ -1,4 +1,4 @@
-package cmd
+package startup
 
 import (
 	"strings"
@@ -54,7 +54,8 @@ func TestRequireAdminToken(t *testing.T) {
 				viper.Set(config.APIAdminTokenKey, tc.token)
 			}
 
-			assertBootDecision(t, requireAdminToken(tc.services), tc.wantErr, config.APIAdminTokenKey)
+			_, err := requireAdminToken(tc.services)
+			assertBootDecision(t, err, tc.wantErr, config.APIAdminTokenKey)
 		})
 	}
 }
@@ -67,7 +68,7 @@ func TestRequireAdminTokenWithAnUnresolvableReference(t *testing.T) {
 
 	viper.Set(config.APIAdminTokenKey, "env://KANNON_ADMIN_TOKEN_NOBODY_SET")
 
-	err := requireAdminToken(config.Services{API: config.Service{Enabled: true}})
+	_, err := requireAdminToken(config.Services{API: config.Service{Enabled: true}})
 	if err == nil {
 		t.Fatal("expected the boot to be refused")
 	}
@@ -85,7 +86,7 @@ func TestRequireAdminTokenRefusesAWeakToken(t *testing.T) {
 			t.Cleanup(viper.Reset)
 			viper.Set(config.APIAdminTokenKey, token)
 
-			err := requireAdminToken(config.Services{API: config.Service{Enabled: true}})
+			_, err := requireAdminToken(config.Services{API: config.Service{Enabled: true}})
 			assertBootDecision(t, err, true, config.APIAdminTokenKey)
 			if !strings.Contains(err.Error(), "at least 32 characters") {
 				t.Errorf("expected the refusal to name the minimum length, got %q", err)

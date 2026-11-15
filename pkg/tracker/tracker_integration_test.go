@@ -101,7 +101,7 @@ func engageOn(t *testing.T, ss statssec.StatsService, host, path string) (answer
 	t.Helper()
 
 	pub := &fakePublisher{}
-	srv := newServer(pub, ss, Config{}, nil)
+	srv := newServer(pub, ss, nil)
 
 	req := httptest.NewRequest(http.MethodGet, path, nil)
 	req.Host = host

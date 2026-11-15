@@ -102,6 +102,9 @@ files. Use `make lint-fix` to explicitly apply golangci-lint fixes, then rerun
 - Prefer composition over inheritance.
 - Avoid breaking backward compatibility unless necessary (discuss in an issue first).
 
+The project's coding standards, including where each kind of test belongs and
+the black-box rule for the e2e suite, are in [CODING_STANDARDS.md](CODING_STANDARDS.md).
+
 ### Logging
 
 Kannon logs through `log/slog` only, as logfmt on stderr, so that every line can be parsed and

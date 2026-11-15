@@ -2,7 +2,6 @@ package dispatcher
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -13,12 +12,8 @@ import (
 	"github.com/kannon-email/kannon/internal/pool"
 	"github.com/kannon-email/kannon/internal/returnpath"
 	"github.com/kannon-email/kannon/internal/runner"
-	"github.com/kannon-email/kannon/internal/stats"
 	"github.com/kannon-email/kannon/internal/statssec"
-	"github.com/kannon-email/kannon/internal/utils"
 	"github.com/kannon-email/kannon/x/container"
-
-	"github.com/nats-io/nats.go/jetstream"
 )
 
 // New constructs the dispatcher runnable. Its one setting is the bounce
@@ -27,13 +22,13 @@ func New(cnt *container.Container) container.Runnable {
 	rp := returnpath.MustLoad()
 	return container.Runnable{
 		Name: "dispatcher",
-		Run: func(ctx context.Context) error {
-			return run(ctx, cnt, rp)
+		Run: func(ctx context.Context, ready func()) error {
+			return run(ctx, cnt, rp, ready)
 		},
 	}
 }
 
-func run(ctx context.Context, cnt *container.Container, rp returnpath.Signer) error {
+func run(ctx context.Context, cnt *container.Container, rp returnpath.Signer, ready func()) error {
 	q := cnt.Queries()
 
 	ss := statssec.NewStatsService(q)
@@ -43,13 +38,6 @@ func run(ctx context.Context, cnt *container.Container, rp returnpath.Signer) er
 	eb := envelope.NewBuilder(q, ss, rp, int(cnt.Nats().MaxPayload()))
 
 	js := cnt.NatsJetStream()
-	if err := configureSendingStream(ctx, js); err != nil {
-		return fmt.Errorf("cannot configure sending stream: %w", err)
-	}
-	// Publishes failures and consumes outcomes on the stats stream.
-	if err := stats.ConfigureStream(ctx, js); err != nil {
-		return fmt.Errorf("cannot configure stats stream: %w", err)
-	}
 
 	d := disp{
 		ss:      ss,
@@ -61,20 +49,25 @@ func run(ctx context.Context, cnt *container.Container, rp returnpath.Signer) er
 	}
 	mailflow.RegisterPool(cnt.Metrics(), sqlc.NewPoolCensus(cnt.DB()))
 
+	errored := d.consumer(ctx, erroredFeed)
+	delivered := d.consumer(ctx, deliveredFeed)
+	bounced := d.consumer(ctx, bouncedFeed)
+
 	d.log().Info("starting dispatcher")
+	ready()
 
 	eg, ctx := errgroup.WithContext(ctx)
 
 	eg.Go(func() error {
-		return d.handleErrors(ctx)
+		return d.handleErrors(ctx, errored)
 	})
 
 	eg.Go(func() error {
-		return d.handleDelivers(ctx)
+		return d.handleDelivers(ctx, delivered)
 	})
 
 	eg.Go(func() error {
-		return d.handleBounced(ctx)
+		return d.handleBounced(ctx, bounced)
 	})
 
 	eg.Go(func() error {
@@ -86,21 +79,4 @@ func run(ctx context.Context, cnt *container.Container, rp returnpath.Signer) er
 	})
 
 	return eg.Wait()
-}
-
-// configureSendingStream ensures the kannon-sending stream exists. This function holds the stream's
-// configuration and nothing else: how hard to try when NATS is not answering yet belongs to
-// utils.ConfigureStream, which every stream in Kannon goes through.
-func configureSendingStream(ctx context.Context, js jetstream.JetStream) error {
-	return utils.ConfigureStream(ctx, js, jetstream.StreamConfig{
-		Name:        "kannon-sending",
-		Description: "Email Sending Pool for Kannon",
-		Replicas:    1,
-		Subjects:    []string{"kannon.sending"},
-		Retention:   jetstream.LimitsPolicy,
-		Duplicates:  10 * time.Minute,
-		MaxAge:      24 * time.Hour,
-		Storage:     jetstream.FileStorage,
-		Discard:     jetstream.DiscardOld,
-	})
 }

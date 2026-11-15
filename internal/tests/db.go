@@ -2,8 +2,10 @@ package tests
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
+	neturl "net/url"
 	"os"
 	"time"
 
@@ -24,15 +26,41 @@ func Main(run func() int) {
 }
 
 func TestPostgresInit(schema string) (*pgxpool.Pool, PurgeFunc, error) {
-	if url := os.Getenv("KANNON_TEST_DATABASE_URL"); url != "" {
-		return localPostgres(url, schema)
+	url, purge, err := TestPostgresURL()
+	if err != nil {
+		return nil, nil, err
 	}
-	var db *pgxpool.Pool
+	ctx := context.Background()
+	if err := applySchema(ctx, url, schema); err != nil {
+		return nil, nil, errors.Join(fmt.Errorf("cannot apply schema: %w", err), purge())
+	}
+	db, err := pgxpool.New(ctx, url)
+	if err != nil {
+		return nil, nil, errors.Join(fmt.Errorf("cannot create pgx pool: %w", err), purge())
+	}
+	return db, func() error {
+		db.Close()
+		return purge()
+	}, nil
+}
+
+// TestPostgresURL returns the URL of an empty disposable Postgres database, for a caller that
+// prepares the schema itself — the e2e suite runs the real migrations against it. The database is
+// created on the server KANNON_TEST_DATABASE_URL names when it is set, and in a new container
+// otherwise.
+func TestPostgresURL() (string, PurgeFunc, error) {
+	if url := os.Getenv("KANNON_TEST_DATABASE_URL"); url != "" {
+		return localDatabase(url)
+	}
+	return containerPostgres()
+}
+
+func containerPostgres() (string, PurgeFunc, error) {
 	ctx := context.Background()
 
 	pool, err := dockertest.NewPool(ctx, "")
 	if err != nil {
-		return nil, nil, fmt.Errorf("cannot connect to docker: %w", err)
+		return "", nil, fmt.Errorf("cannot connect to docker: %w", err)
 	}
 
 	resource, err := pool.Run(ctx, "postgres",
@@ -48,38 +76,32 @@ func TestPostgresInit(schema string) (*pgxpool.Pool, PurgeFunc, error) {
 		dockertest.WithoutReuse(),
 	)
 	if err != nil {
-		return nil, nil, fmt.Errorf("cannot start resource: %w", err)
+		return "", nil, fmt.Errorf("cannot start resource: %w", err)
 	}
 
+	url := fmt.Sprintf("postgresql://test:test@%v:%v/test?sslmode=disable", getDBHost(), resource.GetPort("5432/tcp"))
 	if err = pool.Retry(ctx, 60*time.Second, func() error {
-		var err error
-		db, err = initDB(resource.GetPort("5432/tcp"))
+		db, err := pgxpool.New(ctx, url)
 		if err != nil {
 			slog.Warn(fmt.Sprintf("connection error: %v", err))
 			return err
 		}
+		defer db.Close()
 		return db.Ping(ctx)
 	}); err != nil {
-		return nil, nil, fmt.Errorf("cannot connect to docker: %w", err)
+		return "", nil, fmt.Errorf("cannot connect to docker: %w", err)
 	}
 
-	if err := applySchema(ctx, resource.GetPort("5432/tcp"), schema); err != nil {
-		return nil, nil, fmt.Errorf("cannot apply schema: %w", err)
-	}
-
-	var purgeFunc PurgeFunc = func() error {
+	return url, func() error {
 		if err := resource.Close(ctx); err != nil {
 			return fmt.Errorf("cannot purge resource: %w", err)
 		}
 		return pool.Close(ctx)
-	}
-
-	return db, purgeFunc, nil
+	}, nil
 }
 
-func applySchema(ctx context.Context, dbPort, schema string) error {
-	pgConnString := fmt.Sprintf("postgresql://test:test@%v:%v/test", getDBHost(), dbPort)
-	conn, err := pgx.Connect(ctx, pgConnString)
+func applySchema(ctx context.Context, url, schema string) error {
+	conn, err := pgx.Connect(ctx, url)
 	if err != nil {
 		return err
 	}
@@ -97,51 +119,28 @@ func getDBHost() string {
 	return host
 }
 
-func initDB(dbPort string) (*pgxpool.Pool, error) {
-	dbHost := getDBHost()
-	url := fmt.Sprintf("postgresql://test:test@%v:%v/test", dbHost, dbPort)
-
-	pool, err := pgxpool.New(context.Background(), url)
+// localDatabase creates an isolated empty database on the server url names.
+func localDatabase(url string) (string, PurgeFunc, error) {
+	ctx := context.Background()
+	admin, err := pgxpool.New(ctx, url)
 	if err != nil {
-		return nil, fmt.Errorf("cannot create pgx pool: %w", err)
+		return "", nil, err
 	}
-	return pool, nil
+	name := fmt.Sprintf("kannon_test_%d", time.Now().UnixNano())
+	if _, err = admin.Exec(ctx, "CREATE DATABASE "+name); err != nil {
+		admin.Close()
+		return "", nil, err
+	}
+	u, err := neturl.Parse(url)
+	if err != nil {
+		return "", nil, errors.Join(err, dropDatabase(admin, name))
+	}
+	u.Path = "/" + name
+	return u.String(), func() error { return dropDatabase(admin, name) }, nil
 }
 
-// localPostgres creates an isolated disposable database for each test fixture.
-func localPostgres(url, schema string) (*pgxpool.Pool, PurgeFunc, error) {
-	admin, err := pgxpool.New(context.Background(), url)
-	if err != nil {
-		return nil, nil, err
-	}
-	name := fmt.Sprintf("kannon_rest_%d", time.Now().UnixNano())
-	if _, err = admin.Exec(context.Background(), "CREATE DATABASE "+name); err != nil {
-		admin.Close()
-		return nil, nil, err
-	}
-	config, err := pgxpool.ParseConfig(url)
-	if err != nil {
-		admin.Close()
-		return nil, nil, err
-	}
-	config.ConnConfig.Database = name
-	pool, err := pgxpool.NewWithConfig(context.Background(), config)
-	if err != nil {
-		admin.Close()
-		return nil, nil, err
-	}
-	if _, err = pool.Exec(context.Background(), schema); err != nil {
-		pool.Close()
-		admin.Close()
-		return nil, nil, err
-	}
-	if _, err = pool.Exec(context.Background(), "SET search_path TO public"); err != nil {
-		return nil, nil, err
-	}
-	return pool, func() error {
-		pool.Close()
-		_, err := admin.Exec(context.Background(), "DROP DATABASE "+name)
-		admin.Close()
-		return err
-	}, nil
+func dropDatabase(admin *pgxpool.Pool, name string) error {
+	defer admin.Close()
+	_, err := admin.Exec(context.Background(), "DROP DATABASE "+name+" WITH (FORCE)")
+	return err
 }
