@@ -2,12 +2,15 @@ package e2e_test
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"runtime"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 // The single waiting policy of the suite. Every wait and every hold is derived from these, scaled by
@@ -34,9 +37,13 @@ func scaled(d time.Duration) time.Duration {
 // probe collects the failures of one evaluation of a condition. It satisfies require.TestingT, so a
 // condition is written with the usual assert and require calls; a require failure ends only that
 // evaluation, and the next poll tries again.
+//
+// A read that failed (requireRead) leaves the evaluation inconclusive rather than failed: the
+// condition was never checked, so a hold does not count it as a violation.
 type probe struct {
-	failures []string
-	failed   bool
+	failures     []string
+	failed       bool
+	inconclusive bool
 }
 
 func (p *probe) Helper() {}
@@ -51,8 +58,36 @@ func (p *probe) FailNow() {
 	runtime.Goexit()
 }
 
+func (p *probe) readFailed(format string, args ...any) {
+	p.inconclusive = true
+	p.failures = append(p.failures, fmt.Sprintf(format, args...))
+	runtime.Goexit()
+}
+
+func (p *probe) passed() bool {
+	return !p.failed && !p.inconclusive
+}
+
 func (p *probe) String() string {
 	return strings.Join(p.failures, "\n")
+}
+
+// requireRead checks that a read of a public output got an answer. Inside a wait, a transport error
+// ends the evaluation as inconclusive, to be retried.
+func requireRead(c require.TestingT, err error) {
+	if p, ok := c.(*probe); ok && err != nil {
+		p.readFailed("read failed: %v", err)
+	}
+	require.NoError(c, err)
+}
+
+// requireStatus checks the status a read was answered with. Inside a wait, a 5xx ends the evaluation
+// as inconclusive, to be retried; any other unexpected status is a failure of the condition.
+func requireStatus(c require.TestingT, got, want int, body []byte) {
+	if p, ok := c.(*probe); ok && got >= http.StatusInternalServerError {
+		p.readFailed("read answered %d: %s", got, body)
+	}
+	require.Equal(c, want, got, string(body))
 }
 
 // evaluate runs one evaluation to completion before returning, so no condition outlives the wait
@@ -76,7 +111,7 @@ func eventually(t *testing.T, what string, cond func(c *probe)) {
 	deadline := time.Now().Add(timeout)
 	for {
 		p := evaluate(cond)
-		if !p.failed {
+		if p.passed() {
 			return
 		}
 		if time.Now().After(deadline) || t.Context().Err() != nil {
@@ -87,13 +122,29 @@ func eventually(t *testing.T, what string, cond func(c *probe)) {
 }
 
 // holds asserts that cond stays true for the whole hold window, failing t on the first evaluation
-// that does not.
+// that finds it false. An evaluation whose read failed is retried, and the hold needs at least one
+// evaluation that read successfully: when the window closes without one, it keeps trying until the
+// policy's timeout.
 func holds(t *testing.T, what string, cond func(c *probe)) {
 	t.Helper()
-	deadline := time.Now().Add(scaled(holdWindow))
-	for time.Now().Before(deadline) {
-		if p := evaluate(cond); p.failed {
+	start := time.Now()
+	window := start.Add(scaled(holdWindow))
+	timeout := start.Add(scaled(defaultTimeout))
+	checked := false
+	for {
+		p := evaluate(cond)
+		switch {
+		case p.failed:
 			t.Fatalf("%s: stopped holding:\n%s", what, p)
+		case p.inconclusive:
+			if time.Now().After(timeout) || t.Context().Err() != nil {
+				t.Fatalf("%s: could not be checked within %s:\n%s", what, scaled(defaultTimeout), p)
+			}
+		default:
+			checked = true
+		}
+		if checked && time.Now().After(window) {
+			return
 		}
 		time.Sleep(pollInterval)
 	}

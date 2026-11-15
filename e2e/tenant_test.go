@@ -167,8 +167,8 @@ func (tn *tenant) Events(c require.TestingT) []event {
 	}
 	for {
 		res, err := tn.api.ListStatsEventsWithResponse(tn.ctx, tn.Domain, params)
-		require.NoError(c, err)
-		require.Equal(c, http.StatusOK, res.StatusCode(), string(res.Body))
+		requireRead(c, err)
+		requireStatus(c, res.StatusCode(), http.StatusOK, res.Body)
 		for _, item := range res.JSON200.Items {
 			raw, err := item.MarshalJSON()
 			require.NoError(c, err)
@@ -209,8 +209,8 @@ func (tn *tenant) Await(t *testing.T, rcpt string, o outcome) event {
 // BatchHistory reads the Batch as Batch History reports it now.
 func (tn *tenant) BatchHistory(c require.TestingT, id string) *restclient.Batch {
 	res, err := tn.api.GetBatchWithResponse(tn.ctx, tn.Domain, id, &restclient.GetBatchParams{})
-	require.NoError(c, err)
-	require.Equal(c, http.StatusOK, res.StatusCode(), string(res.Body))
+	requireRead(c, err)
+	requireStatus(c, res.StatusCode(), http.StatusOK, res.Body)
 	return res.JSON200
 }
 
@@ -231,8 +231,8 @@ func (tn *tenant) Deliveries(c require.TestingT, id string) []restclient.Deliver
 	params := &restclient.ListDeliveriesParams{}
 	for {
 		res, err := tn.api.ListDeliveriesWithResponse(tn.ctx, tn.Domain, id, params)
-		require.NoError(c, err)
-		require.Equal(c, http.StatusOK, res.StatusCode(), string(res.Body))
+		requireRead(c, err)
+		requireStatus(c, res.StatusCode(), http.StatusOK, res.Body)
 		out = append(out, res.JSON200.Items...)
 		if res.JSON200.NextCursor == nil {
 			return out
@@ -249,8 +249,8 @@ func (tn *tenant) Aggregated(c require.TestingT) map[outcome]int {
 		ParameterTo:      from.Add(24 * time.Hour),
 		ParameterGroupBy: "1h",
 	})
-	require.NoError(c, err)
-	require.Equal(c, http.StatusOK, res.StatusCode(), string(res.Body))
+	requireRead(c, err)
+	requireStatus(c, res.StatusCode(), http.StatusOK, res.Body)
 	sum := map[outcome]int{}
 	for _, b := range res.JSON200.Buckets {
 		sum[Validated] += b.Counts.Validated

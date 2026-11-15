@@ -242,9 +242,9 @@ func (e *env) Track(t *testing.T, host, path string) (status int, location strin
 // Metrics scrapes the metrics listener's /metrics endpoint.
 func (e *env) Metrics(c require.TestingT) scrape {
 	res, err := http.Get(e.metrics) //nolint:noctx // a scrape is bounded by the wait that runs it
-	require.NoError(c, err)
+	requireRead(c, err)
 	defer func() { _ = res.Body.Close() }()
-	require.Equal(c, http.StatusOK, res.StatusCode)
+	requireStatus(c, res.StatusCode, http.StatusOK, nil)
 	parser := expfmt.NewTextParser(model.UTF8Validation)
 	families, err := parser.TextToMetricFamilies(res.Body)
 	require.NoError(c, err)

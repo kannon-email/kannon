@@ -103,7 +103,7 @@ func awaitAuditRecord(t *testing.T, db *pgxpool.Pool, domain string, matches fun
 	var found auditRecord
 	eventually(t, "exactly one matching Audit Record naming "+domain, func(c *probe) {
 		got, err := auditRecordsOf(t.Context(), db, domain, matches)
-		require.NoError(c, err)
+		requireRead(c, err)
 		require.Len(c, got, 1)
 		found = got[0]
 	})
@@ -210,7 +210,7 @@ func testSendIsRecordedOncePerBatch(t *testing.T, e *env) {
 
 	tn.Holds(t, "one Audit Record per Batch, never one per Recipient", func(c *probe) {
 		got, err := auditRecordsOf(t.Context(), db, tn.Domain, onBatches)
-		require.NoError(c, err)
+		requireRead(c, err)
 		assert.Len(c, got, 1)
 	})
 }
