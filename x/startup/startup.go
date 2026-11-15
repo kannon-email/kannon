@@ -60,6 +60,7 @@ type options struct {
 	standalone        bool
 	logLevel          *slog.LevelVar
 	senderConcurrency uint
+	extra             []container.Runnable
 }
 
 // WithSender replaces the outbound Sender: the remote MX is simulated without making a test Sender
@@ -92,6 +93,12 @@ func Standalone() Option {
 // WithLogLevel is the level the config file's `debug` key raises to Debug.
 func WithLogLevel(l *slog.LevelVar) Option {
 	return func(o *options) { o.logLevel = l }
+}
+
+// withRunnable runs r beside the components the configuration selects, so a test can hold the
+// instance short of ready.
+func withRunnable(r container.Runnable) Option {
+	return func(o *options) { o.extra = append(o.extra, r) }
 }
 
 // Start boots Kannon from the config file at configPath, or from $HOME/.kannon.yaml when it is
@@ -197,6 +204,10 @@ func Start(ctx context.Context, configPath string, opts ...Option) (Instance, er
 	}
 	if services.Audit.Enabled {
 		reg.Register(kaudit.New(cnt))
+	}
+
+	for _, r := range o.extra {
+		reg.Register(r)
 	}
 
 	slog.Info(fmt.Sprintf("Starting Kannon runnables: %v", reg.Names()))
