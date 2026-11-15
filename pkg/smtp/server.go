@@ -38,8 +38,9 @@ func New(cnt *container.Container, l net.Listener) container.Runnable {
 	return container.Runnable{
 		Name: "smtp",
 		Run: func(ctx context.Context, ready func()) error {
+			nc := cnt.Nats()
 			ready()
-			return run(ctx, l, cnt.Nats(), cfg, rp, mailflow.New(cnt.Metrics()))
+			return run(ctx, l, nc, cfg, rp, mailflow.New(cnt.Metrics()))
 		},
 	}
 }
