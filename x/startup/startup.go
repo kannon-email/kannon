@@ -145,12 +145,12 @@ func Start(ctx context.Context, configPath string, opts ...Option) (Instance, er
 		return nil, err
 	}
 
-	metricsCfg, err := loadMetrics(services)
+	sec, err := loadSections(services)
 	if err != nil {
 		return nil, err
 	}
 
-	l, err := listen(services, metricsCfg)
+	l, err := listen(services, sec)
 	if err != nil {
 		return nil, err
 	}
@@ -186,10 +186,10 @@ func Start(ctx context.Context, configPath string, opts ...Option) (Instance, er
 		reg.Register(tracker.New(cnt, l.tracker))
 	}
 	if services.API.Enabled {
-		reg.Register(api.New(cnt, token, l.api, inst.ready))
+		reg.Register(api.New(cnt, sec.api, token, l.api, inst.ready))
 	}
 	if services.SMTP.Enabled {
-		reg.Register(ksmtp.New(cnt, l.smtp))
+		reg.Register(ksmtp.New(cnt, sec.smtp, l.smtp))
 	}
 	if services.Audit.Enabled {
 		reg.Register(kaudit.New(cnt))
@@ -226,7 +226,7 @@ func (l listeners) addrs() Addrs {
 
 // listen binds every listener the process runs before any component starts, so a port taken by
 // another process is a boot failure and the bound addresses are known up front.
-func listen(services config.Services, metricsCfg metrics.Config) (l listeners, err error) {
+func listen(services config.Services, sec sections) (l listeners, err error) {
 	defer func() {
 		if err != nil {
 			for _, c := range l.all {
@@ -234,26 +234,26 @@ func listen(services config.Services, metricsCfg metrics.Config) (l listeners, e
 			}
 		}
 	}()
-	if l.metrics, err = metrics.Listen(metricsCfg); err != nil {
+	if l.metrics, err = metrics.Listen(sec.metrics); err != nil {
 		return l, fmt.Errorf("cannot bind the metrics listener: %w", err)
 	}
 	if l.metrics != nil {
 		l.all = append(l.all, l.metrics)
 	}
 	if services.API.Enabled {
-		if l.api, err = api.Listen(); err != nil {
+		if l.api, err = api.Listen(sec.api); err != nil {
 			return l, fmt.Errorf("cannot bind the API listeners: %w", err)
 		}
 		l.all = append(l.all, l.api)
 	}
 	if services.Tracker.Enabled {
-		if l.tracker, err = tracker.Listen(); err != nil {
+		if l.tracker, err = tracker.Listen(sec.tracker); err != nil {
 			return l, fmt.Errorf("cannot bind the tracker listener: %w", err)
 		}
 		l.all = append(l.all, l.tracker)
 	}
 	if services.SMTP.Enabled {
-		if l.smtp, err = ksmtp.Listen(); err != nil {
+		if l.smtp, err = ksmtp.Listen(sec.smtp); err != nil {
 			return l, fmt.Errorf("cannot bind the inbound SMTP listener: %w", err)
 		}
 		l.all = append(l.all, l.smtp)
@@ -283,29 +283,40 @@ func requireBounceSecret(services config.Services) error {
 	return err
 }
 
-// loadMetrics reads the `metrics` section and refuses a listener that would collide with one the
-// process actually runs. A Component it does not run opens no port, so cannot collide.
-func loadMetrics(services config.Services) (metrics.Config, error) {
-	cfg, err := metrics.LoadConfig()
-	if err != nil {
-		return metrics.Config{}, err
-	}
+// sections are the configuration sections Start reads for the components it builds, each read once.
+// A section of a component the process does not run is left unread: it may name a variable only
+// another pod sets.
+type sections struct {
+	api     api.Config
+	tracker tracker.Config
+	smtp    ksmtp.Config
+	metrics metrics.Config
+}
+
+// loadSections reads the sections of the enabled components, and refuses a metrics listener that
+// would collide with one the process actually runs. A component it does not run opens no port, so
+// cannot collide.
+func loadSections(services config.Services) (sec sections, err error) {
 	var ports []metrics.ListenPort
-	for _, listener := range []struct {
-		enabled bool
-		ports   func() ([]metrics.ListenPort, error)
-	}{
-		{services.API.Enabled, api.ListenPorts},
-		{services.Tracker.Enabled, tracker.ListenPorts},
-	} {
-		if !listener.enabled {
-			continue
+	if services.API.Enabled {
+		if sec.api, err = api.LoadConfig(); err != nil {
+			return sec, err
 		}
-		p, err := listener.ports()
-		if err != nil {
-			return metrics.Config{}, err
-		}
-		ports = append(ports, p...)
+		ports = append(ports, sec.api.ListenPorts()...)
 	}
-	return cfg, cfg.RequireOwnPort(ports)
+	if services.Tracker.Enabled {
+		if sec.tracker, err = tracker.LoadConfig(); err != nil {
+			return sec, err
+		}
+		ports = append(ports, sec.tracker.ListenPorts()...)
+	}
+	if services.SMTP.Enabled {
+		if sec.smtp, err = ksmtp.LoadConfig(); err != nil {
+			return sec, err
+		}
+	}
+	if sec.metrics, err = metrics.LoadConfig(); err != nil {
+		return sec, err
+	}
+	return sec, sec.metrics.RequireOwnPort(ports)
 }

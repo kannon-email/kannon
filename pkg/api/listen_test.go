@@ -14,7 +14,11 @@ func TestListenBindsPortZeroOnceForEachListener(t *testing.T) {
 	t.Cleanup(viper.Reset)
 	viper.Set("api", map[string]any{"port": 0, "rest_port": 0, "health_port": 0})
 
-	l, err := Listen()
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	l, err := Listen(cfg)
 	if err != nil {
 		t.Fatalf("Listen: %v", err)
 	}

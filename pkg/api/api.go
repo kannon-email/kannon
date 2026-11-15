@@ -61,9 +61,9 @@ type Config struct {
 // defaultMaxPayload is 500KiB, under 70% of the 1MiB max_payload a NATS server has by default.
 const defaultMaxPayload config.ByteSize = 500 << 10
 
-// loadConfig reads the "api" section. An unset port takes its default; port 0 lets the system pick
+// LoadConfig reads the "api" section. An unset port takes its default; port 0 lets the system pick
 // one.
-func loadConfig() (Config, error) {
+func LoadConfig() (Config, error) {
 	var raw struct {
 		Port       *uint           `mapstructure:"port"`
 		RESTPort   *uint           `mapstructure:"rest_port"`
@@ -118,22 +118,14 @@ const (
 	HealthPortKey = configKey + ".health_port"
 )
 
-// ListenPorts reads the ports the API listens on, so the boot path can refuse another listener asked
+// ListenPorts are the ports the API listens on, so the boot path can refuse another listener asked
 // to share one.
-func ListenPorts() ([]metrics.ListenPort, error) {
-	cfg, err := loadConfig()
-	if err != nil {
-		return nil, err
-	}
-	return cfg.listenPorts(), nil
-}
-
-func (c Config) listenPorts() []metrics.ListenPort {
+func (c Config) ListenPorts() []metrics.ListenPort {
 	return []metrics.ListenPort{{Key: PortKey, Port: c.Port}, {Key: RESTPortKey, Port: c.RESTPort}, {Key: HealthPortKey, Port: c.HealthPort}}
 }
 
 func (c Config) checkPorts() error {
-	ports := c.listenPorts()
+	ports := c.ListenPorts()
 	for i, a := range ports {
 		for _, b := range ports[i+1:] {
 			if a.Port != 0 && a.Port == b.Port {
@@ -154,13 +146,8 @@ func (l Listeners) Close() error {
 	return errors.Join(l.Connect.Close(), l.REST.Close(), l.Health.Close())
 }
 
-// Listen binds the API's listeners on the ports the "api" section sets, refusing two of them on one
-// port.
-func Listen() (Listeners, error) {
-	cfg, err := loadConfig()
-	if err != nil {
-		return Listeners{}, err
-	}
+// Listen binds the API's listeners on cfg's ports, refusing two of them on one port.
+func Listen(cfg Config) (Listeners, error) {
 	if err := cfg.checkPorts(); err != nil {
 		return Listeners{}, err
 	}
@@ -178,14 +165,10 @@ func Listen() (Listeners, error) {
 	return Listeners{Connect: bound[0], REST: bound[1], Health: bound[2]}, nil
 }
 
-// New constructs the API runnable serving on l. token is the admin credential the boot path has
+// New constructs the API runnable serving on l, configured by cfg. token is the admin credential the boot path has
 // already resolved, and instanceReady closes once the whole process is ready: until then the health
 // check answers unavailable.
-func New(cnt *container.Container, token admintoken.Token, l Listeners, instanceReady <-chan struct{}) container.Runnable {
-	cfg, err := loadConfig()
-	if err != nil {
-		panic(err)
-	}
+func New(cnt *container.Container, cfg Config, token admintoken.Token, l Listeners, instanceReady <-chan struct{}) container.Runnable {
 	return container.Runnable{
 		Name: "api",
 		Run: func(ctx context.Context, ready func()) error {

@@ -21,8 +21,8 @@ const (
 // PortKey names the key the tracker's port is read from.
 const PortKey = configKey + ".port"
 
-// loadConfig reads the `tracker` section. An unset port is 8080; port 0 lets the system pick one.
-func loadConfig() (Config, error) {
+// LoadConfig reads the `tracker` section. An unset port is 8080; port 0 lets the system pick one.
+func LoadConfig() (Config, error) {
 	var raw struct {
 		Port *uint `mapstructure:"port"`
 	}
@@ -32,22 +32,14 @@ func loadConfig() (Config, error) {
 	return Config{Port: config.Or(raw.Port, defaultPort)}, nil
 }
 
-// ListenPorts reads the port the tracker listens on, so the boot path can refuse another listener
-// asked to share it.
-func ListenPorts() ([]metrics.ListenPort, error) {
-	cfg, err := loadConfig()
-	if err != nil {
-		return nil, err
-	}
-	return []metrics.ListenPort{{Key: PortKey, Port: cfg.Port}}, nil
+// ListenPorts are the ports the tracker listens on, so the boot path can refuse another listener
+// asked to share one.
+func (c Config) ListenPorts() []metrics.ListenPort {
+	return []metrics.ListenPort{{Key: PortKey, Port: c.Port}}
 }
 
-// Listen binds the tracker's listener on the port the `tracker` section sets.
-func Listen() (net.Listener, error) {
-	cfg, err := loadConfig()
-	if err != nil {
-		return nil, err
-	}
+// Listen binds the tracker's listener on cfg's port.
+func Listen(cfg Config) (net.Listener, error) {
 	return container.Listen(cfg.Port)
 }
 

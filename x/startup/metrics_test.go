@@ -63,7 +63,7 @@ func TestRequireOwnMetricsPort(t *testing.T) {
 				viper.Set(k, v)
 			}
 
-			_, err := loadMetrics(tc.services)
+			_, err := loadSections(tc.services)
 			if tc.wantKey == "" {
 				if err != nil {
 					t.Fatalf("expected the boot to be allowed, got %v", err)

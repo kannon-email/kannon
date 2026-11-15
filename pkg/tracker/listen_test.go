@@ -12,7 +12,11 @@ func TestListenOnPortZeroPicksAFreePort(t *testing.T) {
 	t.Cleanup(viper.Reset)
 	viper.Set(PortKey, 0)
 
-	l, err := Listen()
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	l, err := Listen(cfg)
 	if err != nil {
 		t.Fatalf("Listen: %v", err)
 	}

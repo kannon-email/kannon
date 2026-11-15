@@ -18,22 +18,23 @@ import (
 
 const configKey = "smtp"
 
-// Listen binds the inbound SMTP listener on the address the "smtp" section sets.
-func Listen() (net.Listener, error) {
+// LoadConfig reads the "smtp" section, defaults filled in.
+func LoadConfig() (Config, error) {
 	var cfg Config
 	if err := config.TryLoadSection(configKey, &cfg); err != nil {
-		return nil, err
+		return Config{}, err
 	}
 	cfg.setDefaults()
+	return cfg, nil
+}
+
+// Listen binds the inbound SMTP listener on cfg's address.
+func Listen(cfg Config) (net.Listener, error) {
 	return net.Listen("tcp", cfg.Address)
 }
 
-// New constructs the SMTP server runnable serving on l, loading its slice of
-// configuration from viper under the "smtp" key.
-func New(cnt *container.Container, l net.Listener) container.Runnable {
-	var cfg Config
-	config.LoadSection(configKey, &cfg)
-	cfg.setDefaults()
+// New constructs the SMTP server runnable serving on l.
+func New(cnt *container.Container, cfg Config, l net.Listener) container.Runnable {
 	rp := returnpath.MustLoad()
 	return container.Runnable{
 		Name: "smtp",
