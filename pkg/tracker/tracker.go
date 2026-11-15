@@ -29,11 +29,7 @@ func loadConfig() (Config, error) {
 	if err := config.TryLoadSection(configKey, &raw); err != nil {
 		return Config{}, err
 	}
-	cfg := Config{Port: defaultPort}
-	if raw.Port != nil {
-		cfg.Port = *raw.Port
-	}
-	return cfg, nil
+	return Config{Port: config.Or(raw.Port, defaultPort)}, nil
 }
 
 // ListenPorts reads the port the tracker listens on, so the boot path can refuse another listener

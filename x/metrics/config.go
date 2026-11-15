@@ -32,14 +32,7 @@ func LoadConfig() (Config, error) {
 	if err := config.TryLoadSection(sectionKey, &raw); err != nil {
 		return Config{}, err
 	}
-	cfg := Config{Enabled: true, Port: defaultPort}
-	if raw.Enabled != nil {
-		cfg.Enabled = *raw.Enabled
-	}
-	if raw.Port != nil {
-		cfg.Port = *raw.Port
-	}
-	return cfg, nil
+	return Config{Enabled: config.Or(raw.Enabled, true), Port: config.Or(raw.Port, defaultPort)}, nil
 }
 
 // ListenPort is a port another listener of the process opens, with the config key that sets it.

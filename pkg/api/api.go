@@ -73,14 +73,11 @@ func loadConfig() (Config, error) {
 	if err := config.TryLoadSection(configKey, &raw); err != nil {
 		return Config{}, err
 	}
-	cfg := Config{Port: 50051, RESTPort: 8081, HealthPort: 8082, MaxPayload: raw.MaxPayload}
-	for _, p := range []struct {
-		set *uint
-		to  *uint
-	}{{raw.Port, &cfg.Port}, {raw.RESTPort, &cfg.RESTPort}, {raw.HealthPort, &cfg.HealthPort}} {
-		if p.set != nil {
-			*p.to = *p.set
-		}
+	cfg := Config{
+		Port:       config.Or(raw.Port, 50051),
+		RESTPort:   config.Or(raw.RESTPort, 8081),
+		HealthPort: config.Or(raw.HealthPort, 8082),
+		MaxPayload: raw.MaxPayload,
 	}
 	if cfg.MaxPayload <= 0 {
 		cfg.MaxPayload = defaultMaxPayload
