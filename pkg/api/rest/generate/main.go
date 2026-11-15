@@ -2,6 +2,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"go.yaml.in/yaml/v3"
 	"os"
@@ -30,7 +31,12 @@ func normalize(v any) {
 	}
 }
 func main() {
-	b, e := os.ReadFile("openapi.yaml")
+	spec := flag.String("spec", "openapi.yaml", "OpenAPI contract to generate from")
+	generate := flag.String("generate", "types,std-http-server", "oapi-codegen -generate value")
+	pkg := flag.String("package", "rest", "Go package of the generated file")
+	out := flag.String("o", "types.gen.go", "generated file")
+	flag.Parse()
+	b, e := os.ReadFile(*spec)
 	if e != nil {
 		panic(e)
 	}
@@ -57,7 +63,7 @@ func main() {
 		panic(e)
 	}
 	f.Close()
-	c := exec.Command("go", "run", "github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0", "-generate", "types,std-http-server", "-package", "rest", "-o", "types.gen.go", f.Name())
+	c := exec.Command("go", "run", "github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0", "-generate", *generate, "-package", *pkg, "-o", *out, f.Name())
 	c.Stdout = os.Stdout
 	c.Stderr = os.Stderr
 	if e = c.Run(); e != nil {
