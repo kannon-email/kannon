@@ -16,7 +16,13 @@ COPY ./proto ./proto
 COPY ./kannon.go  ./
 
 ENV CGO_ENABLED=0
-RUN go build -o /build/kannon kannon.go
+# Declared after the module download so that a new commit does not invalidate its cache.
+ARG VERSION=dev
+ARG COMMIT=none
+ARG DATE=unknown
+RUN go build \
+    -ldflags "-X github.com/kannon-email/kannon/cmd.Version=${VERSION} -X github.com/kannon-email/kannon/cmd.Commit=${COMMIT} -X github.com/kannon-email/kannon/cmd.Date=${DATE}" \
+    -o /build/kannon kannon.go
 
 FROM scratch AS kannon
 # scratch ships no trust store: without it every certificate check fails, so

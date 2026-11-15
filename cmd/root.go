@@ -144,7 +144,7 @@ func bootstrap(cmd *cobra.Command, cfg config.RootConfig, services config.Servic
 		reg.Register(kaudit.New(cnt))
 	}
 
-	slog.Info("starting kannon", "version", Version, "runnables", reg.Names())
+	slog.Info("starting kannon", "version", Version, "commit", Commit, "runnables", reg.Names())
 
 	return reg.Run(ctx)
 }
