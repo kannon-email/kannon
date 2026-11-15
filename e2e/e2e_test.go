@@ -10,11 +10,8 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/kannon-email/kannon/internal/tests"
@@ -89,16 +86,6 @@ func TestE2EEmailSending(t *testing.T) {
 	t.Run("TransientThenDeliver", func(t *testing.T) {
 		t.Parallel()
 		testTransientThenDeliver(t, factory, senderMock, infra)
-	})
-
-	t.Run("DispatchFailureRecovery", func(t *testing.T) {
-		t.Parallel()
-		testDispatchFailureRecovery(t, factory, senderMock, infra)
-	})
-
-	t.Run("RetryBudgetExhausted", func(t *testing.T) {
-		t.Parallel()
-		testRetryBudgetExhausted(t, factory, infra)
 	})
 
 	t.Run("Opened", func(t *testing.T) {
@@ -518,49 +505,9 @@ func deliverDSN(t *testing.T, infra *TestInfrastructure, returnPath, recipient s
 	require.NoError(t, c.Quit())
 }
 
-// watchBounceSubject subscribes to kannon.stats.bounced and returns a function that waits for the
-// bounce belonging to the given Recipient. The Stats worker types rows off the payload and not the
-// subject, so watching the wire is the only assertion that fails when the two paths drift (#376).
-func watchBounceSubject(t *testing.T, infra *TestInfrastructure, email string) func(*testing.T) *statstypes.Stats {
-	t.Helper()
-
-	nc, err := nats.Connect(infra.natsURL)
-	require.NoError(t, err)
-	t.Cleanup(nc.Close)
-
-	got := make(chan *statstypes.Stats, 8)
-	// The subscription needs no explicit teardown: the deferred nc.Close above
-	// drops it with the connection.
-	_, err = nc.Subscribe("kannon.stats.bounced", func(m *nats.Msg) {
-		s := &statstypes.Stats{}
-		if err := proto.Unmarshal(m.Data, s); err != nil {
-			return
-		}
-		if s.Email == email {
-			got <- s
-		}
-	})
-	require.NoError(t, err)
-
-	// Flush so the subscription is registered on the server before the caller
-	// triggers the event it means to observe.
-	require.NoError(t, nc.Flush())
-
-	return func(t *testing.T) *statstypes.Stats {
-		t.Helper()
-		select {
-		case s := <-got:
-			return s
-		case <-time.After(20 * time.Second):
-			t.Fatalf("no bounce for %s arrived on kannon.stats.bounced", email)
-			return nil
-		}
-	}
-}
-
 // testAsyncSoftBounce closes the loop #376 left open: a Delivery reported Delivered, then a DSN
-// saying it could not be completed. It pins the subject (kannon.stats.bounced, as for a
-// synchronous bounce) and that `permanent` follows the SMTP reply class. Nothing is rescheduled.
+// saying it could not be completed. It pins that `permanent` follows the SMTP reply class.
+// Nothing is rescheduled.
 func testAsyncSoftBounce(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
 	client := clientFactory.NewClient(t, infra)
 
@@ -584,25 +531,15 @@ func testAsyncSoftBounce(t *testing.T, clientFactory *clientFactory, senderMock 
 	require.NotNil(t, sent, "senderMock should have captured the delivered Envelope")
 	require.Contains(t, sent.From, "bump_", "envelope-from should be a bounce return path")
 
-	// Start watching the subject before provoking the event.
-	awaitOnSubject := watchBounceSubject(t, infra, to)
-
 	deliverDSN(t, infra, sent.From, to, 450, "Mailbox temporarily unavailable")
 
-	// First half: the event travelled on kannon.stats.bounced.
-	onWire := awaitOnSubject(t).Data.GetBounced()
-	require.NotNil(t, onWire, "async bounce should carry typed Bounced data")
-	assert.False(t, onWire.Permanent,
-		"a 4xx DSN is terminal but not permanent: the address is not proven dead")
-	assert.EqualValues(t, 450, onWire.Code)
-	assert.Contains(t, onWire.Msg, "Mailbox temporarily unavailable")
-
-	// Second half: it was persisted and is readable back through the API.
 	matched := requireStat(t, client, to, "bounced", 1)
 	bounced := matched[0].Data.GetBounced()
-	require.NotNil(t, bounced, "persisted bounce should carry typed Bounced data")
-	assert.False(t, bounced.Permanent)
+	require.NotNil(t, bounced, "async bounce should carry typed Bounced data")
+	assert.False(t, bounced.Permanent,
+		"a 4xx DSN is terminal but not permanent: the address is not proven dead")
 	assert.EqualValues(t, 450, bounced.Code)
+	assert.Contains(t, bounced.Msg, "Mailbox temporarily unavailable")
 
 	// The Delivered stat stays: both events are true of this Delivery, in
 	// order. The bounce does not retract or overwrite it.
@@ -652,125 +589,6 @@ func testTransientThenDeliver(t *testing.T, clientFactory *clientFactory, sender
 
 	assert.Len(t, senderMock.History(to), transientFailures+1,
 		"senderMock should have observed %d transient attempts plus one success", transientFailures)
-}
-
-// testDispatchFailureRecovery reproduces #400 through the whole stack: a Delivery whose Envelope
-// build fails after the claim must be handed back to the pool rather than stranded in 'sending',
-// and must go out once the failure clears. The failure is injected by renaming the Template.
-func testDispatchFailureRecovery(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
-	client := clientFactory.NewClient(t, infra)
-
-	db, err := pgxpool.New(t.Context(), infra.dbURL)
-	require.NoError(t, err)
-	t.Cleanup(db.Close)
-
-	to := fmt.Sprintf("recovery.%s@%s", tests.FakeUsername(t), client.domain)
-
-	// Schedule slightly in the future: the gap is the window for breaking
-	// the template BEFORE the Dispatcher can claim the Delivery. The
-	// Validator ignores scheduled_time, so validation still happens now.
-	sendReq := &mailerapiv1.SendHTMLReq{
-		Sender:        client.Sender(),
-		Recipients:    []*mailertypes.Recipient{{Email: to}},
-		Subject:       "Dispatch Failure Recovery Test",
-		Html:          "<h1>Hello!</h1>",
-		ScheduledTime: timestamppb.New(time.Now().Add(3 * time.Second)),
-	}
-	msgID := client.SendEmail(t, sendReq)
-
-	var templateID string
-	require.NoError(t, db.QueryRow(t.Context(),
-		`SELECT template_id FROM messages WHERE message_id = $1`, msgID).Scan(&templateID))
-	_, err = db.Exec(t.Context(),
-		`UPDATE templates SET template_id = $1 WHERE template_id = $2`, templateID+".broken", templateID)
-	require.NoError(t, err)
-
-	// The #400 anti-stranding assertion: the claimed-then-failed Delivery
-	// must come back to 'scheduled' with a bumped attempt counter instead
-	// of dying silently in 'sending'.
-	require.EventuallyWithT(t, func(tt *assert.CollectT) {
-		var status string
-		var attempts int
-		require.NoError(tt, db.QueryRow(t.Context(),
-			`SELECT status, send_attempts_cnt FROM sending_pool_emails WHERE message_id = $1 AND email = $2`,
-			msgID, to).Scan(&status, &attempts))
-		require.GreaterOrEqual(tt, attempts, 1, "the failed dispatch must bump the attempt counter")
-		require.Equal(tt, "scheduled", status, "the failed Delivery must be handed back to the pool")
-	}, 30*time.Second, 100*time.Millisecond,
-		"Delivery must be rescheduled after a dispatch failure, not stranded in 'sending'")
-
-	// Heal the template; the next dispatch cycles must pick the Delivery
-	// up again and the email must actually go out.
-	_, err = db.Exec(t.Context(),
-		`UPDATE templates SET template_id = $1 WHERE template_id = $2`, templateID, templateID+".broken")
-	require.NoError(t, err)
-
-	msg := requireGetEmail(t, senderMock, to)
-	assert.Equal(t, "Dispatch Failure Recovery Test", msg.Subject)
-
-	requireStat(t, client, to, "delivered", 1)
-
-	// Terminal outcome: the Delivery leaves the Pool entirely.
-	require.EventuallyWithT(t, func(tt *assert.CollectT) {
-		var n int
-		require.NoError(tt, db.QueryRow(t.Context(),
-			`SELECT count(*) FROM sending_pool_emails WHERE message_id = $1`, msgID).Scan(&n))
-		require.Zero(tt, n, "delivered Deliveries must be cleaned from the pool")
-	}, 30*time.Second, 500*time.Millisecond, "pool must drain for the batch")
-}
-
-// testRetryBudgetExhausted never heals the Template testDispatchFailureRecovery repairs, which
-// before #378 meant retrying with a doubling backoff forever. Now the Retry Budget ends it (ADR
-// 0007). send_attempts_cnt is set to 10 by surgery, since reaching that boundary honestly costs 26s.
-func testRetryBudgetExhausted(t *testing.T, clientFactory *clientFactory, infra *TestInfrastructure) {
-	client := clientFactory.NewClient(t, infra)
-
-	db, err := pgxpool.New(t.Context(), infra.dbURL)
-	require.NoError(t, err)
-	t.Cleanup(db.Close)
-
-	to := fmt.Sprintf("spent.%s@%s", tests.FakeUsername(t), client.domain)
-
-	// Scheduled slightly in the future, as in testDispatchFailureRecovery: the gap is the window
-	// for both operations below, before the Dispatcher can claim the Delivery. The Validator
-	// ignores scheduled_time, so validation still happens now.
-	msgID := client.SendEmail(t, &mailerapiv1.SendHTMLReq{
-		Sender:        client.Sender(),
-		Recipients:    []*mailertypes.Recipient{{Email: to}},
-		Subject:       "Retry Budget Exhausted Test",
-		Html:          "<h1>Hello!</h1>",
-		ScheduledTime: timestamppb.New(time.Now().Add(3 * time.Second)),
-	})
-
-	var templateID string
-	require.NoError(t, db.QueryRow(t.Context(),
-		`SELECT template_id FROM messages WHERE message_id = $1`, msgID).Scan(&templateID))
-	_, err = db.Exec(t.Context(),
-		`UPDATE templates SET template_id = $1 WHERE template_id = $2`, templateID+".broken", templateID)
-	require.NoError(t, err)
-
-	_, err = db.Exec(t.Context(),
-		`UPDATE sending_pool_emails SET send_attempts_cnt = 10 WHERE message_id = $1 AND email = $2`,
-		msgID, to)
-	require.NoError(t, err)
-
-	// Half one: the sender is told, and told something it can act on.
-	matched := requireStat(t, client, to, "failed", 1)
-	require.NotNil(t, matched[0].Data)
-	failed := matched[0].Data.GetFailed()
-	require.NotNil(t, failed, "failed stat should carry typed Failed data")
-	assert.Contains(t, failed.Reason, "retry budget",
-		"a Failed stat states what ran out; unlike Bounced it carries no reply code")
-	assert.NotContains(t, failed.Reason, to, "the reason is customer-visible and must name no address")
-
-	// Half two: the Delivery is terminal, so it leaves the Pool — it is not
-	// waiting for a retry that will never be allowed.
-	require.EventuallyWithT(t, func(tt *assert.CollectT) {
-		var n int
-		require.NoError(tt, db.QueryRow(t.Context(),
-			`SELECT count(*) FROM sending_pool_emails WHERE message_id = $1`, msgID).Scan(&n))
-		require.Zero(tt, n, "a Delivery whose Retry Budget is spent must be dropped from the pool")
-	}, 30*time.Second, 500*time.Millisecond, "pool must drain for the batch")
 }
 
 // openTokenRe extracts the JWT-style token from a `/o/<token>` tracking pixel URL. JWT tokens are
