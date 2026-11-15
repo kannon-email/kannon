@@ -21,9 +21,6 @@ func TestListenerServesGoAndProcessMetrics(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if l == nil {
-		t.Fatal("expected an enabled listener")
-	}
 	listener := metrics.Listener(l, cnt.Metrics())
 	done := make(chan error, 1)
 	go func() { done <- listener.Run(ctx, func() {}) }()
@@ -43,16 +40,6 @@ func TestListenerServesGoAndProcessMetrics(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("listener did not stop with its context")
-	}
-}
-
-func TestDisabledMetricsOpenNoListener(t *testing.T) {
-	l, err := metrics.Listen(metrics.Config{Enabled: false, Port: 0})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if l != nil {
-		t.Fatal("expected no listener when metrics are disabled")
 	}
 }
 

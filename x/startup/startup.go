@@ -238,10 +238,10 @@ func listen(services config.Services, sec sections) (l listeners, err error) {
 			}
 		}
 	}()
-	if l.metrics, err = metrics.Listen(sec.metrics); err != nil {
-		return l, fmt.Errorf("cannot bind the metrics listener: %w", err)
-	}
-	if l.metrics != nil {
+	if sec.metrics.Enabled {
+		if l.metrics, err = metrics.Listen(sec.metrics); err != nil {
+			return l, fmt.Errorf("cannot bind the metrics listener: %w", err)
+		}
 		l.all = append(l.all, l.metrics)
 	}
 	if services.API.Enabled {

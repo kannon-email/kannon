@@ -12,11 +12,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-// Listen binds the metrics listener on cfg.Port, and returns nil when cfg disables it.
+// Listen binds the metrics listener on cfg.Port. The caller decides whether metrics are enabled.
 func Listen(cfg Config) (net.Listener, error) {
-	if !cfg.Enabled {
-		return nil, nil
-	}
 	return container.Listen(cfg.Port)
 }
 
