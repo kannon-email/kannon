@@ -56,15 +56,18 @@ var sendAckPolicy = utils.AckPolicy{
 	15 * time.Minute,
 }
 
-// New constructs the SMTPSender runnable, loading its slice of configuration
-// from viper under the "sender" key.
-func New(cnt *container.Container) container.Runnable {
+// LoadConfig reads the "sender" section, defaults filled in.
+func LoadConfig() (Config, error) {
 	var cfg Config
-	config.LoadSection("sender", &cfg)
-	cfg.setDefaults()
-	if n := cnt.SenderConcurrency(); n > 0 {
-		cfg.MaxJobs = n
+	if err := config.TryLoadSection("sender", &cfg); err != nil {
+		return Config{}, err
 	}
+	cfg.setDefaults()
+	return cfg, nil
+}
+
+// New constructs the SMTPSender runnable, configured by cfg.
+func New(cnt *container.Container, cfg Config) container.Runnable {
 	s := NewSMTPSender(cnt.NatsPublisher(), cnt.NatsJetStream(), cnt.Sender(), cfg, mailflow.New(cnt.Metrics()))
 	return container.Runnable{
 		Name: "smtpsender",

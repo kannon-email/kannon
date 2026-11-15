@@ -56,9 +56,10 @@ type Addrs struct {
 type Option func(*options)
 
 type options struct {
-	container  []container.Option
-	standalone bool
-	logLevel   interface{ Set(slog.Level) }
+	container         []container.Option
+	standalone        bool
+	logLevel          *slog.LevelVar
+	senderConcurrency uint
 }
 
 // WithSender replaces the outbound Sender: the remote MX is simulated without making a test Sender
@@ -79,7 +80,7 @@ func WithRetryWindow(w time.Duration) Option {
 
 // WithSenderConcurrency sets how many Envelopes the sender transmits at once.
 func WithSenderConcurrency(n uint) Option {
-	return func(o *options) { o.container = append(o.container, container.WithSenderConcurrency(n)) }
+	return func(o *options) { o.senderConcurrency = n }
 }
 
 // Standalone runs every component in one process against an embedded NATS server, whatever the
@@ -149,6 +150,9 @@ func Start(ctx context.Context, configPath string, opts ...Option) (Instance, er
 	if err != nil {
 		return nil, err
 	}
+	if o.senderConcurrency > 0 {
+		sec.sender.MaxJobs = o.senderConcurrency
+	}
 
 	l, err := listen(services, sec)
 	if err != nil {
@@ -171,7 +175,7 @@ func Start(ctx context.Context, configPath string, opts ...Option) (Instance, er
 		reg.Register(metrics.Listener(l.metrics, cnt.Metrics()))
 	}
 	if services.Sender.Enabled {
-		reg.Register(smtpsender.New(cnt))
+		reg.Register(smtpsender.New(cnt, sec.sender))
 	}
 	if services.Dispatcher.Enabled {
 		reg.Register(dispatcher.New(cnt))
@@ -290,6 +294,7 @@ type sections struct {
 	api     api.Config
 	tracker tracker.Config
 	smtp    ksmtp.Config
+	sender  smtpsender.Config
 	metrics metrics.Config
 }
 
@@ -312,6 +317,11 @@ func loadSections(services config.Services) (sec sections, err error) {
 	}
 	if services.SMTP.Enabled {
 		if sec.smtp, err = ksmtp.LoadConfig(); err != nil {
+			return sec, err
+		}
+	}
+	if services.Sender.Enabled {
+		if sec.sender, err = smtpsender.LoadConfig(); err != nil {
 			return sec, err
 		}
 	}

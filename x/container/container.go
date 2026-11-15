@@ -34,8 +34,6 @@ type Container struct {
 	retryWindow     time.Duration
 	senderOverride  smtp.Sender
 
-	senderConcurrency uint
-
 	// singleton instances
 	db                 *singleton[*pgxpool.Pool]
 	nats               *singleton[*nats.Conn]
@@ -107,18 +105,6 @@ func WithBackoff(p delivery.BackoffPolicy) Option {
 // milliseconds and terminate every Delivery in the suite.
 func WithRetryWindow(w time.Duration) Option {
 	return func(c *Container) { c.retryWindow = w }
-}
-
-// WithSenderConcurrency overrides `sender.max_jobs`, how many Envelopes the
-// sender transmits at once.
-func WithSenderConcurrency(n uint) Option {
-	return func(c *Container) { c.senderConcurrency = n }
-}
-
-// SenderConcurrency is the concurrency set by WithSenderConcurrency, and 0 when
-// the `sender` section decides it.
-func (c *Container) SenderConcurrency() uint {
-	return c.senderConcurrency
 }
 
 // DB returns a singleton DB connection.
