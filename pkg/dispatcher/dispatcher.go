@@ -27,13 +27,13 @@ func New(cnt *container.Container) container.Runnable {
 	rp := returnpath.MustLoad()
 	return container.Runnable{
 		Name: "dispatcher",
-		Run: func(ctx context.Context) error {
-			return run(ctx, cnt, rp)
+		Run: func(ctx context.Context, ready func()) error {
+			return run(ctx, cnt, rp, ready)
 		},
 	}
 }
 
-func run(ctx context.Context, cnt *container.Container, rp returnpath.Signer) error {
+func run(ctx context.Context, cnt *container.Container, rp returnpath.Signer, ready func()) error {
 	q := cnt.Queries()
 
 	ss := statssec.NewStatsService(q)
@@ -61,20 +61,25 @@ func run(ctx context.Context, cnt *container.Container, rp returnpath.Signer) er
 	}
 	mailflow.RegisterPool(cnt.Metrics(), sqlc.NewPoolCensus(cnt.DB()))
 
+	errored := d.consumer(ctx, erroredSubject, erroredConsumer)
+	delivered := d.consumer(ctx, deliveredSubject, deliveredConsumer)
+	bounced := d.consumer(ctx, bouncedSubject, bouncedConsumer)
+
 	d.log().Info("🚀 Starting dispatcher")
+	ready()
 
 	eg, ctx := errgroup.WithContext(ctx)
 
 	eg.Go(func() error {
-		return d.handleErrors(ctx)
+		return d.handleErrors(ctx, errored)
 	})
 
 	eg.Go(func() error {
-		return d.handleDelivers(ctx)
+		return d.handleDelivers(ctx, delivered)
 	})
 
 	eg.Go(func() error {
-		return d.handleBounced(ctx)
+		return d.handleBounced(ctx, bounced)
 	})
 
 	eg.Go(func() error {

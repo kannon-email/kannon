@@ -16,6 +16,7 @@ import (
 	sq "github.com/kannon-email/kannon/internal/db"
 	"github.com/kannon-email/kannon/internal/tests"
 	"github.com/kannon-email/kannon/internal/utils"
+	"github.com/kannon-email/kannon/x/config"
 	"github.com/kannon-email/kannon/x/container"
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/spf13/viper"
@@ -158,19 +159,26 @@ func TestTheWriterRefusesToStartWhenCollectionIsOff(t *testing.T) {
 
 	// A container with no database URL and no NATS URL: if the runnable reached for either, the
 	// test would fail rather than quietly connect to whatever happens to be running.
-	cnt := container.NewForTest(t.Context())
+	cnt := container.New(t.Context(), config.RootConfig{})
 
 	runnable := New(cnt)
 	assert.Equal(t, "audit", runnable.Name)
 
 	done := make(chan error, 1)
-	go func() { done <- runnable.Run(t.Context()) }()
+	readied := make(chan struct{})
+	go func() { done <- runnable.Run(t.Context(), func() { close(readied) }) }()
 
 	select {
 	case err := <-done:
 		assert.NoError(t, err, "a feature that is off must not fail the process it shares an errgroup with")
 	case <-time.After(5 * time.Second):
 		t.Fatal("the writer did not stop: it is consuming a stream nothing publishes to")
+	}
+
+	select {
+	case <-readied:
+	default:
+		t.Error("a writer with nothing to do must still declare itself ready, or the process never is")
 	}
 
 	out := logged()

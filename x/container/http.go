@@ -3,12 +3,20 @@ package container
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net"
 	"net/http"
 	"time"
 )
 
-// ServeHTTP waits for active requests before returning ownership of dependencies.
-func ServeHTTP(ctx context.Context, server *http.Server) error {
+// Listen binds a TCP listener on every interface. Port 0 lets the system pick a free one.
+func Listen(port uint) (net.Listener, error) {
+	return net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", port))
+}
+
+// ServeHTTP serves on a listener bound beforehand, and waits for active requests before returning
+// ownership of dependencies.
+func ServeHTTP(ctx context.Context, server *http.Server, l net.Listener) error {
 	done := make(chan struct{})
 	stopped := make(chan error, 1)
 	go func() {
@@ -25,7 +33,7 @@ func ServeHTTP(ctx context.Context, server *http.Server) error {
 			stopped <- nil
 		}
 	}()
-	err := server.ListenAndServe()
+	err := server.Serve(l)
 	close(done)
 	shutdownErr := <-stopped
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {

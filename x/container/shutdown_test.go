@@ -10,8 +10,8 @@ func TestRegistryCancellationIsNormalShutdown(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	r := &Registry{}
-	r.Register(Runnable{Name: "worker", Run: func(ctx context.Context) error { <-ctx.Done(); return ctx.Err() }})
-	if err := r.Run(ctx); err != nil {
+	r.Register(Runnable{Name: "worker", Run: func(ctx context.Context, _ func()) error { <-ctx.Done(); return ctx.Err() }})
+	if err := r.Run(ctx, nil); err != nil {
 		t.Fatalf("normal shutdown returned error: %v", err)
 	}
 }

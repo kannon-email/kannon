@@ -1,26 +1,13 @@
 package cmd
 
 import (
-	"errors"
-	"fmt"
+	"context"
 	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
-	"github.com/kannon-email/kannon/internal/returnpath"
-	"github.com/kannon-email/kannon/pkg/api"
-	kaudit "github.com/kannon-email/kannon/pkg/audit"
-	"github.com/kannon-email/kannon/pkg/dispatcher"
-	"github.com/kannon-email/kannon/pkg/smtp"
-	"github.com/kannon-email/kannon/pkg/smtpsender"
-	"github.com/kannon-email/kannon/pkg/stats"
-	"github.com/kannon-email/kannon/pkg/tracker"
-	"github.com/kannon-email/kannon/pkg/validator"
-	"github.com/kannon-email/kannon/x/config"
-	"github.com/kannon-email/kannon/x/container"
-	"github.com/kannon-email/kannon/x/metrics"
+	"github.com/kannon-email/kannon/x/startup"
 	"github.com/spf13/cobra"
 )
 
@@ -48,134 +35,34 @@ from the environment as env://NAME, or env://NAME:-default to supply a fallback.
 	}
 )
 
-const shutdownTimeout = 30 * time.Second
-
 func Execute() error {
 	return rootCmd.Execute()
 }
 
 func run(cmd *cobra.Command, _ []string) {
-	cfg, services, err := readConfigAndServices()
-	if err != nil {
-		slog.Error("error in reading config", "err", err)
-		os.Exit(1)
-	}
-
-	if err := bootstrap(cmd, cfg, services); err != nil {
+	if err := serve(cmd.Context()); err != nil {
 		slog.Error("service error", "err", err)
 		os.Exit(1)
 	}
 }
 
-// bootstrap is the single boot path shared by `kannon` and `kannon standalone`.
-// It builds the container, registers every runnable the configuration asked for,
-// and starts them under a shared errgroup-derived context.
-func bootstrap(cmd *cobra.Command, cfg config.RootConfig, services config.Services) error {
-	ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
+// serve starts Kannon and runs it until a signal asks it to stop or a component fails.
+func serve(ctx context.Context, opts ...startup.Option) error {
+	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	// Both refusals below are read off the `services` section and answered before anything is
-	// built. The container and every runnable read sections of their own, any of which may name a
-	// variable only some other pod sets, so a mistake in what this process was asked to be has to
-	// be reported before a section belonging to a component it does not even run can panic first.
-	//
-	// A process with nothing to run used to log "Starting Kannon runnables: []" and exit 0, which
-	// reads as a clean shutdown in every dashboard there is. The ways to arrive here are all
-	// mistakes: a `services` section nobody filled in, an enabling variable spelled one way in the
-	// file and another in the manifest.
-	if len(services.Enabled()) == 0 {
-		return errors.New("this process was asked to run nothing: enable at least one component " +
-			"under `services` in the config file, e.g. `services: {api: {enabled: true}}`")
-	}
-
-	// A deployment mistake rather than a request-time refusal: a process serving the Admin and
-	// Stats APIs without their credential would come up healthy and answer every request with
-	// unauthenticated. It stops the whole boot — the workers included — because a Kannon half up
-	// hides the reason the API is unusable.
-	if err := requireAdminToken(services); err != nil {
-		return err
-	}
-
-	// The same refusal for the secret bounce return paths are signed with: a Dispatcher without it
-	// cannot build an Envelope, and an inbound SMTP server without it would refuse every bounce.
-	if err := requireBounceSecret(services); err != nil {
-		return err
-	}
-
-	metricsCfg, err := loadMetrics(services)
+	inst, err := startup.Start(ctx, cfgFile, append(opts, startup.WithLogLevel(logLevel))...)
 	if err != nil {
 		return err
 	}
-
-	cnt := container.New(ctx, cfg)
-	defer func() {
-		if err := cnt.CloseWithTimeout(shutdownTimeout); err != nil {
-			slog.Error("Shutdown errors", "err", err)
-		}
-	}()
-
-	reg := &container.Registry{}
-
-	if listener, ok := metrics.Listener(metricsCfg, cnt.Metrics()); ok {
-		reg.Register(listener)
+	runErr := inst.Wait()
+	if err := inst.Close(); err != nil {
+		slog.Error("Shutdown errors", "err", err)
 	}
-
-	if services.Sender.Enabled {
-		reg.Register(smtpsender.New(cnt))
-	}
-	if services.Dispatcher.Enabled {
-		reg.Register(dispatcher.New(cnt))
-	}
-	if services.Validator.Enabled {
-		reg.Register(validator.New(cnt))
-	}
-	if services.Stats.Enabled {
-		reg.Register(stats.New(cnt))
-	}
-	if services.Tracker.Enabled {
-		reg.Register(tracker.New(cnt))
-	}
-	if services.API.Enabled {
-		reg.Register(api.New(cnt))
-	}
-	if services.SMTP.Enabled {
-		reg.Register(smtp.New(cnt))
-	}
-	if services.Audit.Enabled {
-		reg.Register(kaudit.New(cnt))
-	}
-
-	slog.Info(fmt.Sprintf("Starting Kannon runnables: %v", reg.Names()))
-
-	return reg.Run(ctx)
-}
-
-// requireAdminToken refuses a boot that would serve the Admin and Stats APIs with no credential to
-// authenticate them. Gated on the API runnable rather than demanded of every process: a deployment
-// running only the dispatcher serves none of those endpoints, and making it carry an admin secret
-// would put the credential on hosts that have no use for it.
-func requireAdminToken(services config.Services) error {
-	if !services.API.Enabled {
-		return nil
-	}
-	_, err := api.AdminToken()
-	return err
-}
-
-// requireBounceSecret refuses a boot that would sign or read bounce return paths with no secret to do
-// it with. Gated on the two runnables that do, for the reason requireAdminToken is gated on the API:
-// the secret belongs on no host that has no use for it.
-func requireBounceSecret(services config.Services) error {
-	if !services.Dispatcher.Enabled && !services.SMTP.Enabled {
-		return nil
-	}
-	_, err := returnpath.Load()
-	return err
+	return runErr
 }
 
 func init() {
-	cobra.OnInitialize(func() { config.Prepare(cfgFile) })
-
 	// The only flag there is: which components a process runs, and every setting they
 	// read, is written in the config file, so the command line has nothing left to say
 	// beyond where that file is.

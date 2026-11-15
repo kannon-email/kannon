@@ -47,13 +47,13 @@ func New(cnt *container.Container) container.Runnable {
 	cfg := audit.LoadConfig()
 	return container.Runnable{
 		Name: "audit",
-		Run: func(ctx context.Context) error {
-			return run(ctx, cnt, cfg)
+		Run: func(ctx context.Context, ready func()) error {
+			return run(ctx, cnt, cfg, ready)
 		},
 	}
 }
 
-func run(ctx context.Context, cnt *container.Container, cfg audit.Config) error {
+func run(ctx context.Context, cnt *container.Container, cfg audit.Config, ready func()) error {
 	// audit.enabled governs the producer, so with it unset nothing is ever published and this
 	// worker would sit against an empty stream forever, holding a database connection and a
 	// consumer that record nothing. Refusing to start is what that means here: it stops, and the
@@ -69,6 +69,7 @@ func run(ctx context.Context, cnt *container.Container, cfg audit.Config) error 
 		slog.Warn("the audit writer has nothing to consume: authorization decisions are only "+
 			"published when audit.enabled is set, so this worker will not start",
 			"key", "audit.enabled")
+		ready()
 		return nil
 	}
 
@@ -87,10 +88,13 @@ func run(ctx context.Context, cnt *container.Container, cfg audit.Config) error 
 		retention: cfg.Retention,
 	}
 
+	con := utils.MustGetPullSubscriber(ctx, h.js, audit.StreamName, audit.StreamSubjects, durableName)
+	ready()
+
 	eg, ctx := errgroup.WithContext(ctx)
 
 	eg.Go(func() error {
-		return h.handleRecords(ctx)
+		return h.handleRecords(ctx, con)
 	})
 
 	eg.Go(func() error {
@@ -103,8 +107,7 @@ func run(ctx context.Context, cnt *container.Container, cfg audit.Config) error 
 // handleRecords consumes kannon.audit.* — both outcomes on one consumer. The outcome is in the
 // subject so an operator can alert on refusals alone; nothing here needs to tell them apart, since
 // every decision gets the same row.
-func (h *auditHandler) handleRecords(ctx context.Context) error {
-	con := utils.MustGetPullSubscriber(ctx, h.js, audit.StreamName, audit.StreamSubjects, durableName)
+func (h *auditHandler) handleRecords(ctx context.Context, con jetstream.Consumer) error {
 	c, err := con.Consume(func(msg jetstream.Msg) {
 		if err := h.handleRecordMsg(ctx, msg); err != nil {
 			slog.Error("Cannot handle audit record msg", "err", err)

@@ -4,7 +4,7 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/kannon-email/kannon/x/config"
+	"github.com/kannon-email/kannon/x/startup"
 	"github.com/spf13/cobra"
 )
 
@@ -24,20 +24,7 @@ func init() {
 }
 
 func runStandalone(cmd *cobra.Command, _ []string) {
-	// readConfig and not readConfigAndServices: this subcommand *is* every component,
-	// which is the whole of what it means, so nothing in the file or on the command
-	// line selects anything here.
-	cfg, err := readConfig()
-	if err != nil {
-		slog.Error("error in reading config", "err", err)
-		os.Exit(1)
-	}
-
-	// Overridden on the loaded configuration rather than pushed back into viper:
-	// this is what the subcommand means, not something an operator configured.
-	cfg.UseEmbeddedNats = true
-
-	if err := bootstrap(cmd, cfg, config.AllServices()); err != nil {
+	if err := serve(cmd.Context(), startup.Standalone()); err != nil {
 		slog.Error("service error", "err", err)
 		os.Exit(1)
 	}

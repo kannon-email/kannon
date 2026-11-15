@@ -1,20 +1,25 @@
 package e2e_test
 
 import (
-	"context"
 	"fmt"
-	"log"
 	"net"
+	"net/http"
+	"os"
+	"path/filepath"
+	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/nats-io/nats.go"
-	"github.com/ory/dockertest/v4"
+	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
 
-	schema "github.com/kannon-email/kannon/db"
+	dbschema "github.com/kannon-email/kannon/db"
+	"github.com/kannon-email/kannon/internal/delivery"
+	"github.com/kannon-email/kannon/internal/tests"
+	"github.com/kannon-email/kannon/x/startup"
 )
 
-// TestInfrastructure holds the test infrastructure resources
+// TestInfrastructure is where the scenarios reach the Kannon instance under test.
 type TestInfrastructure struct {
 	dbURL       string
 	natsURL     string
@@ -23,7 +28,7 @@ type TestInfrastructure struct {
 	healthPort  uint
 	trackerPort uint
 	smtpPort    uint
-	cleanup     []func() error
+	metricsPort uint
 }
 
 // smtpAddr is where the bounce-receiving SMTP server listens: the address a
@@ -32,190 +37,140 @@ func (infra *TestInfrastructure) smtpAddr() string {
 	return fmt.Sprintf("localhost:%d", infra.smtpPort)
 }
 
-func (infra *TestInfrastructure) Cleanup() {
-	for _, cleanFunc := range infra.cleanup {
-		if err := cleanFunc(); err != nil {
-			log.Printf("Error cleaning up: %v", err)
+const configTemplate = `
+database_url: %q
+nats_url: %q
+services:
+  api: {enabled: true}
+  dispatcher: {enabled: true}
+  validator: {enabled: true}
+  stats: {enabled: true}
+  audit: {enabled: true}
+  tracker: {enabled: true}
+  smtp: {enabled: true}
+  sender: {enabled: true}
+api:
+  port: 0
+  rest_port: 0
+  health_port: 0
+  admin_token: %q
+# Shared by the Dispatcher, which signs every return path with it, and the inbound SMTP server,
+# which accepts a DSN only on a return path that verifies — so the bounce tests prove the two agree.
+bounce:
+  secret: e2e-bounce-secret-0123456789abcdef
+tracker:
+  port: 0
+smtp:
+  address: 127.0.0.1:0
+stats:
+  retention: 8760h
+# Off by default (ADR 0010); on here because it is the only seam that proves the whole chain from a
+# real call to an audit row.
+audit:
+  enabled: true
+  retention: 720h
+metrics:
+  port: 0
+`
+
+// startKannon prepares Postgres with the real migrations and an in-process NATS, writes a config
+// file the way an operator would, and boots Kannon through the production startup module.
+func startKannon(t *testing.T, sender *senderMock) *TestInfrastructure {
+	t.Helper()
+
+	dbURL, purge, err := tests.TestPostgresURL()
+	if err != nil {
+		t.Fatalf("cannot start postgres: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := purge(); err != nil {
+			t.Logf("cannot remove postgres: %v", err)
 		}
-	}
-}
-
-// setupTestInfrastructure sets up PostgreSQL and NATS using dockertest
-func setupTestInfrastructure(ctx context.Context) (*TestInfrastructure, error) {
-	infra := &TestInfrastructure{}
-
-	pool, err := dockertest.NewPool(ctx, "")
-	if err != nil {
-		return infra, fmt.Errorf("could not connect to docker: %w", err)
-	}
-	// ctx is usually t.Context(), which is canceled before t.Cleanup runs:
-	// removing the containers with it would fail and leak them. Closing the
-	// pool removes every container it started.
-	infra.cleanup = append(infra.cleanup, func() error {
-		return pool.Close(context.WithoutCancel(ctx))
 	})
+	if err := dbschema.Migrate(dbURL); err != nil {
+		t.Fatalf("cannot migrate the database: %v", err)
+	}
+	natsURL := tests.NatsURL(t)
 
-	// Start PostgreSQL
-	pgRes, err := createDatabase(ctx, pool)
-	if err != nil {
-		return infra, err
+	path := filepath.Join(t.TempDir(), "kannon.yaml")
+	if err := os.WriteFile(path, fmt.Appendf(nil, configTemplate, dbURL, natsURL, adminToken), 0o600); err != nil {
+		t.Fatal(err)
 	}
 
-	// Start NATS
-	natsRes, err := createNats(ctx, pool)
-	if err != nil {
-		return infra, fmt.Errorf("could not start nats: %w", err)
-	}
-
-	// Get connection URLs
-	dbURL := fmt.Sprintf("postgresql://test:test@localhost:%s/test?sslmode=disable", pgRes.GetPort("5432/tcp"))
-	natsURL := "nats://localhost:" + natsRes.GetPort("4222/tcp")
-
-	// Wait for PostgreSQL to be ready
-	var db *pgxpool.Pool
-	err = pool.Retry(ctx, 60*time.Second, func() error {
-		var err error
-		tmpDb, err := pgxpool.New(ctx, dbURL)
-		if err != nil {
-			return err
-		}
-
-		if err := tmpDb.Ping(ctx); err != nil {
-			tmpDb.Close()
-			return err
-		}
-
-		db = tmpDb
-		return nil
-	})
-	if err != nil {
-		return infra, fmt.Errorf("could not connect to postgres: %w", err)
-	}
-
-	// Apply database schema
-	err = applySchema(ctx, db)
-	if err != nil {
-		return infra, fmt.Errorf("could not apply schema: %w", err)
-	}
-	db.Close()
-
-	// Wait for NATS to be ready with JetStream
-	err = pool.Retry(ctx, 60*time.Second, func() error {
-		return testNatsConnection(natsURL)
-	})
-	if err != nil {
-		return infra, fmt.Errorf("could not connect to nats: %w", err)
-	}
-
-	// Find available port for API
-	apiPort, err := findAvailablePort()
-	if err != nil {
-		return infra, fmt.Errorf("could not find available port: %w", err)
-	}
-
-	restPort, err := findAvailablePort()
-	if err != nil {
-		return infra, fmt.Errorf("could not find available port for rest: %w", err)
-	}
-
-	healthPort, err := findAvailablePort()
-	if err != nil {
-		return infra, fmt.Errorf("could not find available port for health: %w", err)
-	}
-
-	trackerPort, err := findAvailablePort()
-	if err != nil {
-		return infra, fmt.Errorf("could not find available port for tracker: %w", err)
-	}
-
-	smtpPort, err := findAvailablePort()
-	if err != nil {
-		return infra, fmt.Errorf("could not find available port for smtp: %w", err)
-	}
-
-	infra.dbURL = dbURL
-	infra.natsURL = natsURL
-	infra.apiPort = apiPort
-	infra.restPort = restPort
-	infra.healthPort = healthPort
-	infra.trackerPort = trackerPort
-	infra.smtpPort = smtpPort
-
-	return infra, nil
-}
-
-func createDatabase(ctx context.Context, pool dockertest.ClosablePool) (dockertest.ClosableResource, error) {
-	pgRes, err := pool.Run(ctx, "postgres",
-		dockertest.WithTag("17-alpine"),
-		dockertest.WithEnv([]string{
-			"POSTGRES_USER=test",
-			"POSTGRES_PASSWORD=test",
-			"POSTGRES_DB=test",
+	inst, err := startup.Start(t.Context(), path,
+		startup.WithSender(sender),
+		// Collapse the production 2m/5m retry curve into milliseconds so the
+		// transient-then-deliver path converges in CI wall time.
+		startup.WithBackoff(delivery.ExponentialBackoff{
+			Base: 50 * time.Millisecond,
+			Min:  50 * time.Millisecond,
 		}),
-		dockertest.WithoutReuse(),
+		// The Retry Budget has to be scaled by the same factor as the backoff base, or a collapsed
+		// curve races through the whole budget. Production is 24h against 2m·2ⁿ; this curve is
+		// 50ms·2ⁿ, 2400× faster, and 24h/2400 = 36s — which keeps the ten-retry boundary exactly.
+		startup.WithRetryWindow(36*time.Second),
+		// Sized for the parallel subtest burst: ~120+ concurrent messages, and a small pool blows
+		// the EventuallyWithT windows.
+		startup.WithSenderConcurrency(50),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("could not start postgres: %w", err)
+		t.Fatalf("cannot start kannon: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := inst.Close(); err != nil {
+			t.Errorf("error closing kannon: %v", err)
+		}
+	})
+
+	failed := make(chan error, 1)
+	go func() { failed <- inst.Wait() }()
+	select {
+	case <-inst.Ready():
+	case err := <-failed:
+		t.Fatalf("kannon stopped before it was ready: %v", err)
+	case <-time.After(60 * time.Second):
+		t.Fatal("kannon was not ready within 60 seconds")
 	}
 
-	return pgRes, nil
+	addrs := inst.Addrs()
+	return &TestInfrastructure{
+		dbURL:       dbURL,
+		natsURL:     natsURL,
+		apiPort:     port(addrs.API),
+		restPort:    port(addrs.REST),
+		healthPort:  port(addrs.Health),
+		trackerPort: port(addrs.Tracker),
+		smtpPort:    port(addrs.SMTP),
+		metricsPort: port(addrs.Metrics),
+	}
 }
 
-func createNats(ctx context.Context, pool dockertest.ClosablePool) (dockertest.ClosableResource, error) {
-	natsRes, err := pool.Run(ctx, "nats",
-		dockertest.WithTag("2.10-alpine"),
-		dockertest.WithCmd([]string{"-js", "-m", "8222"}),
-		dockertest.WithoutReuse(),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("could not start nats: %w", err)
-	}
-
-	return natsRes, nil
+func port(addr net.Addr) uint {
+	return uint(addr.(*net.TCPAddr).Port) //nolint:errcheck,forcetypeassert // every Kannon listener is TCP
 }
 
-// applySchema applies the database schema
-func applySchema(ctx context.Context, db *pgxpool.Pool) error {
-	// Apply the main schema
-	_, err := db.Exec(ctx, schema.Schema)
-	if err != nil {
-		return fmt.Errorf("failed to apply main schema: %w", err)
-	}
-
-	return nil
+// scrapedMetrics reads the metrics listener's /metrics endpoint as a prometheus.Gatherer.
+type scrapedMetrics struct {
+	infra *TestInfrastructure
 }
 
-// testNatsConnection tests the NATS connection and JetStream availability
-func testNatsConnection(natsURL string) error {
-	nc, err := nats.Connect(natsURL)
+func (s scrapedMetrics) Gather() ([]*dto.MetricFamily, error) {
+	res, err := http.Get(fmt.Sprintf("http://localhost:%d/metrics", s.infra.metricsPort))
 	if err != nil {
-		return err
+		return nil, err
 	}
-	defer nc.Close()
-
-	// Test JetStream availability
-	js, err := nc.JetStream()
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("scrape answered %d", res.StatusCode)
+	}
+	parser := expfmt.NewTextParser(model.UTF8Validation)
+	families, err := parser.TextToMetricFamilies(res.Body)
 	if err != nil {
-		return err
+		return nil, err
 	}
-
-	// Try to get account info to verify JetStream is working
-	_, err = js.AccountInfo()
-	if err != nil {
-		return err
+	out := make([]*dto.MetricFamily, 0, len(families))
+	for _, f := range families {
+		out = append(out, f)
 	}
-
-	return nil
-}
-
-// findAvailablePort finds an available port for the API server
-func findAvailablePort() (uint, error) {
-	listener, err := net.Listen("tcp", ":0")
-	if err != nil {
-		return 0, err
-	}
-	defer listener.Close()
-
-	port := listener.Addr().(*net.TCPAddr).Port //nolint:errcheck // net.Listen("tcp") always yields *net.TCPAddr
-	return uint(port), nil
+	return out, nil
 }

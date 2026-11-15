@@ -10,8 +10,8 @@ import (
 
 func TestRegistry_RegisterAndNames(t *testing.T) {
 	var reg Registry
-	reg.Register(Runnable{Name: "a", Run: func(ctx context.Context) error { return nil }})
-	reg.Register(Runnable{Name: "b", Run: func(ctx context.Context) error { return nil }})
+	reg.Register(Runnable{Name: "a", Run: func(ctx context.Context, _ func()) error { return nil }})
+	reg.Register(Runnable{Name: "b", Run: func(ctx context.Context, _ func()) error { return nil }})
 
 	got := reg.Names()
 	if len(got) != 2 || got[0] != "a" || got[1] != "b" {
@@ -26,7 +26,7 @@ func TestRegistry_RunInvokesAllAndShareCtx(t *testing.T) {
 	parent := context.WithValue(t.Context(), ctxKey{}, "shared")
 	parent, cancel := context.WithCancel(parent)
 
-	reg.Register(Runnable{Name: "a", Run: func(ctx context.Context) error {
+	reg.Register(Runnable{Name: "a", Run: func(ctx context.Context, _ func()) error {
 		ranA.Store(true)
 		if ctx.Value(ctxKey{}) != "shared" {
 			t.Errorf("a: did not see parent ctx value")
@@ -34,7 +34,7 @@ func TestRegistry_RunInvokesAllAndShareCtx(t *testing.T) {
 		<-ctx.Done()
 		return nil
 	}})
-	reg.Register(Runnable{Name: "b", Run: func(ctx context.Context) error {
+	reg.Register(Runnable{Name: "b", Run: func(ctx context.Context, _ func()) error {
 		ranB.Store(true)
 		if ctx.Value(ctxKey{}) != "shared" {
 			t.Errorf("b: did not see parent ctx value")
@@ -44,7 +44,7 @@ func TestRegistry_RunInvokesAllAndShareCtx(t *testing.T) {
 	}})
 
 	done := make(chan error, 1)
-	go func() { done <- reg.Run(parent) }()
+	go func() { done <- reg.Run(parent, nil) }()
 
 	// Give goroutines a moment to start.
 	time.Sleep(20 * time.Millisecond)
@@ -68,16 +68,16 @@ func TestRegistry_ErrorCancelsSibling(t *testing.T) {
 	boom := errors.New("boom")
 	siblingDone := make(chan struct{})
 
-	reg.Register(Runnable{Name: "fail", Run: func(ctx context.Context) error {
+	reg.Register(Runnable{Name: "fail", Run: func(ctx context.Context, _ func()) error {
 		return boom
 	}})
-	reg.Register(Runnable{Name: "sibling", Run: func(ctx context.Context) error {
+	reg.Register(Runnable{Name: "sibling", Run: func(ctx context.Context, _ func()) error {
 		<-ctx.Done()
 		close(siblingDone)
 		return ctx.Err()
 	}})
 
-	err := reg.Run(t.Context())
+	err := reg.Run(t.Context(), nil)
 	if !errors.Is(err, boom) {
 		t.Errorf("expected boom, got %v", err)
 	}

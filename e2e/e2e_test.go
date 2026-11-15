@@ -1,11 +1,8 @@
 package e2e_test
 
 import (
-	"context"
 	"fmt"
 	"io"
-	"log/slog"
-	"net"
 	"net/http"
 	netsmtp "net/smtp"
 	"regexp"
@@ -20,25 +17,11 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/kannon-email/kannon/internal/delivery"
-	"github.com/kannon-email/kannon/internal/mailflow"
 	"github.com/kannon-email/kannon/internal/tests"
-	"github.com/kannon-email/kannon/pkg/api"
-	kannonaudit "github.com/kannon-email/kannon/pkg/audit"
-	"github.com/kannon-email/kannon/pkg/dispatcher"
-	kannonsmtp "github.com/kannon-email/kannon/pkg/smtp"
-	"github.com/kannon-email/kannon/pkg/smtpsender"
-	"github.com/kannon-email/kannon/pkg/stats"
-	"github.com/kannon-email/kannon/pkg/tracker"
-	"github.com/kannon-email/kannon/pkg/validator"
-	adminapiv1 "github.com/kannon-email/kannon/proto/kannon/admin/apiv1"
-	adminv1connect "github.com/kannon-email/kannon/proto/kannon/admin/apiv1/apiv1connect"
 	mailerapiv1 "github.com/kannon-email/kannon/proto/kannon/mailer/apiv1"
 	mailertypes "github.com/kannon-email/kannon/proto/kannon/mailer/types"
 	statstypes "github.com/kannon-email/kannon/proto/kannon/stats/types"
 	trackingtypes "github.com/kannon-email/kannon/proto/kannon/tracking/types"
-	"github.com/kannon-email/kannon/x/container"
-	"github.com/spf13/viper"
 )
 
 func TestMain(m *testing.M) {
@@ -51,26 +34,16 @@ func TestE2EEmailSending(t *testing.T) {
 		t.Skip("Skipping E2E test in short mode")
 	}
 
-	infra, err := setupTestInfrastructure(t.Context())
-	t.Cleanup(infra.Cleanup)
-	if err != nil {
-		t.Fatalf("Failed to setup test infrastructure: %v", err)
-	}
-
 	senderMock := &senderMock{}
 
-	cnt := runKannon(t, infra, senderMock)
-
-	waitForAPIServer(t, infra)
+	infra := startKannon(t, senderMock)
 
 	factory := makeFactory(infra)
-
-	waitHZ(t, factory, infra)
 
 	// Not parallel: it runs before the parallel subtests are released, so the process-wide counters
 	// it reads move for its Batch alone.
 	t.Run("MailFlowMetrics", func(t *testing.T) {
-		testMailFlowMetrics(t, factory, senderMock, infra, cnt.Metrics())
+		testMailFlowMetrics(t, factory, senderMock, infra, scrapedMetrics{infra})
 	})
 
 	t.Run("SingleRecipientEmail", func(t *testing.T) {
@@ -192,81 +165,6 @@ func TestE2EEmailSending(t *testing.T) {
 		t.Parallel()
 		testMailerSendIsRecordedOncePerBatch(t, factory, infra)
 	})
-}
-
-func runKannon(t *testing.T, infra *TestInfrastructure, senderMock *senderMock) *container.Container {
-	ctx, cancel := context.WithCancel(t.Context())
-	t.Cleanup(cancel)
-
-	viper.Reset()
-	viper.Set("api.port", infra.apiPort)
-	viper.Set("api.rest_port", infra.restPort)
-	viper.Set("api.health_port", infra.healthPort)
-	// Without this the API runnable refuses to start, which is the point of it: the suite
-	// configures the credential the way an operator does and then presents it on every Admin
-	// and Stats call, so the whole authenticated path is what these tests exercise.
-	viper.Set("api.admin_token", adminToken)
-	// Shared by the Dispatcher, which signs every return path with it, and the inbound SMTP server,
-	// which accepts a DSN only on a return path that verifies — so the bounce tests below prove the
-	// two agree.
-	viper.Set("bounce.secret", "e2e-bounce-secret-0123456789abcdef")
-	viper.Set("tracker.port", infra.trackerPort)
-	viper.Set("stats.retention", "8760h")
-	// The audit trail is off by default and stays off unless an operator asks for it (ADR 0010). The
-	// suite turns it on because it is the only seam that can prove the whole chain — a real call
-	// carrying a real credential, through the interceptor and Guard, over NATS, into a row — and in
-	// particular the only one that proves the Recorder is wired into the API runnable at all.
-	viper.Set("audit.enabled", true)
-	viper.Set("audit.retention", "720h")
-	viper.Set("smtp.address", fmt.Sprintf(":%d", infra.smtpPort))
-
-	cnt := container.NewForTest(ctx,
-		container.WithDBURL(infra.dbURL),
-		container.WithNatsURL(infra.natsURL),
-		// Collapse the production 2m/5m retry curve into milliseconds so the
-		// transient-then-deliver path converges in CI wall time.
-		container.WithBackoff(delivery.ExponentialBackoff{
-			Base: 50 * time.Millisecond,
-			Min:  50 * time.Millisecond,
-		}),
-		// The Retry Budget has to be scaled by the same factor as the backoff base, or a collapsed
-		// curve races through the whole budget. Production is 24h against 2m·2ⁿ; this curve is
-		// 50ms·2ⁿ, 2400× faster, and 24h/2400 = 36s — which keeps the ten-retry boundary exactly.
-		container.WithRetryWindow(36*time.Second),
-	)
-	t.Cleanup(func() {
-		if err := cnt.CloseWithTimeout(30 * time.Second); err != nil {
-			slog.Error("error closing container", "err", err)
-		}
-	})
-
-	reg := &container.Registry{}
-	reg.Register(api.New(cnt))
-	reg.Register(dispatcher.New(cnt))
-	reg.Register(validator.New(cnt))
-	reg.Register(stats.New(cnt))
-	// The worker that turns published decisions into rows. Registered here rather than left out
-	// because a producer with nobody consuming it is precisely the half-configured deployment
-	// ADR 0010 warns about, and the assertions in audit_test.go are on the rows.
-	reg.Register(kannonaudit.New(cnt))
-	reg.Register(tracker.New(cnt))
-	// The inbound SMTP server: the leg that receives asynchronous DSNs. Unlike
-	// the outbound SMTPSender it needs no test double — a subtest plays the
-	// remote MTA by connecting to it and delivering a real DSN.
-	reg.Register(kannonsmtp.New(cnt))
-
-	// Custom SMTPSender wired against the test sender mock, since the package's New(c) builds a
-	// real SMTP sender the suite cannot assert payloads on. MaxJobs is sized for the parallel
-	// subtest burst: ~120+ concurrent messages, and a small pool blows the EventuallyWithT windows.
-	sender := smtpsender.NewSMTPSender(cnt.NatsPublisher(), cnt.NatsJetStream(), senderMock, smtpsender.Config{MaxJobs: 50}, mailflow.New(cnt.Metrics()))
-	reg.Register(container.Runnable{Name: "smtpsender", Run: sender.Run})
-
-	go func() {
-		if err := reg.Run(ctx); err != nil {
-			slog.Error("error in running kannon", "err", err)
-		}
-	}()
-	return cnt
 }
 
 func testSingleRecipientEmail(t *testing.T, clientFactory *clientFactory, senderMock *senderMock, infra *TestInfrastructure) {
@@ -484,52 +382,6 @@ func testEmailWithHeaders(t *testing.T, clientFactory *clientFactory, senderMock
 	}, 30*time.Second, 1*time.Second, "Stats should be available within 60 seconds")
 }
 
-func waitHZ(t *testing.T, clientFactory *clientFactory, infra *TestInfrastructure) {
-	client := clientFactory.NewClient(t, infra)
-	ctx := t.Context()
-
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		hzResp, err := client.hzClient.HZ(ctx, connect.NewRequest(&adminapiv1.HZRequest{}))
-		require.NoError(t, err)
-		require.NotNil(t, hzResp.Msg)
-
-		results := hzResp.Msg.Result
-
-		slog.Info(fmt.Sprintf("HZ results: %+v", results))
-
-		assert.Equal(t, "ok", results["db"])
-		assert.Equal(t, "ok", results["nats"])
-	}, 60*time.Second, 2*time.Second, "HZ should be ready within 60 seconds")
-}
-
-func waitForAPIServer(t *testing.T, infra *TestInfrastructure) {
-	// Create a direct HZ client that doesn't require domain creation
-	hzClient := adminv1connect.NewHZServiceClient(
-		http.DefaultClient,
-		fmt.Sprintf("http://localhost:%d", infra.apiPort),
-	)
-
-	require.EventuallyWithT(t, func(tt *assert.CollectT) {
-		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
-		defer cancel()
-
-		_, err := hzClient.HZ(ctx, connect.NewRequest(&adminapiv1.HZRequest{}))
-		if err != nil {
-			tt.Errorf("Failed to connect to API server: %v", err)
-			return
-		}
-	}, 30*time.Second, 500*time.Millisecond, "API server should be ready within 30 seconds")
-
-	require.EventuallyWithT(t, func(tt *assert.CollectT) {
-		res, err := http.Get(fmt.Sprintf("http://localhost:%d/health", infra.healthPort))
-		if !assert.NoError(tt, err) {
-			return
-		}
-		_ = res.Body.Close()
-		assert.Equal(tt, http.StatusOK, res.StatusCode)
-	}, 30*time.Second, 500*time.Millisecond, "REST API server should be ready within 30 seconds")
-}
-
 func testAggregatedStats(t *testing.T, clientFactory *clientFactory, _ *senderMock, infra *TestInfrastructure) {
 	client := clientFactory.NewClient(t, infra)
 
@@ -650,18 +502,6 @@ Diagnostic-Code: SMTP; %d %s
 // is the only thing tying the report back to a Batch and a Recipient.
 func deliverDSN(t *testing.T, infra *TestInfrastructure, returnPath, recipient string, code int, reason string) {
 	t.Helper()
-
-	// The registry starts every module concurrently, so the listener may not
-	// be up yet when a parallel subtest gets here. Wait for the port rather
-	// than retrying the SMTP exchange, which would double-report the bounce.
-	require.Eventually(t, func() bool {
-		conn, err := net.DialTimeout("tcp", infra.smtpAddr(), time.Second)
-		if err != nil {
-			return false
-		}
-		conn.Close()
-		return true
-	}, 30*time.Second, 200*time.Millisecond, "inbound SMTP server never accepted connections")
 
 	c, err := netsmtp.Dial(infra.smtpAddr())
 	require.NoError(t, err)

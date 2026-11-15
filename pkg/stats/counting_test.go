@@ -86,7 +86,7 @@ func TestAggregatedConsumerUsesStoredMessageIdentity(t *testing.T) {
 		t.Cleanup(cancel)
 		h := statsHandler{js: js, counter: repo}
 		done := make(chan error, 1)
-		go func() { done <- h.handleAggregatedStats(ctx) }()
+		go func() { done <- h.handleAggregatedStats(ctx, h.consumer(ctx, aggregatedStatsConsumer)) }()
 		// On a worker restart replay the retained message with a new consumer.
 		// Its stored stream identity remains the same regardless of consumer state.
 		expected := int64(1)

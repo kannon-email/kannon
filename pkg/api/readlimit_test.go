@@ -23,6 +23,7 @@ import (
 	"github.com/kannon-email/kannon/proto/kannon/stats/apiv1/apiv1connect"
 	"github.com/kannon-email/kannon/proto/kannon/stats/apiv2/apiv2connect"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
@@ -184,7 +185,11 @@ func TestTheAPIRefusesToShareOnePortBetweenItsListeners(t *testing.T) {
 		{Config{Port: 9000, RESTPort: 9001, HealthPort: 9000}, []string{"api.port", "api.health_port"}},
 		{Config{Port: 9000, RESTPort: 9001, HealthPort: 9001}, []string{"api.rest_port", "api.health_port"}},
 	} {
-		err := run(t.Context(), tc.config, nil)
+		viper.Reset()
+		t.Cleanup(viper.Reset)
+		viper.Set("api", map[string]any{"port": tc.config.Port, "rest_port": tc.config.RESTPort, "health_port": tc.config.HealthPort})
+
+		_, err := Listen()
 
 		for _, key := range tc.keys {
 			require.ErrorContains(t, err, key)

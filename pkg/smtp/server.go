@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"time"
 
 	"github.com/emersion/go-smtp"
@@ -16,30 +17,43 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-// New constructs the SMTP server runnable, loading its slice of configuration
-// from viper under the "smtp" key.
-func New(cnt *container.Container) container.Runnable {
+const configKey = "smtp"
+
+// Listen binds the inbound SMTP listener on the address the "smtp" section sets.
+func Listen() (net.Listener, error) {
 	var cfg Config
-	config.LoadSection("smtp", &cfg)
+	if err := config.TryLoadSection(configKey, &cfg); err != nil {
+		return nil, err
+	}
+	cfg.setDefaults()
+	return net.Listen("tcp", cfg.Address)
+}
+
+// New constructs the SMTP server runnable serving on l, loading its slice of
+// configuration from viper under the "smtp" key.
+func New(cnt *container.Container, l net.Listener) container.Runnable {
+	var cfg Config
+	config.LoadSection(configKey, &cfg)
 	cfg.setDefaults()
 	rp := returnpath.MustLoad()
 	return container.Runnable{
 		Name: "smtp",
-		Run: func(ctx context.Context) error {
+		Run: func(ctx context.Context, ready func()) error {
 			// Asynchronous bounces are published on the stats stream.
 			if err := stats.ConfigureStream(ctx, cnt.NatsJetStream()); err != nil {
 				return fmt.Errorf("cannot configure stats stream: %w", err)
 			}
-			return run(ctx, cnt.Nats(), cfg, rp, mailflow.New(cnt.Metrics()))
+			ready()
+			return run(ctx, l, cnt.Nats(), cfg, rp, mailflow.New(cnt.Metrics()))
 		},
 	}
 }
 
-func run(ctx context.Context, nc *nats.Conn, config Config, rp returnpath.Signer, flow *mailflow.Metrics) error {
+func run(ctx context.Context, l net.Listener, nc *nats.Conn, config Config, rp returnpath.Signer, flow *mailflow.Metrics) error {
 	s := buildServer(config, nc, rp, flow)
 	defer s.Close()
 
-	slog.Info(fmt.Sprintf("Starting server at: %v", s.Addr))
+	slog.Info(fmt.Sprintf("Starting server at: %v", l.Addr()))
 
 	done := make(chan struct{})
 	stopped := make(chan error, 1)
@@ -57,7 +71,7 @@ func run(ctx context.Context, nc *nats.Conn, config Config, rp returnpath.Signer
 			stopped <- nil
 		}
 	}()
-	err := s.ListenAndServe()
+	err := s.Serve(l)
 	close(done)
 	shutdownErr := <-stopped
 	if err != nil && !errors.Is(err, smtp.ErrServerClosed) {
@@ -75,7 +89,6 @@ func buildServer(config Config, nc *nats.Conn, rp returnpath.Signer, flow *mailf
 
 	s := smtp.NewServer(backend)
 
-	s.Addr = config.Address
 	s.Domain = config.Domain
 	s.ReadTimeout = config.ReadTimeout
 	s.WriteTimeout = config.WriteTimeout

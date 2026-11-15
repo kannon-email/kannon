@@ -2,6 +2,7 @@ package tests
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -27,12 +28,32 @@ func TestPostgresInit(schema string) (*pgxpool.Pool, PurgeFunc, error) {
 	if url := os.Getenv("KANNON_TEST_DATABASE_URL"); url != "" {
 		return localPostgres(url, schema)
 	}
-	var db *pgxpool.Pool
+	url, purge, err := TestPostgresURL()
+	if err != nil {
+		return nil, nil, err
+	}
+	ctx := context.Background()
+	if err := applySchema(ctx, url, schema); err != nil {
+		return nil, nil, errors.Join(fmt.Errorf("cannot apply schema: %w", err), purge())
+	}
+	db, err := pgxpool.New(ctx, url)
+	if err != nil {
+		return nil, nil, errors.Join(fmt.Errorf("cannot create pgx pool: %w", err), purge())
+	}
+	return db, func() error {
+		db.Close()
+		return purge()
+	}, nil
+}
+
+// TestPostgresURL starts an empty disposable Postgres and returns its URL, for a caller that
+// prepares the schema itself — the e2e suite runs the real migrations against it.
+func TestPostgresURL() (string, PurgeFunc, error) {
 	ctx := context.Background()
 
 	pool, err := dockertest.NewPool(ctx, "")
 	if err != nil {
-		return nil, nil, fmt.Errorf("cannot connect to docker: %w", err)
+		return "", nil, fmt.Errorf("cannot connect to docker: %w", err)
 	}
 
 	resource, err := pool.Run(ctx, "postgres",
@@ -48,38 +69,32 @@ func TestPostgresInit(schema string) (*pgxpool.Pool, PurgeFunc, error) {
 		dockertest.WithoutReuse(),
 	)
 	if err != nil {
-		return nil, nil, fmt.Errorf("cannot start resource: %w", err)
+		return "", nil, fmt.Errorf("cannot start resource: %w", err)
 	}
 
+	url := fmt.Sprintf("postgresql://test:test@%v:%v/test?sslmode=disable", getDBHost(), resource.GetPort("5432/tcp"))
 	if err = pool.Retry(ctx, 60*time.Second, func() error {
-		var err error
-		db, err = initDB(resource.GetPort("5432/tcp"))
+		db, err := pgxpool.New(ctx, url)
 		if err != nil {
 			slog.Warn(fmt.Sprintf("connection error: %v", err))
 			return err
 		}
+		defer db.Close()
 		return db.Ping(ctx)
 	}); err != nil {
-		return nil, nil, fmt.Errorf("cannot connect to docker: %w", err)
+		return "", nil, fmt.Errorf("cannot connect to docker: %w", err)
 	}
 
-	if err := applySchema(ctx, resource.GetPort("5432/tcp"), schema); err != nil {
-		return nil, nil, fmt.Errorf("cannot apply schema: %w", err)
-	}
-
-	var purgeFunc PurgeFunc = func() error {
+	return url, func() error {
 		if err := resource.Close(ctx); err != nil {
 			return fmt.Errorf("cannot purge resource: %w", err)
 		}
 		return pool.Close(ctx)
-	}
-
-	return db, purgeFunc, nil
+	}, nil
 }
 
-func applySchema(ctx context.Context, dbPort, schema string) error {
-	pgConnString := fmt.Sprintf("postgresql://test:test@%v:%v/test", getDBHost(), dbPort)
-	conn, err := pgx.Connect(ctx, pgConnString)
+func applySchema(ctx context.Context, url, schema string) error {
+	conn, err := pgx.Connect(ctx, url)
 	if err != nil {
 		return err
 	}
@@ -95,17 +110,6 @@ func getDBHost() string {
 		host = "localhost"
 	}
 	return host
-}
-
-func initDB(dbPort string) (*pgxpool.Pool, error) {
-	dbHost := getDBHost()
-	url := fmt.Sprintf("postgresql://test:test@%v:%v/test", dbHost, dbPort)
-
-	pool, err := pgxpool.New(context.Background(), url)
-	if err != nil {
-		return nil, fmt.Errorf("cannot create pgx pool: %w", err)
-	}
-	return pool, nil
 }
 
 // localPostgres creates an isolated disposable database for each test fixture.

@@ -43,7 +43,7 @@ func (v *Validator) log() *slog.Logger {
 func New(cnt *container.Container) container.Runnable {
 	return container.Runnable{
 		Name: "validator",
-		Run: func(ctx context.Context) error {
+		Run: func(ctx context.Context, ready func()) error {
 			// Accepted and Rejected are published on the stats stream.
 			if err := stats.ConfigureStream(ctx, cnt.NatsJetStream()); err != nil {
 				return fmt.Errorf("cannot configure stats stream: %w", err)
@@ -54,6 +54,7 @@ func New(cnt *container.Container) container.Runnable {
 			mailflow.RegisterPool(cnt.Metrics(), sqlc.NewPoolCensus(cnt.DB()))
 
 			v.log().Info("🚀 Starting validator")
+			ready()
 
 			eg, ctx := errgroup.WithContext(ctx)
 

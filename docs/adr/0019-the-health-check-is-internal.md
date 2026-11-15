@@ -18,3 +18,7 @@ keep the exposure this decision exists to remove. This supersedes point 32 of
 
 The Connect `HZService` on `api.port` is unchanged; it stays open as ADR 0009 records,
 and is deprecated with the rest of the Connect surface.
+
+Note (2026-11-15, #518): `/health` answers 503 until the whole process is ready, meaning every
+component it runs has bound its listeners and created its NATS streams and consumers, and only
+then reports dependency health. This refines when the check says ready, not where it is served.

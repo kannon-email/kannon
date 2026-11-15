@@ -32,6 +32,9 @@ type Container struct {
 	useEmbeddedNats bool
 	backoff         delivery.BackoffPolicy
 	retryWindow     time.Duration
+	senderOverride  smtp.Sender
+
+	senderConcurrency uint
 
 	// singleton instances
 	db                 *singleton[*pgxpool.Pool]
@@ -62,8 +65,8 @@ type senderCfg struct {
 // reported by the boot path as a message, before a container exists to fail
 // halfway through building. Nothing else is read here for the same reason turned
 // around: a section this process may have no use for must not be able to stop it.
-func New(ctx context.Context, cfg config.RootConfig) *Container {
-	return &Container{
+func New(ctx context.Context, cfg config.RootConfig, opts ...Option) *Container {
+	c := &Container{
 		ctx:                ctx,
 		dbURL:              cfg.DatabaseURL,
 		natsURL:            cfg.NatsURL,
@@ -76,25 +79,25 @@ func New(ctx context.Context, cfg config.RootConfig) *Container {
 		sender:             &singleton[smtp.Sender]{},
 		metrics:            newMetricsRegistry(),
 	}
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c
 }
 
-// TestOption configures a test container produced by NewForTest.
-type TestOption func(*Container)
+// Option replaces one of the Container's edges or time settings. None of them is a
+// config key: they are wiring points for tests (ADR 0001).
+type Option func(*Container)
 
-// WithDBURL overrides the database URL used by the test container.
-func WithDBURL(url string) TestOption {
-	return func(c *Container) { c.dbURL = url }
-}
-
-// WithNatsURL overrides the NATS URL used by the test container.
-func WithNatsURL(url string) TestOption {
-	return func(c *Container) { c.natsURL = url }
+// WithSender replaces the outbound Sender the `sender` section would build.
+func WithSender(s smtp.Sender) Option {
+	return func(c *Container) { c.senderOverride = s }
 }
 
 // WithBackoff overrides the retry backoff policy. Tests use this to collapse
 // the production multi-minute curve into milliseconds without mutating
 // per-package internals.
-func WithBackoff(p delivery.BackoffPolicy) TestOption {
+func WithBackoff(p delivery.BackoffPolicy) Option {
 	return func(c *Container) { c.backoff = p }
 }
 
@@ -102,28 +105,20 @@ func WithBackoff(p delivery.BackoffPolicy) TestOption {
 // WithBackoff — the window has to be scaled by the same factor as the backoff
 // base, or a collapsed curve would race through the whole budget in
 // milliseconds and terminate every Delivery in the suite.
-func WithRetryWindow(w time.Duration) TestOption {
+func WithRetryWindow(w time.Duration) Option {
 	return func(c *Container) { c.retryWindow = w }
 }
 
-// NewForTest builds a Container without reading viper, applying the supplied
-// options. Tests use this to wire a synthetic container without inventing
-// per-package backdoors.
-func NewForTest(ctx context.Context, opts ...TestOption) *Container {
-	c := &Container{
-		ctx:                ctx,
-		backoff:            delivery.DefaultBackoff,
-		retryWindow:        delivery.DefaultRetryWindow,
-		db:                 &singleton[*pgxpool.Pool]{},
-		nats:               &singleton[*nats.Conn]{},
-		embeddedNatsServer: &singleton[*server.Server]{},
-		sender:             &singleton[smtp.Sender]{},
-		metrics:            newMetricsRegistry(),
-	}
-	for _, opt := range opts {
-		opt(c)
-	}
-	return c
+// WithSenderConcurrency overrides `sender.max_jobs`, how many Envelopes the
+// sender transmits at once.
+func WithSenderConcurrency(n uint) Option {
+	return func(c *Container) { c.senderConcurrency = n }
+}
+
+// SenderConcurrency is the concurrency set by WithSenderConcurrency, and 0 when
+// the `sender` section decides it.
+func (c *Container) SenderConcurrency() uint {
+	return c.senderConcurrency
 }
 
 // DB returns a singleton DB connection.
@@ -372,6 +367,9 @@ func (c *Container) RetryWindow() time.Duration {
 // so for the process that does send, an unresolvable reference is still a boot
 // failure and not a surprise mid-delivery.
 func (c *Container) Sender() smtp.Sender {
+	if c.senderOverride != nil {
+		return c.senderOverride
+	}
 	return c.sender.MustGet(c.ctx, func(ctx context.Context) (smtp.Sender, error) {
 		var sc senderCfg
 		if err := config.TryLoadSection("sender", &sc); err != nil {

@@ -62,6 +62,9 @@ func New(cnt *container.Container) container.Runnable {
 	var cfg Config
 	config.LoadSection("sender", &cfg)
 	cfg.setDefaults()
+	if n := cnt.SenderConcurrency(); n > 0 {
+		cfg.MaxJobs = n
+	}
 	s := NewSMTPSender(cnt.NatsPublisher(), cnt.NatsJetStream(), cnt.Sender(), cfg, mailflow.New(cnt.Metrics()))
 	return container.Runnable{
 		Name: "smtpsender",
@@ -79,7 +82,7 @@ func NewSMTPSender(publisher publisher.Publisher, js jetstream.JetStream, s smtp
 	}
 }
 
-func (s *smtpSender) Run(ctx context.Context) error {
+func (s *smtpSender) Run(ctx context.Context, ready func()) error {
 	slog.With("hostname", s.sender.SenderName(), "max_jobs", s.cfg.MaxJobs).
 		Info("Starting SMTPSender Service")
 	if err := stats.ConfigureStream(ctx, s.js); err != nil {
@@ -88,6 +91,7 @@ func (s *smtpSender) Run(ctx context.Context) error {
 
 	s.guard = mustGetSendGuard(ctx, s.js)
 	consumer := s.mustSendingConsumer(ctx)
+	ready()
 
 	return s.handleSend(ctx, consumer)
 }
