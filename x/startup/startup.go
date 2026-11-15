@@ -158,7 +158,7 @@ func Start(ctx context.Context, configPath string, opts ...Option) (Instance, er
 	cnt := container.New(context.WithoutCancel(ctx), cfg, o.container...)
 	closeContainer := func() error { return cnt.CloseWithTimeout(shutdownTimeout) }
 
-	inst := newInstance(l.addrs(), closeContainer)
+	inst := newInstance(l.addrs(), l.all, closeContainer)
 	reg := &container.Registry{}
 	if l.metrics != nil {
 		reg.Register(metrics.Listener(l.metrics, cnt.Metrics()))

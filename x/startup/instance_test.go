@@ -3,6 +3,8 @@ package startup
 import (
 	"context"
 	"errors"
+	"io"
+	"net"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -27,7 +29,7 @@ func TestCloseWaitsForEveryComponentBeforeClosingTheContainer(t *testing.T) {
 	}
 
 	var stillRunningAtClose int32 = -1
-	inst := newInstance(Addrs{}, func() error {
+	inst := newInstance(Addrs{}, nil, func() error {
 		stillRunningAtClose = running.Load()
 		return nil
 	})
@@ -52,7 +54,7 @@ func TestWaitReportsTheComponentThatFailed(t *testing.T) {
 	reg := &container.Registry{}
 	reg.Register(container.Runnable{Name: "failing", Run: func(context.Context, func()) error { return boom }})
 
-	inst := newInstance(Addrs{}, func() error { return nil })
+	inst := newInstance(Addrs{}, nil, func() error { return nil })
 	inst.launch(t.Context(), reg)
 	t.Cleanup(func() { _ = inst.Close() })
 
@@ -71,7 +73,7 @@ func TestReadyReportsAComponentThatFailedBeforeBeingReady(t *testing.T) {
 	}})
 	reg.Register(container.Runnable{Name: "failing", Run: func(context.Context, func()) error { return boom }})
 
-	inst := newInstance(Addrs{}, func() error { return nil })
+	inst := newInstance(Addrs{}, nil, func() error { return nil })
 	inst.launch(t.Context(), reg)
 	t.Cleanup(func() { _ = inst.Close() })
 
@@ -84,7 +86,7 @@ func TestReadyFailsWhenAComponentReturnsWithoutBeingReady(t *testing.T) {
 	reg := &container.Registry{}
 	reg.Register(container.Runnable{Name: "quitter", Run: func(context.Context, func()) error { return nil }})
 
-	inst := newInstance(Addrs{}, func() error { return nil })
+	inst := newInstance(Addrs{}, nil, func() error { return nil })
 	inst.launch(t.Context(), reg)
 	t.Cleanup(func() { _ = inst.Close() })
 
@@ -100,7 +102,7 @@ func TestReadyStopsWaitingWhenItsContextIsDone(t *testing.T) {
 		return nil
 	}})
 
-	inst := newInstance(Addrs{}, func() error { return nil })
+	inst := newInstance(Addrs{}, nil, func() error { return nil })
 	inst.launch(t.Context(), reg)
 	t.Cleanup(func() { _ = inst.Close() })
 
@@ -120,4 +122,24 @@ func readyWithin(t *testing.T, inst *instance) error {
 		t.Fatal("Ready kept waiting on an instance that had already stopped")
 	}
 	return err
+}
+
+func TestCloseClosesAListenerNoComponentServed(t *testing.T) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	reg := &container.Registry{}
+	reg.Register(container.Runnable{Name: "early-return", Run: func(context.Context, func()) error {
+		return errors.New("gave up before serving")
+	}})
+
+	inst := newInstance(Addrs{}, []io.Closer{l}, func() error { return nil })
+	inst.launch(t.Context(), reg)
+	_ = inst.Wait()
+	_ = inst.Close()
+
+	if _, err := l.Accept(); !errors.Is(err, net.ErrClosed) {
+		t.Fatalf("Accept after Close = %v, want %v", err, net.ErrClosed)
+	}
 }

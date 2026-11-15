@@ -3,6 +3,7 @@ package startup
 import (
 	"context"
 	"errors"
+	"io"
 	"sync"
 
 	"github.com/kannon-email/kannon/x/container"
@@ -18,19 +19,21 @@ type instance struct {
 	done           chan struct{}
 	runErr         error
 	cancel         context.CancelFunc
+	listeners      []io.Closer
 	closeContainer func() error
 	closeOnce      sync.Once
 	closeErr       error
 }
 
 // newInstance prepares an instance whose ready channel can be handed to components before launch.
-// closeContainer runs on Close, once every component has returned.
-func newInstance(addrs Addrs, closeContainer func() error) *instance {
+// listeners and closeContainer are closed on Close, once every component has returned.
+func newInstance(addrs Addrs, listeners []io.Closer, closeContainer func() error) *instance {
 	return &instance{
 		addrs:          addrs,
 		ready:          make(chan struct{}),
 		done:           make(chan struct{}),
 		cancel:         func() {},
+		listeners:      listeners,
 		closeContainer: closeContainer,
 	}
 }
@@ -74,6 +77,10 @@ func (i *instance) Close() error {
 	i.closeOnce.Do(func() {
 		i.cancel()
 		<-i.done
+		// A component that served a listener has closed it already; one that returned early has not.
+		for _, l := range i.listeners {
+			_ = l.Close()
+		}
 		i.closeErr = i.closeContainer()
 	})
 	return i.closeErr
