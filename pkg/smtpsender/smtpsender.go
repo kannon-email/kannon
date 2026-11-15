@@ -81,7 +81,7 @@ func NewSMTPSender(publisher publisher.Publisher, js jetstream.JetStream, s smtp
 
 func (s *smtpSender) Run(ctx context.Context) error {
 	slog.With("hostname", s.sender.SenderName(), "max_jobs", s.cfg.MaxJobs).
-		Info("Starting SMTPSender Service")
+		Info("starting SMTP sender")
 	if err := stats.ConfigureStream(ctx, s.js); err != nil {
 		return fmt.Errorf("cannot configure stats stream: %w", err)
 	}

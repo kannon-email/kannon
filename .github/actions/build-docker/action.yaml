@@ -52,5 +52,9 @@ runs:
         tags: ${{ steps.docker_meta.outputs.tags }}
         target: ${{ inputs.docker-target }}
         context: ${{ inputs.docker-context }}
+        build-args: |
+          VERSION=${{ steps.docker_meta.outputs.version }}
+          COMMIT=${{ inputs.sha }}
+          DATE=${{ fromJSON(steps.docker_meta.outputs.json).labels['org.opencontainers.image.created'] }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
