@@ -85,9 +85,6 @@ func NewSMTPSender(publisher publisher.Publisher, js jetstream.JetStream, s smtp
 func (s *smtpSender) Run(ctx context.Context, ready func()) error {
 	slog.With("hostname", s.sender.SenderName(), "max_jobs", s.cfg.MaxJobs).
 		Info("Starting SMTPSender Service")
-	if err := stats.ConfigureStream(ctx, s.js); err != nil {
-		return fmt.Errorf("cannot configure stats stream: %w", err)
-	}
 
 	s.guard = mustGetSendGuard(ctx, s.js)
 	consumer := s.mustSendingConsumer(ctx)
@@ -98,7 +95,7 @@ func (s *smtpSender) Run(ctx context.Context, ready func()) error {
 
 // mustSendingConsumer subscribes to the Envelopes waiting to be transmitted.
 func (s *smtpSender) mustSendingConsumer(ctx context.Context) jetstream.Consumer {
-	return utils.MustGetPullSubscriber(ctx, s.js, "kannon-sending", "kannon.sending", "kannon-sending-pool",
+	return utils.MustGetPullSubscriber(ctx, s.js, publisher.SendingStreamName, publisher.SendingSubject, "kannon-sending-pool",
 		utils.WithAckPolicy(sendAckPolicy))
 }
 

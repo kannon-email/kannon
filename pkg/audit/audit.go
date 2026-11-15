@@ -75,13 +75,6 @@ func run(ctx context.Context, cnt *container.Container, cfg audit.Config, ready 
 
 	js := cnt.NatsJetStream()
 
-	// Configured here as well as by the API. CreateOrUpdateStream is idempotent and neither process
-	// may depend on the other's boot order: the producer must not publish into a stream that does
-	// not exist, and this worker must not require the API to have come up first.
-	if err := audit.ConfigureStream(ctx, js); err != nil {
-		return err
-	}
-
 	h := auditHandler{
 		js:        js,
 		repo:      sq.NewAuditRepository(cnt.DB()),

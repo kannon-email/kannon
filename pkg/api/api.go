@@ -297,20 +297,6 @@ func startAuditRecording(ctx context.Context, cnt *container.Container) authz.Re
 		return nil
 	}
 
-	// Configured here as well as in the audit runnable. CreateOrUpdateStream is idempotent, and
-	// neither process may depend on the other's boot order: a publish must not go into a stream
-	// that does not exist, and the worker must not require the API to have come up.
-	//
-	// A failure is logged and the Recorder installed anyway. The worker configures the same stream,
-	// so this having failed does not mean the stream never appears — and refusing to serve mail
-	// because NATS was slow would answer a gap in the register with an interruption of service.
-	// Decisions published before the stream exists are the unconfirmed loss the ADR already records
-	// as the cost of a core publish, and the pending-with-no-consumers warning is what watches for it.
-	if err := audit.ConfigureStream(ctx, js); err != nil {
-		slog.Error("cannot configure the audit stream; recording anyway, and the audit writer will "+
-			"configure it when it starts", "err", err)
-	}
-
 	// Beside the server rather than on the request path, and its failure is logged rather than
 	// returned: a deployment that enabled collection and forgot the worker has a gap in its
 	// register, which must not be turned into an interruption of service.

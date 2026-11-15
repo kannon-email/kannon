@@ -270,12 +270,6 @@ func (c *Container) connectNats(context.Context) (*nats.Conn, error) {
 		return nil
 	})
 
-	if c.useEmbeddedNats {
-		if err := provisionEmbeddedJetStreams(nc); err != nil {
-			return nil, fmt.Errorf("failed to provision JetStream streams: %w", err)
-		}
-	}
-
 	return nc, nil
 }
 
@@ -385,46 +379,6 @@ func (c *Container) Sender() smtp.Sender {
 		}
 		return smtp.NewSender(sc.Hostname, opts...), nil
 	})
-}
-
-// provisionEmbeddedJetStreams creates the JetStream streams Kannon's runnables
-// expect before any of them has configured it. Called once when the container
-// connects to its embedded NATS server; idempotent against an existing stream.
-//
-// Only kannon-sending is here, so that the sender can subscribe before the
-// dispatcher has configured it. kannon-stats and kannon-audit are deliberately
-// absent: each is configured, with its age limit, by every process using it
-// (stats.ConfigureStream, audit.ConfigureStream), and a stream created here
-// would be a second, unbounded definition.
-func provisionEmbeddedJetStreams(nc *nats.Conn) error {
-	js, err := nc.JetStream()
-	if err != nil {
-		return fmt.Errorf("get JetStream context: %w", err)
-	}
-
-	streams := []struct {
-		name     string
-		subjects []string
-	}{
-		{name: "kannon-sending", subjects: []string{"kannon.sending"}},
-	}
-
-	for _, s := range streams {
-		if _, err := js.StreamInfo(s.name); err == nil {
-			slog.Debug("JetStream stream already exists: " + s.name)
-			continue
-		}
-		slog.Info("Creating JetStream stream: " + s.name)
-		if _, err := js.AddStream(&nats.StreamConfig{
-			Name:     s.name,
-			Subjects: s.subjects,
-			Storage:  nats.FileStorage,
-		}); err != nil {
-			return fmt.Errorf("create stream %s: %w", s.name, err)
-		}
-	}
-
-	return nil
 }
 
 type publisherWithDebug struct {

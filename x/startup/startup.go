@@ -158,6 +158,13 @@ func Start(ctx context.Context, configPath string, opts ...Option) (Instance, er
 	cnt := container.New(context.WithoutCancel(ctx), cfg, o.container...)
 	closeContainer := func() error { return cnt.CloseWithTimeout(shutdownTimeout) }
 
+	if err := configureStreams(ctx, cnt, services); err != nil {
+		for _, c := range l.all {
+			_ = c.Close()
+		}
+		return nil, errors.Join(err, closeContainer())
+	}
+
 	inst := newInstance(l.addrs(), l.all, closeContainer)
 	reg := &container.Registry{}
 	if l.metrics != nil {

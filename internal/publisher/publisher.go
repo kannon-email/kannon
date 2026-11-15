@@ -19,12 +19,12 @@ type Publisher interface {
 // the wire form lives in internal/envelopepb, next to the read side the
 // SMTPSender uses, so the two ends of this topic cannot drift apart (ADR 0012).
 func SendEmail(p Publisher, env *envelope.Envelope) error {
-	slog.Debug("[nats] publishing message", "subj", "kannon.sending")
+	slog.Debug("[nats] publishing message", "subj", SendingSubject)
 	msg, err := envelopepb.MarshalEnvelope(env)
 	if err != nil {
 		return err
 	}
-	err = p.Publish("kannon.sending", msg)
+	err = p.Publish(SendingSubject, msg)
 	if err != nil {
 		return err
 	}

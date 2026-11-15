@@ -42,7 +42,7 @@ func (r *recorder) Record(d authz.Decision) {
 	}
 
 	// nc.Publish and not an acknowledged one: an ack would add a round trip to the request path of
-	// every authorized operation, and the two callers of ConfigureStream plus the
+	// every authorized operation, and configuring the stream at startup of both processes plus the
 	// pending-with-no-consumers warning stand in for the failure it would have caught (ADR 0010).
 	if err := r.pub.Publish(Subject(d.Outcome), data); err != nil {
 		slog.Error("cannot publish an Audit Record; it stays in the log only",

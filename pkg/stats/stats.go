@@ -64,9 +64,6 @@ func New(cnt *container.Container) container.Runnable {
 func run(ctx context.Context, cnt *container.Container, cfg Config, ready func()) error {
 	q := cnt.Queries()
 	js := cnt.NatsJetStream()
-	if err := stats.ConfigureStream(ctx, js); err != nil {
-		return fmt.Errorf("cannot configure stats stream: %w", err)
-	}
 
 	db := cnt.DB()
 	repo := sq.NewStatsRepository(db)
