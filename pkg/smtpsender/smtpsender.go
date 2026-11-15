@@ -99,7 +99,7 @@ func (s *smtpSender) mustSendingConsumer(ctx context.Context) jetstream.Consumer
 }
 
 func (s *smtpSender) handleSend(ctx context.Context, consumer jetstream.Consumer) error {
-	slog.Info("🚀 Ready to send!\n")
+	slog.Info("ready to send")
 
 	maxJobs := s.cfg.MaxJobs
 	if maxJobs == 0 {
@@ -139,13 +139,13 @@ func (s *smtpSender) handleSend(ctx context.Context, consumer jetstream.Consumer
 	<-con.Closed()
 	tasks.WaitAndClose()
 
-	slog.Info("👋 Shutting down SMTPSender Service")
+	slog.Info("SMTP sender stopped")
 	return ctx.Err()
 }
 
 func (s *smtpSender) handleMsgAck(msg jetstream.Msg, err error) {
 	if err != nil {
-		slog.Error("error in handling message", "err", err)
+		slog.Log(context.Background(), utils.RedeliveryLevel(msg, err), "cannot handle envelope, will retry", "err", err)
 		if err := msg.Nak(); err != nil {
 			slog.Error("cannot nak message", "err", err)
 		}
@@ -174,10 +174,10 @@ func (s *smtpSender) handleMessage(ctx context.Context, msg jetstream.Msg) error
 	sendErr := s.sender.Send(env.ReturnPath(), env.To(), env.Body())
 	s.countAttempt(sendErr, env, time.Since(start))
 	if sendErr != nil {
-		slog.Info(fmt.Sprintf("Cannot send email %v - %v: %v", utils.ObfuscateEmail(env.To()), env.EmailID(), sendErr.Error()))
+		slog.Info("email not delivered", "email", utils.ObfuscateEmail(env.To()), "email_id", env.EmailID(), "err", sendErr)
 		return s.handleSendError(sendErr, env)
 	}
-	slog.Info(fmt.Sprintf("Email delivered: %v - %v", utils.ObfuscateEmail(env.To()), env.EmailID()))
+	slog.Info("email delivered", "email", utils.ObfuscateEmail(env.To()), "email_id", env.EmailID())
 	return s.handleSendSuccess(env)
 }
 

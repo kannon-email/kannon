@@ -2,7 +2,6 @@ package smtp
 
 import (
 	"bufio"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/mail"
@@ -56,7 +55,7 @@ func (s *Session) AuthPlain(username, password string) error {
 }
 
 func (s *Session) Mail(from string, opts *smtp.MailOptions) error {
-	slog.Debug("Mail from: " + from)
+	slog.Debug("inbound MAIL FROM", "from", from)
 	s.From = from
 	return nil
 }
@@ -76,7 +75,7 @@ func (s *Session) Data(r io.Reader) error {
 	// answer as a valid one: telling the sender why would only help them guess.
 	email, messageID, domain, found, err := s.rp.Parse(s.To)
 	if err != nil {
-		slog.Warn(fmt.Sprintf("Refusing bounce: %s", err))
+		slog.Warn("refusing bounce: return path does not verify", "err", err)
 		return nil
 	}
 
@@ -94,14 +93,14 @@ func (s *Session) Data(r io.Reader) error {
 		Outcome:   stats.Bounced(isPermanentCode(code), uint32(code), errMsg),
 	}
 
-	slog.Info(fmt.Sprintf("[🤷 got bounce] %vs - %d - %s", utils.ObfuscateEmail(email), code, errMsg))
+	slog.Info("bounce received", "email", utils.ObfuscateEmail(email), "batch_id", messageID, "code", code, "reason", errMsg)
 
 	// PublishStat derives the subject from the Outcome, so an asynchronous
 	// bounce lands on the same kannon.stats.bounced as a synchronous one.
 	// Naming the subject by hand here is what put these events on a topic no
 	// consumer subscribed to (#376).
 	if err := publisher.PublishStat(s.nc, event); err != nil {
-		slog.Error("Cannot publish data", "err", err)
+		slog.Error("cannot publish bounce stat", "batch_id", messageID, "err", err)
 		return nil
 	}
 	s.flow.Bounced(mailflow.BounceAsync, isPermanentCode(code))

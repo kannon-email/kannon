@@ -202,9 +202,9 @@ func run(ctx context.Context, config Config, cnt *container.Container) error {
 		}
 		return nil
 	}), nil)
-	slog.Info("Connect API server listening on " + connectServer.Addr)
-	slog.Info("REST API server listening on " + restServer.Addr)
-	slog.Info("health server listening on " + healthServer.Addr)
+	slog.Info("Connect API server listening", "addr", connectServer.Addr)
+	slog.Info("REST API server listening", "addr", restServer.Addr)
+	slog.Info("health server listening", "addr", healthServer.Addr)
 	return serveAll(ctx, connectServer, restServer, healthServer)
 }
 

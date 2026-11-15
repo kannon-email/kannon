@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -54,7 +55,7 @@ func (s *srv) handler() http.Handler {
 
 func (s *srv) Run(ctx context.Context) error {
 	addr := fmt.Sprintf("0.0.0.0:%d", s.cfg.Port)
-	slog.Info("running tracker on " + addr)
+	slog.Info("tracker listening", "addr", addr)
 
 	server := &http.Server{
 		Addr:              addr,
@@ -85,6 +86,27 @@ type engagement struct {
 	email     string
 	ip        string
 	userAgent string
+}
+
+// logAttrs is the request detail the Tracking Mode lets Kannon keep, for the log line of an
+// engagement: nothing a Mode withholds from the stat may reach the log instead.
+func (e engagement) logAttrs() []any {
+	var attrs []any
+	if e.ip != "" {
+		attrs = append(attrs, "ip", e.ip)
+	}
+	if e.userAgent != "" {
+		attrs = append(attrs, "user_agent", e.userAgent)
+	}
+	return attrs
+}
+
+func linkHost(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return ""
+	}
+	return u.Host
 }
 
 // retained returns what may be kept about an engagement, given the Tracking Mode

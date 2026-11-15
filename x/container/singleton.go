@@ -27,7 +27,7 @@ func (s *singleton[T]) MustGet(ctx context.Context, f makeFn[T]) T {
 	value, err := s.Get(ctx, f)
 	if err != nil {
 		typeName := getTypeName[T]()
-		slog.Error("Failed to initialize singleton of type", "type", typeName, "err", err)
+		slog.Error("cannot initialize a dependency, exiting", "dependency", typeName, "err", err)
 		os.Exit(1)
 	}
 	return value

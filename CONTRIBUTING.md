@@ -102,6 +102,30 @@ files. Use `make lint-fix` to explicitly apply golangci-lint fixes, then rerun
 - Prefer composition over inheritance.
 - Avoid breaking backward compatibility unless necessary (discuss in an issue first).
 
+### Logging
+
+Kannon logs through `log/slog` only, as logfmt on stderr, so that every line can be parsed and
+queried by its attributes.
+
+- The message is a constant, lowercase phrase saying what happened (`"email delivered"`,
+  `"cannot insert stat, will retry"`). No `fmt.Sprintf`, no string concatenation, no emoji, no
+  trailing newline: everything that varies goes in an attribute.
+- Attribute keys are `snake_case` and reused across the codebase: `component`, `err`, `email`
+  (always through `utils.ObfuscateEmail`), `email_id`, `batch_id`, `domain`, `stream`, `consumer`,
+  `subject`, `addr`.
+- Each runnable tags its lines with `component`, usually through a `log()` helper returning
+  `slog.With("component", …)`.
+- Levels:
+  - `debug`: diagnostics, and a failure that is being retried and has not outlasted its retries.
+  - `info`: lifecycle (listening, starting, stopping) and mail-flow events.
+  - `warn`: something degraded that Kannon is still handling, such as a transient failure that
+    persists past its retries, or a client refused for a reason worth a look.
+  - `error`: something an operator has to act on, or work that was dropped.
+- A Postgres or NATS failure that can heal by itself is not an error the first time it happens.
+  Retry it at debug and report it only once it persists: `transient.Do` for an operation retried in
+  place, `runner.Tolerate` for a periodic cycle, and `utils.RedeliveryLevel` for a JetStream message
+  that is Nak'ed for redelivery. `transient.Is` decides which failures count as transient.
+
 ## Submitting Issues & Feature Requests
 
 - Use [GitHub Issues](https://github.com/kannon-email/kannon/issues) for bugs, enhancements, and questions.

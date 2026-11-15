@@ -47,7 +47,7 @@ func configureStreamWithRetry(ctx context.Context, sc StreamCreator, cfg jetstre
 	for attempt := range attempts {
 		_, err := sc.CreateOrUpdateStream(ctx, cfg)
 		if err == nil {
-			slog.Info(fmt.Sprintf("created js stream: %v", cfg.Name))
+			slog.Debug("configured JetStream stream", "stream", cfg.Name)
 			return nil
 		}
 		lastErr = err
@@ -57,8 +57,8 @@ func configureStreamWithRetry(ctx context.Context, sc StreamCreator, cfg jetstre
 		}
 
 		delay := baseDelay * time.Duration(1<<attempt)
-		slog.Warn("cannot create js stream, retrying",
-			"stream", cfg.Name, "err", err, "attempt", attempt+1, "delay", delay)
+		slog.Debug("cannot configure JetStream stream yet, retrying",
+			"stream", cfg.Name, "attempt", attempt+1, "retry_in", delay, "err", err)
 		select {
 		case <-ctx.Done():
 			return ctx.Err()

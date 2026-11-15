@@ -39,7 +39,7 @@ func run(ctx context.Context, nc *nats.Conn, config Config, rp returnpath.Signer
 	s := buildServer(config, nc, rp, flow)
 	defer s.Close()
 
-	slog.Info(fmt.Sprintf("Starting server at: %v", s.Addr))
+	slog.Info("SMTP server listening", "addr", s.Addr)
 
 	done := make(chan struct{})
 	stopped := make(chan error, 1)
@@ -82,6 +82,7 @@ func buildServer(config Config, nc *nats.Conn, rp returnpath.Signer, flow *mailf
 	s.MaxMessageBytes = int64(config.MaxPayloadBytes)
 	s.MaxRecipients = int(config.MaxRecipients)
 	s.AllowInsecureAuth = true
+	s.ErrorLog = newErrorLog()
 
 	return s
 }

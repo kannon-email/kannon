@@ -72,7 +72,6 @@ func (s *sender) Send(from, to string, msg []byte) SenderError {
 	ctx, cancel := context.WithTimeout(context.Background(), smtpTotalTimeout)
 	defer cancel()
 	toDomain, err := GetEmailDomain(to)
-	slog.Info(fmt.Sprintf("domain %v\n", toDomain))
 	if err != nil {
 		// CHECK: 510: indiritto email errato
 		return newSMTPError(err, true, 510)
@@ -94,7 +93,7 @@ func (s *sender) Send(from, to string, msg []byte) SenderError {
 			return nil
 		}
 		if err.code > 200 {
-			slog.Info(fmt.Sprintf("Error sending email to %v, cannot retry other MXs", to), "err", err)
+			slog.Debug("MX refused the email, not trying other MXs", "domain", toDomain, "mx", mx, "err", err)
 			return err
 		}
 
@@ -111,7 +110,7 @@ func (s *sender) deliver(ctx context.Context, from, to string, msg []byte, mx st
 		return newSMTPError(blocked, true, 550)
 	}
 	if err != nil {
-		slog.Debug(fmt.Sprintf("Could not dial: %v", err))
+		slog.Debug("cannot dial MX", "mx", mx, "err", err)
 		// TODO: add error code
 		// Cannot dial SMTP 111
 		return newSMTPError(err, false, 111)
@@ -119,7 +118,7 @@ func (s *sender) deliver(ctx context.Context, from, to string, msg []byte, mx st
 	defer conn.Close()
 	deadline, _ := ctx.Deadline()
 	if err := conn.SetDeadline(deadline); err != nil {
-		slog.Debug(fmt.Sprintf("Cannot set deadline: %v", err))
+		slog.Debug("cannot set SMTP deadline", "mx", mx, "err", err)
 		// TODO: add error code
 		return newSMTPError(err, false, 111)
 	}
@@ -146,13 +145,13 @@ func (s *sender) dialPort() string {
 func (s *sender) deliverConn(ctx context.Context, conn net.Conn, from, to string, msg []byte, mx string, insecure bool) *smtpError {
 	c, err := smtp.NewClient(conn, mx)
 	if err != nil {
-		slog.Debug(fmt.Sprintf("Error creating client: %v", err))
+		slog.Debug("cannot create SMTP client", "mx", mx, "err", err)
 		// TODO: add error code
 		return newSMTPError(err, false, 111)
 	}
 
 	if err = c.Hello(s.Hostname); err != nil {
-		slog.Debug(fmt.Sprintf("Error saying hello: %v", err))
+		slog.Debug("SMTP HELLO failed", "mx", mx, "err", err)
 		// TODO: add error code
 		return newSMTPError(err, false, 111)
 	}
@@ -167,39 +166,39 @@ func (s *sender) deliverConn(ctx context.Context, conn net.Conn, from, to string
 			// Unfortunately, many servers use self-signed certs, so if we
 			// fail verification we just try again without validating.
 			if insecure {
-				slog.Debug(fmt.Sprintf("TLS error: %v", err))
+				slog.Debug("STARTTLS failed", "mx", mx, "err", err)
 				// TODO: add error code
 				return newSMTPError(err, false, 111)
 			}
-			slog.Debug("TLS error, retrying insecurely\n")
+			slog.Debug("STARTTLS failed, retrying without TLS", "mx", mx)
 			return s.deliver(ctx, from, to, msg, mx, true)
 		}
 	}
 
 	if err := c.Mail(from); err != nil {
-		slog.Debug(fmt.Sprintf("err: %v\n", err))
+		slog.Debug("SMTP command failed", "mx", mx, "stage", "MAIL FROM", "err", err)
 		return newSMTPErrorFromSTMP(err)
 	}
 
 	if err := c.Rcpt(to); err != nil {
-		slog.Debug(fmt.Sprintf("err: %v\n", err))
+		slog.Debug("SMTP command failed", "mx", mx, "stage", "RCPT TO", "err", err)
 		return newSMTPErrorFromSTMP(err)
 	}
 
 	w, err := c.Data()
 	if err != nil {
-		slog.Debug(fmt.Sprintf("err: %v\n", err))
+		slog.Debug("SMTP command failed", "mx", mx, "stage", "DATA", "err", err)
 		return newSMTPErrorFromSTMP(err)
 	}
 	_, err = w.Write(msg)
 	if err != nil {
-		slog.Debug(fmt.Sprintf("err: %v\n", err))
+		slog.Debug("SMTP command failed", "mx", mx, "stage", "DATA write", "err", err)
 		return newSMTPErrorFromSTMP(err)
 	}
 
 	err = w.Close()
 	if err != nil {
-		slog.Debug(fmt.Sprintf("err: %v\n", err))
+		slog.Debug("SMTP command failed", "mx", mx, "stage", "DATA close", "err", err)
 		return newSMTPErrorFromSTMP(err)
 	}
 
@@ -229,12 +228,12 @@ func lookupMXsContext(ctx context.Context, resolver *net.Resolver, domain string
 		dnsErr := &net.DNSError{}
 		ok := errors.As(err, &dnsErr)
 		if !ok || !dnsErr.IsNotFound {
-			slog.Debug(fmt.Sprintf("MX lookup error: %v", err))
+			slog.Debug("MX lookup failed", "domain", domain, "err", err)
 			// TODO: add error code
 			return nil, newSMTPError(dnsErr, !dnsErr.Temporary(), 512)
 		}
 		// Permanent error, we assume MX does not exist and fall back to A.
-		slog.Debug(fmt.Sprintf("failed to resolve MX for %s, falling back to A", domain))
+		slog.Debug("no MX record, falling back to A", "domain", domain)
 		mxs = []string{domain}
 	} else {
 		// Convert the DNS records to a plain string slice. They're already
@@ -254,7 +253,7 @@ func lookupMXsContext(ctx context.Context, resolver *net.Resolver, domain string
 		mxs = mxs[:5]
 	}
 
-	slog.Debug(fmt.Sprintf("MXs: %v", mxs))
+	slog.Debug("resolved MXs", "domain", domain, "mxs", mxs)
 	return mxs, nil
 }
 

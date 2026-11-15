@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"errors"
-	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -110,7 +109,7 @@ func bootstrap(cmd *cobra.Command, cfg config.RootConfig, services config.Servic
 	cnt := container.New(ctx, cfg)
 	defer func() {
 		if err := cnt.CloseWithTimeout(shutdownTimeout); err != nil {
-			slog.Error("Shutdown errors", "err", err)
+			slog.Error("shutdown errors", "err", err)
 		}
 	}()
 
@@ -145,7 +144,7 @@ func bootstrap(cmd *cobra.Command, cfg config.RootConfig, services config.Servic
 		reg.Register(kaudit.New(cnt))
 	}
 
-	slog.Info(fmt.Sprintf("Starting Kannon runnables: %v", reg.Names()))
+	slog.Info("starting kannon", "version", Version, "runnables", reg.Names())
 
 	return reg.Run(ctx)
 }

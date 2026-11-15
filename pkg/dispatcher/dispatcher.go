@@ -61,7 +61,7 @@ func run(ctx context.Context, cnt *container.Container, rp returnpath.Signer) er
 	}
 	mailflow.RegisterPool(cnt.Metrics(), sqlc.NewPoolCensus(cnt.DB()))
 
-	d.log().Info("🚀 Starting dispatcher")
+	d.log().Info("starting dispatcher")
 
 	eg, ctx := errgroup.WithContext(ctx)
 
@@ -78,11 +78,11 @@ func run(ctx context.Context, cnt *container.Container, rp returnpath.Signer) er
 	})
 
 	eg.Go(func() error {
-		return runner.Run(ctx, d.DispatchCycle, runner.WaitLoop(1*time.Second))
+		return runner.Run(ctx, runner.Tolerate(d.log().With("cycle", "dispatch"), d.DispatchCycle), runner.WaitLoop(1*time.Second))
 	})
 
 	eg.Go(func() error {
-		return runner.Run(ctx, d.reclaimLoop, runner.WaitLoop(pool.ReclaimInterval))
+		return runner.Run(ctx, runner.Tolerate(d.log().With("cycle", "reclaim"), d.ReclaimCycle), runner.WaitLoop(pool.ReclaimInterval))
 	})
 
 	return eg.Wait()

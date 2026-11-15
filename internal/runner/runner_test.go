@@ -2,6 +2,8 @@ package runner_test
 
 import (
 	"context"
+	"errors"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -62,4 +64,29 @@ func TestWithLoopWaitSmall(t *testing.T) {
 	err := runner.Run(ctx, l.Loop, runner.WaitLoop(100*time.Second))
 	assert.ErrorIs(t, err, context.DeadlineExceeded)
 	assert.Equal(t, l.count, uint(1))
+}
+
+func TestTolerateKeepsRunningAfterAFailedCycle(t *testing.T) {
+	calls := 0
+	loop := runner.Tolerate(slog.New(slog.DiscardHandler), func(context.Context) error {
+		calls++
+		return errors.New("boom")
+	})
+
+	err := runner.Run(t.Context(), loop, runner.MaxLoop(3), runner.WaitLoop(time.Millisecond))
+
+	assert.NoError(t, err)
+	assert.Equal(t, 3, calls)
+}
+
+func TestTolerateStopsOnCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	loop := runner.Tolerate(slog.New(slog.DiscardHandler), func(context.Context) error {
+		cancel()
+		return context.Canceled
+	})
+
+	err := runner.Run(ctx, loop)
+
+	assert.ErrorIs(t, err, context.Canceled)
 }

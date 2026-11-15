@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/kannon-email/kannon/internal/transient"
 	"github.com/nats-io/nats.go/jetstream"
 )
 
@@ -80,6 +81,8 @@ func WithAckPolicy(p AckPolicy) ConsumerOption {
 	}
 }
 
+const pullSubscriberAttempts = 10
+
 func MustGetPullSubscriber(ctx context.Context, js jetstream.JetStream, stream string, subj string, durable string, opts ...ConsumerOption) jetstream.Consumer {
 	o := consumerOptions{ack: DefaultAckPolicy}
 	for _, opt := range opts {
@@ -96,18 +99,51 @@ func MustGetPullSubscriber(ctx context.Context, js jetstream.JetStream, stream s
 
 	var lastErr error
 
-	for range 10 {
+	for attempt := range pullSubscriberAttempts {
 		conn, err := js.CreateOrUpdateConsumer(ctx, stream, cfg)
 		if err == nil {
 			return conn
 		}
-
-		slog.Error("cannot create pull subscriber", "durable", durable, "err", err)
-		time.Sleep(1 * time.Second)
 		lastErr = err
+
+		slog.Debug("cannot create JetStream consumer yet, retrying",
+			"consumer", durable, "attempt", attempt+1, "err", err)
+		select {
+		case <-ctx.Done():
+			lastErr = ctx.Err()
+		case <-time.After(time.Second):
+			continue
+		}
+		break
 	}
 
-	slog.Error("cannot create pull subscriber", "durable", durable, "err", lastErr)
+	slog.Error("cannot create JetStream consumer, exiting", "consumer", durable, "err", lastErr)
 	os.Exit(1)
 	return nil
+}
+
+// quietRedeliveries is how many deliveries of one message may fail transiently before the failure is
+// worth a warning: redelivery is the retry, and a Postgres or NATS restart heals within a few.
+const quietRedeliveries = 3
+
+// RedeliveryLevel is the level at which to log err, the failure of one delivery of msg that is about
+// to be Nak'ed for redelivery: debug while it is transient and the redeliveries are still few, a
+// warning once a transient failure persists, an error for any other failure and on the last delivery
+// the consumer allows.
+func RedeliveryLevel(msg jetstream.Msg, err error) slog.Level {
+	if !transient.Is(err) {
+		return slog.LevelError
+	}
+	meta, mErr := msg.Metadata()
+	if mErr != nil {
+		return slog.LevelWarn
+	}
+	switch {
+	case meta.NumDelivered >= consumerMaxDeliver:
+		return slog.LevelError
+	case meta.NumDelivered < quietRedeliveries:
+		return slog.LevelDebug
+	default:
+		return slog.LevelWarn
+	}
 }

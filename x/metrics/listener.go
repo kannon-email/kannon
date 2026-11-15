@@ -28,7 +28,7 @@ func Listener(cfg Config, g prometheus.Gatherer) (container.Runnable, bool) {
 	return container.Runnable{
 		Name: "metrics",
 		Run: func(ctx context.Context) error {
-			slog.Info("Metrics listening on " + server.Addr)
+			slog.Info("metrics listening", "addr", server.Addr)
 			return container.ServeHTTP(ctx, server)
 		},
 	}, true
